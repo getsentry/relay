@@ -5,11 +5,13 @@
 **Features**:
 
 - Limit the number of custom measurements per event. ([#1483](https://github.com/getsentry/relay/pull/1483)))
+- Add INP web vital as a measurement. ([#1487](https://github.com/getsentry/relay/pull/1487))
 
 **Internal**:
 
 - Generate a new profile ID when splitting a profile for multiple transactions. ([#1473](https://github.com/getsentry/relay/pull/1473))
 - Pin Rust version to 1.63.0 in Dockerfile. ([#1482](https://github.com/getsentry/relay/pull/1482))
+- Normalize measurement units in event payload. ([#1488](https://github.com/getsentry/relay/pull/1488))
 
 ## 22.9.0
 

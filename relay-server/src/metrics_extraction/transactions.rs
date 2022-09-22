@@ -2,7 +2,6 @@ use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
 use crate::metrics_extraction::utils;
 use crate::metrics_extraction::TaggingRule;
 use crate::statsd::RelayCounters;
-use relay_common::FractionUnit;
 use relay_common::{SpanStatus, UnixTimestamp};
 use relay_general::protocol::{
     AsPair, Context, ContextInner, Event, EventType, Timestamp, TraceContext, TransactionSource,
@@ -336,41 +335,6 @@ fn extract_universal_tags(
     tags
 }
 
-/// Returns the unit of the provided metric.
-///
-/// For known measurements, this returns `Some(MetricUnit)`, which can also include
-/// `Some(MetricUnit::None)`. For unknown measurement names, this returns `None`.
-fn get_metric_measurement_unit(metric: &str) -> Option<MetricUnit> {
-    match metric {
-        // Web
-        "fcp" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        "lcp" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        "fid" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        "fp" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        "ttfb" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        "ttfb.requesttime" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        "cls" => Some(MetricUnit::None),
-
-        // Mobile
-        "app_start_cold" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        "app_start_warm" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        "frames_total" => Some(MetricUnit::None),
-        "frames_slow" => Some(MetricUnit::None),
-        "frames_slow_rate" => Some(MetricUnit::Fraction(FractionUnit::Ratio)),
-        "frames_frozen" => Some(MetricUnit::None),
-        "frames_frozen_rate" => Some(MetricUnit::Fraction(FractionUnit::Ratio)),
-
-        // React-Native
-        "stall_count" => Some(MetricUnit::None),
-        "stall_total_time" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        "stall_longest_time" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        "stall_percentage" => Some(MetricUnit::Fraction(FractionUnit::Ratio)),
-
-        // Default
-        _ => None,
-    }
-}
-
 pub fn extract_transaction_metrics(
     config: &TransactionMetricsConfig,
     breakdowns_config: Option<&store::BreakdownsConfig>,
@@ -432,18 +396,10 @@ fn extract_transaction_metrics_inner(
                 tags_for_measurement.insert("measurement_rating".to_owned(), rating);
             }
 
-            let stated_unit = measurement.unit.value().copied();
-            let default_unit = get_metric_measurement_unit(name);
-            if let (Some(default), Some(stated)) = (default_unit, stated_unit) {
-                if default != stated {
-                    relay_log::error!("unit mismatch on measurements.{}: {}", name, stated);
-                }
-            }
-
             metrics.push(Metric::new_mri(
                 METRIC_NAMESPACE,
                 format!("measurements.{}", name),
-                stated_unit.or(default_unit).unwrap_or_default(),
+                measurement.unit.value().copied().unwrap_or_default(),
                 MetricValue::Distribution(value),
                 unix_timestamp,
                 tags_for_measurement,
@@ -586,23 +542,19 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
         "lcp" => rate_range(2500.0, 4000.0),
         "fcp" => rate_range(1000.0, 3000.0),
         "fid" => rate_range(100.0, 300.0),
+        "inp" => rate_range(200.0, 500.0),
         "cls" => rate_range(0.1, 0.25),
         _ => None,
     }
 }
 
 #[cfg(test)]
-#[cfg(feature = "processing")]
 mod tests {
-
-    use std::iter::FromIterator;
 
     use super::*;
 
     use relay_general::protocol::User;
-    use relay_general::store::{
-        light_normalize_event, BreakdownsConfig, LightNormalizationConfig, MeasurementsConfig,
-    };
+    use relay_general::store::{BreakdownsConfig, LightNormalizationConfig};
     use relay_general::types::Annotated;
     use relay_metrics::DurationUnit;
 
@@ -630,7 +582,7 @@ mod tests {
             },
             "measurements": {
                 "foo": {"value": 420.69},
-                "lcp": {"value": 3000.0}
+                "lcp": {"value": 3000.0, "unit": "millisecond"}
             },
             "contexts": {
                 "trace": {
@@ -821,6 +773,12 @@ mod tests {
                 "fcp": {"value": 1.1},
                 "stall_count": {"value": 3.3},
                 "foo": {"value": 8.8}
+            },
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053"
+                }
             }
         }
         "#;
@@ -838,7 +796,11 @@ mod tests {
         )
         .unwrap();
 
-        let event = Annotated::from_json(json).unwrap();
+        let mut event = Annotated::from_json(json).unwrap();
+
+        // Normalize first, to make sure the units are correct:
+        let res = store::light_normalize_event(&mut event, &LightNormalizationConfig::default());
+        assert!(res.is_ok(), "{:?}", res);
 
         let mut metrics = vec![];
         extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
@@ -889,6 +851,12 @@ mod tests {
             "measurements": {
                 "fcp": {"value": 1.1, "unit": "second"},
                 "lcp": {"value": 2.2, "unit": "none"}
+            },
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053"
+                }
             }
         }"#;
 
@@ -902,7 +870,11 @@ mod tests {
         )
         .unwrap();
 
-        let event = Annotated::from_json(json).unwrap();
+        let mut event = Annotated::from_json(json).unwrap();
+
+        // Normalize first, to make sure the units are correct:
+        let res = store::light_normalize_event(&mut event, &LightNormalizationConfig::default());
+        assert!(res.is_ok(), "{:?}", res);
 
         let mut metrics = vec![];
         extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
@@ -1159,7 +1131,7 @@ mod tests {
             "timestamp": "2021-04-26T08:00:02+0100",
             "measurements": {
                 "a_custom1": {"value": 41},
-                "fcp": {"value": 0.123},
+                "fcp": {"value": 0.123, "unit": "millisecond"},
                 "g_custom2": {"value": 42, "unit": "second"},
                 "h_custom3": {"value": 43}
             },
@@ -1171,21 +1143,7 @@ mod tests {
         }
         "#;
 
-        let mut event = Annotated::from_json(json).unwrap();
-
-        let res = light_normalize_event(
-            &mut event,
-            &LightNormalizationConfig {
-                measurements_config: Some(&MeasurementsConfig {
-                    known_measurements: BTreeSet::from_iter(["fcp".to_owned()]),
-                    max_custom_measurements: 2,
-                }),
-                ..Default::default()
-            },
-        );
-        assert!(res.is_ok(), "{:?}", res);
-
-        dbg!(event.value().map(|e| &e.measurements));
+        let event = Annotated::from_json(json).unwrap();
 
         let config = TransactionMetricsConfig::default();
         let mut metrics = vec![];
@@ -1340,7 +1298,7 @@ mod tests {
             "start_timestamp": "2021-04-26T08:00:00+0100",
             "timestamp": "2021-04-26T08:00:02+0100",
             "measurements": {
-                "lcp": {"value": 41}
+                "lcp": {"value": 41, "unit": "millisecond"}
             }
         }
         "#;

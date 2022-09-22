@@ -1,5 +1,4 @@
 use std::collections::hash_map::DefaultHasher;
-use std::collections::BTreeSet;
 use std::hash::{Hash, Hasher};
 use std::mem;
 use std::sync::Arc;
@@ -37,16 +36,23 @@ mod stacktrace;
 
 mod user_agent;
 
+/// Defines a builtin measurement.
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct BuiltinMeasurementKey {
+    name: String,
+    unit: MetricUnit,
+}
 /// Configuration for measurements normalization.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct MeasurementsConfig {
     /// A list of measurements that are built-in and are not subject to custom measurement limits.
-    #[serde(default, skip_serializing_if = "BTreeSet::<String>::is_empty")]
-    pub known_measurements: BTreeSet<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    builtin_measurements: Vec<BuiltinMeasurementKey>,
 
     /// The maximum number of measurements allowed per event that are not known measurements.
-    pub max_custom_measurements: usize,
+    max_custom_measurements: usize,
 }
 
 /// Validate fields that go into a `sentry.models.BoundedIntegerField`.
@@ -236,24 +242,37 @@ fn normalize_breakdowns(event: &mut Event, breakdowns_config: Option<&Breakdowns
     }
 }
 
-/// Enforce the limit on custom (user defined) measurements.
+/// Remove measurements that do not conform to the given config.
+///
+/// Built-in measurements are accepted if their unit is correct, dropped otherwise.
+/// Custom measurements are accepted up to a limit.
 ///
 /// Note that [`Measurements`] is a BTreeMap, which means its keys are sorted.
 /// This ensures that for two events with the same measurement keys, the same set of custom
 /// measurements is retained.
-///
-fn filter_custom_measurements(
+fn remove_invalid_measurements(
     measurements: &mut Measurements,
     measurements_config: &MeasurementsConfig,
 ) {
-    dbg!("FILTERING CUSTOM MEASUREMENTS");
     let mut custom_measurements_count = 0;
-    measurements.retain(|name, _| {
-        dbg!((&name, custom_measurements_count));
+    measurements.retain(|name, value| {
+        let measurement = match value.value() {
+            Some(m) => m,
+            None => return false,
+        };
+        // TODO(jjbayer): Should we actually normalize the unit into the event?
+        let unit = measurement.unit.value().unwrap_or(&MetricUnit::None);
+
         // Check if this is a builtin measurement:
-        if measurements_config.known_measurements.contains(name) {
-            return true;
+        for builtin_measurement in &measurements_config.builtin_measurements {
+            if &builtin_measurement.name == name {
+                // If the unit matches a built-in measurement, we allow it.
+                // If the name matches but the unit is wrong, we do not even accept it as a custom measurement,
+                // and just drop it instead.
+                return &builtin_measurement.unit == unit;
+            }
         }
+
         // For custom measurements, check the budget:
         if custom_measurements_count < measurements_config.max_custom_measurements {
             custom_measurements_count += 1;
@@ -264,14 +283,72 @@ fn filter_custom_measurements(
     });
 }
 
+/// Returns the unit of the provided metric.
+///
+/// For known measurements, this returns `Some(MetricUnit)`, which can also include
+/// `Some(MetricUnit::None)`. For unknown measurement names, this returns `None`.
+fn get_metric_measurement_unit(measurement_name: &str) -> Option<MetricUnit> {
+    match measurement_name {
+        // Web
+        "fcp" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "lcp" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "fid" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "fp" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "inp" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "ttfb" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "ttfb.requesttime" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "cls" => Some(MetricUnit::None),
+
+        // Mobile
+        "app_start_cold" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "app_start_warm" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "frames_total" => Some(MetricUnit::None),
+        "frames_slow" => Some(MetricUnit::None),
+        "frames_slow_rate" => Some(MetricUnit::Fraction(FractionUnit::Ratio)),
+        "frames_frozen" => Some(MetricUnit::None),
+        "frames_frozen_rate" => Some(MetricUnit::Fraction(FractionUnit::Ratio)),
+
+        // React-Native
+        "stall_count" => Some(MetricUnit::None),
+        "stall_total_time" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "stall_longest_time" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "stall_percentage" => Some(MetricUnit::Fraction(FractionUnit::Ratio)),
+
+        // Default
+        _ => None,
+    }
+}
+
+fn normalize_units(measurements: &mut Measurements) {
+    for (name, measurement) in measurements.iter_mut() {
+        let measurement = match measurement.value_mut() {
+            Some(m) => m,
+            None => continue,
+        };
+
+        let stated_unit = measurement.unit.value().copied();
+        let default_unit = get_metric_measurement_unit(name);
+        if let (Some(default_), Some(stated)) = (default_unit, stated_unit) {
+            if default_ != stated {
+                relay_log::error!("unit mismatch on measurements.{}: {}", name, stated);
+            }
+        }
+
+        measurement
+            .unit
+            .set_value(Some(stated_unit.or(default_unit).unwrap_or_default()))
+    }
+}
+
 /// Ensure measurements interface is only present for transaction events.
 fn normalize_measurements(event: &mut Event, measurements_config: Option<&MeasurementsConfig>) {
     if event.ty.value() != Some(&EventType::Transaction) {
         // Only transaction events may have a measurements interface
         event.measurements = Annotated::empty();
     } else if let Some(measurements) = event.measurements.value_mut() {
+        normalize_units(measurements);
         if let Some(measurements_config) = measurements_config {
-            filter_custom_measurements(measurements, measurements_config);
+            remove_invalid_measurements(measurements, measurements_config);
         }
 
         let duration_millis = match (event.start_timestamp.0, event.timestamp.0) {
@@ -1929,6 +2006,7 @@ mod tests {
           "measurements": {
             "frames_frozen": {
               "value": 2.0,
+              "unit": "none",
             },
             "frames_frozen_rate": {
               "value": 0.5,
@@ -1936,6 +2014,7 @@ mod tests {
             },
             "frames_slow": {
               "value": 1.0,
+              "unit": "none",
             },
             "frames_slow_rate": {
               "value": 0.25,
@@ -1943,6 +2022,7 @@ mod tests {
             },
             "frames_total": {
               "value": 4.0,
+              "unit": "none",
             },
             "stall_percentage": {
               "value": 0.8,
@@ -1966,6 +2046,7 @@ mod tests {
             "start_timestamp": "2021-04-26T08:00:00+0100",
             "measurements": {
                 "my_custom_measurement_1": {"value": 123},
+                "frames_frozen": {"value": 666, "unit": "invalid_unit"},
                 "frames_slow": {"value": 1},
                 "my_custom_measurement_3": {"value": 456},
                 "my_custom_measurement_2": {"value": 789}
@@ -1975,8 +2056,9 @@ mod tests {
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
 
         let config: MeasurementsConfig = serde_json::from_value(json!({
-            "knownMeasurements": [
-                "frames_slow"
+            "builtinMeasurements": [
+                {"name": "frames_frozen", "unit": "none"},
+                {"name": "frames_slow", "unit": "none"}
             ],
             "maxCustomMeasurements": 2,
             "stray_key": "zzz"
@@ -1994,12 +2076,15 @@ mod tests {
           "measurements": {
             "frames_slow": {
               "value": 1.0,
+              "unit": "none",
             },
             "my_custom_measurement_1": {
               "value": 123.0,
+              "unit": "none",
             },
             "my_custom_measurement_2": {
               "value": 789.0,
+              "unit": "none",
             },
           },
         }
@@ -2071,5 +2156,58 @@ mod tests {
             .to_json()
             .unwrap();
         assert_eq!(&second, &third, "idempotency check failed");
+    }
+
+    #[test]
+    fn test_normalize_units() {
+        let mut measurements = Annotated::<Measurements>::from_json(
+            r###"{
+                "fcp": {"value": 1.1},
+                "stall_count": {"value": 3.3},
+                "foo": {"value": 8.8}
+            }"###,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+        insta::assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {
+                "fcp": Measurement {
+                    value: 1.1,
+                    unit: ~,
+                },
+                "foo": Measurement {
+                    value: 8.8,
+                    unit: ~,
+                },
+                "stall_count": Measurement {
+                    value: 3.3,
+                    unit: ~,
+                },
+            },
+        )
+        "###);
+        normalize_units(&mut measurements);
+        insta::assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {
+                "fcp": Measurement {
+                    value: 1.1,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+                "foo": Measurement {
+                    value: 8.8,
+                    unit: None,
+                },
+                "stall_count": Measurement {
+                    value: 3.3,
+                    unit: None,
+                },
+            },
+        )
+        "###);
     }
 }
