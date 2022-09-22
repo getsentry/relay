@@ -1378,6 +1378,8 @@ impl<T: Iterator<Item = Bucket>> FusedIterator for CappedBucketIter<T> {}
 ///
 /// Internally, the aggregator maintains a continuous flush cycle every 100ms. It guarantees that
 /// all elapsed buckets belonging to the same [`ProjectKey`] are flushed together.
+///
+/// Receivers must implement a handler for the [`FlushBuckets`] message.
 pub struct Aggregator {
     config: AggregatorConfig,
     buckets: HashMap<BucketKey, QueuedBucket>,
