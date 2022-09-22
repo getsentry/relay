@@ -1,29 +1,30 @@
-var sourcesIndex = {};
-sourcesIndex["document_metrics"] = {"name":"","files":["main.rs"]};
-sourcesIndex["generate_schema"] = {"name":"","files":["main.rs"]};
-sourcesIndex["process_event"] = {"name":"","files":["main.rs"]};
-sourcesIndex["relay"] = {"name":"","files":["cli.rs","cliapp.rs","main.rs","setup.rs","utils.rs"]};
-sourcesIndex["relay_auth"] = {"name":"","files":["lib.rs"]};
-sourcesIndex["relay_aws_extension"] = {"name":"","files":["aws_extension.rs","lib.rs"]};
-sourcesIndex["relay_cabi"] = {"name":"","files":["auth.rs","constants.rs","core.rs","ffi.rs","lib.rs","processing.rs"]};
-sourcesIndex["relay_common"] = {"name":"","files":["constants.rs","glob.rs","lib.rs","macros.rs","project.rs","retry.rs","time.rs","utils.rs"]};
-sourcesIndex["relay_config"] = {"name":"","files":["byte_size.rs","config.rs","lib.rs","upstream.rs"]};
-sourcesIndex["relay_crash"] = {"name":"","files":["lib.rs"]};
-sourcesIndex["relay_ffi"] = {"name":"","files":["lib.rs"]};
-sourcesIndex["relay_ffi_macros"] = {"name":"","files":["lib.rs"]};
-sourcesIndex["relay_filter"] = {"name":"","files":["browser_extensions.rs","client_ips.rs","common.rs","config.rs","csp.rs","error_messages.rs","legacy_browsers.rs","lib.rs","localhost.rs","releases.rs","web_crawlers.rs"]};
-sourcesIndex["relay_general"] = {"name":"","dirs":[{"name":"pii","files":["attachments.rs","builtin.rs","compiledconfig.rs","config.rs","convert.rs","generate_selectors.rs","legacy.rs","minidumps.rs","mod.rs","processor.rs","redactions.rs","regexes.rs","utils.rs"]},{"name":"processor","files":["attrs.rs","chunks.rs","funcs.rs","impls.rs","mod.rs","selector.rs","size.rs","traits.rs"]},{"name":"protocol","files":["breadcrumb.rs","breakdowns.rs","client_report.rs","clientsdk.rs","constants.rs","contexts.rs","debugmeta.rs","event.rs","exception.rs","fingerprint.rs","logentry.rs","measurements.rs","mechanism.rs","metrics.rs","mod.rs","relay_info.rs","request.rs","schema.rs","security_report.rs","session.rs","span.rs","stacktrace.rs","tags.rs","templateinfo.rs","thread.rs","transaction.rs","types.rs","user.rs","user_report.rs"]},{"name":"store","dirs":[{"name":"normalize","files":["breakdowns.rs","contexts.rs","logentry.rs","mechanism.rs","request.rs","spans.rs","stacktrace.rs","user_agent.rs"]}],"files":["clock_drift.rs","event_error.rs","geo.rs","legacy.rs","mod.rs","normalize.rs","remove_other.rs","schema.rs","transactions.rs","trimming.rs"]},{"name":"types","files":["annotated.rs","impls.rs","meta.rs","mod.rs","span_attributes.rs","traits.rs","value.rs"]}],"files":["lib.rs","macros.rs","user_agent.rs"]};
-sourcesIndex["relay_general_derive"] = {"name":"","files":["empty.rs","jsonschema.rs","lib.rs","process.rs"]};
-sourcesIndex["relay_log"] = {"name":"","files":["lib.rs","sentry_failure.rs","setup.rs","test.rs","utils.rs"]};
-sourcesIndex["relay_metrics"] = {"name":"","files":["aggregation.rs","lib.rs","protocol.rs","statsd.rs"]};
-sourcesIndex["relay_profiling"] = {"name":"","files":["android.rs","cocoa.rs","error.rs","lib.rs","python.rs","rust.rs","transaction_metadata.rs","typescript.rs","utils.rs"]};
-sourcesIndex["relay_quotas"] = {"name":"","files":["lib.rs","quota.rs","rate_limit.rs","redis.rs"]};
-sourcesIndex["relay_redis"] = {"name":"","files":["config.rs","lib.rs","real.rs"]};
-sourcesIndex["relay_replays"] = {"name":"","files":["lib.rs"]};
-sourcesIndex["relay_sampling"] = {"name":"","files":["lib.rs"]};
-sourcesIndex["relay_server"] = {"name":"","dirs":[{"name":"actors","files":["envelopes.rs","health_check.rs","mod.rs","outcome.rs","outcome_aggregator.rs","processor.rs","project.rs","project_cache.rs","project_local.rs","project_redis.rs","project_upstream.rs","relays.rs","server.rs","store.rs","test_store.rs","upstream.rs"]},{"name":"body","files":["mod.rs","peek_line.rs","request_body.rs","store_body.rs"]},{"name":"endpoints","files":["attachments.rs","common.rs","envelope.rs","events.rs","forward.rs","health_check.rs","minidump.rs","mod.rs","outcomes.rs","project_configs.rs","public_keys.rs","security_report.rs","statics.rs","store.rs","unreal.rs"]},{"name":"extractors","files":["decoder.rs","forwarded_for.rs","mod.rs","request_meta.rs","shared_payload.rs","signed_json.rs","start_time.rs"]},{"name":"metrics_extraction","files":["conditional_tagging.rs","mod.rs","sessions.rs","transactions.rs","utils.rs"]},{"name":"utils","files":["actix.rs","api.rs","buffer.rs","dynamic_sampling.rs","envelope_context.rs","error_boundary.rs","garbage.rs","kafka.rs","mod.rs","multipart.rs","native.rs","param_parser.rs","rate_limits.rs","request.rs","semaphore.rs","sizes.rs","sleep_handle.rs","timer.rs","tracked_future.rs","unreal.rs"]}],"files":["constants.rs","envelope.rs","http.rs","lib.rs","middlewares.rs","service.rs","statsd.rs"]};
-sourcesIndex["relay_statsd"] = {"name":"","files":["lib.rs"]};
-sourcesIndex["relay_system"] = {"name":"","files":["compat.rs","controller.rs","lib.rs","service.rs"]};
-sourcesIndex["relay_test"] = {"name":"","files":["lib.rs"]};
-sourcesIndex["scrub_minidump"] = {"name":"","files":["main.rs"]};
+var sourcesIndex = JSON.parse('{\
+"document_metrics":["",[],["main.rs"]],\
+"generate_schema":["",[],["main.rs"]],\
+"process_event":["",[],["main.rs"]],\
+"relay":["",[],["cli.rs","cliapp.rs","main.rs","setup.rs","utils.rs"]],\
+"relay_auth":["",[],["lib.rs"]],\
+"relay_aws_extension":["",[],["aws_extension.rs","lib.rs"]],\
+"relay_cabi":["",[],["auth.rs","constants.rs","core.rs","ffi.rs","lib.rs","processing.rs"]],\
+"relay_common":["",[],["constants.rs","glob.rs","lib.rs","macros.rs","project.rs","retry.rs","time.rs","utils.rs"]],\
+"relay_config":["",[],["byte_size.rs","config.rs","lib.rs","upstream.rs"]],\
+"relay_crash":["",[],["lib.rs"]],\
+"relay_ffi":["",[],["lib.rs"]],\
+"relay_ffi_macros":["",[],["lib.rs"]],\
+"relay_filter":["",[],["browser_extensions.rs","client_ips.rs","common.rs","config.rs","csp.rs","error_messages.rs","legacy_browsers.rs","lib.rs","localhost.rs","releases.rs","web_crawlers.rs"]],\
+"relay_general":["",[["pii",[],["attachments.rs","builtin.rs","compiledconfig.rs","config.rs","convert.rs","generate_selectors.rs","legacy.rs","minidumps.rs","mod.rs","processor.rs","redactions.rs","regexes.rs","utils.rs"]],["processor",[],["attrs.rs","chunks.rs","funcs.rs","impls.rs","mod.rs","selector.rs","size.rs","traits.rs"]],["protocol",[],["breadcrumb.rs","breakdowns.rs","client_report.rs","clientsdk.rs","constants.rs","contexts.rs","debugmeta.rs","event.rs","exception.rs","fingerprint.rs","logentry.rs","measurements.rs","mechanism.rs","metrics.rs","mod.rs","relay_info.rs","request.rs","schema.rs","security_report.rs","session.rs","span.rs","stacktrace.rs","tags.rs","templateinfo.rs","thread.rs","transaction.rs","types.rs","user.rs","user_report.rs"]],["store",[["normalize",[],["breakdowns.rs","contexts.rs","logentry.rs","mechanism.rs","request.rs","spans.rs","stacktrace.rs","user_agent.rs"]]],["clock_drift.rs","event_error.rs","geo.rs","legacy.rs","mod.rs","normalize.rs","remove_other.rs","schema.rs","transactions.rs","trimming.rs"]],["types",[],["annotated.rs","impls.rs","meta.rs","mod.rs","span_attributes.rs","traits.rs","value.rs"]]],["lib.rs","macros.rs","user_agent.rs"]],\
+"relay_general_derive":["",[],["empty.rs","jsonschema.rs","lib.rs","process.rs"]],\
+"relay_log":["",[],["lib.rs","sentry_failure.rs","setup.rs","test.rs","utils.rs"]],\
+"relay_metrics":["",[],["aggregation.rs","lib.rs","protocol.rs","statsd.rs"]],\
+"relay_profiling":["",[],["android.rs","cocoa.rs","error.rs","lib.rs","python.rs","rust.rs","transaction_metadata.rs","typescript.rs","utils.rs"]],\
+"relay_quotas":["",[],["lib.rs","quota.rs","rate_limit.rs","redis.rs"]],\
+"relay_redis":["",[],["config.rs","lib.rs","real.rs"]],\
+"relay_replays":["",[],["lib.rs"]],\
+"relay_sampling":["",[],["lib.rs"]],\
+"relay_server":["",[["actors",[],["envelopes.rs","health_check.rs","mod.rs","outcome.rs","outcome_aggregator.rs","processor.rs","project.rs","project_cache.rs","project_local.rs","project_redis.rs","project_upstream.rs","relays.rs","server.rs","store.rs","test_store.rs","upstream.rs"]],["body",[],["mod.rs","peek_line.rs","request_body.rs","store_body.rs"]],["endpoints",[],["attachments.rs","common.rs","envelope.rs","events.rs","forward.rs","health_check.rs","minidump.rs","mod.rs","outcomes.rs","project_configs.rs","public_keys.rs","security_report.rs","statics.rs","store.rs","unreal.rs"]],["extractors",[],["decoder.rs","forwarded_for.rs","mod.rs","request_meta.rs","shared_payload.rs","signed_json.rs","start_time.rs"]],["metrics_extraction",[],["conditional_tagging.rs","mod.rs","sessions.rs","transactions.rs","utils.rs"]],["utils",[],["actix.rs","api.rs","buffer.rs","dynamic_sampling.rs","envelope_context.rs","error_boundary.rs","garbage.rs","kafka.rs","mod.rs","multipart.rs","native.rs","param_parser.rs","rate_limits.rs","request.rs","semaphore.rs","sizes.rs","sleep_handle.rs","timer.rs","tracked_future.rs","unreal.rs"]]],["constants.rs","envelope.rs","http.rs","lib.rs","middlewares.rs","service.rs","statsd.rs"]],\
+"relay_statsd":["",[],["lib.rs"]],\
+"relay_system":["",[],["compat.rs","controller.rs","lib.rs","service.rs"]],\
+"relay_test":["",[],["lib.rs"]],\
+"scrub_minidump":["",[],["main.rs"]]\
+}');
 createSourceSidebar();
