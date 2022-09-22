@@ -250,7 +250,6 @@ struct ProcessEnvelopeState {
     ///
     /// Relay can extract metrics for sessions and transactions, which is controlled by
     /// configuration objects in the project config.
-    // Maybe keeping track of whether the metric was added by processing is good here
     extracted_metrics: Vec<Metric>,
 
     /// The state of the project that this envelope belongs to.
@@ -1459,7 +1458,7 @@ impl EnvelopeProcessorService {
             relay_log::trace!("processing json transaction");
             state.sample_rates = item.take_sample_rates();
             state.transaction_metrics_extracted = item.metrics_extracted();
-            state.rate_limited_categories = item.rate_limited_categories(); // TODO: could be done for all events.
+            state.rate_limited_categories = item.rate_limited_categories();
             metric!(timer(RelayTimers::EventProcessingDeserialize), {
                 // Transaction items can only contain transaction events. Force the event type to
                 // hint to normalization that we're dealing with a transaction now.

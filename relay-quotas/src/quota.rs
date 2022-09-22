@@ -2,6 +2,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
 
 use relay_common::{ProjectId, ProjectKey};
 
@@ -87,7 +88,6 @@ impl ItemScoping<'_> {
 
 #[doc(inline)]
 pub use relay_common::DataCategory;
-use smallvec::SmallVec;
 
 /// The unit in which a data category is measured.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
