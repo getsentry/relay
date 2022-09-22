@@ -15,28 +15,12 @@ impl<T, E> Response<T, E> {
         Response::Reply(Ok(value))
     }
 
-    pub fn reply(result: Result<T, E>) -> Self {
-        Response::Reply(result)
-    }
-
     pub fn future<F>(future: F) -> Self
     where
         F: IntoFuture<Item = T, Error = E>,
         F::Future: 'static,
     {
         Response::Future(Box::new(future.into_future()))
-    }
-}
-
-impl<T: 'static, E: 'static> Response<T, E> {
-    pub fn map<U, F: 'static>(self, f: F) -> Response<U, E>
-    where
-        F: FnOnce(T) -> U,
-    {
-        match self {
-            Response::Reply(result) => Response::reply(result.map(f)),
-            Response::Future(future) => Response::future(future.map(f)),
-        }
     }
 }
 

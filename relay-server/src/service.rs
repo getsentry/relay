@@ -19,7 +19,7 @@ use crate::actors::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutco
 use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::actors::processor::{EnvelopeProcessor, EnvelopeProcessorService};
 use crate::actors::project_cache::ProjectCache;
-use crate::actors::relays::RelayCache;
+use crate::actors::relays::{RelayCache, RelayCacheService};
 use crate::actors::test_store::{TestStore, TestStoreService};
 use crate::actors::upstream::UpstreamRelay;
 use crate::middlewares::{
@@ -117,6 +117,7 @@ pub struct Registry {
     pub processor: Addr<EnvelopeProcessor>,
     pub envelope_manager: Addr<EnvelopeManager>,
     pub test_store: Addr<TestStore>,
+    pub relay_cache: Addr<RelayCache>,
 }
 
 impl fmt::Debug for Registry {
@@ -189,7 +190,7 @@ impl ServiceState {
         registry.set(project_cache.clone());
 
         let health_check = HealthCheckService::new(config.clone()).start();
-        registry.set(RelayCache::new(config.clone()).start());
+        let relay_cache = RelayCacheService::new(config.clone()).start();
 
         let aggregator = Aggregator::new(config.aggregator_config(), project_cache.recipient());
         registry.set(Arbiter::start(|_| aggregator));
@@ -208,6 +209,7 @@ impl ServiceState {
                 outcome_aggregator,
                 envelope_manager,
                 test_store,
+                relay_cache,
             }))
             .unwrap();
 
