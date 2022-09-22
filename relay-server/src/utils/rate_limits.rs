@@ -1,7 +1,6 @@
-use std::collections::BTreeSet;
 use std::fmt::{self, Write};
 
-use smallvec::{smallvec, SmallVec};
+use smallvec::SmallVec;
 
 use relay_common::DataCategories;
 use relay_quotas::{
@@ -90,28 +89,25 @@ pub fn parse_rate_limits(scoping: &Scoping, string: &str) -> RateLimits {
 ///   to be set on the event item.
 /// - `Attachment`: If the attachment creates an event (e.g. for minidumps), the category is assumed
 ///   to be `Error`.
-fn infer_event_categories(item: &Item) -> DataCategories {
+fn infer_event_category(item: &Item) -> Option<DataCategory> {
     match item.ty() {
-        ItemType::Event => DataCategory::Error.into(),
-        ItemType::Transaction => smallvec![
-            DataCategory::Transaction,
-            DataCategory::TransactionProcessed
-        ],
-        ItemType::Security | ItemType::RawSecurity => DataCategory::Security.into(),
-        ItemType::UnrealReport => DataCategory::Error.into(),
-        ItemType::Attachment if item.creates_event() => DataCategory::Error.into(),
-        ItemType::Attachment => smallvec![],
-        ItemType::Session => smallvec![],
-        ItemType::Sessions => smallvec![],
-        ItemType::Metrics => smallvec![],
-        ItemType::MetricBuckets => smallvec![],
-        ItemType::FormData => smallvec![],
-        ItemType::UserReport => smallvec![],
-        ItemType::Profile => smallvec![],
-        ItemType::ReplayEvent => smallvec![],
-        ItemType::ReplayRecording => smallvec![],
-        ItemType::ClientReport => smallvec![],
-        ItemType::Unknown(_) => smallvec![],
+        ItemType::Event => Some(DataCategory::Error),
+        ItemType::Transaction => Some(DataCategory::Transaction),
+        ItemType::Security | ItemType::RawSecurity => Some(DataCategory::Security),
+        ItemType::UnrealReport => Some(DataCategory::Error),
+        ItemType::Attachment if item.creates_event() => Some(DataCategory::Error),
+        ItemType::Attachment => None,
+        ItemType::Session => None,
+        ItemType::Sessions => None,
+        ItemType::Metrics => None,
+        ItemType::MetricBuckets => None,
+        ItemType::FormData => None,
+        ItemType::UserReport => None,
+        ItemType::Profile => None,
+        ItemType::ReplayEvent => None,
+        ItemType::ReplayRecording => None,
+        ItemType::ClientReport => None,
+        ItemType::Unknown(_) => None,
     }
 }
 
@@ -122,13 +118,13 @@ fn infer_event_categories(item: &Item) -> DataCategories {
 #[non_exhaustive]
 #[derive(Clone, Debug, Default)]
 pub struct EnvelopeSummary {
-    /// The data category of the event in the envelope.
+    /// The data category of the event in the envelope. `None` if there is no event.
     ///
-    /// This can be an empty vector if there is no event.  Multiple items apply if the event
-    /// matches multiple data categories, e.g. the case for events of
-    /// [`ItemType::Transaction`] which have both [`DataCategory::Transaction`] and
-    /// [`DataCategory::TransactionProcessed`] quota associated with them.
-    pub event_categories: DataCategories,
+    /// This is the category used for quotas of this event.
+    pub event_category: Option<DataCategory>,
+
+    /// Whether the event is a transaction and thus can have metrics extracted from it.
+    pub transaction_processing: bool,
 
     /// The quantity of all attachments combined in bytes.
     pub attachment_quantity: usize,
@@ -188,8 +184,10 @@ impl EnvelopeSummary {
     /// The inferred category is only applied to the [`EnvelopeSummary`] if there is not yet
     /// a category set.
     fn infer_category(&mut self, item: &Item) {
-        if self.event_categories.is_empty() {
-            self.event_categories = infer_event_categories(item)
+        if matches!(self.event_category, None | Some(DataCategory::Default)) {
+            if let Some(category) = infer_event_category(item) {
+                self.event_category = Some(category);
+            }
         }
     }
 }
@@ -250,7 +248,14 @@ pub struct Enforcement {
     ///
     /// Some payloads have multiple rate-limits that may apply, each that is enforced will
     /// be in this list.
-    event: SmallVec<[CategoryLimit; 2]>,
+    event: CategoryLimit,
+    /// Rate limits for transaction processing.
+    ///
+    /// Transaction processing is special since a normal transaction event has the primary
+    /// rate limit using indexing quota ([`DataCategory::Transaction`]).  However extracting
+    /// metrics from it has the [`DataCategory::TransactionProcessed`] rate limit attached
+    /// to it.
+    transaction_processed: CategoryLimit,
     /// The combined attachment item rate limit.
     attachments: CategoryLimit,
     /// The combined session item rate limit.
@@ -267,9 +272,7 @@ impl Enforcement {
     /// Relay generally does not emit outcomes for sessions, so those are skipped.
     pub fn track_outcomes(self, envelope: &Envelope, scoping: &Scoping) {
         // Do not report outcomes for sessions.
-        let non_event_limits = [self.attachments, self.profiles, self.replays];
-        let all_limits = self.event.into_iter().chain(non_event_limits);
-        for limit in all_limits {
+        for limit in [self.event, self.attachments, self.profiles, self.replays] {
             if limit.is_active() {
                 let timestamp = relay_common::instant_to_date_time(envelope.meta().start_time());
                 TrackOutcome::from_registry().send(TrackOutcome {
@@ -301,7 +304,7 @@ impl Enforcement {
 ///  - Sessions are handled separate to all of the above.
 pub struct EnvelopeLimiter<F> {
     check: F,
-    event_categories: DataCategories,
+    event_category: Option<DataCategory>,
 }
 
 impl<E, F> EnvelopeLimiter<F>
@@ -312,7 +315,7 @@ where
     pub fn new(check: F) -> Self {
         Self {
             check,
-            event_categories: Default::default(),
+            event_category: Default::default(),
         }
     }
 
@@ -322,8 +325,8 @@ where
     /// matching item in the envelope. Other items are handled according to the rules as if the
     /// event item were present.
     #[cfg(feature = "processing")]
-    pub fn assume_event(&mut self, categories: DataCategories) {
-        self.event_categories = categories;
+    pub fn assume_event(&mut self, category: DataCategory) {
+        self.event_category = Some(category);
     }
 
     /// Process rate limits for the envelope, removing offending items and returning applied limits.
@@ -375,27 +378,24 @@ where
         scoping: &Scoping,
     ) -> Result<(Enforcement, RateLimits), E> {
         let mut summary = EnvelopeSummary::compute(envelope);
-        if !self.event_categories.is_empty() {
-            summary.event_categories = self.event_categories.clone();
+        if let Some(event_category) = self.event_category {
+            summary.event_category = Some(event_category);
         }
 
         let (enforcement, rate_limits) = self.execute(&summary, scoping)?;
         envelope.retain_items(|item| self.should_retain_item(item, &enforcement));
 
         // TODO: This is special-cased for Transaction but we could set this generically.
+        // TODO: should this be done in `should_retain_item?  it's a bit awkward
         if let Some(item) =
             envelope.get_item_by_mut(|item| matches!(item.ty(), ItemType::Transaction))
         {
             let mut categories = SmallVec::new();
-            for limit in enforcement.event.iter() {
-                if limit.is_active()
-                    && matches!(
-                        limit.category,
-                        DataCategory::Transaction | DataCategory::TransactionProcessed
-                    )
-                {
-                    categories.push(limit.category);
-                }
+            if enforcement.event.is_active() {
+                categories.push(enforcement.event.category);
+            }
+            if enforcement.transaction_processed.is_active() {
+                categories.push(enforcement.transaction_processed.category);
             }
             item.set_rate_limited_categories(categories);
         }
@@ -411,54 +411,38 @@ where
         let mut rate_limits = RateLimits::new();
         let mut enforcement = Enforcement::default();
 
-        for category in summary.event_categories.iter().copied() {
-            let item_scoping = scoping.item(category);
-            let event_limits = (self.check)(item_scoping, 1)?;
+        if let Some(category) = summary.event_category {
+            let event_limits = (self.check)(scoping.item(category), 1)?;
             let longest = event_limits.longest();
-            enforcement
-                .event
-                .push(CategoryLimit::new(category, 1, longest));
+            enforcement.event = CategoryLimit::new(category, 1, longest);
 
-            // TODO: attachments; need a generic way of knowing if the attachments are
-            // needed for the subset we're ingesting.  But for now hardcode this.
-            if !matches!(category, DataCategory::TransactionProcessed) {
-                // Record the same reason for attachments, if there are any.
-                enforcement.attachments = CategoryLimit::new(
-                    DataCategory::Attachment,
-                    summary.attachment_quantity,
-                    longest,
-                );
-            }
+            // Record the same reason for attachments, if there are any.
+            enforcement.attachments = CategoryLimit::new(
+                DataCategory::Attachment,
+                summary.attachment_quantity,
+                longest,
+            );
 
             rate_limits.merge(event_limits);
-        }
 
-        // If there are multiple event categories then it could be only a subset of them was
-        // rate-limited.  In this case we need to pretend we did not rate limit the event
-        // since we still want to keep ingesting events of this type.
-        // TODO(flub): I'm not entirely happy with this code being generically being here
-        // since the EnvelopeLimiter is called from multiple places and not just from the
-        // endpoint.  Maybe this logic should be in the endpoint instead.
-        if summary.event_categories.len() > 1 {
-            let event_categories: BTreeSet<DataCategory> =
-                summary.event_categories.iter().copied().collect();
-            let limited_categories: BTreeSet<DataCategory> = rate_limits
-                .iter()
-                .flat_map(|l| l.categories.iter().cloned())
-                .collect();
-            if !limited_categories.is_subset(&event_categories) {
-                let to_remove: BTreeSet<DataCategory> = limited_categories
-                    .difference(&event_categories)
-                    .cloned()
-                    .collect();
-                rate_limits.retain(|l| {
-                    let categories: BTreeSet<DataCategory> = l.categories.iter().copied().collect();
-                    categories.intersection(&to_remove).count() >= 1
-                })
+            // Handle transactions specially, they have processing quota too.
+            if category == DataCategory::Transaction {
+                let item_scoping = scoping.item(DataCategory::TransactionProcessed);
+                let limits = (self.check)(item_scoping, 1)?;
+                enforcement.transaction_processed =
+                    CategoryLimit::new(DataCategory::TransactionProcessed, 1, limits.longest());
+                rate_limits.merge(limits);
+
+                // If only one of the rate limits applied we omit both of them.  If there is
+                // a rate limit the endpoint will return 429 but we need the client to keep
+                // sending transactions unless both quotas limits were exceeded.
+                if rate_limits.iter().count() == 1 {
+                    rate_limits = RateLimits::new();
+                }
             }
         }
 
-        if enforcement.event.is_empty() && summary.attachment_quantity > 0 {
+        if !enforcement.event.is_active() && summary.attachment_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::Attachment);
             let attachment_limits = (self.check)(item_scoping, summary.attachment_quantity)?;
             enforcement.attachments = CategoryLimit::new(
@@ -516,10 +500,16 @@ where
     /// Items which were subject to rate limits should not be retained, which this function
     /// figures out.
     fn should_retain_item(&self, item: &mut Item, enforcement: &Enforcement) -> bool {
-        // Remove event items and all items that depend on this event.  Only if all limits
-        // on the event triggered though.
-        if enforcement.event.iter().all(|limit| limit.is_active()) && item.requires_event() {
-            return false;
+        // Remove event items and all items that depend on this event.
+        if enforcement.event.is_active() && item.requires_event() {
+            match item.ty() {
+                ItemType::Transaction if !enforcement.transaction_processed.is_active() => {
+                    // Only if both Transaction and TransactionProcessed quota is out should
+                    // the transaction event be removed.
+                    return true;
+                }
+                _ => return false,
+            }
         }
 
         // Remove attachments, except those required for processing
@@ -544,7 +534,7 @@ where
 impl<F> fmt::Debug for EnvelopeLimiter<F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("EnvelopeLimiter")
-            .field("event_category", &self.event_categories)
+            .field("event_category", &self.event_category)
             .finish()
     }
 }

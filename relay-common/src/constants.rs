@@ -186,6 +186,18 @@ impl FromStr for DataCategory {
     }
 }
 
+impl From<EventType> for DataCategory {
+    fn from(ty: EventType) -> Self {
+        match ty {
+            EventType::Default | EventType::Error => Self::Error,
+            EventType::Transaction => Self::Transaction,
+            EventType::Csp | EventType::Hpkp | EventType::ExpectCt | EventType::ExpectStaple => {
+                Self::Security
+            }
+        }
+    }
+}
+
 /// An efficient container for data categories that avoids allocations.
 ///
 /// `DataCategories` is to be treated like a set.

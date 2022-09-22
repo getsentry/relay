@@ -132,8 +132,12 @@ impl EnvelopeContext {
         // TODO: This could be optimized with Capture::should_capture
         EnvelopeManager::from_registry().do_send(Capture::rejected(self.event_id, &outcome));
 
-        for category in self.summary.event_categories.iter() {
-            self.track_outcome(outcome.clone(), *category, 1);
+        if let Some(category) = self.summary.event_category {
+            self.track_outcome(outcome.clone(), category, 1);
+        }
+
+        if self.summary.transaction_processing {
+            self.track_outcome(outcome.clone(), DataCategory::TransactionProcessed, 1);
         }
 
         if self.summary.attachment_quantity > 0 {

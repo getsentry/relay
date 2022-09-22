@@ -14,7 +14,7 @@ use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use once_cell::sync::OnceCell;
 use serde_json::Value as SerdeValue;
-use smallvec::{smallvec, SmallVec};
+use smallvec::SmallVec;
 use tokio::sync::Semaphore;
 
 use relay_auth::RelayVersion;
@@ -302,11 +302,8 @@ impl ProcessEnvelopeState {
     ///
     /// The data category is computed from the event type. Both `Default` and `Error` events map to
     /// the `Error` data category. If there is no Event, `None` is returned.
-    fn event_categories(&self) -> DataCategories {
-        match self.event_type() {
-            Some(category) => DataCategories::from(category),
-            None => smallvec![],
-        }
+    fn event_category(&self) -> Option<DataCategory> {
+        self.event_type().map(DataCategory::from)
     }
 
     /// Removes the event payload from this processing state.
@@ -1636,11 +1633,7 @@ impl EnvelopeProcessorService {
         if let Some(timestamp) = state.event.value().and_then(|e| e.timestamp.value()) {
             let event_delay = state.envelope_context.received_at() - timestamp.into_inner();
             if event_delay > SignedDuration::minutes(1) {
-                let category = state
-                    .event_categories()
-                    .get(0)
-                    .copied()
-                    .unwrap_or(DataCategory::Unknown);
+                let category = state.event_category().unwrap_or(DataCategory::Unknown);
                 metric!(
                     timer(RelayTimers::TimestampDelay) = event_delay.to_std().unwrap(),
                     category = category.name(),
@@ -1745,20 +1738,20 @@ impl EnvelopeProcessorService {
         }
 
         let mut remove_event = false;
-        let event_categories = state.event_categories();
+        let event_category = state.event_category();
 
         // When invoking the rate limiter, capture if the event item has been rate limited to also
         // remove it from the processing state eventually.
         let mut envelope_limiter = EnvelopeLimiter::new(|item_scope, quantity| {
             let limits = rate_limiter.is_rate_limited(quotas, item_scope, quantity)?;
-            remove_event |= event_categories.contains(&item_scope.category) && limits.is_limited();
+            remove_event |= Some(item_scope.category) == event_category && limits.is_limited();
             Ok(limits)
         });
 
         // Tell the envelope limiter about the event, since it has been removed from the Envelope at
         // this stage in processing.
-        if !event_categories.is_empty() {
-            envelope_limiter.assume_event(event_categories.clone())
+        if let Some(category) = event_category {
+            envelope_limiter.assume_event(category);
         }
 
         let scoping = state.envelope_context.scoping();
