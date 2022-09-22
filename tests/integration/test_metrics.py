@@ -636,7 +636,7 @@ def test_transaction_metrics(
 
         return
 
-    metrics = metrics_by_name(metrics_consumer, 4)
+    metrics = metrics_by_name(metrics_consumer, 5)
 
     common = {
         "timestamp": int(timestamp.timestamp()),
