@@ -7,7 +7,6 @@ use std::str::FromStr;
 #[cfg(feature = "jsonschema")]
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use smallvec::{smallvec, SmallVec};
 
 use crate::macros::impl_str_serde;
 
@@ -193,29 +192,6 @@ impl From<EventType> for DataCategory {
             EventType::Transaction => Self::Transaction,
             EventType::Csp | EventType::Hpkp | EventType::ExpectCt | EventType::ExpectStaple => {
                 Self::Security
-            }
-        }
-    }
-}
-
-/// An efficient container for data categories that avoids allocations.
-///
-/// `DataCategories` is to be treated like a set.
-pub type DataCategories = SmallVec<[DataCategory; 8]>;
-
-impl From<DataCategory> for DataCategories {
-    fn from(source: DataCategory) -> Self {
-        smallvec![source]
-    }
-}
-
-impl From<EventType> for DataCategories {
-    fn from(ty: EventType) -> Self {
-        match ty {
-            EventType::Default | EventType::Error => smallvec![DataCategory::Error],
-            EventType::Transaction => smallvec![DataCategory::Transaction],
-            EventType::Csp | EventType::Hpkp | EventType::ExpectCt | EventType::ExpectStaple => {
-                smallvec![DataCategory::Security]
             }
         }
     }

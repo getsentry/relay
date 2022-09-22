@@ -38,7 +38,8 @@ use std::io::{self, Write};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use failure::Fail;
-use relay_common::{DataCategories, UnixTimestamp};
+use relay_common::UnixTimestamp;
+use relay_quotas::DataCategories;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use smallvec::SmallVec;
 
@@ -415,7 +416,8 @@ pub struct ItemHeaders {
     #[serde(default, skip)]
     rate_limited: bool,
 
-    /// The set of [`DataCategory`] items which were rate limited for this item.
+    /// The set of [`DataCategory`](relay_quota::Datacategory) items which were rate limited
+    /// for this item.
     ///
     /// Some items have multiple rate limiting [`DataCategory`] items and if not all are
     /// rate limited the item is not removed from the envelope for processing.  For such

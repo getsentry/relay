@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
-use relay_common::{DataCategories, ProjectId, ProjectKey};
+use relay_common::{ProjectId, ProjectKey};
 
 /// Data scoping information.
 ///
@@ -87,6 +87,7 @@ impl ItemScoping<'_> {
 
 #[doc(inline)]
 pub use relay_common::DataCategory;
+use smallvec::SmallVec;
 
 /// The unit in which a data category is measured.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -112,6 +113,11 @@ impl CategoryUnit {
         }
     }
 }
+
+/// An efficient container for data categories that avoids allocations.
+///
+/// `DataCategories` is to be treated like a set.
+pub type DataCategories = SmallVec<[DataCategory; 8]>;
 
 /// The scope that a quota applies to.
 ///

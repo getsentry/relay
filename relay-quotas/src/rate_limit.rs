@@ -2,9 +2,9 @@ use std::fmt;
 use std::str::FromStr;
 use std::time::{Duration, Instant};
 
-use relay_common::{DataCategories, ProjectId, ProjectKey};
+use relay_common::{ProjectId, ProjectKey};
 
-use crate::quota::{ItemScoping, Quota, QuotaScope, ReasonCode, Scoping};
+use crate::quota::{DataCategories, ItemScoping, Quota, QuotaScope, ReasonCode, Scoping};
 use crate::REJECT_ALL_SECS;
 
 /// A monotonic expiration marker for `RateLimit`s.

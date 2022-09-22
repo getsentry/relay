@@ -248,10 +248,10 @@ mod tests {
     use std::sync::Arc;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use relay_common::{DataCategories, ProjectId, ProjectKey};
+    use relay_common::{ProjectId, ProjectKey};
     use relay_redis::{redis::Commands, RedisConfigOptions};
 
-    use crate::quota::{DataCategory, ReasonCode, Scoping};
+    use crate::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
     use crate::rate_limit::RateLimitScope;
 
     use super::*;

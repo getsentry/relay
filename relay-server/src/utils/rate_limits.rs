@@ -2,10 +2,9 @@ use std::fmt::{self, Write};
 
 use smallvec::SmallVec;
 
-use relay_common::DataCategories;
 use relay_quotas::{
-    DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode,
-    Scoping,
+    DataCategories, DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits,
+    ReasonCode, Scoping,
 };
 
 use crate::actors::outcome::{Outcome, TrackOutcome};

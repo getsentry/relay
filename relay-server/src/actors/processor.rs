@@ -18,7 +18,7 @@ use smallvec::SmallVec;
 use tokio::sync::Semaphore;
 
 use relay_auth::RelayVersion;
-use relay_common::{DataCategories, ProjectId, ProjectKey, UnixTimestamp};
+use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding};
 use relay_filter::FilterStatKey;
 use relay_general::pii::PiiConfigError;
@@ -33,6 +33,7 @@ use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig};
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
 use relay_metrics::{Bucket, Metric};
+use relay_quotas::DataCategories;
 use relay_quotas::{DataCategory, RateLimits, ReasonCode};
 use relay_redis::RedisPool;
 use relay_sampling::{DynamicSamplingContext, RuleId};
