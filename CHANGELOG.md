@@ -2,13 +2,14 @@
 
 ## Unreleased
 
-** Features **:
+**Features**:
 - Add INP web vital as a measurement. ([#1487](https://github.com/getsentry/relay/pull/1487))
 
 **Internal**:
 
 - Generate a new profile ID when splitting a profile for multiple transactions. ([#1473](https://github.com/getsentry/relay/pull/1473))
 - Pin Rust version to 1.63.0 in Dockerfile. ([#1482](https://github.com/getsentry/relay/pull/1482))
+- Remove long-running futures from metrics flush ([#1492](https://github.com/getsentry/relay/pull/1492))
 
 ## 22.9.0
 
