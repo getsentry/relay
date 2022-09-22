@@ -625,13 +625,6 @@ mod tests {
             r#"
         {
             "version": 1,
-            "extractMetrics": [
-                "d:transactions/measurements.foo@none",
-                "d:transactions/measurements.lcp@millisecond",
-                "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
-                "d:transactions/duration@millisecond",
-                "s:transactions/user@none"
-            ],
             "extractCustomTags": ["fOO"]
         }
         "#,
@@ -783,18 +776,7 @@ mod tests {
         }
         "#;
 
-        let config: TransactionMetricsConfig = serde_json::from_str(
-            r#"
-        {
-            "extractMetrics": [
-                "d:transactions/measurements.fcp@millisecond",
-                "d:transactions/measurements.stall_count@none",
-                "d:transactions/measurements.foo@none"
-            ]
-        }
-        "#,
-        )
-        .unwrap();
+        let config = TransactionMetricsConfig::default();
 
         let mut event = Annotated::from_json(json).unwrap();
 
@@ -860,15 +842,7 @@ mod tests {
             }
         }"#;
 
-        let config: TransactionMetricsConfig = serde_json::from_str(
-            r#"{
-                "extractMetrics": [
-                    "d:transactions/measurements.fcp@second",
-                    "d:transactions/measurements.lcp@none"
-                ]
-            }"#,
-        )
-        .unwrap();
+        let config: TransactionMetricsConfig = TransactionMetricsConfig::default();
 
         let mut event = Annotated::from_json(json).unwrap();
 
@@ -908,16 +882,7 @@ mod tests {
 
         let event = Annotated::from_json(json).unwrap();
 
-        let config: TransactionMetricsConfig = serde_json::from_str(
-            r#"
-        {
-            "extractMetrics": [
-                "d:transactions/duration@millisecond"
-            ]
-        }
-        "#,
-        )
-        .unwrap();
+        let config = TransactionMetricsConfig::default();
         let mut metrics = vec![];
         extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
 
@@ -962,10 +927,6 @@ mod tests {
         let config: TransactionMetricsConfig = serde_json::from_str(
             r#"
         {
-            "extractMetrics": [
-                "d:transactions/duration@millisecond",
-                "s:transactions/user@none"
-            ],
             "satisfactionThresholds": {
                 "projectThreshold": {
                     "metric": "duration",
@@ -1010,9 +971,6 @@ mod tests {
         let config: TransactionMetricsConfig = serde_json::from_str(
             r#"
         {
-            "extractMetrics": [
-                "d:transactions/duration@millisecond"
-            ],
             "satisfactionThresholds": {
                 "projectThreshold": {
                     "metric": "duration",
@@ -1078,9 +1036,6 @@ mod tests {
         let config: TransactionMetricsConfig = serde_json::from_str(
             r#"
         {
-            "extractMetrics": [
-                "d:transactions/duration@millisecond"
-            ],
             "satisfactionThresholds": {
                 "projectThreshold": {
                     "metric": "unknown_metric",
@@ -1216,16 +1171,7 @@ mod tests {
 
         let event = Annotated::from_json(json).unwrap();
 
-        let config: TransactionMetricsConfig = serde_json::from_str(
-            r#"
-        {
-            "extractMetrics": [
-                "d:transactions/duration@millisecond"
-            ]
-        }
-        "#,
-        )
-        .unwrap();
+        let config = TransactionMetricsConfig::default();
 
         let tagging_config: Vec<TaggingRule> = serde_json::from_str(
             r#"
@@ -1305,16 +1251,7 @@ mod tests {
 
         let event = Annotated::from_json(json).unwrap();
 
-        let config: TransactionMetricsConfig = serde_json::from_str(
-            r#"
-        {
-            "extractMetrics": [
-                "d:transactions/measurements.lcp@millisecond"
-            ]
-        }
-        "#,
-        )
-        .unwrap();
+        let config = TransactionMetricsConfig::default();
 
         let tagging_config: Vec<TaggingRule> = serde_json::from_str(
             r#"
@@ -1380,16 +1317,7 @@ mod tests {
         }
         "#;
 
-        let config: TransactionMetricsConfig = serde_json::from_str(
-            r#"
-        {
-            "extractMetrics": [
-                "d:transactions/duration@millisecond"
-            ]
-        }
-        "#,
-        )
-        .unwrap();
+        let config = TransactionMetricsConfig::default();
 
         let event = Annotated::from_json(json).unwrap();
 
@@ -1416,16 +1344,7 @@ mod tests {
         }
         "#;
 
-        let config: TransactionMetricsConfig = serde_json::from_str(
-            r#"
-        {
-            "extractMetrics": [
-                "d:transactions/duration@millisecond"
-            ]
-        }
-        "#,
-        )
-        .unwrap();
+        let config = TransactionMetricsConfig::default();
 
         let event = Annotated::from_json(json).unwrap();
 
@@ -1446,16 +1365,7 @@ mod tests {
 
     /// Helper function to check if the transaction name is set correctly
     fn extract_transaction_name(json: &str, strategy: AcceptTransactionNames) -> Option<String> {
-        let mut config: TransactionMetricsConfig = serde_json::from_str(
-            r#"
-        {
-            "extractMetrics": [
-                "d:transactions/duration@millisecond"
-            ]
-        }
-        "#,
-        )
-        .unwrap();
+        let mut config = TransactionMetricsConfig::default();
 
         let event = Annotated::<Event>::from_json(json).unwrap();
         config.accept_transaction_names = strategy;
@@ -1795,18 +1705,7 @@ mod tests {
             }
         }"#;
 
-        let config: TransactionMetricsConfig = serde_json::from_str(
-            r#"
-        {
-            "extractMetrics": [
-                "d:transactions/measurements.frames_frozen_rate@ratio",
-                "d:transactions/measurements.frames_slow_rate@ratio",
-                "d:transactions/measurements.stall_percentage@ratio"
-            ]
-        }
-        "#,
-        )
-        .unwrap();
+        let config = TransactionMetricsConfig::default();
 
         let event = Annotated::from_json(json).unwrap();
 

@@ -588,12 +588,6 @@ def test_transaction_metrics(
 
     elif extract_metrics:
         config["transactionMetrics"] = {
-            "extractMetrics": [
-                "d:transactions/measurements.foo@none",
-                "d:transactions/measurements.bar@none",
-                "d:transactions/breakdowns.span_ops.total.time@millisecond",
-                "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
-            ],
             "version": 1,
         }
 
@@ -701,7 +695,6 @@ def test_transaction_metrics_extraction_external_relays(
     mini_sentry.add_full_project_config(project_id)
     config = mini_sentry.project_configs[project_id]["config"]
     config["transactionMetrics"] = {
-        "extractMetrics": ["d:transactions/duration@millisecond"],
         "version": 1,
     }
 
@@ -763,7 +756,6 @@ def test_transaction_metrics_extraction_processing_relays(
     mini_sentry.add_full_project_config(project_id)
     config = mini_sentry.project_configs[project_id]["config"]
     config["transactionMetrics"] = {
-        "extractMetrics": ["d:transactions/duration@millisecond"],
         "version": 1,
     }
 
@@ -808,7 +800,6 @@ def test_transaction_metrics_not_extracted_on_unsupported_version(
     mini_sentry.add_full_project_config(project_id)
     config = mini_sentry.project_configs[project_id]["config"]
     config["transactionMetrics"] = {
-        "extractMetrics": ["d:transactions/duration@millisecond"],
         "version": unsupported_version,
     }
 
@@ -835,7 +826,6 @@ def test_no_transaction_metrics_when_filtered(mini_sentry, relay):
     mini_sentry.add_full_project_config(project_id)
     config = mini_sentry.project_configs[project_id]["config"]
     config["transactionMetrics"] = {
-        "extractMetrics": ["d:transactions/duration@millisecond"],
         "version": 1,
     }
     config["filterSettings"]["releases"] = {"releases": ["foo@1.2.4"]}
@@ -929,15 +919,10 @@ def test_limit_custom_measurements(
     timestamp = datetime.now(tz=timezone.utc)
 
     config["measurements"] = {
-        "knownMeasurements": ["foo"],
+        "builtinMeasurements": ["foo"],
         "maxCustomMeasurements": 1,
     }
     config["transactionMetrics"] = {
-        "extractMetrics": [
-            "d:transactions/duration@millisecond",
-            "d:transactions/measurements.foo@none",
-        ],
-        "customMeasurements": {"limit": 1,},
         "version": 1,
     }
 
