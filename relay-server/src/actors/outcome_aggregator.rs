@@ -187,6 +187,8 @@ impl Service for OutcomeAggregator {
 
             loop {
                 tokio::select! {
+                    // Prioritize flush over receiving messages to prevent starving. Shutdown can be
+                    // last since it is not vital if there are still messages in the channel.
                     biased;
 
                     () = &mut self.flush_handle => self.flush(),

@@ -510,7 +510,7 @@ pub enum OutcomeError {
 struct HttpOutcomeProducer {
     config: Arc<Config>,
     unsent_outcomes: Vec<TrackRawOutcome>,
-    pending_flush_handle: SleepHandle,
+    flush_handle: SleepHandle,
 }
 
 impl HttpOutcomeProducer {
@@ -518,12 +518,12 @@ impl HttpOutcomeProducer {
         Ok(Self {
             config,
             unsent_outcomes: Vec::new(),
-            pending_flush_handle: SleepHandle::idle(),
+            flush_handle: SleepHandle::idle(),
         })
     }
 
     fn send_batch(&mut self) {
-        self.pending_flush_handle.reset();
+        self.flush_handle.reset();
 
         if self.unsent_outcomes.is_empty() {
             relay_log::warn!("unexpected send_batch scheduled with no outcomes to send.");
@@ -555,9 +555,8 @@ impl HttpOutcomeProducer {
 
         if self.unsent_outcomes.len() >= self.config.outcome_batch_size() {
             self.send_batch();
-        } else if self.pending_flush_handle.is_idle() {
-            self.pending_flush_handle
-                .set(self.config.outcome_batch_interval());
+        } else if self.flush_handle.is_idle() {
+            self.flush_handle.set(self.config.outcome_batch_interval());
         }
     }
 }
@@ -569,9 +568,10 @@ impl Service for HttpOutcomeProducer {
         tokio::spawn(async move {
             loop {
                 tokio::select! {
+                    // Prioritize flush over receiving messages to prevent starving.
                     biased;
 
-                    () = &mut self.pending_flush_handle => self.send_batch(),
+                    () = &mut self.flush_handle => self.send_batch(),
                     Some(message) = rx.recv() => self.handle_message(message),
                     else => break,
                 }
@@ -659,6 +659,7 @@ impl Service for ClientReportOutcomeProducer {
         tokio::spawn(async move {
             loop {
                 tokio::select! {
+                    // Prioritize flush over receiving messages to prevent starving.
                     biased;
 
                     () = &mut self.flush_handle => self.flush(),
