@@ -630,7 +630,7 @@ def test_transaction_metrics(
 
         return
 
-    metrics = metrics_by_name(metrics_consumer, 5)
+    metrics = metrics_by_name(metrics_consumer, 4)
 
     common = {
         "timestamp": int(timestamp.timestamp()),
@@ -662,13 +662,6 @@ def test_transaction_metrics(
     ] == {
         **common,
         "name": "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
-        "type": "d",
-        "value": [9.910106, 9.910106],
-    }
-
-    assert metrics["d:transactions/breakdowns.span_ops.total.time@millisecond"] == {
-        **common,
-        "name": "d:transactions/breakdowns.span_ops.total.time@millisecond",
         "type": "d",
         "value": [9.910106, 9.910106],
     }

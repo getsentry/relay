@@ -412,6 +412,12 @@ fn extract_transaction_metrics_inner(
         for (breakdown, measurements) in store::get_breakdown_measurements(event, breakdowns_config)
         {
             for (measurement_name, annotated) in measurements.iter() {
+                if measurement_name == "total.time" {
+                    // The only reason we do not emit total.time as a metric is that is was not
+                    // on the allowlist in sentry before, and nobody seems to be missing it.
+                    continue;
+                }
+
                 let measurement = match annotated.value() {
                     Some(m) => m,
                     None => continue,
@@ -681,24 +687,6 @@ mod tests {
             },
             Metric {
                 name: "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
-                value: Distribution(
-                    9.910106,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "dist": "foo",
-                    "environment": "fake_environment",
-                    "fOO": "bar",
-                    "http.method": "POST",
-                    "platform": "javascript",
-                    "release": "1.2.3",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                    "transaction.status": "ok",
-                },
-            },
-            Metric {
-                name: "d:transactions/breakdowns.span_ops.total.time@millisecond",
                 value: Distribution(
                     9.910106,
                 ),
