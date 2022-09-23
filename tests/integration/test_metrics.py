@@ -919,7 +919,7 @@ def test_limit_custom_measurements(
     timestamp = datetime.now(tz=timezone.utc)
 
     config["measurements"] = {
-        "builtinMeasurements": ["foo"],
+        "builtinMeasurements": [{"name": "foo", "unit": "none"}],
         "maxCustomMeasurements": 1,
     }
     config["transactionMetrics"] = {
