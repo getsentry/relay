@@ -200,6 +200,10 @@
 <span id="198">198</span>
 <span id="199">199</span>
 <span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the outcomes aggregator, which collects similar outcomes into groups</span>
 <span class="doccomment">//! and flushed them periodically.</span>
 
@@ -389,8 +393,12 @@
 
             <span class="kw">loop</span> {
                 <span class="macro">tokio::select!</span> {
-                    <span class="prelude-val">Some</span>(<span class="ident">message</span>) <span class="op">=</span> <span class="ident">rx</span>.<span class="ident">recv</span>() =&gt; <span class="self">self</span>.<span class="ident">handle_track_outcome</span>(<span class="ident">message</span>),
+                    <span class="comment">// Prioritize flush over receiving messages to prevent starving. Shutdown can be</span>
+                    <span class="comment">// last since it is not vital if there are still messages in the channel.</span>
+                    <span class="ident">biased</span>;
+
                     () <span class="op">=</span> <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">flush_handle</span> =&gt; <span class="self">self</span>.<span class="ident">flush</span>(),
+                    <span class="prelude-val">Some</span>(<span class="ident">message</span>) <span class="op">=</span> <span class="ident">rx</span>.<span class="ident">recv</span>() =&gt; <span class="self">self</span>.<span class="ident">handle_track_outcome</span>(<span class="ident">message</span>),
                     <span class="kw">_</span> <span class="op">=</span> <span class="ident">shutdown</span>.<span class="ident">changed</span>() =&gt; <span class="self">self</span>.<span class="ident">handle_shutdown</span>(<span class="kw-2">&amp;</span><span class="ident">shutdown</span>.<span class="ident">borrow_and_update</span>()),
                     <span class="kw">else</span> =&gt; <span class="kw">break</span>,
                 }

@@ -936,6 +936,11 @@
 <span id="934">934</span>
 <span id="935">935</span>
 <span id="936">936</span>
+<span id="937">937</span>
+<span id="938">938</span>
+<span id="939">939</span>
+<span id="940">940</span>
+<span id="941">941</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the actor that tracks outcomes.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Outcomes describe the final &quot;fate&quot; of an envelope item. As such, for every item exactly one</span>
@@ -1448,7 +1453,7 @@
 <span class="kw">struct</span> <span class="ident">HttpOutcomeProducer</span> {
     <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
     <span class="ident">unsent_outcomes</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TrackRawOutcome</span><span class="op">&gt;</span>,
-    <span class="ident">pending_flush_handle</span>: <span class="ident">SleepHandle</span>,
+    <span class="ident">flush_handle</span>: <span class="ident">SleepHandle</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">HttpOutcomeProducer</span> {
@@ -1456,12 +1461,12 @@
         <span class="prelude-val">Ok</span>(<span class="self">Self</span> {
             <span class="ident">config</span>,
             <span class="ident">unsent_outcomes</span>: <span class="ident">Vec::new</span>(),
-            <span class="ident">pending_flush_handle</span>: <span class="ident">SleepHandle::idle</span>(),
+            <span class="ident">flush_handle</span>: <span class="ident">SleepHandle::idle</span>(),
         })
     }
 
     <span class="kw">fn</span> <span class="ident">send_batch</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
-        <span class="self">self</span>.<span class="ident">pending_flush_handle</span>.<span class="ident">reset</span>();
+        <span class="self">self</span>.<span class="ident">flush_handle</span>.<span class="ident">reset</span>();
 
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">unsent_outcomes</span>.<span class="ident">is_empty</span>() {
             <span class="macro">relay_log::warn!</span>(<span class="string">&quot;unexpected send_batch scheduled with no outcomes to send.&quot;</span>);
@@ -1493,9 +1498,8 @@
 
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">unsent_outcomes</span>.<span class="ident">len</span>() <span class="op">&gt;</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">outcome_batch_size</span>() {
             <span class="self">self</span>.<span class="ident">send_batch</span>();
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">pending_flush_handle</span>.<span class="ident">is_idle</span>() {
-            <span class="self">self</span>.<span class="ident">pending_flush_handle</span>
-                .<span class="ident">set</span>(<span class="self">self</span>.<span class="ident">config</span>.<span class="ident">outcome_batch_interval</span>());
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">flush_handle</span>.<span class="ident">is_idle</span>() {
+            <span class="self">self</span>.<span class="ident">flush_handle</span>.<span class="ident">set</span>(<span class="self">self</span>.<span class="ident">config</span>.<span class="ident">outcome_batch_interval</span>());
         }
     }
 }
@@ -1507,8 +1511,11 @@
         <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
             <span class="kw">loop</span> {
                 <span class="macro">tokio::select!</span> {
+                    <span class="comment">// Prioritize flush over receiving messages to prevent starving.</span>
+                    <span class="ident">biased</span>;
+
+                    () <span class="op">=</span> <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">flush_handle</span> =&gt; <span class="self">self</span>.<span class="ident">send_batch</span>(),
                     <span class="prelude-val">Some</span>(<span class="ident">message</span>) <span class="op">=</span> <span class="ident">rx</span>.<span class="ident">recv</span>() =&gt; <span class="self">self</span>.<span class="ident">handle_message</span>(<span class="ident">message</span>),
-                    () <span class="op">=</span> <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">pending_flush_handle</span> =&gt; <span class="self">self</span>.<span class="ident">send_batch</span>(),
                     <span class="kw">else</span> =&gt; <span class="kw">break</span>,
                 }
             }
@@ -1595,8 +1602,11 @@
         <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
             <span class="kw">loop</span> {
                 <span class="macro">tokio::select!</span> {
-                    <span class="prelude-val">Some</span>(<span class="ident">message</span>) <span class="op">=</span> <span class="ident">rx</span>.<span class="ident">recv</span>() =&gt; <span class="self">self</span>.<span class="ident">handle_message</span>(<span class="ident">message</span>),
+                    <span class="comment">// Prioritize flush over receiving messages to prevent starving.</span>
+                    <span class="ident">biased</span>;
+
                     () <span class="op">=</span> <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">flush_handle</span> =&gt; <span class="self">self</span>.<span class="ident">flush</span>(),
+                    <span class="prelude-val">Some</span>(<span class="ident">message</span>) <span class="op">=</span> <span class="ident">rx</span>.<span class="ident">recv</span>() =&gt; <span class="self">self</span>.<span class="ident">handle_message</span>(<span class="ident">message</span>),
                     <span class="kw">else</span> =&gt; <span class="kw">break</span>,
                 }
             }

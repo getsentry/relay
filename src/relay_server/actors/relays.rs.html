@@ -362,6 +362,7 @@
 <span id="360">360</span>
 <span id="361">361</span>
 <span id="362">362</span>
+<span id="363">363</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::collections::HashMap</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
@@ -711,6 +712,7 @@
 
             <span class="kw">loop</span> {
                 <span class="macro">tokio::select!</span> {
+                    <span class="comment">// Prioritize flush over receiving messages to prevent starving.</span>
                     <span class="ident">biased</span>;
 
                     <span class="prelude-val">Some</span>(<span class="ident">result</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">fetch_channel</span>.<span class="number">1</span>.<span class="ident">recv</span>() =&gt; <span class="self">self</span>.<span class="ident">handle_fetch_result</span>(<span class="ident">result</span>),
