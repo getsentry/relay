@@ -569,8 +569,10 @@ impl Service for HttpOutcomeProducer {
         tokio::spawn(async move {
             loop {
                 tokio::select! {
-                    Some(message) = rx.recv() => self.handle_message(message),
+                    biased;
+
                     () = &mut self.pending_flush_handle => self.send_batch(),
+                    Some(message) = rx.recv() => self.handle_message(message),
                     else => break,
                 }
             }
@@ -657,8 +659,10 @@ impl Service for ClientReportOutcomeProducer {
         tokio::spawn(async move {
             loop {
                 tokio::select! {
-                    Some(message) = rx.recv() => self.handle_message(message),
+                    biased;
+
                     () = &mut self.flush_handle => self.flush(),
+                    Some(message) = rx.recv() => self.handle_message(message),
                     else => break,
                 }
             }

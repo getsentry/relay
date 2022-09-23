@@ -187,8 +187,10 @@ impl Service for OutcomeAggregator {
 
             loop {
                 tokio::select! {
-                    Some(message) = rx.recv() => self.handle_track_outcome(message),
+                    biased;
+
                     () = &mut self.flush_handle => self.flush(),
+                    Some(message) = rx.recv() => self.handle_track_outcome(message),
                     _ = shutdown.changed() => self.handle_shutdown(&shutdown.borrow_and_update()),
                     else => break,
                 }
