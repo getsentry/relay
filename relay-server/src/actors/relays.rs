@@ -347,6 +347,7 @@ impl Service for RelayCacheService {
 
             loop {
                 tokio::select! {
+                    // Prioritize flush over receiving messages to prevent starving.
                     biased;
 
                     Some(result) = self.fetch_channel.1.recv() => self.handle_fetch_result(result),
