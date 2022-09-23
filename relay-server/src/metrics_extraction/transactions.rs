@@ -554,7 +554,7 @@ mod tests {
     use super::*;
 
     use relay_general::protocol::User;
-    use relay_general::store::{BreakdownsConfig, LightNormalizationConfig};
+    use relay_general::store::{BreakdownsConfig, LightNormalizationConfig, MeasurementsConfig};
     use relay_general::types::Annotated;
     use relay_metrics::DurationUnit;
 
@@ -798,6 +798,7 @@ mod tests {
                 tags: {
                     "measurement_rating": "good",
                     "platform": "other",
+                    "transaction.status": "unknown",
                 },
             },
             Metric {
@@ -808,6 +809,7 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "platform": "other",
+                    "transaction.status": "unknown",
                 },
             },
             Metric {
@@ -818,6 +820,7 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "platform": "other",
+                    "transaction.status": "unknown",
                 },
             },
         ]
@@ -961,7 +964,7 @@ mod tests {
             "start_timestamp": "2021-04-26T08:00:00+0100",
             "timestamp": "2021-04-26T08:00:02+0100",
             "measurements": {
-                "lcp": {"value": 41}
+                "lcp": {"value": 41, "unit": "millisecond"}
             }
         }
         "#;
@@ -1026,7 +1029,7 @@ mod tests {
             "start_timestamp": "2021-04-26T08:00:00+0100",
             "timestamp": "2021-04-26T08:00:02+0100",
             "measurements": {
-                "lcp": {"value": 41}
+                "lcp": {"value": 41, "unit": "millisecond"}
             }
         }
         "#;
@@ -1098,7 +1101,24 @@ mod tests {
         }
         "#;
 
-        let event = Annotated::from_json(json).unwrap();
+        let mut event = Annotated::from_json(json).unwrap();
+
+        // Normalize first, to make sure the units are correct:
+        let measurements_config: MeasurementsConfig = serde_json::from_value(serde_json::json!(
+            {
+                "builtinMeasurements": [{"name": "fcp", "unit": "millisecond"}],
+                "maxCustomMeasurements": 2
+            }
+        ))
+        .unwrap();
+        let res = store::light_normalize_event(
+            &mut event,
+            &LightNormalizationConfig {
+                measurements_config: Some(&measurements_config),
+                ..Default::default()
+            },
+        );
+        assert!(res.is_ok(), "{:?}", res);
 
         let config = TransactionMetricsConfig::default();
         let mut metrics = vec![];
@@ -1164,7 +1184,7 @@ mod tests {
             "start_timestamp": "2021-04-26T08:00:00+0100",
             "timestamp": "2021-04-26T08:00:02+0100",
             "measurements": {
-                "lcp": {"value": 41}
+                "lcp": {"value": 41, "unit": "millisecond"}
             }
         }
         "#;
@@ -1700,7 +1720,8 @@ mod tests {
                     "value": 4
                 },
                 "stall_total_time": {
-                    "value": 4
+                    "value": 4,
+                    "unit": "millisecond"
                 }
             }
         }"#;
