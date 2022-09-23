@@ -43,6 +43,7 @@ pub struct BuiltinMeasurementKey {
     name: String,
     unit: MetricUnit,
 }
+
 /// Configuration for measurements normalization.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]

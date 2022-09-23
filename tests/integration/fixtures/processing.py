@@ -168,8 +168,7 @@ class ConsumerBase(object):
         test message ends up in the same partition as the message we are checking).
         """
         # First, give Relay a bit of time to process
-        result = self.poll(timeout=0.2)
-        assert result is None, result.value()
+        assert self.poll(timeout=0.2) is None
 
         # Then, send a custom message to ensure we're not just timing out
         message = json.dumps({"__test__": uuid.uuid4().hex}).encode("utf8")
@@ -288,7 +287,6 @@ def replay_events_consumer(kafka_consumer):
 class MetricsConsumer(ConsumerBase):
     def get_metric(self, timeout=None):
         message = self.poll(timeout=timeout)
-
         assert message is not None
         assert message.error() is None
 
