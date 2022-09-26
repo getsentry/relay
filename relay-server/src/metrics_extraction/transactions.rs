@@ -1157,53 +1157,53 @@ mod tests {
         extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
 
         insta::assert_debug_snapshot!(metrics, @r###"
-        [
-            Metric {
-                name: "d:transactions/measurements.a_custom1@none",
-                value: Distribution(
-                    41.0,
-                ),
-                timestamp: UnixTimestamp(1619420402),
-                tags: {
-                    "platform": "other",
-                    "transaction.status": "unknown",
+            [
+                Metric {
+                    name: "d:transactions/measurements.a_custom1@none",
+                    value: Distribution(
+                        41.0,
+                    ),
+                    timestamp: UnixTimestamp(1619420402),
+                    tags: {
+                        "platform": "other",
+                        "transaction.status": "unknown",
+                    },
                 },
-            },
-            Metric {
-                name: "d:transactions/measurements.fcp@millisecond",
-                value: Distribution(
-                    0.123,
-                ),
-                timestamp: UnixTimestamp(1619420402),
-                tags: {
-                    "measurement_rating": "good",
-                    "platform": "other",
-                    "transaction.status": "unknown",
+                Metric {
+                    name: "d:transactions/measurements.fcp@millisecond",
+                    value: Distribution(
+                        0.123,
+                    ),
+                    timestamp: UnixTimestamp(1619420402),
+                    tags: {
+                        "measurement_rating": "good",
+                        "platform": "other",
+                        "transaction.status": "unknown",
+                    },
                 },
-            },
-            Metric {
-                name: "d:transactions/measurements.g_custom2@second",
-                value: Distribution(
-                    42.0,
-                ),
-                timestamp: UnixTimestamp(1619420402),
-                tags: {
-                    "platform": "other",
-                    "transaction.status": "unknown",
+                Metric {
+                    name: "d:transactions/measurements.g_custom2@second",
+                    value: Distribution(
+                        42.0,
+                    ),
+                    timestamp: UnixTimestamp(1619420402),
+                    tags: {
+                        "platform": "other",
+                        "transaction.status": "unknown",
+                    },
                 },
-            },
-            Metric {
-                name: "d:transactions/duration@millisecond",
-                value: Distribution(
-                    2000.0,
-                ),
-                timestamp: UnixTimestamp(1619420402),
-                tags: {
-                    "platform": "other",
-                    "transaction.status": "unknown",
+                Metric {
+                    name: "d:transactions/duration@millisecond",
+                    value: Distribution(
+                        2000.0,
+                    ),
+                    timestamp: UnixTimestamp(1619420402),
+                    tags: {
+                        "platform": "other",
+                        "transaction.status": "unknown",
+                    },
                 },
-            },
-        ]
+            ]
         "###);
     }
 
