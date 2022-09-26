@@ -1765,7 +1765,7 @@ impl EnvelopeProcessorService {
 
         if limits.is_limited() {
             ProjectCache::from_registry()
-                .do_send(UpdateRateLimits::new(scoping.project_key, limits.clone()));
+                .do_send(UpdateRateLimits::new(scoping.project_key, limits));
         }
 
         enforcement.track_outcomes(&state.envelope, &state.envelope_context.scoping());
