@@ -740,7 +740,7 @@ mod tests {
                 },
             },
         ]
-        "###)
+        "###);
     }
 
     #[test]
@@ -775,7 +775,7 @@ mod tests {
         let mut metrics = vec![];
         extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
 
-        insta::assert_debug_snapshot!(&metrics[..3], @r###"
+        insta::assert_debug_snapshot!(metrics, @r###"
         [
             Metric {
                 name: "d:transactions/measurements.fcp@millisecond",
@@ -804,6 +804,17 @@ mod tests {
                 name: "d:transactions/measurements.stall_count@none",
                 value: Distribution(
                     3.3,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "platform": "other",
+                    "transaction.status": "unknown",
+                },
+            },
+            Metric {
+                name: "d:transactions/duration@millisecond",
+                value: Distribution(
+                    59000.0,
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
@@ -844,12 +855,45 @@ mod tests {
         let mut metrics = vec![];
         extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
 
-        assert_eq!(metrics.len(), 3);
-
-        assert_eq!(metrics[0].name, "d:transactions/measurements.fcp@second");
-
-        // None is an override, too.
-        assert_eq!(metrics[1].name, "d:transactions/measurements.lcp@none");
+        insta::assert_debug_snapshot!(metrics, @r###"
+        [
+            Metric {
+                name: "d:transactions/measurements.fcp@second",
+                value: Distribution(
+                    1.1,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "measurement_rating": "good",
+                    "platform": "other",
+                    "transaction.status": "unknown",
+                },
+            },
+            Metric {
+                name: "d:transactions/measurements.lcp@none",
+                value: Distribution(
+                    2.2,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "measurement_rating": "good",
+                    "platform": "other",
+                    "transaction.status": "unknown",
+                },
+            },
+            Metric {
+                name: "d:transactions/duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "platform": "other",
+                    "transaction.status": "unknown",
+                },
+            },
+        ]
+        "###);
     }
 
     #[test]
@@ -1215,6 +1259,7 @@ mod tests {
             event.value().unwrap(),
             &mut metrics,
         );
+
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Metric {
