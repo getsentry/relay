@@ -104,13 +104,13 @@ fn get_windows_version(description: &str) -> Option<(&str, &str)> {
 
     let version_name = match build_number {
         // Not considering versions below Windows XP
-        2600..=3790 => ("XP"),
-        6002 => ("Vista"),
-        7601 => ("7"),
-        9200 => ("8"),
-        9600 => ("8.1"),
-        10240..=19044 => ("10"),
-        22000..=22999 => ("11"),
+        2600..=3790 => "XP",
+        6002 => "Vista",
+        7601 => "7",
+        9200 => "8",
+        9600 => "8.1",
+        10240..=19044 => "10",
+        22000..=22999 => "11",
         // Fall back to raw version:
         _ => full_version,
     };

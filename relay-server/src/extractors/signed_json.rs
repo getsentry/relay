@@ -2,6 +2,7 @@ use actix_web::actix::*;
 use actix_web::http::StatusCode;
 use actix_web::{Error, FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
 use failure::Fail;
+use futures::{FutureExt, TryFutureExt};
 use futures01::prelude::*;
 use serde::de::DeserializeOwned;
 
@@ -89,12 +90,10 @@ impl<T: DeserializeOwned + 'static> FromRequest<ServiceState> for SignedJson<T> 
 
         let future = RelayCache::from_registry()
             .send(GetRelay { relay_id })
-            .map_err(Error::from)
-            .and_then(|result| {
-                result?
-                    .relay
-                    .ok_or_else(|| Error::from(SignatureError::UnknownRelay))
-            })
+            .boxed()
+            .compat()
+            .map_err(|_| Error::from(MailboxError::Closed))
+            .and_then(|result| result.ok_or_else(|| Error::from(SignatureError::UnknownRelay)))
             .join(RequestBody::new(req, MAX_JSON_SIZE).map_err(Error::from))
             .and_then(move |(relay, body)| {
                 relay

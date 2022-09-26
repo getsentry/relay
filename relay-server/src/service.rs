@@ -13,13 +13,14 @@ use relay_metrics::Aggregator;
 use relay_redis::RedisPool;
 use relay_system::{Addr, Configure, Controller, Service};
 
-use crate::actors::envelopes::EnvelopeManager;
+use crate::actors::envelopes::{EnvelopeManager, EnvelopeManagerService};
 use crate::actors::health_check::{HealthCheck, HealthCheckService};
 use crate::actors::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::actors::processor::{EnvelopeProcessor, EnvelopeProcessorService};
 use crate::actors::project_cache::ProjectCache;
-use crate::actors::relays::RelayCache;
+use crate::actors::relays::{RelayCache, RelayCacheService};
+use crate::actors::test_store::{TestStore, TestStoreService};
 use crate::actors::upstream::UpstreamRelay;
 use crate::middlewares::{
     AddCommonHeaders, ErrorHandlers, Metrics, ReadRequestMiddleware, SentryMiddleware,
@@ -114,6 +115,9 @@ pub struct Registry {
     pub outcome_producer: Addr<OutcomeProducer>,
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub processor: Addr<EnvelopeProcessor>,
+    pub envelope_manager: Addr<EnvelopeManager>,
+    pub test_store: Addr<TestStore>,
+    pub relay_cache: Addr<RelayCache>,
 }
 
 impl fmt::Debug for Registry {
@@ -134,6 +138,7 @@ pub struct ServiceState {
     buffer_guard: Arc<BufferGuard>,
     _outcome_runtime: Arc<tokio::runtime::Runtime>,
     _main_runtime: Arc<tokio::runtime::Runtime>,
+    _store_runtime: Option<Arc<tokio::runtime::Runtime>>,
 }
 
 impl ServiceState {
@@ -142,10 +147,13 @@ impl ServiceState {
         let system = System::current();
         let registry = system.registry();
 
+        let main_runtime = utils::tokio_runtime_with_actix();
+        let outcome_runtime = utils::tokio_runtime_with_actix();
+        let mut _store_runtime = None;
+
         let upstream_relay = UpstreamRelay::new(config.clone());
         registry.set(Arbiter::start(|_| upstream_relay));
 
-        let outcome_runtime = utils::tokio_runtime_with_actix();
         let guard = outcome_runtime.enter();
         let outcome_producer = OutcomeProducerService::create(config.clone())?.start();
         let outcome_aggregator = OutcomeAggregator::new(&config, outcome_producer.clone()).start();
@@ -158,21 +166,31 @@ impl ServiceState {
             _ => None,
         };
 
-        // Enter and enter the tokio runtime so we can start spawning tasks from the outside.
-        let main_runtime = utils::tokio_runtime_with_actix();
         let _guard = main_runtime.enter();
 
         let buffer = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
         let processor = EnvelopeProcessorService::new(config.clone(), redis_pool.clone())?.start();
-        let envelope_manager = EnvelopeManager::create(config.clone())?;
-        registry.set(Arbiter::start(|_| envelope_manager));
+        #[allow(unused_mut)]
+        let mut envelope_manager = EnvelopeManagerService::new(config.clone());
+
+        #[cfg(feature = "processing")]
+        if config.processing_enabled() {
+            let rt = crate::utils::tokio_runtime_with_actix();
+            let _guard = rt.enter();
+            let store = crate::actors::store::StoreService::create(config.clone())?.start();
+            envelope_manager.set_store_forwarder(store);
+            _store_runtime = Some(rt);
+        }
+
+        let envelope_manager = envelope_manager.start();
+        let test_store = TestStoreService::new(config.clone()).start();
 
         let project_cache = ProjectCache::new(config.clone(), redis_pool);
         let project_cache = Arbiter::start(|_| project_cache);
         registry.set(project_cache.clone());
 
         let health_check = HealthCheckService::new(config.clone()).start();
-        registry.set(RelayCache::new(config.clone()).start());
+        let relay_cache = RelayCacheService::new(config.clone()).start();
 
         let aggregator = Aggregator::new(config.aggregator_config(), project_cache.recipient());
         registry.set(Arbiter::start(|_| aggregator));
@@ -189,6 +207,9 @@ impl ServiceState {
                 health_check,
                 outcome_producer,
                 outcome_aggregator,
+                envelope_manager,
+                test_store,
+                relay_cache,
             }))
             .unwrap();
 
@@ -197,6 +218,7 @@ impl ServiceState {
             config,
             _outcome_runtime: Arc::new(outcome_runtime),
             _main_runtime: Arc::new(main_runtime),
+            _store_runtime: _store_runtime.map(Arc::new),
         })
     }
 

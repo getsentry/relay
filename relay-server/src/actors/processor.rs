@@ -380,7 +380,16 @@ fn track_sampling_metrics(
         None => return,
     };
 
-    let last_change = changes.last().and_then(|a| a.value());
+    let last_change = changes
+        .iter()
+        .rev()
+        // skip all broken change records
+        .filter_map(|a| a.value())
+        // skip records without a timestamp
+        .filter(|c| c.timestamp.value().is_some())
+        // take the last that did not occur when the event was sent
+        .find(|c| c.timestamp.value() != event.timestamp.value());
+
     let source = event.get_transaction_source().as_str();
     let platform = event.platform.as_str().unwrap_or("other");
     let sdk_name = event.sdk_name();
@@ -408,7 +417,11 @@ fn track_sampling_metrics(
             sdk_version = sdk_version,
         );
 
-        let percentage = ((change as f64) / (total as f64)).min(1.0);
+        let percentage = match (change, total) {
+            (0, 0) => 0.0, // 0% indicates no premature changes.
+            _ => ((change as f64) / (total as f64)).min(1.0) * 100.0,
+        };
+
         metric!(
             histogram(RelayHistograms::DynamicSamplingPropagationPercentage) = percentage,
             source = source,
@@ -420,7 +433,9 @@ fn track_sampling_metrics(
 
     if let (Some(&start), Some(&change), Some(&end)) = (
         event.start_timestamp.value(),
-        last_change.and_then(|c| c.timestamp.value()),
+        last_change
+            .and_then(|c| c.timestamp.value())
+            .or_else(|| event.start_timestamp.value()), // default to start if there was no change
         event.timestamp.value(),
     ) {
         let delay_ms = (change - start).num_milliseconds();
@@ -436,7 +451,7 @@ fn track_sampling_metrics(
 
         let duration_ms = (end - start).num_milliseconds() as f64;
         if delay_ms >= 0 && duration_ms >= 0.0 {
-            let percentage = ((delay_ms as f64) / duration_ms).min(1.0);
+            let percentage = ((delay_ms as f64) / duration_ms).min(1.0) * 100.0;
             metric!(
                 histogram(RelayHistograms::DynamicSamplingChangePercentage) = percentage,
                 source = source,
@@ -1967,6 +1982,7 @@ impl EnvelopeProcessorService {
             received_at: Some(state.envelope_context.received_at()),
             max_secs_in_past: Some(self.config.max_secs_in_past()),
             max_secs_in_future: Some(self.config.max_secs_in_future()),
+            measurements_config: state.project_state.config.measurements.as_ref(),
             breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
             normalize_user_agent: Some(true),
         };
@@ -2113,7 +2129,7 @@ impl EnvelopeProcessorService {
         match result {
             Ok(response) => {
                 if let Some((envelope, envelope_context)) = response.envelope {
-                    EnvelopeManager::from_registry().do_send(SubmitEnvelope {
+                    EnvelopeManager::from_registry().send(SubmitEnvelope {
                         envelope,
                         envelope_context,
                     })
@@ -2669,13 +2685,16 @@ mod tests {
                 .unwrap()
         });
 
-        let (envelope, _) = envelope_response.envelope.unwrap();
+        let (envelope, ctx) = envelope_response.envelope.unwrap();
         let item = envelope.items().next().unwrap();
         assert_eq!(item.ty(), &ItemType::ClientReport);
+
+        ctx.accept(); // do not try to capture or emit outcomes
     }
 
     #[test]
     #[cfg(feature = "processing")]
+    #[ignore = "requires registry for the TestStore"]
     fn test_client_report_removal_in_processing() {
         relay_test::setup();
 

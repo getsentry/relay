@@ -4,6 +4,7 @@ use std::time::Instant;
 use actix::prelude::*;
 use actix_web::ResponseError;
 use failure::Fail;
+use futures::{FutureExt, TryFutureExt};
 use futures01::{future, Future};
 
 use relay_common::ProjectKey;
@@ -662,9 +663,10 @@ impl Handler<FlushBuckets> for ProjectCache {
             .send(SendMetrics {
                 buckets,
                 scoping,
-                project_key,
                 partition_key,
             })
+            .boxed()
+            .compat()
             .then(move |send_result| match send_result {
                 Ok(Ok(())) => Ok(()),
                 Ok(Err(buckets)) => Err(buckets),

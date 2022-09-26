@@ -49,9 +49,8 @@ pub fn normalize_replay_event(
     replay_input.set_user_agent_meta();
 
     // Set user ip-address if needed.
-    match detected_ip_address {
-        Some(ip_address) => replay_input.set_user_ip_address(ip_address),
-        None => (),
+    if let Some(ip_address) = detected_ip_address {
+        replay_input.set_user_ip_address(ip_address)
     }
 
     serde_json::to_vec(&replay_input)
