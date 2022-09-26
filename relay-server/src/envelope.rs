@@ -895,7 +895,7 @@ impl Envelope {
 
     /// Returns the internal early enforcement header.
     ///
-    /// See [`EnvelopeHeaders::early_enformcement`].
+    /// See [`EnvelopeHeaders::early_enforcement`].
     pub fn get_early_enforcement(&self) -> &Enforcement {
         &self.headers.early_enforcement
     }
