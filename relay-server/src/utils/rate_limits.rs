@@ -1,7 +1,5 @@
 use std::fmt::{self, Write};
 
-use smallvec::SmallVec;
-
 use relay_quotas::{
     DataCategories, DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits,
     ReasonCode, Scoping,
@@ -193,7 +191,7 @@ impl EnvelopeSummary {
 
 /// Rate limiting information for a data category.
 #[derive(Debug, Clone)]
-struct CategoryLimit {
+pub struct CategoryLimit {
     /// The limited data category.
     category: DataCategory,
     /// The total rate limited quantity across all items.
@@ -225,8 +223,13 @@ impl CategoryLimit {
     ///
     /// This indicates that the category is limited and a certain quantity is removed from the
     /// Envelope. If the limit is inactive, there is no change.
-    fn is_active(&self) -> bool {
+    pub fn is_active(&self) -> bool {
         self.quantity > 0
+    }
+
+    /// The [`DataCategory`] this enforcement was created for and checked against.
+    pub fn category(&self) -> DataCategory {
+        self.category
     }
 }
 
@@ -241,28 +244,28 @@ impl Default for CategoryLimit {
 }
 
 /// Information on the limited quantities returned by [`EnvelopeLimiter::enforce`].
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct Enforcement {
     /// The event item rate limits.
     ///
     /// Some payloads have multiple rate-limits that may apply, each that is enforced will
     /// be in this list.
-    event: CategoryLimit,
+    pub event: CategoryLimit,
     /// Rate limits for transaction processing.
     ///
     /// Transaction processing is special since a normal transaction event has the primary
     /// rate limit using indexing quota ([`DataCategory::Transaction`]).  However extracting
     /// metrics from it has the [`DataCategory::TransactionProcessed`] rate limit attached
     /// to it.
-    transaction_processed: CategoryLimit,
+    pub transaction_processed: CategoryLimit,
     /// The combined attachment item rate limit.
-    attachments: CategoryLimit,
+    pub attachments: CategoryLimit,
     /// The combined session item rate limit.
-    sessions: CategoryLimit,
+    pub sessions: CategoryLimit,
     /// The combined profile item rate limit.
-    profiles: CategoryLimit,
+    pub profiles: CategoryLimit,
     /// The combined replay item rate limit.
-    replays: CategoryLimit,
+    pub replays: CategoryLimit,
 }
 
 impl Enforcement {
@@ -339,12 +342,13 @@ where
     ///   to items in the envelope. This excludes rate limits applied to required attachments, since
     ///   clients are allowed to continue sending them.
     ///
-    /// The `early_limited` parameter is used to pass through the [`DataCategories`] which
-    /// were already rate limited when the envelope limiter was called during the handling
-    /// of the request in the endpoint, before it was queued for processing.  It contains
-    /// the data categories which exceeded quota at this time.  This allows this function to
-    /// not check rate limits again, but also to finally remove the payloads which were rate
-    /// limited earlier as further processing will not need them anymore.
+    /// The `early_enforcement` parameter is used to pass through the [`Enforcement`] from
+    /// an earlier call to the rate limiter.  This is because while the request is still
+    /// open we get called to see if we have any cached quotas which are exceeded to already
+    /// reject a payload.  However e.g. transactions have two quota data categories and only
+    /// one might be exceeded.  In this case the envelope is not reject and still processed.
+    /// The earlier enformcenemts are then passed back in here so we can avoid duplicate
+    /// and inconsistent checks etc.
     ///
     /// # Example
     ///
@@ -382,31 +386,16 @@ where
         mut self,
         envelope: &mut Envelope,
         scoping: &Scoping,
-        early_limited: DataCategories,
+        early_enforcement: &Enforcement,
     ) -> Result<(Enforcement, RateLimits), E> {
         let mut summary = EnvelopeSummary::compute(envelope);
         if let Some(event_category) = self.event_category {
             summary.event_category = Some(event_category);
         }
 
-        let (enforcement, rate_limits) = self.execute(&summary, scoping, early_limited)?;
-        // let (enforcement, rate_limits) = self.execute(&summary, scoping)?;
+        let (enforcement, rate_limits) = self.execute(&summary, scoping, early_enforcement)?;
         envelope.retain_items(|item| self.should_retain_item(item, &enforcement));
-
-        // TODO: This is special-cased for Transaction but we could set this generically.
-        // TODO: should this be done in `should_retain_item?  it's a bit awkward
-        if let Some(item) =
-            envelope.get_item_by_mut(|item| matches!(item.ty(), ItemType::Transaction))
-        {
-            let mut categories = SmallVec::new();
-            if enforcement.event.is_active() {
-                categories.push(enforcement.event.category);
-            }
-            if enforcement.transaction_processed.is_active() {
-                categories.push(enforcement.transaction_processed.category);
-            }
-            item.set_rate_limited_categories(categories);
-        }
+        envelope.set_early_enforcement(enforcement.clone());
 
         Ok((enforcement, rate_limits))
     }
@@ -415,14 +404,14 @@ where
         &mut self,
         summary: &EnvelopeSummary,
         scoping: &Scoping,
-        early_enforcement: Enforcement,
+        early_enforcement: &Enforcement,
     ) -> Result<(Enforcement, RateLimits), E> {
         let mut rate_limits = RateLimits::new();
         let mut enforcement = Enforcement::default();
 
         if let Some(category) = summary.event_category {
             if early_enforcement.event.is_active() {
-                enforcement.event = early_enforcement.event;
+                enforcement.event = early_enforcement.event.clone();
                 // No need to set a RateLimit for this, we only need to report new rate
                 // limits as those are the ones that need to be sent to the ProjectCache.
             } else {
@@ -443,7 +432,8 @@ where
             // Handle transactions specially, they have processing quota too.
             if category == DataCategory::Transaction {
                 if early_enforcement.transaction_processed.is_active() {
-                    enforcement.transaction_processed = early_enforcement.transaction_processed
+                    enforcement.transaction_processed =
+                        early_enforcement.transaction_processed.clone()
                 } else {
                     let item_scoping = scoping.item(DataCategory::TransactionProcessed);
                     let limits = (self.check)(item_scoping, 1)?;
@@ -748,7 +738,7 @@ mod tests {
 
         let mut mock = MockLimiter::default();
         let (_, limits) = EnvelopeLimiter::new(|s, q| mock.check(s, q))
-            .enforce(&mut envelope, &scoping())
+            .enforce(&mut envelope, &scoping(), &Enforcement::default())
             .unwrap();
 
         assert!(!limits.is_limited());
@@ -764,7 +754,7 @@ mod tests {
 
         let mut mock = MockLimiter::default().deny(DataCategory::Error);
         let (_, limits) = EnvelopeLimiter::new(|s, q| mock.check(s, q))
-            .enforce(&mut envelope, &scoping())
+            .enforce(&mut envelope, &scoping(), &Enforcement::default())
             .unwrap();
 
         assert!(limits.is_limited());
@@ -780,7 +770,7 @@ mod tests {
 
         let mut mock = MockLimiter::default().deny(DataCategory::Error);
         let (_, limits) = EnvelopeLimiter::new(|s, q| mock.check(s, q))
-            .enforce(&mut envelope, &scoping())
+            .enforce(&mut envelope, &scoping(), &Enforcement::default())
             .unwrap();
 
         assert!(limits.is_limited());
@@ -797,7 +787,7 @@ mod tests {
 
         let mut mock = MockLimiter::default().deny(DataCategory::Error);
         let (_, limits) = EnvelopeLimiter::new(|s, q| mock.check(s, q))
-            .enforce(&mut envelope, &scoping())
+            .enforce(&mut envelope, &scoping(), &Enforcement::default())
             .unwrap();
 
         assert!(limits.is_limited());
@@ -814,7 +804,7 @@ mod tests {
 
         let mut mock = MockLimiter::default().deny(DataCategory::Attachment);
         let (_, limits) = EnvelopeLimiter::new(|s, q| mock.check(s, q))
-            .enforce(&mut envelope, &scoping())
+            .enforce(&mut envelope, &scoping(), &Enforcement::default())
             .unwrap();
 
         // Attachments would be limited, but crash reports create events and are thus allowed.
@@ -831,7 +821,7 @@ mod tests {
 
         let mut mock = MockLimiter::default().deny(DataCategory::Attachment);
         let (_, limits) = EnvelopeLimiter::new(|s, q| mock.check(s, q))
-            .enforce(&mut envelope, &scoping())
+            .enforce(&mut envelope, &scoping(), &Enforcement::default())
             .unwrap();
 
         // If only crash report attachments are present, we don't emit a rate limit.
@@ -853,7 +843,7 @@ mod tests {
 
         let mut mock = MockLimiter::default().deny(DataCategory::Error);
         let (_, limits) = EnvelopeLimiter::new(|s, q| mock.check(s, q))
-            .enforce(&mut envelope, &scoping())
+            .enforce(&mut envelope, &scoping(), &Enforcement::default())
             .unwrap();
 
         assert!(!limits.is_limited()); // No new rate limits applied.
@@ -869,7 +859,7 @@ mod tests {
 
         let mut mock = MockLimiter::default().deny(DataCategory::Error);
         let (_, limits) = EnvelopeLimiter::new(|s, q| mock.check(s, q))
-            .enforce(&mut envelope, &scoping())
+            .enforce(&mut envelope, &scoping(), &Enforcement::default())
             .unwrap();
 
         // If only crash report attachments are present, we don't emit a rate limit.
@@ -886,7 +876,7 @@ mod tests {
 
         let mut mock = MockLimiter::default().deny(DataCategory::Session);
         let (_, limits) = EnvelopeLimiter::new(|s, q| mock.check(s, q))
-            .enforce(&mut envelope, &scoping())
+            .enforce(&mut envelope, &scoping(), &Enforcement::default())
             .unwrap();
 
         // If only crash report attachments are present, we don't emit a rate limit.
@@ -905,7 +895,9 @@ mod tests {
         let mut mock = MockLimiter::default().deny(DataCategory::Transaction);
         let mut limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
         limiter.assume_event(DataCategory::Transaction);
-        let (_, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
+        let (_, limits) = limiter
+            .enforce(&mut envelope, &scoping(), &Enforcement::default())
+            .unwrap();
 
         assert!(limits.is_limited());
         assert!(envelope.is_empty()); // obviously
@@ -922,7 +914,9 @@ mod tests {
         let mut mock = MockLimiter::default().deny(DataCategory::Error);
         let mut limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
         limiter.assume_event(DataCategory::Error);
-        let (_, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
+        let (_, limits) = limiter
+            .enforce(&mut envelope, &scoping(), &Enforcement::default())
+            .unwrap();
 
         assert!(limits.is_limited());
         assert!(envelope.is_empty());

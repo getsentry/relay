@@ -14,7 +14,6 @@ use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use once_cell::sync::OnceCell;
 use serde_json::Value as SerdeValue;
-use smallvec::SmallVec;
 use tokio::sync::Semaphore;
 
 use relay_auth::RelayVersion;
@@ -33,7 +32,6 @@ use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig};
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
 use relay_metrics::{Bucket, Metric};
-use relay_quotas::DataCategories;
 use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
 use relay_sampling::{DynamicSamplingContext, RuleId};
@@ -51,7 +49,8 @@ use crate::metrics_extraction::transactions::extract_transaction_metrics;
 use crate::service::{ServerError, REGISTRY};
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
-    self, ChunkedFormDataAggregator, EnvelopeContext, ErrorBoundary, FormDataIter, SamplingResult,
+    self, ChunkedFormDataAggregator, Enforcement, EnvelopeContext, ErrorBoundary, FormDataIter,
+    SamplingResult,
 };
 
 #[cfg(feature = "processing")]
@@ -218,13 +217,15 @@ struct ProcessEnvelopeState {
     /// Track whether transaction metrics were already extracted.
     transaction_metrics_extracted: bool,
 
-    /// Tracks which [`DataCategory`]s were rate limited.
+    /// Tracks quota enforcements applied in the store endpoint.
     ///
-    /// Some events, like transactions, can be rate limited for several [`DataCategory']s.
-    /// If not all categories were rate limited the item is still passed into the processing
-    /// pipeline but this shows the categories which are rate limited so the processing can
-    /// skip the relevant steps.
-    rate_limited_categories: DataCategories,
+    /// While the request is still open an in-memory quota check is performed in case any
+    /// exceeded quota is cached.  The results of this check is stored here.  Most often the
+    /// envelope is then dropped and not processed, and thus this struct wouldn't even be
+    /// created, however for e.g. transactions there are two types of quotas and only one
+    /// may be exceeded.  This allows the processing pipeline to inspect the applied quotas
+    /// and adjust processing as needed.
+    early_enforcement: Enforcement,
 
     /// Partial metrics of the Event during construction.
     ///
@@ -1153,11 +1154,12 @@ impl EnvelopeProcessorService {
         //  2. The DSN was moved and the envelope sent to the old project ID.
         envelope.meta_mut().set_project_id(project_id);
 
+        let early_enforcement = envelope.get_early_enforcement().clone();
         Ok(ProcessEnvelopeState {
             envelope,
             event: Annotated::empty(),
             transaction_metrics_extracted: false,
-            rate_limited_categories: SmallVec::new(),
+            early_enforcement,
             metrics: Metrics::default(),
             sample_rates: None,
             // rate_limits: RateLimits::new(),
@@ -1471,7 +1473,8 @@ impl EnvelopeProcessorService {
             relay_log::trace!("processing json transaction");
             state.sample_rates = item.take_sample_rates();
             state.transaction_metrics_extracted = item.metrics_extracted();
-            state.rate_limited_categories = item.rate_limited_categories();
+            // TODO: hook enforcements up somehow
+            // state.rate_limited_categories = item.rate_limited_categories();
             metric!(timer(RelayTimers::EventProcessingDeserialize), {
                 // Transaction items can only contain transaction events. Force the event type to
                 // hint to normalization that we're dealing with a transaction now.
@@ -1544,9 +1547,8 @@ impl EnvelopeProcessorService {
     }
 
     fn finalize_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        if state
-            .rate_limited_categories
-            .contains(&DataCategory::Transaction)
+        if state.early_enforcement.event.is_active()
+            && state.early_enforcement.event.category() == DataCategory::Transaction
         {
             return Ok(());
         }
@@ -1659,9 +1661,8 @@ impl EnvelopeProcessorService {
 
     #[cfg(feature = "processing")]
     fn store_process_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        if state
-            .rate_limited_categories
-            .contains(&DataCategory::Transaction)
+        if state.early_enforcement.event.is_active()
+            && state.early_enforcement.event.category() == DataCategory::Transaction
         {
             return Ok(());
         }
@@ -1770,7 +1771,7 @@ impl EnvelopeProcessorService {
         let scoping = state.envelope_context.scoping();
         let (enforcement, limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
             envelope_limiter
-                .enforce(&mut state.envelope, &scoping)
+                .enforce(&mut state.envelope, &scoping, &state.early_enforcement)
                 .map_err(ProcessingError::QuotasFailed)?
         });
 
@@ -1796,9 +1797,7 @@ impl EnvelopeProcessorService {
         state: &mut ProcessEnvelopeState,
     ) -> Result<(), ProcessingError> {
         if state.transaction_metrics_extracted
-            || state
-                .rate_limited_categories
-                .contains(&DataCategory::TransactionProcessed)
+            || state.early_enforcement.transaction_processed.is_active()
         {
             // Nothing to do here.
             return Ok(());

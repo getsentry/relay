@@ -39,7 +39,6 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use failure::Fail;
 use relay_common::UnixTimestamp;
-use relay_quotas::DataCategories;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use smallvec::SmallVec;
 
@@ -49,7 +48,7 @@ use relay_sampling::DynamicSamplingContext;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::extractors::{PartialMeta, RequestMeta};
-use crate::utils::ErrorBoundary;
+use crate::utils::{Enforcement, ErrorBoundary};
 
 pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 
@@ -416,17 +415,6 @@ pub struct ItemHeaders {
     #[serde(default, skip)]
     rate_limited: bool,
 
-    /// The set of [`DataCategory`](relay_quota::Datacategory) items which were rate limited
-    /// for this item.
-    ///
-    /// Some items have multiple rate limiting [`DataCategory`] items and if not all are
-    /// rate limited the item is not removed from the envelope for processing.  For such
-    /// items the categories which were limited are available here so the processing can
-    /// handle them appropriately.
-    // TODO: fold the rate_limited field into this.
-    #[serde(default, skip)]
-    rate_limited_categories: DataCategories,
-
     /// A list of cumulative sample rates applied to this event.
     ///
     /// Multiple entries in `sample_rates` mean that the event was sampled multiple times. The
@@ -472,7 +460,6 @@ impl Item {
                 content_type: None,
                 filename: None,
                 rate_limited: false,
-                rate_limited_categories: SmallVec::new(),
                 sample_rates: None,
                 timestamp: None,
                 other: BTreeMap::new(),
@@ -559,14 +546,6 @@ impl Item {
     /// Sets whether this item should be rate limited.
     pub fn set_rate_limited(&mut self, rate_limited: bool) {
         self.headers.rate_limited = rate_limited;
-    }
-
-    pub fn rate_limited_categories(&self) -> DataCategories {
-        self.headers.rate_limited_categories.clone()
-    }
-
-    pub fn set_rate_limited_categories(&mut self, categories: DataCategories) {
-        self.headers.rate_limited_categories = categories;
     }
 
     /// Removes sample rates from the headers, if any.
@@ -736,6 +715,16 @@ pub struct EnvelopeHeaders<M = RequestMeta> {
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
     other: BTreeMap<String, Value>,
+
+    /// The result of quota checks, if done.
+    ///
+    /// While handling the request an early quota check is done with just in-memory quota
+    /// information.  If the envelope is still enqueed to process after this this will
+    /// contain the enfrocement results of that early check.  This allows for transactions
+    /// to have indexing and processing quotas while they can be exhausted independently,
+    /// the processing needs to continue for the other part still.
+    #[serde(default, skip)]
+    early_enforcement: Enforcement,
 }
 
 impl EnvelopeHeaders<PartialMeta> {
@@ -774,6 +763,7 @@ impl EnvelopeHeaders<PartialMeta> {
             sent_at: self.sent_at,
             trace: self.trace,
             other: self.other,
+            early_enforcement: Enforcement::default(),
         })
     }
 }
@@ -795,6 +785,7 @@ impl Envelope {
                 sent_at: None,
                 other: BTreeMap::new(),
                 trace: None,
+                early_enforcement: Enforcement::default(),
             },
             items: Items::new(),
         }
@@ -900,6 +891,18 @@ impl Envelope {
         V: Into<Value>,
     {
         self.headers.other.insert(name.into(), value.into())
+    }
+
+    /// Returns the internal early enforcement header.
+    ///
+    /// See [`EnvelopeHeaders::early_enformcement`].
+    pub fn get_early_enforcement(&self) -> &Enforcement {
+        &self.headers.early_enforcement
+    }
+
+    /// Sets the internal early enforcement header.
+    pub fn set_early_enforcement(&mut self, enforcement: Enforcement) {
+        self.headers.early_enforcement = enforcement;
     }
 
     /// Returns an iterator over items in this envelope.

@@ -33,7 +33,7 @@ use crate::metrics_extraction::sessions::SessionMetricsConfig;
 use crate::metrics_extraction::transactions::TransactionMetricsConfig;
 use crate::metrics_extraction::TaggingRule;
 use crate::statsd::RelayCounters;
-use crate::utils::{self, EnvelopeContext, EnvelopeLimiter, ErrorBoundary, Response};
+use crate::utils::{self, Enforcement, EnvelopeContext, EnvelopeLimiter, ErrorBoundary, Response};
 
 /// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -848,7 +848,8 @@ impl Project {
             Ok(self.rate_limits.check_with_quotas(quotas, item_scoping))
         });
 
-        let (enforcement, rate_limits) = envelope_limiter.enforce(&mut envelope, &scoping)?;
+        let (enforcement, rate_limits) =
+            envelope_limiter.enforce(&mut envelope, &scoping, &Enforcement::default())?;
         enforcement.track_outcomes(&envelope, &scoping);
         envelope_context.update(&envelope);
 
