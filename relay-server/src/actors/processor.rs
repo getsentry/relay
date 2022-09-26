@@ -239,13 +239,6 @@ struct ProcessEnvelopeState {
     /// resulting item.
     sample_rates: Option<Value>,
 
-    // /// Rate limits returned in processing mode.
-    // ///
-    // /// The rate limiter is invoked in processing mode, after which the resulting limits are stored
-    // /// in this field. Note that there can be rate limits even if the envelope still carries items.
-    // ///
-    // /// These are always empty in non-processing mode, since the rate limiter is not invoked.
-    // rate_limits: RateLimits,
     /// Metrics extracted from items in the envelope.
     ///
     /// Relay can extract metrics for sessions and transactions, which is controlled by
@@ -473,8 +466,6 @@ pub struct ProcessEnvelopeResponse {
     /// removed from the envelope. Otherwise, if the envelope is empty or the entire envelope needs
     /// to be dropped, this is `None`.
     pub envelope: Option<(Envelope, EnvelopeContext)>,
-    // /// All rate limits that have been applied on the envelope.
-    // pub rate_limits: RateLimits,
 }
 
 /// Applies processing to all contents of the given envelope.
@@ -1162,7 +1153,6 @@ impl EnvelopeProcessorService {
             early_enforcement,
             metrics: Metrics::default(),
             sample_rates: None,
-            // rate_limits: RateLimits::new(),
             extracted_metrics: Vec::new(),
             project_state,
             sampling_project_state,
@@ -1473,8 +1463,6 @@ impl EnvelopeProcessorService {
             relay_log::trace!("processing json transaction");
             state.sample_rates = item.take_sample_rates();
             state.transaction_metrics_extracted = item.metrics_extracted();
-            // TODO: hook enforcements up somehow
-            // state.rate_limited_categories = item.rate_limited_categories();
             metric!(timer(RelayTimers::EventProcessingDeserialize), {
                 // Transaction items can only contain transaction events. Force the event type to
                 // hint to normalization that we're dealing with a transaction now.
@@ -1780,7 +1768,6 @@ impl EnvelopeProcessorService {
                 .do_send(UpdateRateLimits::new(scoping.project_key, limits.clone()));
         }
 
-        // state.rate_limits = limits;
         enforcement.track_outcomes(&state.envelope, &state.envelope_context.scoping());
 
         if remove_event {
@@ -2095,7 +2082,6 @@ impl EnvelopeProcessorService {
 
                         Ok(ProcessEnvelopeResponse {
                             envelope: envelope_response,
-                            // rate_limits: state.rate_limits,
                         })
                     }
                     Err(err) => {
