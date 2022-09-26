@@ -690,48 +690,101 @@ mod tests {
             &mut metrics,
         );
 
-        assert_eq!(metrics.len(), 5, "{:?}", metrics);
-
-        assert_eq!(metrics[0].name, "d:transactions/measurements.foo@none");
-        assert_eq!(
-            metrics[1].name,
-            "d:transactions/measurements.lcp@millisecond"
-        );
-        assert_eq!(
-            metrics[2].name,
-            "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond"
-        );
-
-        let duration_metric = &metrics[3];
-        assert_eq!(duration_metric.name, "d:transactions/duration@millisecond");
-        if let MetricValue::Distribution(value) = duration_metric.value {
-            assert_eq!(value, 59000.0);
-        } else {
-            panic!(); // Duration must be set
-        }
-
-        let user_metric = &metrics[4];
-        assert_eq!(user_metric.name, "s:transactions/user@none");
-        assert!(matches!(user_metric.value, MetricValue::Set(_)));
-
-        assert_eq!(metrics[1].tags["measurement_rating"], "meh");
-
-        for metric in &metrics[0..4] {
-            assert!(matches!(metric.value, MetricValue::Distribution(_)));
-        }
-
-        for metric in metrics {
-            assert_eq!(metric.tags["release"], "1.2.3");
-            assert_eq!(metric.tags["dist"], "foo");
-            assert_eq!(metric.tags["environment"], "fake_environment");
-            assert_eq!(metric.tags["transaction"], "mytransaction");
-            assert_eq!(metric.tags["fOO"], "bar");
-            assert_eq!(metric.tags["http.method"], "POST");
-            assert_eq!(metric.tags["transaction.status"], "ok");
-            assert_eq!(metric.tags["transaction.op"], "myop");
-            assert_eq!(metric.tags["platform"], "javascript");
-            assert!(!metric.tags.contains_key("bogus"));
-        }
+        insta::assert_debug_snapshot!(metrics, @r###"
+        [
+            Metric {
+                name: "d:transactions/measurements.foo@none",
+                value: Distribution(
+                    420.69,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "dist": "foo",
+                    "environment": "fake_environment",
+                    "fOO": "bar",
+                    "http.method": "POST",
+                    "platform": "javascript",
+                    "release": "1.2.3",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                    "transaction.status": "ok",
+                },
+            },
+            Metric {
+                name: "d:transactions/measurements.lcp@millisecond",
+                value: Distribution(
+                    3000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "dist": "foo",
+                    "environment": "fake_environment",
+                    "fOO": "bar",
+                    "http.method": "POST",
+                    "measurement_rating": "meh",
+                    "platform": "javascript",
+                    "release": "1.2.3",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                    "transaction.status": "ok",
+                },
+            },
+            Metric {
+                name: "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
+                value: Distribution(
+                    9.910106,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "dist": "foo",
+                    "environment": "fake_environment",
+                    "fOO": "bar",
+                    "http.method": "POST",
+                    "platform": "javascript",
+                    "release": "1.2.3",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                    "transaction.status": "ok",
+                },
+            },
+            Metric {
+                name: "d:transactions/duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "dist": "foo",
+                    "environment": "fake_environment",
+                    "fOO": "bar",
+                    "http.method": "POST",
+                    "platform": "javascript",
+                    "release": "1.2.3",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                    "transaction.status": "ok",
+                },
+            },
+            Metric {
+                name: "s:transactions/user@none",
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "dist": "foo",
+                    "environment": "fake_environment",
+                    "fOO": "bar",
+                    "http.method": "POST",
+                    "platform": "javascript",
+                    "release": "1.2.3",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                    "transaction.status": "ok",
+                },
+            },
+        ]
+        "###);
     }
 
     #[test]
@@ -777,25 +830,44 @@ mod tests {
         let mut metrics = vec![];
         extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
 
-        assert_eq!(metrics.len(), 3, "{:?}", metrics);
-
-        assert_eq!(
-            metrics[0].name, "d:transactions/measurements.fcp@millisecond",
-            "{:?}",
-            metrics[0]
-        );
-
-        assert_eq!(
-            metrics[1].name, "d:transactions/measurements.foo@none",
-            "{:?}",
-            metrics[1]
-        );
-
-        assert_eq!(
-            metrics[2].name, "d:transactions/measurements.stall_count@none",
-            "{:?}",
-            metrics[2]
-        );
+        insta::assert_debug_snapshot!(metrics, @r###"
+        [
+            Metric {
+                name: "d:transactions/measurements.fcp@millisecond",
+                value: Distribution(
+                    1.1,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "measurement_rating": "good",
+                    "platform": "other",
+                    "transaction.status": "unknown",
+                },
+            },
+            Metric {
+                name: "d:transactions/measurements.foo@none",
+                value: Distribution(
+                    8.8,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "platform": "other",
+                    "transaction.status": "unknown",
+                },
+            },
+            Metric {
+                name: "d:transactions/measurements.stall_count@none",
+                value: Distribution(
+                    3.3,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "platform": "other",
+                    "transaction.status": "unknown",
+                },
+            },
+        ]
+        "###);
     }
 
     #[test]
@@ -835,12 +907,34 @@ mod tests {
         let mut metrics = vec![];
         extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
 
-        assert_eq!(metrics.len(), 2);
-
-        assert_eq!(metrics[0].name, "d:transactions/measurements.fcp@second");
-
-        // None is an override, too.
-        assert_eq!(metrics[1].name, "d:transactions/measurements.lcp@none");
+        insta::assert_debug_snapshot!(metrics, @r###"
+        [
+            Metric {
+                name: "d:transactions/measurements.fcp@second",
+                value: Distribution(
+                    1.1,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "measurement_rating": "good",
+                    "platform": "other",
+                    "transaction.status": "unknown",
+                },
+            },
+            Metric {
+                name: "d:transactions/measurements.lcp@none",
+                value: Distribution(
+                    2.2,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "measurement_rating": "good",
+                    "platform": "other",
+                    "transaction.status": "unknown",
+                },
+            },
+        ]
+        "###);
     }
 
     #[test]
@@ -1029,12 +1123,21 @@ mod tests {
         .unwrap();
         let mut metrics = vec![];
         extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
-        assert_eq!(metrics.len(), 1);
 
-        for metric in metrics {
-            assert_eq!(metric.tags.len(), 1);
-            assert!(!metric.tags.contains_key("satisfaction"));
-        }
+        insta::assert_debug_snapshot!(metrics, @r###"
+        [
+            Metric {
+                name: "d:transactions/duration@millisecond",
+                value: Distribution(
+                    2000.0,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "platform": "other",
+                },
+            },
+        ]
+        "###);
     }
 
     #[test]
@@ -1170,22 +1273,22 @@ mod tests {
             event.value().unwrap(),
             &mut metrics,
         );
-        assert_eq!(
-            metrics,
-            &[Metric::new_mri(
-                METRIC_NAMESPACE,
-                "duration",
-                MetricUnit::Duration(DurationUnit::MilliSecond),
-                MetricValue::Distribution(2000.0),
-                UnixTimestamp::from_secs(1619420402),
-                {
-                    let mut tags = BTreeMap::new();
-                    tags.insert("satisfaction".to_owned(), "tolerated".to_owned());
-                    tags.insert("platform".to_owned(), "other".to_owned());
-                    tags
-                }
-            )]
-        );
+
+        insta::assert_debug_snapshot!(metrics, @r###"
+        [
+            Metric {
+                name: "d:transactions/duration@millisecond",
+                value: Distribution(
+                    2000.0,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "platform": "other",
+                    "satisfaction": "tolerated",
+                },
+            },
+        ]
+        "###);
     }
 
     #[test]
@@ -1711,25 +1814,14 @@ mod tests {
         let mut metrics = vec![];
         extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
 
-        assert_eq!(metrics.len(), 3, "{:?}", metrics);
-
-        assert_eq!(
-            metrics[0].name, "d:transactions/measurements.frames_frozen_rate@ratio",
-            "{:?}",
-            metrics[0]
-        );
-
-        assert_eq!(
-            metrics[1].name, "d:transactions/measurements.frames_slow_rate@ratio",
-            "{:?}",
-            metrics[1]
-        );
-
-        assert_eq!(
-            metrics[2].name, "d:transactions/measurements.stall_percentage@ratio",
-            "{:?}",
-            metrics[2]
-        );
+        let metrics_names: Vec<_> = metrics.into_iter().map(|m| m.name).collect();
+        insta::assert_debug_snapshot!(metrics_names, @r###"
+        [
+            "d:transactions/measurements.frames_frozen_rate@ratio",
+            "d:transactions/measurements.frames_slow_rate@ratio",
+            "d:transactions/measurements.stall_percentage@ratio",
+        ]
+        "###);
     }
 
     #[test]
