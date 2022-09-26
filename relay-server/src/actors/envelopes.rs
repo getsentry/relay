@@ -163,8 +163,6 @@ pub struct SendClientReports {
 /// failed buckets.
 #[derive(Debug)]
 pub struct SendMetrics {
-    /// Project key.
-    pub project_key: ProjectKey,
     /// The pre-aggregated metric buckets.
     pub buckets: Vec<Bucket>,
     /// Scoping information for the metrics.
@@ -342,7 +340,6 @@ impl EnvelopeManagerService {
 
     async fn handle_send_metrics(&self, message: SendMetrics) {
         let SendMetrics {
-            project_key,
             buckets,
             scoping,
             partition_key,
@@ -364,14 +361,16 @@ impl EnvelopeManagerService {
         envelope.add_item(item);
 
         let partition_key = partition_key.map(|x| x.to_string());
-        match self
-            .submit_envelope(envelope, scoping, partition_key)
-            .await
-            .map_err(|_| buckets)
-        {
-            Ok(()) => {}
-            Err(buckets) => Aggregator::from_registry()
-                .do_send(relay_metrics::MergeBuckets::new(project_key, buckets)),
+        let result = self.submit_envelope(envelope, scoping, partition_key).await;
+        if let Err(err) = result {
+            relay_log::trace!(
+                "failed to submit the envelope, merging buckets back: {}",
+                err
+            );
+            Aggregator::from_registry().do_send(relay_metrics::MergeBuckets::new(
+                scoping.project_key,
+                buckets,
+            ))
         }
     }
 

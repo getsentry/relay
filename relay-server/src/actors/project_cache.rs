@@ -670,7 +670,6 @@ impl Handler<FlushBuckets> for ProjectCache {
         }
 
         EnvelopeManager::from_registry().send(SendMetrics {
-            project_key,
             buckets,
             scoping,
             partition_key,

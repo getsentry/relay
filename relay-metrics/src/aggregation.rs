@@ -1789,11 +1789,12 @@ impl Aggregator {
             for (partition_key, buckets) in partitioned_buckets {
                 self.process_batches(buckets, |batch| {
                     let batch_size = batch.len() as u64;
-                    if let Err(err) = self.receiver.do_send(FlushBuckets {
+                    let result = self.receiver.do_send(FlushBuckets {
                         project_key,
                         partition_key,
                         buckets: batch,
-                    }) {
+                    });
+                    if let Err(err) = result {
                         // remove the failed batch size from the total count, since it failed and
                         // will be dropped
                         total_bucket_count -= batch_size;
