@@ -669,6 +669,7 @@ pub struct ParseBucketError(#[cause] serde_json::Error);
 /// [
 ///   {
 ///     "timestamp": 1615889440,
+///     "width": 10,
 ///     "name": "endpoint.response_time",
 ///     "type": "d",
 ///     "unit": "millisecond",
@@ -679,6 +680,7 @@ pub struct ParseBucketError(#[cause] serde_json::Error);
 ///   },
 ///   {
 ///     "timestamp": 1615889440,
+///     "width": 10,
 ///     "name": "endpoint.hits",
 ///     "type": "c",
 ///     "value": 4,
@@ -688,6 +690,7 @@ pub struct ParseBucketError(#[cause] serde_json::Error);
 ///   },
 ///   {
 ///     "timestamp": 1615889440,
+///     "width": 10,
 ///     "name": "endpoint.parallel_requests",
 ///     "type": "g",
 ///     "value": {
@@ -700,6 +703,7 @@ pub struct ParseBucketError(#[cause] serde_json::Error);
 ///   },
 ///   {
 ///     "timestamp": 1615889440,
+///     "width": 10,
 ///     "name": "endpoint.users",
 ///     "type": "s",
 ///     "value": [
