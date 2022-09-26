@@ -11,7 +11,7 @@ use relay_common::ProjectKey;
 use relay_config::{Config, HttpEncoding};
 use relay_general::protocol::ClientReport;
 use relay_log::LogError;
-use relay_metrics::{Aggregator, Bucket};
+use relay_metrics::{Aggregator, Bucket, MergeBuckets};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse};
@@ -367,10 +367,7 @@ impl EnvelopeManagerService {
                 "failed to submit the envelope, merging buckets back: {}",
                 err
             );
-            Aggregator::from_registry().do_send(relay_metrics::MergeBuckets::new(
-                scoping.project_key,
-                buckets,
-            ))
+            Aggregator::from_registry().do_send(MergeBuckets::new(scoping.project_key, buckets))
         }
     }
 

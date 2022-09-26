@@ -1762,7 +1762,7 @@ impl Aggregator {
         );
     }
 
-    /// Sends the [`FlushBuckets`] message to the receiver in the fire and forget fasion. It is up
+    /// Sends the [`FlushBuckets`] message to the receiver in the fire and forget fashion. It is up
     /// to the receiver to send the [`MergeBuckets`] message back if buckets could not be flushed
     /// and we require another re-try.
     ///
@@ -1892,6 +1892,17 @@ impl InsertMetrics {
             metrics: metrics.into_iter().collect(),
         }
     }
+
+    /// Returns the `ProjectKey` for the the current `InsertMetrics` message.
+    pub fn project_key(&self) -> ProjectKey {
+        self.project_key
+    }
+
+    /// Returns the list of the metrics in the current `InsertMetrics` message, consuming the
+    /// message itself.
+    pub fn metrics(self) -> Vec<Metric> {
+        self.metrics
+    }
 }
 
 impl Message for InsertMetrics {
@@ -1924,6 +1935,17 @@ impl MergeBuckets {
             project_key,
             buckets,
         }
+    }
+
+    /// Returns the `ProjectKey` for the the current `MergeBuckets` message.
+    pub fn project_key(&self) -> ProjectKey {
+        self.project_key
+    }
+
+    /// Returns the list of the buckets in the current `MergeBuckets` message, consuming the
+    /// message itself.
+    pub fn buckets(self) -> Vec<Bucket> {
+        self.buckets
     }
 }
 
