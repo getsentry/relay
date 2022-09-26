@@ -37,7 +37,7 @@ struct Sample {
     #[serde(deserialize_with = "deserialize_number_from_string")]
     thread_id: u64,
     #[serde(deserialize_with = "deserialize_number_from_string")]
-    relative_timestamp_ns: u64,
+    elapsed_since_start_ns: u64,
 
     // cocoa only
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -211,10 +211,10 @@ pub fn expand_sample_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileErro
         new_profile.transactions.push(transaction.clone());
 
         new_profile.profile.samples.retain_mut(|sample| {
-            if transaction.relative_start_ns <= sample.relative_timestamp_ns
-                && sample.relative_timestamp_ns <= transaction.relative_end_ns
+            if transaction.relative_start_ns <= sample.elapsed_since_start_ns
+                && sample.elapsed_since_start_ns <= transaction.relative_end_ns
             {
-                sample.relative_timestamp_ns -= transaction.relative_start_ns;
+                sample.elapsed_since_start_ns -= transaction.relative_start_ns;
                 true
             } else {
                 false
@@ -332,25 +332,25 @@ mod tests {
             Sample {
                 stack_id: 0,
                 queue_address: Some("0xdeadbeef".to_string()),
-                relative_timestamp_ns: 1,
+                elapsed_since_start_ns: 1,
                 thread_id: 1,
             },
             Sample {
                 stack_id: 0,
                 queue_address: Some("0xdeadbeef".to_string()),
-                relative_timestamp_ns: 1,
+                elapsed_since_start_ns: 1,
                 thread_id: 1,
             },
             Sample {
                 stack_id: 0,
                 queue_address: Some("0xdeadbeef".to_string()),
-                relative_timestamp_ns: 1,
+                elapsed_since_start_ns: 1,
                 thread_id: 2,
             },
             Sample {
                 stack_id: 0,
                 queue_address: Some("0xdeadbeef".to_string()),
-                relative_timestamp_ns: 1,
+                elapsed_since_start_ns: 1,
                 thread_id: 3,
             },
         ]);
@@ -369,25 +369,25 @@ mod tests {
             Sample {
                 stack_id: 0,
                 queue_address: Some("0xdeadbeef".to_string()),
-                relative_timestamp_ns: 1,
+                elapsed_since_start_ns: 1,
                 thread_id: 1,
             },
             Sample {
                 stack_id: 0,
                 queue_address: Some("0xdeadbeef".to_string()),
-                relative_timestamp_ns: 1,
+                elapsed_since_start_ns: 1,
                 thread_id: 2,
             },
             Sample {
                 stack_id: 0,
                 queue_address: Some("0xdeadbeef".to_string()),
-                relative_timestamp_ns: 1,
+                elapsed_since_start_ns: 1,
                 thread_id: 3,
             },
             Sample {
                 stack_id: 0,
                 queue_address: Some("0xdeadbeef".to_string()),
-                relative_timestamp_ns: 1,
+                elapsed_since_start_ns: 1,
                 thread_id: 4,
             },
         ]);
@@ -420,7 +420,7 @@ mod tests {
         assert_eq!(expanded_profile.profile.samples.len(), 4);
 
         for sample in &expanded_profile.profile.samples {
-            assert!(sample.relative_timestamp_ns < expanded_profile.transactions[0].duration_ns());
+            assert!(sample.elapsed_since_start_ns < expanded_profile.transactions[0].duration_ns());
         }
     }
 }
