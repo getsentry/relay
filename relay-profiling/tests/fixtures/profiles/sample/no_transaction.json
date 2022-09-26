@@ -19,25 +19,25 @@
         "stack_id": 0,
         "thread_id": "1",
         "queue_address": "0x0000000102adc700",
-        "relative_timestamp_ns": "10500500"
+        "elapsed_since_start_ns": "10500500"
       },
       {
         "stack_id": 1,
         "thread_id": "1",
         "queue_address": "0x0000000102adc700",
-        "relative_timestamp_ns": "20500500"
+        "elapsed_since_start_ns": "20500500"
       },
       {
         "stack_id": 0,
         "thread_id": "1",
         "queue_address": "0x0000000102adc700",
-        "relative_timestamp_ns": "30500500"
+        "elapsed_since_start_ns": "30500500"
       },
       {
         "stack_id": 1,
         "thread_id": "1",
         "queue_address": "0x0000000102adc700",
-        "relative_timestamp_ns": "40500500"
+        "elapsed_since_start_ns": "40500500"
       }
     ],
     "frames": [
