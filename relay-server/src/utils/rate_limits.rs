@@ -346,8 +346,8 @@ where
     /// an earlier call to the rate limiter.  This is because while the request is still
     /// open we get called to see if we have any cached quotas which are exceeded to already
     /// reject a payload.  However e.g. transactions have two quota data categories and only
-    /// one might be exceeded.  In this case the envelope is not reject and still processed.
-    /// The earlier enformcenemts are then passed back in here so we can avoid duplicate
+    /// one might be exceeded.  In this case the envelope is not rejected and still processed.
+    /// The earlier enforcements are then passed back in here so we can avoid duplicate
     /// and inconsistent checks etc.
     ///
     /// # Example
