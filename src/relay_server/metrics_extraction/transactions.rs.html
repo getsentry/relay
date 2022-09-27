@@ -1827,6 +1827,18 @@
 <span id="1825">1825</span>
 <span id="1826">1826</span>
 <span id="1827">1827</span>
+<span id="1828">1828</span>
+<span id="1829">1829</span>
+<span id="1830">1830</span>
+<span id="1831">1831</span>
+<span id="1832">1832</span>
+<span id="1833">1833</span>
+<span id="1834">1834</span>
+<span id="1835">1835</span>
+<span id="1836">1836</span>
+<span id="1837">1837</span>
+<span id="1838">1838</span>
+<span id="1839">1839</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::conditional_tagging::run_conditional_tagging</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::utils</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::TaggingRule</span>;
@@ -1871,6 +1883,14 @@
     <span class="ident">transaction_thresholds</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">SatisfactionThreshold</span><span class="op">&gt;</span>,
 }
 
+<span class="doccomment">/// Configuration for extracting custom measurements from transaction payloads.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Default</span>, <span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
+<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">CustomMeasurementConfig</span> {
+    <span class="doccomment">/// The maximum number of custom measurements to extract. Defaults to zero.</span>
+    <span class="ident">limit</span>: <span class="ident">usize</span>,
+}
+
 <span class="doccomment">/// Maximum supported version of metrics extraction from transactions.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// The version is an integer scalar, incremented by one on each new version.</span>
@@ -1900,8 +1920,10 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TransactionMetricsConfig</span> {
     <span class="doccomment">/// The required version to extract transaction metrics.</span>
     <span class="ident">version</span>: <span class="ident">u16</span>,
+    <span class="ident">extract_metrics</span>: <span class="ident">BTreeSet</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
     <span class="ident">extract_custom_tags</span>: <span class="ident">BTreeSet</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
     <span class="ident">satisfaction_thresholds</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SatisfactionConfig</span><span class="op">&gt;</span>,
+    <span class="ident">custom_measurements</span>: <span class="ident">CustomMeasurementConfig</span>,
     <span class="ident">accept_transaction_names</span>: <span class="ident">AcceptTransactionNames</span>,
 }
 
@@ -2389,7 +2411,9 @@
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
 
     <span class="kw">use</span> <span class="ident">relay_general::protocol::User</span>;
-    <span class="kw">use</span> <span class="ident">relay_general::store</span>::{<span class="ident">BreakdownsConfig</span>, <span class="ident">LightNormalizationConfig</span>, <span class="ident">MeasurementsConfig</span>};
+    <span class="kw">use</span> <span class="ident">relay_general::store::BreakdownsConfig</span>;
+    <span class="kw">use</span> <span class="ident">relay_general::store::LightNormalizationConfig</span>;
+    <span class="kw">use</span> <span class="ident">relay_general::store::MeasurementsConfig</span>;
     <span class="kw">use</span> <span class="ident">relay_general::types::Annotated</span>;
     <span class="kw">use</span> <span class="ident">relay_metrics::DurationUnit</span>;
 
