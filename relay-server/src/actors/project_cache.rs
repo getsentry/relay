@@ -4,12 +4,13 @@ use std::time::Instant;
 use actix::prelude::*;
 use actix_web::ResponseError;
 use failure::Fail;
-use futures::{FutureExt, TryFutureExt};
 use futures01::{future, Future};
 
 use relay_common::ProjectKey;
 use relay_config::{Config, RelayMode};
-use relay_metrics::{self, AggregateMetricsError, Bucket, FlushBuckets, Metric};
+use relay_metrics::{
+    self, AggregateMetricsError, Aggregator, FlushBuckets, InsertMetrics, MergeBuckets,
+};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
 use relay_statsd::metric;
@@ -555,60 +556,15 @@ impl Handler<UpdateRateLimits> for ProjectCache {
     }
 }
 
-/// A message containing a list of [`Metric`]s to be inserted into the aggregator.
-#[derive(Debug)]
-pub struct InsertMetrics {
-    /// The project key
-    project_key: ProjectKey,
-    metrics: Vec<Metric>,
-}
-
-impl InsertMetrics {
-    /// Creates a new message containing a list of [`Metric`]s.
-    pub fn new<I>(project_key: ProjectKey, metrics: I) -> Self
-    where
-        I: IntoIterator<Item = Metric>,
-    {
-        Self {
-            project_key,
-            metrics: metrics.into_iter().collect(),
-        }
-    }
-}
-
-impl Message for InsertMetrics {
-    type Result = Result<(), AggregateMetricsError>;
-}
-
 impl Handler<InsertMetrics> for ProjectCache {
     type Result = Result<(), AggregateMetricsError>;
 
     fn handle(&mut self, message: InsertMetrics, _context: &mut Self::Context) -> Self::Result {
         // Only keep if we have an aggregator, otherwise drop because we know that we were disabled.
-        let project = self.get_or_create_project(message.project_key);
-        project.insert_metrics(message.metrics);
+        let project = self.get_or_create_project(message.project_key());
+        project.insert_metrics(message.metrics());
         Ok(())
     }
-}
-
-#[derive(Debug)]
-pub struct MergeBuckets {
-    project_key: ProjectKey,
-    buckets: Vec<Bucket>,
-}
-
-impl MergeBuckets {
-    /// Creates a new message containing a list of [`Bucket`]s.
-    pub fn new(project_key: ProjectKey, buckets: Vec<Bucket>) -> Self {
-        Self {
-            project_key,
-            buckets,
-        }
-    }
-}
-
-impl Message for MergeBuckets {
-    type Result = Result<(), AggregateMetricsError>;
 }
 
 impl Handler<MergeBuckets> for ProjectCache {
@@ -616,14 +572,14 @@ impl Handler<MergeBuckets> for ProjectCache {
 
     fn handle(&mut self, message: MergeBuckets, _context: &mut Self::Context) -> Self::Result {
         // Only keep if we have an aggregator, otherwise drop because we know that we were disabled.
-        let project = self.get_or_create_project(message.project_key);
-        project.merge_buckets(message.buckets);
+        let project = self.get_or_create_project(message.project_key());
+        project.merge_buckets(message.buckets());
         Ok(())
     }
 }
 
 impl Handler<FlushBuckets> for ProjectCache {
-    type Result = ResponseFuture<(), Vec<Bucket>>;
+    type Result = ();
 
     fn handle(&mut self, message: FlushBuckets, _context: &mut Self::Context) -> Self::Result {
         let FlushBuckets {
@@ -643,39 +599,37 @@ impl Handler<FlushBuckets> for ProjectCache {
         let project_state = match expiry_state {
             ExpiryState::Updated(state) | ExpiryState::Stale(state) => state,
             ExpiryState::Expired => {
+                relay_log::trace!("project expired: merging back {} buckets", buckets.len());
                 // If the state is outdated, we need to wait for an updated state. Put them back into the
-                // aggregator and wait for the next flush cycle.
-                return Box::new(future::err(buckets));
+                // aggregator.
+                Aggregator::from_registry()
+                    .do_send(relay_metrics::MergeBuckets::new(project_key, buckets));
+                return;
             }
         };
 
         let scoping = match project.scoping() {
             Some(scoping) => scoping,
-            _ => return Box::new(future::err(buckets)),
+            _ => {
+                relay_log::trace!(
+                    "there is no scoping: merging back {} buckets",
+                    buckets.len()
+                );
+                Aggregator::from_registry()
+                    .do_send(relay_metrics::MergeBuckets::new(project_key, buckets));
+                return;
+            }
         };
 
         // Only send if the project state is valid, otherwise drop this bucket.
         if project_state.check_disabled(config.as_ref()).is_err() {
-            return Box::new(future::ok(()));
+            return;
         }
 
-        let future = EnvelopeManager::from_registry()
-            .send(SendMetrics {
-                buckets,
-                scoping,
-                partition_key,
-            })
-            .boxed()
-            .compat()
-            .then(move |send_result| match send_result {
-                Ok(Ok(())) => Ok(()),
-                Ok(Err(buckets)) => Err(buckets),
-                Err(_) => {
-                    relay_log::error!("dropped metric buckets: envelope manager mailbox full");
-                    Ok(())
-                }
-            });
-
-        Box::new(future)
+        EnvelopeManager::from_registry().send(SendMetrics {
+            buckets,
+            scoping,
+            partition_key,
+        });
     }
 }

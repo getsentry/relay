@@ -158,6 +158,7 @@ mod tests {
         "LCP": {"value": 420.69, "unit": "millisecond"},
         "   lcp_final.element-Size123  ": {"value": 1},
         "fid": {"value": 2020},
+        "inp": {"value": 100.14},
         "cls": {"value": null},
         "fp": {"value": "im a first paint"},
         "Total Blocking Time": {"value": 3.14159},
@@ -176,6 +177,9 @@ mod tests {
     },
     "fp": {
       "value": null
+    },
+    "inp": {
+      "value": 100.14
     },
     "lcp": {
       "value": 420.69,
@@ -263,6 +267,13 @@ mod tests {
                 "fid".to_owned(),
                 Annotated::new(Measurement {
                     value: Annotated::new(2020f64),
+                    unit: Annotated::empty(),
+                }),
+            );
+            measurements.insert(
+                "inp".to_owned(),
+                Annotated::new(Measurement {
+                    value: Annotated::new(100.14),
                     unit: Annotated::empty(),
                 }),
             );

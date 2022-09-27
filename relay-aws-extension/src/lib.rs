@@ -6,10 +6,9 @@
 //! continues running across multiple function invocations.
 //!
 //! Sentry's extension is basically existing Relay running in proxy mode with an additional
-//! [`AwsExtension`] actor started in a separate [`Arbiter`](actix::Arbiter). The actor takes care
-//! of the extension lifecycle, namely registering the extension and continuously polling for next
-//! events. Note that the interval between two next event calls adds to the billing time of the
-//! lambda invocation.
+//! [`AwsExtension`] service. The service takes care of the extension lifecycle, namely registering
+//! the extension and continuously polling for next events. Note that the interval between two next
+//! event calls adds to the billing time of the lambda invocation.
 //!
 //! The main advantage we get currently from the extension is the lambda function not having to wait
 //! for the event being sent to Sentry by the SDK. The actual sending happens in a concurrent Relay

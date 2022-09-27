@@ -31,7 +31,7 @@ use relay_general::protocol::{
 use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig};
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
-use relay_metrics::{Bucket, Metric};
+use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
 use relay_quotas::{DataCategory, RateLimits, ReasonCode};
 use relay_redis::RedisPool;
 use relay_sampling::{DynamicSamplingContext, RuleId};
@@ -41,7 +41,7 @@ use relay_system::{Addr, FromMessage, NoResponse, Service};
 use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::{Feature, ProjectState};
-use crate::actors::project_cache::{InsertMetrics, MergeBuckets, ProjectCache};
+use crate::actors::project_cache::ProjectCache;
 use crate::actors::upstream::{SendRequest, UpstreamRelay};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::metrics_extraction::sessions::{extract_session_metrics, SessionMetricsConfig};
@@ -371,7 +371,16 @@ fn track_sampling_metrics(
         None => return,
     };
 
-    let last_change = changes.last().and_then(|a| a.value());
+    let last_change = changes
+        .iter()
+        .rev()
+        // skip all broken change records
+        .filter_map(|a| a.value())
+        // skip records without a timestamp
+        .filter(|c| c.timestamp.value().is_some())
+        // take the last that did not occur when the event was sent
+        .find(|c| c.timestamp.value() != event.timestamp.value());
+
     let source = event.get_transaction_source().as_str();
     let platform = event.platform.as_str().unwrap_or("other");
     let sdk_name = event.sdk_name();
@@ -399,7 +408,11 @@ fn track_sampling_metrics(
             sdk_version = sdk_version,
         );
 
-        let percentage = ((change as f64) / (total as f64)).min(1.0);
+        let percentage = match (change, total) {
+            (0, 0) => 0.0, // 0% indicates no premature changes.
+            _ => ((change as f64) / (total as f64)).min(1.0) * 100.0,
+        };
+
         metric!(
             histogram(RelayHistograms::DynamicSamplingPropagationPercentage) = percentage,
             source = source,
@@ -411,7 +424,9 @@ fn track_sampling_metrics(
 
     if let (Some(&start), Some(&change), Some(&end)) = (
         event.start_timestamp.value(),
-        last_change.and_then(|c| c.timestamp.value()),
+        last_change
+            .and_then(|c| c.timestamp.value())
+            .or_else(|| event.start_timestamp.value()), // default to start if there was no change
         event.timestamp.value(),
     ) {
         let delay_ms = (change - start).num_milliseconds();
@@ -427,7 +442,7 @@ fn track_sampling_metrics(
 
         let duration_ms = (end - start).num_milliseconds() as f64;
         if delay_ms >= 0 && duration_ms >= 0.0 {
-            let percentage = ((delay_ms as f64) / duration_ms).min(1.0);
+            let percentage = ((delay_ms as f64) / duration_ms).min(1.0) * 100.0;
             metric!(
                 histogram(RelayHistograms::DynamicSamplingChangePercentage) = percentage,
                 source = source,
@@ -1941,6 +1956,7 @@ impl EnvelopeProcessorService {
             received_at: Some(state.envelope_context.received_at()),
             max_secs_in_past: Some(self.config.max_secs_in_past()),
             max_secs_in_future: Some(self.config.max_secs_in_future()),
+            measurements_config: state.project_state.config.measurements.as_ref(),
             breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
             normalize_user_agent: Some(true),
         };

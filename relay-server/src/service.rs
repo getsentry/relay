@@ -19,7 +19,9 @@ use crate::actors::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutco
 use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::actors::processor::{EnvelopeProcessor, EnvelopeProcessorService};
 use crate::actors::project_cache::ProjectCache;
-use crate::actors::relays::RelayCache;
+use crate::actors::relays::{RelayCache, RelayCacheService};
+#[cfg(feature = "processing")]
+use crate::actors::store::StoreService;
 use crate::actors::test_store::{TestStore, TestStoreService};
 use crate::actors::upstream::UpstreamRelay;
 use crate::middlewares::{
@@ -117,6 +119,7 @@ pub struct Registry {
     pub processor: Addr<EnvelopeProcessor>,
     pub envelope_manager: Addr<EnvelopeManager>,
     pub test_store: Addr<TestStore>,
+    pub relay_cache: Addr<RelayCache>,
 }
 
 impl fmt::Debug for Registry {
@@ -146,8 +149,8 @@ impl ServiceState {
         let system = System::current();
         let registry = system.registry();
 
-        let main_runtime = utils::tokio_runtime_with_actix();
-        let outcome_runtime = utils::tokio_runtime_with_actix();
+        let main_runtime = utils::create_runtime(config.cpu_concurrency());
+        let outcome_runtime = utils::create_runtime(1);
         let mut _store_runtime = None;
 
         let upstream_relay = UpstreamRelay::new(config.clone());
@@ -174,9 +177,9 @@ impl ServiceState {
 
         #[cfg(feature = "processing")]
         if config.processing_enabled() {
-            let rt = crate::utils::tokio_runtime_with_actix();
+            let rt = utils::create_runtime(1);
             let _guard = rt.enter();
-            let store = crate::actors::store::StoreService::create(config.clone())?.start();
+            let store = StoreService::create(config.clone())?.start();
             envelope_manager.set_store_forwarder(store);
             _store_runtime = Some(rt);
         }
@@ -189,14 +192,14 @@ impl ServiceState {
         registry.set(project_cache.clone());
 
         let health_check = HealthCheckService::new(config.clone()).start();
-        registry.set(RelayCache::new(config.clone()).start());
+        let relay_cache = RelayCacheService::new(config.clone()).start();
 
         let aggregator = Aggregator::new(config.aggregator_config(), project_cache.recipient());
         registry.set(Arbiter::start(|_| aggregator));
 
         if let Some(aws_api) = config.aws_runtime_api() {
             if let Ok(aws_extension) = AwsExtension::new(aws_api) {
-                Arbiter::start(|_| aws_extension);
+                aws_extension.start();
             }
         }
 
@@ -208,6 +211,7 @@ impl ServiceState {
                 outcome_aggregator,
                 envelope_manager,
                 test_store,
+                relay_cache,
             }))
             .unwrap();
 

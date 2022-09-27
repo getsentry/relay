@@ -11,6 +11,7 @@ const DEFAULT_RANDOMIZATION: f64 = 0.0;
 const INITIAL_INTERVAL: u64 = 1000;
 
 /// A retry interval generator that increases timeouts with exponential backoff.
+#[derive(Debug)]
 pub struct RetryBackoff {
     backoff: ExponentialBackoff,
     attempt: usize,
