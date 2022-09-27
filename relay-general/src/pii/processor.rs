@@ -991,6 +991,35 @@ mod tests {
 
         let mut processor = PiiProcessor::new(config.compiled());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-        assert_annotated_snapshot!(event, @r#""#);
+        assert_annotated_snapshot!(event, @r###"
+        {
+          "contexts": {
+            "foo": {
+              "key1": "1",
+              "key2": "*",
+              "type": "foo"
+            }
+          },
+          "_meta": {
+            "contexts": {
+              "foo": {
+                "key2": {
+                  "": {
+                    "rem": [
+                      [
+                        "0",
+                        "m",
+                        0,
+                        1
+                      ]
+                    ],
+                    "len": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+        "###);
     }
 }
