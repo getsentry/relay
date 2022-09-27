@@ -951,4 +951,46 @@ mod tests {
         );
         assert_eq!(chunks, res);
     }
+
+    #[test]
+    fn test_double_wildcard() {
+        let config = PiiConfig::from_json(
+            r##"
+            {
+                "rules": {
+                    "0": {
+                        "type": "anything",
+                        "redaction": {
+                            "method": "mask"
+                        }
+                    }
+                },
+                "applications": {
+                    "contexts.**.key2": [
+                        "0"
+                    ]
+                }
+}
+            "##,
+        )
+        .unwrap();
+
+        let mut event: Annotated<Event> = Annotated::from_json(
+            r#"
+                {
+                    "contexts": {
+                        "foo": {
+                            "key1": "1",
+                            "key2": "2"
+                        }
+                    }
+                }
+        "#,
+        )
+        .unwrap();
+
+        let mut processor = PiiProcessor::new(config.compiled());
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(event, @r#""#);
+    }
 }
