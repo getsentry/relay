@@ -16,7 +16,7 @@ var sourcesIndex = JSON.parse('{\
 "relay_general_derive":["",[],["empty.rs","jsonschema.rs","lib.rs","process.rs"]],\
 "relay_log":["",[],["lib.rs","sentry_failure.rs","setup.rs","test.rs","utils.rs"]],\
 "relay_metrics":["",[],["aggregation.rs","lib.rs","protocol.rs","statsd.rs"]],\
-"relay_profiling":["",[],["android.rs","cocoa.rs","error.rs","lib.rs","python.rs","rust.rs","transaction_metadata.rs","typescript.rs","utils.rs"]],\
+"relay_profiling":["",[],["android.rs","cocoa.rs","error.rs","lib.rs","native_debug_image.rs","python.rs","rust.rs","sample.rs","transaction_metadata.rs","typescript.rs","utils.rs"]],\
 "relay_quotas":["",[],["lib.rs","quota.rs","rate_limit.rs","redis.rs"]],\
 "relay_redis":["",[],["config.rs","lib.rs","real.rs"]],\
 "relay_replays":["",[],["lib.rs"]],\

@@ -2841,6 +2841,7 @@
 <span id="2839">2839</span>
 <span id="2840">2840</span>
 <span id="2841">2841</span>
+<span id="2842">2842</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::cmp::max</span>;
 <span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std::convert::TryFrom</span>;
@@ -3894,6 +3895,7 @@
             <span class="kw">match</span> <span class="ident">relay_profiling::expand_profile</span>(<span class="kw-2">&amp;</span><span class="ident">item</span>.<span class="ident">payload</span>()[..]) {
                 <span class="prelude-val">Ok</span>(<span class="ident">payloads</span>) =&gt; <span class="ident">new_profiles</span>.<span class="ident">extend</span>(<span class="ident">payloads</span>),
                 <span class="prelude-val">Err</span>(<span class="ident">err</span>) =&gt; {
+                    <span class="macro">relay_log::debug!</span>(<span class="string">&quot;invalid profile: {:#?}&quot;</span>, <span class="ident">err</span>);
                     <span class="ident">context</span>.<span class="ident">track_outcome</span>(
                         <span class="ident">outcome_from_profile_error</span>(<span class="ident">err</span>),
                         <span class="ident">DataCategory::Profile</span>,

@@ -476,7 +476,7 @@
         <span class="self">self</span>.<span class="ident">transaction_name</span> <span class="op">=</span> <span class="ident">transaction</span>.<span class="ident">name</span>.<span class="ident">clone</span>();
         <span class="self">self</span>.<span class="ident">transaction_id</span> <span class="op">=</span> <span class="ident">transaction</span>.<span class="ident">id</span>;
         <span class="self">self</span>.<span class="ident">trace_id</span> <span class="op">=</span> <span class="ident">transaction</span>.<span class="ident">trace_id</span>;
-        <span class="self">self</span>.<span class="ident">duration_ns</span> <span class="op">=</span> <span class="ident">transaction</span>.<span class="ident">relative_end_ns</span> <span class="op">-</span> <span class="ident">transaction</span>.<span class="ident">relative_start_ns</span>;
+        <span class="self">self</span>.<span class="ident">duration_ns</span> <span class="op">=</span> <span class="ident">transaction</span>.<span class="ident">duration_ns</span>();
     }
 
     <span class="kw">fn</span> <span class="ident">has_transaction_metadata</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {

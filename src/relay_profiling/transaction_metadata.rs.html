@@ -64,17 +64,37 @@
 <span id="64">64</span>
 <span id="65">65</span>
 <span id="66">66</span>
+<span id="67">67</span>
+<span id="68">68</span>
+<span id="69">69</span>
+<span id="70">70</span>
+<span id="71">71</span>
+<span id="72">72</span>
+<span id="73">73</span>
+<span id="74">74</span>
+<span id="75">75</span>
+<span id="76">76</span>
+<span id="77">77</span>
+<span id="78">78</span>
+<span id="79">79</span>
+<span id="80">80</span>
+<span id="81">81</span>
+<span id="82">82</span>
+<span id="83">83</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
 <span class="kw">use</span> <span class="ident">relay_general::protocol::EventId</span>;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils::deserialize_number_from_string</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{<span class="ident">deserialize_number_from_string</span>, <span class="ident">is_zero</span>};
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Clone</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Clone</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TransactionMetadata</span> {
     <span class="kw">pub</span> <span class="ident">id</span>: <span class="ident">EventId</span>,
     <span class="kw">pub</span> <span class="ident">name</span>: <span class="ident">String</span>,
     <span class="kw">pub</span> <span class="ident">trace_id</span>: <span class="ident">EventId</span>,
+
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">deserialize_with</span> <span class="op">=</span> <span class="string">&quot;deserialize_number_from_string&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="ident">active_thread_id</span>: <span class="ident">u64</span>,
 
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">deserialize_with</span> <span class="op">=</span> <span class="string">&quot;deserialize_number_from_string&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">relative_start_ns</span>: <span class="ident">u64</span>,
@@ -82,19 +102,31 @@
     <span class="kw">pub</span> <span class="ident">relative_end_ns</span>: <span class="ident">u64</span>,
 
     <span class="comment">// Android might have a CPU clock for the trace</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">deserialize_with</span> <span class="op">=</span> <span class="string">&quot;deserialize_number_from_string&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">serde</span>(
+        <span class="ident">default</span>,
+        <span class="ident">deserialize_with</span> <span class="op">=</span> <span class="string">&quot;deserialize_number_from_string&quot;</span>,
+        <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;is_zero&quot;</span>
+    )]</span>
     <span class="kw">pub</span> <span class="ident">relative_cpu_start_ms</span>: <span class="ident">u64</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">deserialize_with</span> <span class="op">=</span> <span class="string">&quot;deserialize_number_from_string&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">serde</span>(
+        <span class="ident">default</span>,
+        <span class="ident">deserialize_with</span> <span class="op">=</span> <span class="string">&quot;deserialize_number_from_string&quot;</span>,
+        <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;is_zero&quot;</span>
+    )]</span>
     <span class="kw">pub</span> <span class="ident">relative_cpu_end_ms</span>: <span class="ident">u64</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">TransactionMetadata</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">valid</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="op">!</span><span class="self">self</span>.<span class="ident">id</span>.<span class="ident">is_nil</span>()
-            <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">trace_id</span>.<span class="ident">is_nil</span>()
             <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">name</span>.<span class="ident">is_empty</span>()
-            <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">relative_start_ns</span> <span class="op">&lt;</span> <span class="self">self</span>.<span class="ident">relative_end_ns</span>
+            <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">trace_id</span>.<span class="ident">is_nil</span>()
             <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">relative_cpu_start_ms</span> <span class="op">&lt;</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">relative_cpu_end_ms</span>
+            <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">relative_start_ns</span> <span class="op">&lt;</span> <span class="self">self</span>.<span class="ident">relative_end_ns</span>
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">duration_ns</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">u64</span> {
+        <span class="self">self</span>.<span class="ident">relative_end_ns</span>.<span class="ident">saturating_sub</span>(<span class="self">self</span>.<span class="ident">relative_start_ns</span>)
     }
 }
 
@@ -107,11 +139,12 @@
         <span class="kw">let</span> <span class="ident">metadata</span> <span class="op">=</span> <span class="ident">TransactionMetadata</span> {
             <span class="ident">id</span>: <span class="string">&quot;A2669CD2-C7E0-47ED-8298-4AAF9666A6B6&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>(),
             <span class="ident">name</span>: <span class="string">&quot;SomeTransaction&quot;</span>.<span class="ident">to_string</span>(),
-            <span class="ident">trace_id</span>: <span class="string">&quot;4705BD13-368A-499A-AA48-439DAFD9CFB0&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>(),
-            <span class="ident">relative_start_ns</span>: <span class="number">1</span>,
-            <span class="ident">relative_end_ns</span>: <span class="number">133</span>,
-            <span class="ident">relative_cpu_start_ms</span>: <span class="number">0</span>,
             <span class="ident">relative_cpu_end_ms</span>: <span class="number">0</span>,
+            <span class="ident">relative_cpu_start_ms</span>: <span class="number">0</span>,
+            <span class="ident">relative_end_ns</span>: <span class="number">133</span>,
+            <span class="ident">relative_start_ns</span>: <span class="number">1</span>,
+            <span class="ident">active_thread_id</span>: <span class="number">259</span>,
+            <span class="ident">trace_id</span>: <span class="string">&quot;4705BD13-368A-499A-AA48-439DAFD9CFB0&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>(),
         };
         <span class="macro">assert!</span>(<span class="ident">metadata</span>.<span class="ident">valid</span>());
     }
@@ -121,11 +154,12 @@
         <span class="kw">let</span> <span class="ident">metadata</span> <span class="op">=</span> <span class="ident">TransactionMetadata</span> {
             <span class="ident">id</span>: <span class="string">&quot;A2669CD2-C7E0-47ED-8298-4AAF9666A6B6&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>(),
             <span class="ident">name</span>: <span class="string">&quot;&quot;</span>.<span class="ident">to_string</span>(),
-            <span class="ident">trace_id</span>: <span class="string">&quot;4705BD13-368A-499A-AA48-439DAFD9CFB0&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>(),
-            <span class="ident">relative_start_ns</span>: <span class="number">1</span>,
-            <span class="ident">relative_end_ns</span>: <span class="number">133</span>,
-            <span class="ident">relative_cpu_start_ms</span>: <span class="number">0</span>,
             <span class="ident">relative_cpu_end_ms</span>: <span class="number">0</span>,
+            <span class="ident">relative_cpu_start_ms</span>: <span class="number">0</span>,
+            <span class="ident">relative_end_ns</span>: <span class="number">133</span>,
+            <span class="ident">relative_start_ns</span>: <span class="number">1</span>,
+            <span class="ident">active_thread_id</span>: <span class="number">259</span>,
+            <span class="ident">trace_id</span>: <span class="string">&quot;4705BD13-368A-499A-AA48-439DAFD9CFB0&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>(),
         };
         <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">metadata</span>.<span class="ident">valid</span>());
     }
