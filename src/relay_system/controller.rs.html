@@ -303,6 +303,11 @@
 <span id="301">301</span>
 <span id="302">302</span>
 <span id="303">303</span>
+<span id="304">304</span>
+<span id="305">305</span>
+<span id="306">306</span>
+<span id="307">307</span>
+<span id="308">308</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::time::Duration</span>;
 
@@ -376,6 +381,11 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Controller</span> {
+    <span class="doccomment">/// Get actor&#39;s address from system registry.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_registry</span>() -&gt; <span class="ident">Addr</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+        <span class="ident">SystemService::from_registry</span>()
+    }
+
     <span class="doccomment">/// Starts an actix system and runs the `factory` to start actors.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// The factory may be used to start actors in the actix system before it runs. If the factory</span>

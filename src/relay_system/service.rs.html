@@ -430,6 +430,9 @@
 <span id="428">428</span>
 <span id="429">429</span>
 <span id="430">430</span>
+<span id="431">431</span>
+<span id="432">432</span>
+<span id="433">433</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::future::Future</span>;
 <span class="kw">use</span> <span class="ident">std::marker::PhantomData</span>;
@@ -535,6 +538,9 @@
 <span class="doccomment">/// and `&#39;static`. It is highly encouraged to implement `Debug` on all interfaces and their</span>
 <span class="doccomment">/// messages.</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">Interface</span>: <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;static</span> {}
+
+<span class="doccomment">/// Services without messages can use `()` as their interface.</span>
+<span class="kw">impl</span> <span class="ident">Interface</span> <span class="kw">for</span> () {}
 
 <span class="doccomment">/// An error when [sending](Addr::send) a message to a service fails.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>

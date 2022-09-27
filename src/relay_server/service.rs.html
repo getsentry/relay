@@ -364,6 +364,8 @@
 <span id="362">362</span>
 <span id="363">363</span>
 <span id="364">364</span>
+<span id="365">365</span>
+<span id="366">366</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 
@@ -386,6 +388,8 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::processor</span>::{<span class="ident">EnvelopeProcessor</span>, <span class="ident">EnvelopeProcessorService</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::project_cache::ProjectCache</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::relays</span>::{<span class="ident">RelayCache</span>, <span class="ident">RelayCacheService</span>};
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::store::StoreService</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::test_store</span>::{<span class="ident">TestStore</span>, <span class="ident">TestStoreService</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::upstream::UpstreamRelay</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::middlewares</span>::{
@@ -543,7 +547,7 @@
         <span class="kw">if</span> <span class="ident">config</span>.<span class="ident">processing_enabled</span>() {
             <span class="kw">let</span> <span class="ident">rt</span> <span class="op">=</span> <span class="ident">utils::create_runtime</span>(<span class="number">1</span>);
             <span class="kw">let</span> <span class="ident">_guard</span> <span class="op">=</span> <span class="ident">rt</span>.<span class="ident">enter</span>();
-            <span class="kw">let</span> <span class="ident">store</span> <span class="op">=</span> <span class="ident"><span class="kw">crate</span>::actors::store::StoreService::create</span>(<span class="ident">config</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>.<span class="ident">start</span>();
+            <span class="kw">let</span> <span class="ident">store</span> <span class="op">=</span> <span class="ident">StoreService::create</span>(<span class="ident">config</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>.<span class="ident">start</span>();
             <span class="ident">envelope_manager</span>.<span class="ident">set_store_forwarder</span>(<span class="ident">store</span>);
             <span class="ident">_store_runtime</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">rt</span>);
         }
@@ -563,7 +567,7 @@
 
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">aws_api</span>) <span class="op">=</span> <span class="ident">config</span>.<span class="ident">aws_runtime_api</span>() {
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">aws_extension</span>) <span class="op">=</span> <span class="ident">AwsExtension::new</span>(<span class="ident">aws_api</span>) {
-                <span class="ident">Arbiter::start</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">aws_extension</span>);
+                <span class="ident">aws_extension</span>.<span class="ident">start</span>();
             }
         }
 

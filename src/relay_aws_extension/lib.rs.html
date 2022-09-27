@@ -31,7 +31,6 @@
 <span id="29">29</span>
 <span id="30">30</span>
 <span id="31">31</span>
-<span id="32">32</span>
 </pre><pre class="rust"><code><span class="doccomment">//! AWS extension implementation for Sentry&#39;s AWS Lambda layer.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! An AWS extension is a binary that is bundled along with the SDK and its dependencies in an AWS</span>
@@ -40,10 +39,9 @@
 <span class="doccomment">//! continues running across multiple function invocations.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Sentry&#39;s extension is basically existing Relay running in proxy mode with an additional</span>
-<span class="doccomment">//! [`AwsExtension`] actor started in a separate [`Arbiter`](actix::Arbiter). The actor takes care</span>
-<span class="doccomment">//! of the extension lifecycle, namely registering the extension and continuously polling for next</span>
-<span class="doccomment">//! events. Note that the interval between two next event calls adds to the billing time of the</span>
-<span class="doccomment">//! lambda invocation.</span>
+<span class="doccomment">//! [`AwsExtension`] service. The service takes care of the extension lifecycle, namely registering</span>
+<span class="doccomment">//! the extension and continuously polling for next events. Note that the interval between two next</span>
+<span class="doccomment">//! event calls adds to the billing time of the lambda invocation.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! The main advantage we get currently from the extension is the lambda function not having to wait</span>
 <span class="doccomment">//! for the event being sent to Sentry by the SDK. The actual sending happens in a concurrent Relay</span>
