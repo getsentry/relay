@@ -731,7 +731,8 @@ mod tests {
             assert_eq!(self.called.get(&category), quantity.as_ref());
         }
 
-        pub fn assert_not_call(&self, category: DataCategory) {
+        #[cfg(feature = "processing")]
+        pub fn assert_not_called(&self, category: DataCategory) {
             assert!(
                 !self.called.contains_key(&category),
                 "{} was checked",
@@ -1005,7 +1006,7 @@ mod tests {
         assert!(!enforcement.transaction_processed.is_active());
         assert!(!limits.is_limited());
         assert!(!envelope.is_empty());
-        mock.assert_not_call(DataCategory::Transaction);
+        mock.assert_not_called(DataCategory::Transaction);
         mock.assert_call(DataCategory::TransactionProcessed, Some(1));
     }
 
