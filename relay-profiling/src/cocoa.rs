@@ -2,11 +2,12 @@ use std::collections::HashMap;
 
 use serde::{de, Deserialize, Serialize};
 
-use relay_general::protocol::{Addr, DebugId, EventId, NativeImagePath};
+use relay_general::protocol::{Addr, EventId};
 
+use crate::error::ProfileError;
+use crate::native_debug_image::NativeDebugImage;
 use crate::transaction_metadata::TransactionMetadata;
 use crate::utils::{deserialize_number_from_string, is_zero};
-use crate::ProfileError;
 
 fn strip_pointer_authentication_code<'de, D>(deserializer: D) -> Result<Addr, D::Error>
 where
@@ -65,31 +66,6 @@ struct SampledProfile {
     queue_metadata: HashMap<String, QueueMetadata>,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
-#[serde(rename_all = "lowercase")]
-enum ImageType {
-    MachO,
-    Symbolic,
-}
-
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
-pub struct NativeDebugImage {
-    #[serde(alias = "name")]
-    code_file: NativeImagePath,
-    #[serde(alias = "id")]
-    debug_id: DebugId,
-    image_addr: Addr,
-
-    #[serde(default)]
-    image_vmaddr: Addr,
-
-    #[serde(deserialize_with = "deserialize_number_from_string")]
-    image_size: u64,
-
-    #[serde(rename = "type")]
-    image_type: ImageType,
-}
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct DebugMeta {
     images: Vec<NativeDebugImage>,
@@ -137,7 +113,7 @@ impl CocoaProfile {
         self.transaction_name = transaction.name.clone();
         self.transaction_id = transaction.id;
         self.trace_id = transaction.trace_id;
-        self.duration_ns = transaction.relative_end_ns - transaction.relative_start_ns;
+        self.duration_ns = transaction.duration_ns();
     }
 
     fn has_transaction_metadata(&self) -> bool {
@@ -234,36 +210,13 @@ fn parse_cocoa_profile(payload: &[u8]) -> Result<CocoaProfile, ProfileError> {
 mod tests {
     use super::*;
 
-    use relay_general::protocol::{DebugImage, NativeDebugImage as RelayNativeDebugImage};
-    use relay_general::types::{Annotated, Map};
-
     #[test]
     fn test_roundtrip_cocoa() {
-        let payload = include_bytes!("../tests/fixtures/profiles/cocoa/valid.json");
+        let payload = include_bytes!("../tests/fixtures/profiles/cocoa/roundtrip.json");
         let profile = parse_cocoa_profile(payload);
         assert!(profile.is_ok());
         let data = serde_json::to_vec(&profile.unwrap());
         assert!(parse_cocoa_profile(&data.unwrap()[..]).is_ok());
-    }
-
-    #[test]
-    fn test_ios_debug_image_compatibility() {
-        let image_json = r#"{"debug_id":"32420279-25E2-34E6-8BC7-8A006A8F2425","image_addr":"0x000000010258c000","code_file":"/private/var/containers/Bundle/Application/C3511752-DD67-4FE8-9DA2-ACE18ADFAA61/TrendingMovies.app/TrendingMovies","type":"macho","image_size":1720320,"image_vmaddr":"0x0000000100000000"}"#;
-        let image: NativeDebugImage = serde_json::from_str(image_json).unwrap();
-        let json = serde_json::to_string(&image).unwrap();
-        let annotated = Annotated::from_json(&json[..]).unwrap();
-        assert_eq!(
-            Annotated::new(DebugImage::MachO(Box::new(RelayNativeDebugImage {
-                arch: Annotated::empty(),
-                code_file: Annotated::new("/private/var/containers/Bundle/Application/C3511752-DD67-4FE8-9DA2-ACE18ADFAA61/TrendingMovies.app/TrendingMovies".into()),
-                code_id: Annotated::empty(),
-                debug_file: Annotated::empty(),
-                debug_id: Annotated::new("32420279-25E2-34E6-8BC7-8A006A8F2425".parse().unwrap()),
-                image_addr: Annotated::new(Addr(4334338048)),
-                image_size: Annotated::new(1720320),
-                image_vmaddr: Annotated::new(Addr(4294967296)),
-                other: Map::new(),
-            }))), annotated);
     }
 
     #[test]

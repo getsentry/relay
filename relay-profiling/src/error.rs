@@ -18,4 +18,6 @@ pub enum ProfileError {
     NoTransactionAssociated,
     #[fail(display = "invalid transaction metadata")]
     InvalidTransactionMetadata,
+    #[fail(display = "missing profile metadata")]
+    MissingProfileMetadata,
 }

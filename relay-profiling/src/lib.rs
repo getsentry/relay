@@ -93,13 +93,15 @@
 //! }
 //! ```
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 mod android;
 mod cocoa;
 mod error;
+mod native_debug_image;
 mod python;
 mod rust;
+mod sample;
 mod transaction_metadata;
 mod typescript;
 mod utils;
@@ -108,13 +110,27 @@ use crate::android::expand_android_profile;
 use crate::cocoa::expand_cocoa_profile;
 use crate::python::parse_python_profile;
 use crate::rust::parse_rust_profile;
+use crate::sample::{expand_sample_profile, Version};
 use crate::typescript::parse_typescript_profile;
 
 pub use crate::error::ProfileError;
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "lowercase")]
+enum Platform {
+    Android,
+    Cocoa,
+    Node,
+    Python,
+    Rust,
+    Typescript,
+}
+
 #[derive(Debug, Deserialize)]
 struct MinimalProfile {
-    platform: String,
+    platform: Platform,
+    #[serde(default)]
+    version: Version,
 }
 
 fn minimal_profile_from_json(data: &[u8]) -> Result<MinimalProfile, ProfileError> {
@@ -122,22 +138,56 @@ fn minimal_profile_from_json(data: &[u8]) -> Result<MinimalProfile, ProfileError
 }
 
 pub fn expand_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileError> {
-    let minimal_profile: MinimalProfile = minimal_profile_from_json(payload)?;
-    let platform = minimal_profile.platform.as_str();
-    match platform {
-        "android" => expand_android_profile(payload),
-        "cocoa" => expand_cocoa_profile(payload),
-        _ => {
-            let payload = match platform {
-                "python" => parse_python_profile(payload),
-                "rust" => parse_rust_profile(payload),
-                "typescript" => parse_typescript_profile(payload),
-                _ => Err(ProfileError::PlatformNotSupported),
-            };
-            match payload {
-                Ok(payload) => Ok(vec![payload]),
-                Err(payload) => Err(payload),
+    let profile: MinimalProfile = minimal_profile_from_json(payload)?;
+    match profile.version {
+        Version::V1 => expand_sample_profile(payload),
+        Version::Unknown => match profile.platform {
+            Platform::Android => expand_android_profile(payload),
+            Platform::Cocoa => expand_cocoa_profile(payload),
+            _ => {
+                let payload = match profile.platform {
+                    Platform::Python => parse_python_profile(payload),
+                    Platform::Rust => parse_rust_profile(payload),
+                    Platform::Typescript => parse_typescript_profile(payload),
+                    _ => Err(ProfileError::PlatformNotSupported),
+                };
+                Ok(vec![payload?])
             }
-        }
+        },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_minimal_profile_with_version() {
+        let data = r#"{"version": "1", "platform": "cocoa"}"#;
+        let profile = minimal_profile_from_json(data.as_bytes());
+        assert!(profile.is_ok());
+        assert_eq!(profile.unwrap().version, Version::V1);
+    }
+
+    #[test]
+    fn test_minimal_profile_without_version() {
+        let data = r#"{"platform": "cocoa"}"#;
+        let profile = minimal_profile_from_json(data.as_bytes());
+        assert!(profile.is_ok());
+        assert_eq!(profile.unwrap().version, Version::Unknown);
+    }
+
+    #[test]
+    fn test_expand_profile_with_version() {
+        let payload = include_bytes!("../tests/fixtures/profiles/sample/roundtrip.json");
+        let profile = expand_profile(payload);
+        assert!(profile.is_ok());
+    }
+
+    #[test]
+    fn test_expand_profile_without_version() {
+        let payload = include_bytes!("../tests/fixtures/profiles/cocoa/roundtrip.json");
+        let profile = expand_profile(payload);
+        assert!(profile.is_ok());
     }
 }
