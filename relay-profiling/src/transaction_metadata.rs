@@ -10,11 +10,7 @@ pub struct TransactionMetadata {
     pub name: String,
     pub trace_id: EventId,
 
-    #[serde(
-        default,
-        deserialize_with = "deserialize_number_from_string",
-        skip_serializing_if = "is_zero"
-    )]
+    #[serde(default, deserialize_with = "deserialize_number_from_string")]
     pub active_thread_id: u64,
 
     #[serde(deserialize_with = "deserialize_number_from_string")]
