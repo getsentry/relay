@@ -2874,7 +2874,7 @@
 <span class="kw">use</span> <span class="ident">relay_general::store</span>::{<span class="ident">ClockDriftProcessor</span>, <span class="ident">LightNormalizationConfig</span>};
 <span class="kw">use</span> <span class="ident">relay_general::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Array</span>, <span class="ident">FromValue</span>, <span class="ident">Object</span>, <span class="ident">ProcessingAction</span>, <span class="ident">Value</span>};
 <span class="kw">use</span> <span class="ident">relay_log::LogError</span>;
-<span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">Bucket</span>, <span class="ident">Metric</span>};
+<span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">Bucket</span>, <span class="ident">InsertMetrics</span>, <span class="ident">MergeBuckets</span>, <span class="ident">Metric</span>};
 <span class="kw">use</span> <span class="ident">relay_quotas</span>::{<span class="ident">DataCategory</span>, <span class="ident">RateLimits</span>, <span class="ident">ReasonCode</span>};
 <span class="kw">use</span> <span class="ident">relay_redis::RedisPool</span>;
 <span class="kw">use</span> <span class="ident">relay_sampling</span>::{<span class="ident">DynamicSamplingContext</span>, <span class="ident">RuleId</span>};
@@ -2884,7 +2884,7 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::envelopes</span>::{<span class="ident">EnvelopeManager</span>, <span class="ident">SendEnvelope</span>, <span class="ident">SendEnvelopeError</span>, <span class="ident">SubmitEnvelope</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome</span>::{<span class="ident">DiscardReason</span>, <span class="ident">Outcome</span>, <span class="ident">TrackOutcome</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::project</span>::{<span class="ident">Feature</span>, <span class="ident">ProjectState</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::project_cache</span>::{<span class="ident">InsertMetrics</span>, <span class="ident">MergeBuckets</span>, <span class="ident">ProjectCache</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::project_cache::ProjectCache</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::upstream</span>::{<span class="ident">SendRequest</span>, <span class="ident">UpstreamRelay</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope</span>::{<span class="ident">AttachmentType</span>, <span class="ident">ContentType</span>, <span class="ident">Envelope</span>, <span class="ident">Item</span>, <span class="ident">ItemType</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::sessions</span>::{<span class="ident">extract_session_metrics</span>, <span class="ident">SessionMetricsConfig</span>};

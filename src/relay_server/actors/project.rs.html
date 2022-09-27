@@ -923,8 +923,6 @@
 <span id="921">921</span>
 <span id="922">922</span>
 <span id="923">923</span>
-<span id="924">924</span>
-<span id="925">925</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeSet</span>, <span class="ident">VecDeque</span>};
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 <span class="kw">use</span> <span class="ident">std::time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>};
@@ -944,7 +942,7 @@
 <span class="kw">use</span> <span class="ident">relay_general::pii</span>::{<span class="ident">DataScrubbingConfig</span>, <span class="ident">PiiConfig</span>};
 <span class="kw">use</span> <span class="ident">relay_general::store</span>::{<span class="ident">BreakdownsConfig</span>, <span class="ident">MeasurementsConfig</span>};
 <span class="kw">use</span> <span class="ident">relay_general::types::SpanAttribute</span>;
-<span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="self">self</span>, <span class="ident">Aggregator</span>, <span class="ident">Bucket</span>, <span class="ident">Metric</span>};
+<span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="self">self</span>, <span class="ident">Aggregator</span>, <span class="ident">Bucket</span>, <span class="ident">InsertMetrics</span>, <span class="ident">MergeBuckets</span>, <span class="ident">Metric</span>};
 <span class="kw">use</span> <span class="ident">relay_quotas</span>::{<span class="ident">Quota</span>, <span class="ident">RateLimits</span>, <span class="ident">Scoping</span>};
 <span class="kw">use</span> <span class="ident">relay_sampling::SamplingConfig</span>;
 <span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
@@ -1528,8 +1526,7 @@
     <span class="doccomment">/// The buckets will be keyed underneath this project key.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">merge_buckets</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">buckets</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span>) {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">metrics_allowed</span>() {
-            <span class="ident">Aggregator::from_registry</span>()
-                .<span class="ident">do_send</span>(<span class="ident">relay_metrics::MergeBuckets::new</span>(<span class="self">self</span>.<span class="ident">project_key</span>, <span class="ident">buckets</span>));
+            <span class="ident">Aggregator::from_registry</span>().<span class="ident">do_send</span>(<span class="ident">MergeBuckets::new</span>(<span class="self">self</span>.<span class="ident">project_key</span>, <span class="ident">buckets</span>));
         }
     }
 
@@ -1538,8 +1535,7 @@
     <span class="doccomment">/// The metrics will be keyed underneath this project key.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">insert_metrics</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">metrics</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Metric</span><span class="op">&gt;</span>) {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">metrics_allowed</span>() {
-            <span class="ident">Aggregator::from_registry</span>()
-                .<span class="ident">do_send</span>(<span class="ident">relay_metrics::InsertMetrics::new</span>(<span class="self">self</span>.<span class="ident">project_key</span>, <span class="ident">metrics</span>));
+            <span class="ident">Aggregator::from_registry</span>().<span class="ident">do_send</span>(<span class="ident">InsertMetrics::new</span>(<span class="self">self</span>.<span class="ident">project_key</span>, <span class="ident">metrics</span>));
         }
     }
 

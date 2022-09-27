@@ -635,64 +635,19 @@
 <span id="633">633</span>
 <span id="634">634</span>
 <span id="635">635</span>
-<span id="636">636</span>
-<span id="637">637</span>
-<span id="638">638</span>
-<span id="639">639</span>
-<span id="640">640</span>
-<span id="641">641</span>
-<span id="642">642</span>
-<span id="643">643</span>
-<span id="644">644</span>
-<span id="645">645</span>
-<span id="646">646</span>
-<span id="647">647</span>
-<span id="648">648</span>
-<span id="649">649</span>
-<span id="650">650</span>
-<span id="651">651</span>
-<span id="652">652</span>
-<span id="653">653</span>
-<span id="654">654</span>
-<span id="655">655</span>
-<span id="656">656</span>
-<span id="657">657</span>
-<span id="658">658</span>
-<span id="659">659</span>
-<span id="660">660</span>
-<span id="661">661</span>
-<span id="662">662</span>
-<span id="663">663</span>
-<span id="664">664</span>
-<span id="665">665</span>
-<span id="666">666</span>
-<span id="667">667</span>
-<span id="668">668</span>
-<span id="669">669</span>
-<span id="670">670</span>
-<span id="671">671</span>
-<span id="672">672</span>
-<span id="673">673</span>
-<span id="674">674</span>
-<span id="675">675</span>
-<span id="676">676</span>
-<span id="677">677</span>
-<span id="678">678</span>
-<span id="679">679</span>
-<span id="680">680</span>
-<span id="681">681</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 <span class="kw">use</span> <span class="ident">std::time::Instant</span>;
 
 <span class="kw">use</span> <span class="ident">actix::prelude</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">actix_web::ResponseError</span>;
 <span class="kw">use</span> <span class="ident">failure::Fail</span>;
-<span class="kw">use</span> <span class="ident">futures</span>::{<span class="ident">FutureExt</span>, <span class="ident">TryFutureExt</span>};
 <span class="kw">use</span> <span class="ident">futures01</span>::{<span class="ident">future</span>, <span class="ident">Future</span>};
 
 <span class="kw">use</span> <span class="ident">relay_common::ProjectKey</span>;
 <span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">RelayMode</span>};
-<span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="self">self</span>, <span class="ident">AggregateMetricsError</span>, <span class="ident">Bucket</span>, <span class="ident">FlushBuckets</span>, <span class="ident">Metric</span>};
+<span class="kw">use</span> <span class="ident">relay_metrics</span>::{
+    <span class="self">self</span>, <span class="ident">AggregateMetricsError</span>, <span class="ident">Aggregator</span>, <span class="ident">FlushBuckets</span>, <span class="ident">InsertMetrics</span>, <span class="ident">MergeBuckets</span>,
+};
 <span class="kw">use</span> <span class="ident">relay_quotas::RateLimits</span>;
 <span class="kw">use</span> <span class="ident">relay_redis::RedisPool</span>;
 <span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
@@ -1238,60 +1193,15 @@
     }
 }
 
-<span class="doccomment">/// A message containing a list of [`Metric`]s to be inserted into the aggregator.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">InsertMetrics</span> {
-    <span class="doccomment">/// The project key</span>
-    <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>,
-    <span class="ident">metrics</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Metric</span><span class="op">&gt;</span>,
-}
-
-<span class="kw">impl</span> <span class="ident">InsertMetrics</span> {
-    <span class="doccomment">/// Creates a new message containing a list of [`Metric`]s.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span>(<span class="ident">project_key</span>: <span class="ident">ProjectKey</span>, <span class="ident">metrics</span>: <span class="ident">I</span>) -&gt; <span class="self">Self</span>
-    <span class="kw">where</span>
-        <span class="ident">I</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">Metric</span><span class="op">&gt;</span>,
-    {
-        <span class="self">Self</span> {
-            <span class="ident">project_key</span>,
-            <span class="ident">metrics</span>: <span class="ident">metrics</span>.<span class="ident">into_iter</span>().<span class="ident">collect</span>(),
-        }
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">InsertMetrics</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">AggregateMetricsError</span><span class="op">&gt;</span>;
-}
-
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">InsertMetrics</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ProjectCache</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">AggregateMetricsError</span><span class="op">&gt;</span>;
 
     <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">InsertMetrics</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="comment">// Only keep if we have an aggregator, otherwise drop because we know that we were disabled.</span>
-        <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_or_create_project</span>(<span class="ident">message</span>.<span class="ident">project_key</span>);
-        <span class="ident">project</span>.<span class="ident">insert_metrics</span>(<span class="ident">message</span>.<span class="ident">metrics</span>);
+        <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_or_create_project</span>(<span class="ident">message</span>.<span class="ident">project_key</span>());
+        <span class="ident">project</span>.<span class="ident">insert_metrics</span>(<span class="ident">message</span>.<span class="ident">metrics</span>());
         <span class="prelude-val">Ok</span>(())
     }
-}
-
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MergeBuckets</span> {
-    <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>,
-    <span class="ident">buckets</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span>,
-}
-
-<span class="kw">impl</span> <span class="ident">MergeBuckets</span> {
-    <span class="doccomment">/// Creates a new message containing a list of [`Bucket`]s.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">project_key</span>: <span class="ident">ProjectKey</span>, <span class="ident">buckets</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> {
-            <span class="ident">project_key</span>,
-            <span class="ident">buckets</span>,
-        }
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">MergeBuckets</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">AggregateMetricsError</span><span class="op">&gt;</span>;
 }
 
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">MergeBuckets</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ProjectCache</span> {
@@ -1299,14 +1209,14 @@
 
     <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">MergeBuckets</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="comment">// Only keep if we have an aggregator, otherwise drop because we know that we were disabled.</span>
-        <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_or_create_project</span>(<span class="ident">message</span>.<span class="ident">project_key</span>);
-        <span class="ident">project</span>.<span class="ident">merge_buckets</span>(<span class="ident">message</span>.<span class="ident">buckets</span>);
+        <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_or_create_project</span>(<span class="ident">message</span>.<span class="ident">project_key</span>());
+        <span class="ident">project</span>.<span class="ident">merge_buckets</span>(<span class="ident">message</span>.<span class="ident">buckets</span>());
         <span class="prelude-val">Ok</span>(())
     }
 }
 
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">FlushBuckets</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ProjectCache</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span>(), <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span><span class="op">&gt;</span>;
+    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
 
     <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">FlushBuckets</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="kw">let</span> <span class="ident">FlushBuckets</span> {
@@ -1326,40 +1236,38 @@
         <span class="kw">let</span> <span class="ident">project_state</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">expiry_state</span> {
             <span class="ident">ExpiryState::Updated</span>(<span class="ident">state</span>) <span class="op">|</span> <span class="ident">ExpiryState::Stale</span>(<span class="ident">state</span>) =&gt; <span class="ident">state</span>,
             <span class="ident">ExpiryState::Expired</span> =&gt; {
+                <span class="macro">relay_log::trace!</span>(<span class="string">&quot;project expired: merging back {} buckets&quot;</span>, <span class="ident">buckets</span>.<span class="ident">len</span>());
                 <span class="comment">// If the state is outdated, we need to wait for an updated state. Put them back into the</span>
-                <span class="comment">// aggregator and wait for the next flush cycle.</span>
-                <span class="kw">return</span> <span class="ident">Box::new</span>(<span class="ident">future::err</span>(<span class="ident">buckets</span>));
+                <span class="comment">// aggregator.</span>
+                <span class="ident">Aggregator::from_registry</span>()
+                    .<span class="ident">do_send</span>(<span class="ident">relay_metrics::MergeBuckets::new</span>(<span class="ident">project_key</span>, <span class="ident">buckets</span>));
+                <span class="kw">return</span>;
             }
         };
 
         <span class="kw">let</span> <span class="ident">scoping</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">project</span>.<span class="ident">scoping</span>() {
             <span class="prelude-val">Some</span>(<span class="ident">scoping</span>) =&gt; <span class="ident">scoping</span>,
-            <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="ident">Box::new</span>(<span class="ident">future::err</span>(<span class="ident">buckets</span>)),
+            <span class="kw">_</span> =&gt; {
+                <span class="macro">relay_log::trace!</span>(
+                    <span class="string">&quot;there is no scoping: merging back {} buckets&quot;</span>,
+                    <span class="ident">buckets</span>.<span class="ident">len</span>()
+                );
+                <span class="ident">Aggregator::from_registry</span>()
+                    .<span class="ident">do_send</span>(<span class="ident">relay_metrics::MergeBuckets::new</span>(<span class="ident">project_key</span>, <span class="ident">buckets</span>));
+                <span class="kw">return</span>;
+            }
         };
 
         <span class="comment">// Only send if the project state is valid, otherwise drop this bucket.</span>
         <span class="kw">if</span> <span class="ident">project_state</span>.<span class="ident">check_disabled</span>(<span class="ident">config</span>.<span class="ident">as_ref</span>()).<span class="ident">is_err</span>() {
-            <span class="kw">return</span> <span class="ident">Box::new</span>(<span class="ident">future::ok</span>(()));
+            <span class="kw">return</span>;
         }
 
-        <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">EnvelopeManager::from_registry</span>()
-            .<span class="ident">send</span>(<span class="ident">SendMetrics</span> {
-                <span class="ident">buckets</span>,
-                <span class="ident">scoping</span>,
-                <span class="ident">partition_key</span>,
-            })
-            .<span class="ident">boxed</span>()
-            .<span class="ident">compat</span>()
-            .<span class="ident">then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">send_result</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">send_result</span> {
-                <span class="prelude-val">Ok</span>(<span class="prelude-val">Ok</span>(())) =&gt; <span class="prelude-val">Ok</span>(()),
-                <span class="prelude-val">Ok</span>(<span class="prelude-val">Err</span>(<span class="ident">buckets</span>)) =&gt; <span class="prelude-val">Err</span>(<span class="ident">buckets</span>),
-                <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;dropped metric buckets: envelope manager mailbox full&quot;</span>);
-                    <span class="prelude-val">Ok</span>(())
-                }
-            });
-
-        <span class="ident">Box::new</span>(<span class="ident">future</span>)
+        <span class="ident">EnvelopeManager::from_registry</span>().<span class="ident">send</span>(<span class="ident">SendMetrics</span> {
+            <span class="ident">buckets</span>,
+            <span class="ident">scoping</span>,
+            <span class="ident">partition_key</span>,
+        });
     }
 }
 </code></pre></div>
