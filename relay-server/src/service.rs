@@ -20,6 +20,8 @@ use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::actors::processor::{EnvelopeProcessor, EnvelopeProcessorService};
 use crate::actors::project_cache::ProjectCache;
 use crate::actors::relays::{RelayCache, RelayCacheService};
+#[cfg(feature = "processing")]
+use crate::actors::store::StoreService;
 use crate::actors::test_store::{TestStore, TestStoreService};
 use crate::actors::upstream::UpstreamRelay;
 use crate::middlewares::{
@@ -177,7 +179,7 @@ impl ServiceState {
         if config.processing_enabled() {
             let rt = utils::create_runtime(1);
             let _guard = rt.enter();
-            let store = crate::actors::store::StoreService::create(config.clone())?.start();
+            let store = StoreService::create(config.clone())?.start();
             envelope_manager.set_store_forwarder(store);
             _store_runtime = Some(rt);
         }
@@ -197,7 +199,7 @@ impl ServiceState {
 
         if let Some(aws_api) = config.aws_runtime_api() {
             if let Ok(aws_extension) = AwsExtension::new(aws_api) {
-                Arbiter::start(|_| aws_extension);
+                aws_extension.start();
             }
         }
 

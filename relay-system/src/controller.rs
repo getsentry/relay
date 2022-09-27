@@ -71,6 +71,11 @@ pub struct Controller {
 }
 
 impl Controller {
+    /// Get actor's address from system registry.
+    pub fn from_registry() -> Addr<Self> {
+        SystemService::from_registry()
+    }
+
     /// Starts an actix system and runs the `factory` to start actors.
     ///
     /// The factory may be used to start actors in the actix system before it runs. If the factory

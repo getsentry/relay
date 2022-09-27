@@ -1,13 +1,11 @@
 use std::collections::HashMap;
+use std::fmt;
+use std::ops::ControlFlow;
 
-use actix::{fut, prelude::*};
-use failure::Fail;
-use futures01::{prelude::*, sync::oneshot};
 use reqwest::{Client, ClientBuilder, StatusCode, Url};
 use serde::Deserialize;
-use tokio::runtime::{Builder as RuntimeBuilder, Runtime};
 
-use relay_system::{Controller, Signal, SignalType};
+use relay_system::{Controller, Service, Signal, SignalType};
 
 const EXTENSION_NAME: &str = "sentry-lambda-extension";
 const EXTENSION_NAME_HEADER: &str = "Lambda-Extension-Name";
@@ -114,9 +112,16 @@ pub enum NextEventResponse {
 }
 
 /// Generic error in an AWS extension context.
-#[derive(Debug, Fail)]
-#[fail(display = "aws extension error")]
+#[derive(Debug)]
 pub struct AwsExtensionError(());
+
+impl fmt::Display for AwsExtensionError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "aws extension error")
+    }
+}
+
+impl std::error::Error for AwsExtensionError {}
 
 /// Actor implementing an AWS extension.
 ///
@@ -135,15 +140,11 @@ pub struct AwsExtensionError(());
 pub struct AwsExtension {
     /// The base url for the AWS Extensions API.
     base_url: Url,
-    /// The extension id that will be retrieved on register and used for subsequent requests.
-    extension_id: Option<String>,
     /// The reqwest client to make Extensions API requests with.
     ///
     /// Note that all timeouts need to be 0 because the container might get frozen if lambda is
     /// idle.
     reqwest_client: Client,
-    /// The tokio runtime used to spawn reqwest futures.
-    reqwest_runtime: Runtime,
 }
 
 impl AwsExtension {
@@ -151,13 +152,6 @@ impl AwsExtension {
     pub fn new(aws_runtime_api: &str) -> Result<Self, AwsExtensionError> {
         let base_url = format!("http://{}/2020-01-01/extension", aws_runtime_api)
             .parse()
-            .map_err(|_| AwsExtensionError(()))?;
-
-        let reqwest_runtime = RuntimeBuilder::new_multi_thread()
-            .worker_threads(1)
-            .thread_name("aws-reqwest-runtime")
-            .enable_all()
-            .build()
             .map_err(|_| AwsExtensionError(()))?;
 
         let reqwest_client = ClientBuilder::new()
@@ -168,12 +162,10 @@ impl AwsExtension {
         Ok(AwsExtension {
             base_url,
             reqwest_client,
-            reqwest_runtime,
-            extension_id: None,
         })
     }
 
-    fn register(&mut self, context: &mut Context<Self>) {
+    async fn register(&mut self) -> Result<String, AwsExtensionError> {
         relay_log::info!("Registering AWS extension on {}", self.base_url);
         let url = format!("{}/register", self.base_url);
         let body = HashMap::from([("events", ["INVOKE", "SHUTDOWN"])]);
@@ -184,42 +176,23 @@ impl AwsExtension {
             .header(EXTENSION_NAME_HEADER, EXTENSION_NAME)
             .json(&body);
 
-        let (tx, rx) = oneshot::channel();
+        let response = request.send().await.map_err(|_| AwsExtensionError(()))?;
 
-        self.reqwest_runtime.spawn(async move {
-            let res = request.send().await;
+        if response.status() != StatusCode::OK {
+            return Err(AwsExtensionError(()));
+        }
 
-            let extension_id = res.map_err(|_| AwsExtensionError(())).and_then(|res| {
-                if res.status() != StatusCode::OK {
-                    return Err(AwsExtensionError(()));
-                }
+        let extension_id = response
+            .headers()
+            .get(EXTENSION_ID_HEADER)
+            .and_then(|h| h.to_str().ok())
+            .map(|h| h.to_string())
+            .ok_or(AwsExtensionError(()))?;
 
-                res.headers()
-                    .get(EXTENSION_ID_HEADER)
-                    .and_then(|h| h.to_str().ok())
-                    .map(|h| h.to_string())
-                    .ok_or(AwsExtensionError(()))
-            });
-
-            tx.send(extension_id)
-        });
-
-        rx.map_err(|_| AwsExtensionError(()))
-            .flatten()
-            .map_err(|_| relay_log::info!("AWS extension registration failed"))
-            .into_actor(self)
-            .and_then(|extension_id, slf, ctx| {
-                slf.extension_id = Some(extension_id);
-                relay_log::info!("AWS extension successfully registered");
-                ctx.notify(NextEvent);
-                fut::ok(())
-            })
-            .drop_err()
-            .spawn(context)
+        Ok(extension_id)
     }
 
-    fn next_event(&self, context: &mut Context<Self>) {
-        let extension_id = self.extension_id.as_ref().unwrap();
+    async fn next_event(&self, extension_id: &str) -> Result<ControlFlow<()>, AwsExtensionError> {
         let url = format!("{}/event/next", self.base_url);
 
         let request = self
@@ -227,75 +200,48 @@ impl AwsExtension {
             .get(&url)
             .header(EXTENSION_ID_HEADER, extension_id);
 
-        let (tx, rx) = oneshot::channel();
+        let res = request.send().await.map_err(|_| AwsExtensionError(()))?;
+        let next_event = res.json().await.map_err(|_| AwsExtensionError(()))?;
 
-        self.reqwest_runtime.spawn(async move {
-            let res = request.send().await;
-
-            match res {
-                Ok(res) => {
-                    let json = res
-                        .json::<NextEventResponse>()
-                        .await
-                        .map_err(|_| AwsExtensionError(()));
-
-                    tx.send(json)
-                }
-                Err(_) => tx.send(Err(AwsExtensionError(()))),
+        match next_event {
+            NextEventResponse::Invoke(response) => {
+                relay_log::debug!("Received INVOKE: request_id {}", response.request_id);
+                Ok(ControlFlow::Continue(()))
             }
-        });
+            NextEventResponse::Shutdown(response) => {
+                relay_log::debug!("Received SHUTDOWN: reason {}", response.shutdown_reason);
+                Controller::from_registry().do_send(Signal(SignalType::Term));
+                Ok(ControlFlow::Break(()))
+            }
+        }
+    }
+}
 
-        rx.map_err(|_| AwsExtensionError(()))
-            .flatten()
-            .into_actor(self)
-            .and_then(|next_event, _slf, ctx| {
-                match next_event {
-                    NextEventResponse::Invoke(invoke_response) => {
-                        relay_log::debug!(
-                            "Received INVOKE: request_id {}",
-                            invoke_response.request_id
-                        );
-                        ctx.notify(NextEvent);
-                    }
-                    NextEventResponse::Shutdown(shutdown_response) => {
-                        relay_log::debug!(
-                            "Received SHUTDOWN: reason {}",
-                            shutdown_response.shutdown_reason
-                        );
+impl Service for AwsExtension {
+    type Interface = ();
 
-                        Controller::from_registry().do_send(Signal(SignalType::Term));
-                    }
+    fn spawn_handler(mut self, _rx: relay_system::Receiver<Self::Interface>) {
+        tokio::spawn(async move {
+            relay_log::info!("AWS extension started");
+
+            let extension_id = match self.register().await {
+                Ok(extension_id) => {
+                    relay_log::info!("AWS extension successfully registered");
+                    extension_id
                 }
-                fut::ok(())
-            })
-            .drop_err()
-            .spawn(context)
-    }
-}
+                Err(_) => {
+                    relay_log::info!("AWS extension registration failed");
+                    return;
+                }
+            };
 
-impl Actor for AwsExtension {
-    type Context = Context<Self>;
+            while let Ok(control_flow) = self.next_event(&extension_id).await {
+                if control_flow.is_break() {
+                    break;
+                }
+            }
 
-    fn started(&mut self, context: &mut Self::Context) {
-        relay_log::info!("AWS extension started");
-        self.register(context);
-    }
-
-    fn stopped(&mut self, _context: &mut Self::Context) {
-        relay_log::info!("AWS extension stopped");
-    }
-}
-
-struct NextEvent;
-
-impl Message for NextEvent {
-    type Result = ();
-}
-
-impl Handler<NextEvent> for AwsExtension {
-    type Result = ();
-
-    fn handle(&mut self, _message: NextEvent, context: &mut Self::Context) -> Self::Result {
-        self.next_event(context);
+            relay_log::info!("AWS extension stopped");
+        });
     }
 }
