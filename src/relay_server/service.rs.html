@@ -513,8 +513,8 @@
         <span class="kw">let</span> <span class="ident">system</span> <span class="op">=</span> <span class="ident">System::current</span>();
         <span class="kw">let</span> <span class="ident">registry</span> <span class="op">=</span> <span class="ident">system</span>.<span class="ident">registry</span>();
 
-        <span class="kw">let</span> <span class="ident">main_runtime</span> <span class="op">=</span> <span class="ident">utils::tokio_runtime_with_actix</span>();
-        <span class="kw">let</span> <span class="ident">outcome_runtime</span> <span class="op">=</span> <span class="ident">utils::tokio_runtime_with_actix</span>();
+        <span class="kw">let</span> <span class="ident">main_runtime</span> <span class="op">=</span> <span class="ident">utils::create_runtime</span>(<span class="ident">config</span>.<span class="ident">cpu_concurrency</span>());
+        <span class="kw">let</span> <span class="ident">outcome_runtime</span> <span class="op">=</span> <span class="ident">utils::create_runtime</span>(<span class="number">1</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">_store_runtime</span> <span class="op">=</span> <span class="prelude-val">None</span>;
 
         <span class="kw">let</span> <span class="ident">upstream_relay</span> <span class="op">=</span> <span class="ident">UpstreamRelay::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>());
@@ -541,7 +541,7 @@
 
         <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
         <span class="kw">if</span> <span class="ident">config</span>.<span class="ident">processing_enabled</span>() {
-            <span class="kw">let</span> <span class="ident">rt</span> <span class="op">=</span> <span class="ident"><span class="kw">crate</span>::utils::tokio_runtime_with_actix</span>();
+            <span class="kw">let</span> <span class="ident">rt</span> <span class="op">=</span> <span class="ident">utils::create_runtime</span>(<span class="number">1</span>);
             <span class="kw">let</span> <span class="ident">_guard</span> <span class="op">=</span> <span class="ident">rt</span>.<span class="ident">enter</span>();
             <span class="kw">let</span> <span class="ident">store</span> <span class="op">=</span> <span class="ident"><span class="kw">crate</span>::actors::store::StoreService::create</span>(<span class="ident">config</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>.<span class="ident">start</span>();
             <span class="ident">envelope_manager</span>.<span class="ident">set_store_forwarder</span>(<span class="ident">store</span>);

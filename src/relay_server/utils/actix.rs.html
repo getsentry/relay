@@ -69,6 +69,7 @@
 <span id="67">67</span>
 <span id="68">68</span>
 <span id="69">69</span>
+<span id="70">70</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">::actix::dev</span>::{<span class="ident">MessageResponse</span>, <span class="ident">ResponseChannel</span>};
 <span class="kw">use</span> <span class="ident">::actix::prelude</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">futures01::prelude</span>::<span class="kw-2">*</span>;
@@ -120,19 +121,20 @@
     }
 }
 
-<span class="doccomment">/// Constructs a single threaded tokio [`Runtime`] containing a clone of the actix [`System`].</span>
+<span class="doccomment">/// Constructs a tokio [`Runtime`] configured for running [services](relay_system::Service).</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// This is required if you need to send messages from the tokio runtime to actix</span>
-<span class="doccomment">/// actors.</span>
+<span class="doccomment">/// For compatibility, this runtime also registers the actix [`System`]. This is required for</span>
+<span class="doccomment">/// interoperability with actors. To send messages to those actors, use</span>
+<span class="doccomment">/// [`compat::send`](relay_system::compat::send).</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Panics</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// The calling thread must have the actix system enabled, panics if this is invoked</span>
-<span class="doccomment">/// in a thread where actix is not enabled.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">tokio_runtime_with_actix</span>() -&gt; <span class="ident">Runtime</span> {
+<span class="doccomment">/// The calling thread must have the actix system enabled, panics if this is invoked in a thread</span>
+<span class="doccomment">/// where actix is not enabled.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create_runtime</span>(<span class="ident">threads</span>: <span class="ident">usize</span>) -&gt; <span class="ident">Runtime</span> {
     <span class="kw">let</span> <span class="ident">system</span> <span class="op">=</span> <span class="ident">System::current</span>();
     <span class="ident">tokio::runtime::Builder::new_multi_thread</span>()
-        .<span class="ident">worker_threads</span>(<span class="number">1</span>)
+        .<span class="ident">worker_threads</span>(<span class="ident">threads</span>)
         .<span class="ident">enable_all</span>()
         .<span class="ident">on_thread_start</span>(<span class="macro">clone!</span>(<span class="ident">system</span>, <span class="op">|</span><span class="op">|</span> <span class="ident">System::set_current</span>(<span class="ident">system</span>.<span class="ident">clone</span>())))
         .<span class="ident">build</span>()
