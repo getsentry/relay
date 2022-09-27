@@ -55,6 +55,7 @@
 //!     "value": [36, 49, 57, 68],
 //!     "type": "d",
 //!     "timestamp": 1615889440,
+//!     "width": 10,
 //!     "tags": {
 //!       "route": "user_index"
 //!     }
@@ -64,6 +65,7 @@
 //!     "value": 4,
 //!     "type": "c",
 //!     "timestamp": 1615889440,
+//!     "width": 10,
 //!     "tags": {
 //!       "route": "user_index"
 //!     }
