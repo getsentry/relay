@@ -17,7 +17,7 @@ use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 use relay_general::store::{BreakdownsConfig, MeasurementsConfig};
 use relay_general::types::SpanAttribute;
-use relay_metrics::{self, Aggregator, Bucket, Metric};
+use relay_metrics::{self, Aggregator, Bucket, InsertMetrics, MergeBuckets, Metric};
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::SamplingConfig;
 use relay_statsd::metric;
@@ -601,8 +601,7 @@ impl Project {
     /// The buckets will be keyed underneath this project key.
     pub fn merge_buckets(&mut self, buckets: Vec<Bucket>) {
         if self.metrics_allowed() {
-            Aggregator::from_registry()
-                .do_send(relay_metrics::MergeBuckets::new(self.project_key, buckets));
+            Aggregator::from_registry().do_send(MergeBuckets::new(self.project_key, buckets));
         }
     }
 
@@ -611,8 +610,7 @@ impl Project {
     /// The metrics will be keyed underneath this project key.
     pub fn insert_metrics(&mut self, metrics: Vec<Metric>) {
         if self.metrics_allowed() {
-            Aggregator::from_registry()
-                .do_send(relay_metrics::InsertMetrics::new(self.project_key, metrics));
+            Aggregator::from_registry().do_send(InsertMetrics::new(self.project_key, metrics));
         }
     }
 
