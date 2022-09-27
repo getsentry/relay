@@ -149,8 +149,8 @@ impl ServiceState {
         let system = System::current();
         let registry = system.registry();
 
-        let main_runtime = utils::tokio_runtime_with_actix();
-        let outcome_runtime = utils::tokio_runtime_with_actix();
+        let main_runtime = utils::create_runtime(config.cpu_concurrency());
+        let outcome_runtime = utils::create_runtime(1);
         let mut _store_runtime = None;
 
         let upstream_relay = UpstreamRelay::new(config.clone());
@@ -177,7 +177,7 @@ impl ServiceState {
 
         #[cfg(feature = "processing")]
         if config.processing_enabled() {
-            let rt = utils::tokio_runtime_with_actix();
+            let rt = utils::create_runtime(1);
             let _guard = rt.enter();
             let store = StoreService::create(config.clone())?.start();
             envelope_manager.set_store_forwarder(store);
