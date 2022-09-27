@@ -42,14 +42,6 @@ struct SatisfactionConfig {
     transaction_thresholds: BTreeMap<String, SatisfactionThreshold>,
 }
 
-/// Configuration for extracting custom measurements from transaction payloads.
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
-pub struct CustomMeasurementConfig {
-    /// The maximum number of custom measurements to extract. Defaults to zero.
-    limit: usize,
-}
-
 /// Maximum supported version of metrics extraction from transactions.
 ///
 /// The version is an integer scalar, incremented by one on each new version.
@@ -79,10 +71,8 @@ impl Default for AcceptTransactionNames {
 pub struct TransactionMetricsConfig {
     /// The required version to extract transaction metrics.
     version: u16,
-    extract_metrics: BTreeSet<String>,
     extract_custom_tags: BTreeSet<String>,
     satisfaction_thresholds: Option<SatisfactionConfig>,
-    custom_measurements: CustomMeasurementConfig,
     accept_transaction_names: AcceptTransactionNames,
 }
 
@@ -352,32 +342,9 @@ pub fn extract_transaction_metrics(
     event: &Event,
     target: &mut Vec<Metric>,
 ) -> bool {
-    if config.extract_metrics.is_empty() {
-        relay_log::trace!("dropping all transaction metrics because of empty allow-list");
-        return false;
-    }
-
     let before_len = target.len();
 
-    let mut custom_measurement_budget = config.custom_measurements.limit;
-    let push_metric = |metric: Metric| {
-        if config.extract_metrics.contains(&metric.name) {
-            // Anything in config.extract_metrics is considered a known / builtin metric,
-            // as opposed to custom measurements.
-            target.push(metric);
-        } else if custom_measurement_budget > 0
-            && metric.name.starts_with("d:transactions/measurements.")
-        {
-            // We allow a fixed amount of custom measurements in addition to
-            // the known / builtin metrics.
-            target.push(metric);
-            custom_measurement_budget -= 1;
-        } else {
-            relay_log::trace!("dropping metric {} because of allow-list", metric.name);
-        }
-    };
-
-    extract_transaction_metrics_inner(config, breakdowns_config, event, push_metric);
+    extract_transaction_metrics_inner(config, breakdowns_config, event, target);
 
     let added_slice = &mut target[before_len..];
     run_conditional_tagging(event, conditional_tagging_config, added_slice);
@@ -388,7 +355,7 @@ fn extract_transaction_metrics_inner(
     config: &TransactionMetricsConfig,
     breakdowns_config: Option<&store::BreakdownsConfig>,
     event: &Event,
-    mut push_metric: impl FnMut(Metric),
+    metrics: &mut Vec<Metric>, // output parameter
 ) {
     if event.ty.value() != Some(&EventType::Transaction) {
         return;
@@ -429,7 +396,7 @@ fn extract_transaction_metrics_inner(
                 tags_for_measurement.insert("measurement_rating".to_owned(), rating);
             }
 
-            push_metric(Metric::new_mri(
+            metrics.push(Metric::new_mri(
                 METRIC_NAMESPACE,
                 format!("measurements.{}", name),
                 measurement.unit.value().copied().unwrap_or_default(),
@@ -445,6 +412,12 @@ fn extract_transaction_metrics_inner(
         for (breakdown, measurements) in store::get_breakdown_measurements(event, breakdowns_config)
         {
             for (measurement_name, annotated) in measurements.iter() {
+                if measurement_name == "total.time" {
+                    // The only reason we do not emit total.time as a metric is that is was not
+                    // on the allowlist in sentry before, and nobody seems to be missing it.
+                    continue;
+                }
+
                 let measurement = match annotated.value() {
                     Some(m) => m,
                     None => continue,
@@ -457,7 +430,7 @@ fn extract_transaction_metrics_inner(
 
                 let unit = measurement.unit.value();
 
-                push_metric(Metric::new_mri(
+                metrics.push(Metric::new_mri(
                     METRIC_NAMESPACE,
                     format!("breakdowns.{}.{}", breakdown, measurement_name),
                     unit.copied().unwrap_or(MetricUnit::None),
@@ -481,7 +454,7 @@ fn extract_transaction_metrics_inner(
     };
 
     // Duration
-    push_metric(Metric::new_mri(
+    metrics.push(Metric::new_mri(
         METRIC_NAMESPACE,
         "duration",
         MetricUnit::Duration(DurationUnit::MilliSecond),
@@ -493,7 +466,7 @@ fn extract_transaction_metrics_inner(
     // User
     if let Some(user) = event.user.value() {
         if let Some(value) = get_eventuser_tag(user) {
-            push_metric(Metric::new_mri(
+            metrics.push(Metric::new_mri(
                 METRIC_NAMESPACE,
                 "user",
                 MetricUnit::None,
@@ -587,8 +560,7 @@ mod tests {
     use super::*;
 
     use relay_general::protocol::User;
-    use relay_general::store::BreakdownsConfig;
-    use relay_general::store::LightNormalizationConfig;
+    use relay_general::store::{BreakdownsConfig, LightNormalizationConfig, MeasurementsConfig};
     use relay_general::types::Annotated;
     use relay_metrics::DurationUnit;
 
@@ -655,26 +627,10 @@ mod tests {
 
         let event = Annotated::from_json(json).unwrap();
 
-        let mut metrics = vec![];
-        extract_transaction_metrics(
-            &TransactionMetricsConfig::default(),
-            Some(&breakdowns_config),
-            &[],
-            event.value().unwrap(),
-            &mut metrics,
-        );
-        assert_eq!(metrics, &[]);
-
         let config: TransactionMetricsConfig = serde_json::from_str(
             r#"
         {
-            "extractMetrics": [
-                "d:transactions/measurements.foo@none",
-                "d:transactions/measurements.lcp@millisecond",
-                "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
-                "d:transactions/duration@millisecond",
-                "s:transactions/user@none"
-            ],
+            "version": 1,
             "extractCustomTags": ["fOO"]
         }
         "#,
@@ -808,18 +764,7 @@ mod tests {
         }
         "#;
 
-        let config: TransactionMetricsConfig = serde_json::from_str(
-            r#"
-        {
-            "extractMetrics": [
-                "d:transactions/measurements.fcp@millisecond",
-                "d:transactions/measurements.stall_count@none",
-                "d:transactions/measurements.foo@none"
-            ]
-        }
-        "#,
-        )
-        .unwrap();
+        let config = TransactionMetricsConfig::default();
 
         let mut event = Annotated::from_json(json).unwrap();
 
@@ -866,6 +811,17 @@ mod tests {
                     "transaction.status": "unknown",
                 },
             },
+            Metric {
+                name: "d:transactions/duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "platform": "other",
+                    "transaction.status": "unknown",
+                },
+            },
         ]
         "###);
     }
@@ -888,15 +844,7 @@ mod tests {
             }
         }"#;
 
-        let config: TransactionMetricsConfig = serde_json::from_str(
-            r#"{
-                "extractMetrics": [
-                    "d:transactions/measurements.fcp@second",
-                    "d:transactions/measurements.lcp@none"
-                ]
-            }"#,
-        )
-        .unwrap();
+        let config: TransactionMetricsConfig = TransactionMetricsConfig::default();
 
         let mut event = Annotated::from_json(json).unwrap();
 
@@ -933,6 +881,17 @@ mod tests {
                     "transaction.status": "unknown",
                 },
             },
+            Metric {
+                name: "d:transactions/duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "platform": "other",
+                    "transaction.status": "unknown",
+                },
+            },
         ]
         "###);
     }
@@ -958,16 +917,7 @@ mod tests {
 
         let event = Annotated::from_json(json).unwrap();
 
-        let config: TransactionMetricsConfig = serde_json::from_str(
-            r#"
-        {
-            "extractMetrics": [
-                "d:transactions/duration@millisecond"
-            ]
-        }
-        "#,
-        )
-        .unwrap();
+        let config = TransactionMetricsConfig::default();
         let mut metrics = vec![];
         extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
 
@@ -1012,10 +962,6 @@ mod tests {
         let config: TransactionMetricsConfig = serde_json::from_str(
             r#"
         {
-            "extractMetrics": [
-                "d:transactions/duration@millisecond",
-                "s:transactions/user@none"
-            ],
             "satisfactionThresholds": {
                 "projectThreshold": {
                     "metric": "duration",
@@ -1050,7 +996,7 @@ mod tests {
             "start_timestamp": "2021-04-26T08:00:00+0100",
             "timestamp": "2021-04-26T08:00:02+0100",
             "measurements": {
-                "lcp": {"value": 41}
+                "lcp": {"value": 41, "unit": "millisecond"}
             }
         }
         "#;
@@ -1060,9 +1006,6 @@ mod tests {
         let config: TransactionMetricsConfig = serde_json::from_str(
             r#"
         {
-            "extractMetrics": [
-                "d:transactions/duration@millisecond"
-            ],
             "satisfactionThresholds": {
                 "projectThreshold": {
                     "metric": "duration",
@@ -1081,12 +1024,32 @@ mod tests {
         .unwrap();
         let mut metrics = vec![];
         extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
-        assert_eq!(metrics.len(), 1);
-
-        for metric in metrics {
-            assert_eq!(metric.tags.len(), 2);
-            assert_eq!(metric.tags["satisfaction"], "satisfied");
-        }
+        insta::assert_debug_snapshot!(metrics, @r###"
+        [
+            Metric {
+                name: "d:transactions/measurements.lcp@millisecond",
+                value: Distribution(
+                    41.0,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "measurement_rating": "good",
+                    "platform": "other",
+                },
+            },
+            Metric {
+                name: "d:transactions/duration@millisecond",
+                value: Distribution(
+                    2000.0,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "platform": "other",
+                    "satisfaction": "satisfied",
+                },
+            },
+        ]
+        "###);
     }
 
     #[test]
@@ -1098,7 +1061,7 @@ mod tests {
             "start_timestamp": "2021-04-26T08:00:00+0100",
             "timestamp": "2021-04-26T08:00:02+0100",
             "measurements": {
-                "lcp": {"value": 41}
+                "lcp": {"value": 41, "unit": "millisecond"}
             }
         }
         "#;
@@ -1108,9 +1071,6 @@ mod tests {
         let config: TransactionMetricsConfig = serde_json::from_str(
             r#"
         {
-            "extractMetrics": [
-                "d:transactions/duration@millisecond"
-            ],
             "satisfactionThresholds": {
                 "projectThreshold": {
                     "metric": "unknown_metric",
@@ -1126,6 +1086,17 @@ mod tests {
 
         insta::assert_debug_snapshot!(metrics, @r###"
         [
+            Metric {
+                name: "d:transactions/measurements.lcp@millisecond",
+                value: Distribution(
+                    41.0,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "measurement_rating": "good",
+                    "platform": "other",
+                },
+            },
             Metric {
                 name: "d:transactions/duration@millisecond",
                 value: Distribution(
@@ -1153,25 +1124,35 @@ mod tests {
                 "fcp": {"value": 0.123, "unit": "millisecond"},
                 "g_custom2": {"value": 42, "unit": "second"},
                 "h_custom3": {"value": 43}
-            }
+            },
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053"
+                }}
         }
         "#;
 
-        let event = Annotated::from_json(json).unwrap();
+        let mut event = Annotated::from_json(json).unwrap();
 
-        let config: TransactionMetricsConfig = serde_json::from_str(
-            r#"
-        {
-            "extractMetrics": [
-                "d:transactions/measurements.fcp@millisecond"
-            ],
-            "customMeasurements": {
-                "limit": 2
+        // Normalize first, to make sure the units are correct:
+        let measurements_config: MeasurementsConfig = serde_json::from_value(serde_json::json!(
+            {
+                "builtinMeasurements": [{"name": "fcp", "unit": "millisecond"}],
+                "maxCustomMeasurements": 2
             }
-        }
-        "#,
-        )
+        ))
         .unwrap();
+        let res = store::light_normalize_event(
+            &mut event,
+            &LightNormalizationConfig {
+                measurements_config: Some(&measurements_config),
+                ..Default::default()
+            },
+        );
+        assert!(res.is_ok(), "{:?}", res);
+
+        let config = TransactionMetricsConfig::default();
         let mut metrics = vec![];
         extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
 
@@ -1185,6 +1166,7 @@ mod tests {
                     timestamp: UnixTimestamp(1619420402),
                     tags: {
                         "platform": "other",
+                        "transaction.status": "unknown",
                     },
                 },
                 Metric {
@@ -1196,6 +1178,7 @@ mod tests {
                     tags: {
                         "measurement_rating": "good",
                         "platform": "other",
+                        "transaction.status": "unknown",
                     },
                 },
                 Metric {
@@ -1206,6 +1189,18 @@ mod tests {
                     timestamp: UnixTimestamp(1619420402),
                     tags: {
                         "platform": "other",
+                        "transaction.status": "unknown",
+                    },
+                },
+                Metric {
+                    name: "d:transactions/duration@millisecond",
+                    value: Distribution(
+                        2000.0,
+                    ),
+                    timestamp: UnixTimestamp(1619420402),
+                    tags: {
+                        "platform": "other",
+                        "transaction.status": "unknown",
                     },
                 },
             ]
@@ -1221,23 +1216,14 @@ mod tests {
             "start_timestamp": "2021-04-26T08:00:00+0100",
             "timestamp": "2021-04-26T08:00:02+0100",
             "measurements": {
-                "lcp": {"value": 41}
+                "lcp": {"value": 41, "unit": "millisecond"}
             }
         }
         "#;
 
         let event = Annotated::from_json(json).unwrap();
 
-        let config: TransactionMetricsConfig = serde_json::from_str(
-            r#"
-        {
-            "extractMetrics": [
-                "d:transactions/duration@millisecond"
-            ]
-        }
-        "#,
-        )
-        .unwrap();
+        let config = TransactionMetricsConfig::default();
 
         let tagging_config: Vec<TaggingRule> = serde_json::from_str(
             r#"
@@ -1277,6 +1263,17 @@ mod tests {
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Metric {
+                name: "d:transactions/measurements.lcp@millisecond",
+                value: Distribution(
+                    41.0,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "measurement_rating": "good",
+                    "platform": "other",
+                },
+            },
+            Metric {
                 name: "d:transactions/duration@millisecond",
                 value: Distribution(
                     2000.0,
@@ -1307,16 +1304,7 @@ mod tests {
 
         let event = Annotated::from_json(json).unwrap();
 
-        let config: TransactionMetricsConfig = serde_json::from_str(
-            r#"
-        {
-            "extractMetrics": [
-                "d:transactions/measurements.lcp@millisecond"
-            ]
-        }
-        "#,
-        )
-        .unwrap();
+        let config = TransactionMetricsConfig::default();
 
         let tagging_config: Vec<TaggingRule> = serde_json::from_str(
             r#"
@@ -1352,6 +1340,7 @@ mod tests {
             event.value().unwrap(),
             &mut metrics,
         );
+        metrics.retain(|m| m.name.contains("lcp"));
         assert_eq!(
             metrics,
             &[Metric::new_mri(
@@ -1381,16 +1370,7 @@ mod tests {
         }
         "#;
 
-        let config: TransactionMetricsConfig = serde_json::from_str(
-            r#"
-        {
-            "extractMetrics": [
-                "d:transactions/duration@millisecond"
-            ]
-        }
-        "#,
-        )
-        .unwrap();
+        let config = TransactionMetricsConfig::default();
 
         let event = Annotated::from_json(json).unwrap();
 
@@ -1417,16 +1397,7 @@ mod tests {
         }
         "#;
 
-        let config: TransactionMetricsConfig = serde_json::from_str(
-            r#"
-        {
-            "extractMetrics": [
-                "d:transactions/duration@millisecond"
-            ]
-        }
-        "#,
-        )
-        .unwrap();
+        let config = TransactionMetricsConfig::default();
 
         let event = Annotated::from_json(json).unwrap();
 
@@ -1447,16 +1418,7 @@ mod tests {
 
     /// Helper function to check if the transaction name is set correctly
     fn extract_transaction_name(json: &str, strategy: AcceptTransactionNames) -> Option<String> {
-        let mut config: TransactionMetricsConfig = serde_json::from_str(
-            r#"
-        {
-            "extractMetrics": [
-                "d:transactions/duration@millisecond"
-            ]
-        }
-        "#,
-        )
-        .unwrap();
+        let mut config = TransactionMetricsConfig::default();
 
         let event = Annotated::<Event>::from_json(json).unwrap();
         config.accept_transaction_names = strategy;
@@ -1791,23 +1753,13 @@ mod tests {
                     "value": 4
                 },
                 "stall_total_time": {
-                    "value": 4
+                    "value": 4,
+                    "unit": "millisecond"
                 }
             }
         }"#;
 
-        let config: TransactionMetricsConfig = serde_json::from_str(
-            r#"
-        {
-            "extractMetrics": [
-                "d:transactions/measurements.frames_frozen_rate@ratio",
-                "d:transactions/measurements.frames_slow_rate@ratio",
-                "d:transactions/measurements.stall_percentage@ratio"
-            ]
-        }
-        "#,
-        )
-        .unwrap();
+        let config = TransactionMetricsConfig::default();
 
         let event = Annotated::from_json(json).unwrap();
 
@@ -1817,9 +1769,14 @@ mod tests {
         let metrics_names: Vec<_> = metrics.into_iter().map(|m| m.name).collect();
         insta::assert_debug_snapshot!(metrics_names, @r###"
         [
+            "d:transactions/measurements.frames_frozen@none",
             "d:transactions/measurements.frames_frozen_rate@ratio",
+            "d:transactions/measurements.frames_slow@none",
             "d:transactions/measurements.frames_slow_rate@ratio",
+            "d:transactions/measurements.frames_total@none",
             "d:transactions/measurements.stall_percentage@ratio",
+            "d:transactions/measurements.stall_total_time@millisecond",
+            "d:transactions/duration@millisecond",
         ]
         "###);
     }
