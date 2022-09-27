@@ -42,6 +42,14 @@ struct SatisfactionConfig {
     transaction_thresholds: BTreeMap<String, SatisfactionThreshold>,
 }
 
+/// Configuration for extracting custom measurements from transaction payloads.
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct CustomMeasurementConfig {
+    /// The maximum number of custom measurements to extract. Defaults to zero.
+    limit: usize,
+}
+
 /// Maximum supported version of metrics extraction from transactions.
 ///
 /// The version is an integer scalar, incremented by one on each new version.
@@ -71,8 +79,10 @@ impl Default for AcceptTransactionNames {
 pub struct TransactionMetricsConfig {
     /// The required version to extract transaction metrics.
     version: u16,
+    extract_metrics: BTreeSet<String>,
     extract_custom_tags: BTreeSet<String>,
     satisfaction_thresholds: Option<SatisfactionConfig>,
+    custom_measurements: CustomMeasurementConfig,
     accept_transaction_names: AcceptTransactionNames,
 }
 
@@ -560,7 +570,9 @@ mod tests {
     use super::*;
 
     use relay_general::protocol::User;
-    use relay_general::store::{BreakdownsConfig, LightNormalizationConfig, MeasurementsConfig};
+    use relay_general::store::BreakdownsConfig;
+    use relay_general::store::LightNormalizationConfig;
+    use relay_general::store::MeasurementsConfig;
     use relay_general::types::Annotated;
     use relay_metrics::DurationUnit;
 
