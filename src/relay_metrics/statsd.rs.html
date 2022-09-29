@@ -144,6 +144,12 @@
 <span id="142">142</span>
 <span id="143">143</span>
 <span id="144">144</span>
+<span id="145">145</span>
+<span id="146">146</span>
+<span id="147">147</span>
+<span id="148">148</span>
+<span id="149">149</span>
+<span id="150">150</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">relay_statsd</span>::{<span class="ident">CounterMetric</span>, <span class="ident">GaugeMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">SetMetric</span>, <span class="ident">TimerMetric</span>};
 
 <span class="doccomment">/// Set metrics for Relay Metrics.</span>
@@ -257,6 +263,11 @@
     <span class="doccomment">/// The distribution of buckets should be even.</span>
     <span class="doccomment">/// If it is not, this metric should expose it.</span>
     <span class="ident">PartitionKeys</span>,
+
+    <span class="doccomment">/// Distribution of invalid bucket timestamps observed, relative to the time of observation.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This is a temporary metric to better understand why we see so many invalid timestamp errors.</span>
+    <span class="ident">InvalidBucketTimestamp</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">HistogramMetric</span> <span class="kw">for</span> <span class="ident">MetricHistograms</span> {
@@ -268,6 +279,7 @@
             <span class="ident"><span class="self">Self</span>::BatchesPerPartition</span> =&gt; <span class="string">&quot;metrics.buckets.batches_per_partition&quot;</span>,
             <span class="ident"><span class="self">Self</span>::BucketsPerBatch</span> =&gt; <span class="string">&quot;metrics.buckets.per_batch&quot;</span>,
             <span class="ident"><span class="self">Self</span>::PartitionKeys</span> =&gt; <span class="string">&quot;metrics.buckets.partition_keys&quot;</span>,
+            <span class="ident"><span class="self">Self</span>::InvalidBucketTimestamp</span> =&gt; <span class="string">&quot;metrics.buckets.invalid_timestamp&quot;</span>,
         }
     }
 }
