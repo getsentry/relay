@@ -284,7 +284,7 @@ pub fn process_unreal_envelope(
     }
 
     // If we have UE4 info, ensure an event is there to fill. DO NOT fill if there is no unreal
-    // information, or otherwise `EnvelopeProcessor::process` breaks.
+    // information, or otherwise `EnvelopeProcessorService::process` breaks.
     let event = event.get_or_insert_with(Event::default);
 
     if let Some(user_info) = user_header {

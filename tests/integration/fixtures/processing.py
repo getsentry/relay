@@ -267,8 +267,8 @@ def sessions_consumer(kafka_consumer):
 @pytest.fixture
 def metrics_consumer(kafka_consumer):
     # The default timeout of 3 seconds compensates for delays and jitter
-    return lambda timeout=3: MetricsConsumer(
-        timeout=timeout, *kafka_consumer("metrics")
+    return lambda timeout=3, topic=None: MetricsConsumer(
+        timeout=timeout, *kafka_consumer(topic or "metrics")
     )
 
 

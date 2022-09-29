@@ -20,7 +20,7 @@
 //!     "urls": ["https://sentry.io"],
 //!     "error_ids": ["d2132d31b39445f1938d7e21b6bf0ec4"],
 //!     "trace_ids": ["63c5b0f895441a94340183c5f1e74cd4"],
-//!     "requests": {
+//!     "request": {
 //!         "headers": {"User-Agent": "Mozilla/5.0..."}
 //!     },
 //! }
@@ -45,13 +45,12 @@ pub fn normalize_replay_event(
 ) -> Result<Vec<u8>, Error> {
     let mut replay_input: ReplayInput = serde_json::from_slice(replay_bytes)?;
 
-    // Set user-agent metadata from requests object.
+    // Set user-agent metadata from request object.
     replay_input.set_user_agent_meta();
 
     // Set user ip-address if needed.
-    match detected_ip_address {
-        Some(ip_address) => replay_input.set_user_ip_address(ip_address),
-        None => (),
+    if let Some(ip_address) = detected_ip_address {
+        replay_input.set_user_ip_address(ip_address)
     }
 
     serde_json::to_vec(&replay_input)
@@ -82,12 +81,12 @@ struct ReplayInput {
     #[serde(default)]
     user: User,
     #[serde(default)]
-    requests: Requests,
+    request: Request,
 }
 
 impl ReplayInput {
     fn set_user_agent_meta(&mut self) {
-        let user_agent = &self.requests.headers.user_agent;
+        let user_agent = &self.request.headers.user_agent;
 
         let ua = user_agent::parse_user_agent(user_agent);
         let browser_struct = VersionedMeta {
@@ -155,7 +154,7 @@ struct User {
 
 #[derive(Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
-struct Requests {
+struct Request {
     url: Option<String>,
     headers: Headers,
 }
@@ -229,7 +228,7 @@ mod tests {
     }
 
     #[test]
-    fn test_set_user_agent_meta_no_requests() {
+    fn test_set_user_agent_meta_no_request() {
         let payload = include_bytes!("../tests/fixtures/replay_no_requests.json");
         let mut replay_input: ReplayInput = serde_json::from_slice(payload).unwrap();
         replay_input.set_user_agent_meta();

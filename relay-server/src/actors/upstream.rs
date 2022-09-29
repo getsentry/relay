@@ -29,7 +29,6 @@ use std::time::Instant;
 
 use actix_web::http::{header, Method};
 use failure::Fail;
-use futures::TryFutureExt;
 use itertools::Itertools;
 use relay_system::{AsyncResponse, FromMessage, Interface, NoResponse, Sender, Service};
 use serde::de::DeserializeOwned;

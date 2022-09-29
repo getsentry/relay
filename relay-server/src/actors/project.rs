@@ -15,9 +15,9 @@ use relay_common::{ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
-use relay_general::store::BreakdownsConfig;
+use relay_general::store::{BreakdownsConfig, MeasurementsConfig};
 use relay_general::types::SpanAttribute;
-use relay_metrics::{self, Aggregator, Bucket, Metric};
+use relay_metrics::{self, Aggregator, Bucket, InsertMetrics, MergeBuckets, Metric};
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::SamplingConfig;
 use relay_statsd::metric;
@@ -108,6 +108,9 @@ pub struct ProjectConfig {
     /// Configuration for sampling traces, if not present there will be no sampling.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dynamic_sampling: Option<SamplingConfig>,
+    /// Configuration for measurements.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub measurements: Option<MeasurementsConfig>,
     /// Configuration for operation breakdown. Will be emitted only if present.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub breakdowns_v2: Option<BreakdownsConfig>,
@@ -139,6 +142,7 @@ impl Default for ProjectConfig {
             event_retention: None,
             quotas: Vec::new(),
             dynamic_sampling: None,
+            measurements: None,
             breakdowns_v2: None,
             session_metrics: SessionMetricsConfig::default(),
             transaction_metrics: None,
@@ -171,6 +175,9 @@ pub struct LimitedProjectConfig {
     pub metric_conditional_tagging: Vec<TaggingRule>,
     #[serde(skip_serializing_if = "BTreeSet::is_empty")]
     pub span_attributes: BTreeSet<SpanAttribute>,
+    /// Configuration for measurements.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub measurements: Option<MeasurementsConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub breakdowns_v2: Option<BreakdownsConfig>,
     #[serde(skip_serializing_if = "BTreeSet::is_empty")]
@@ -594,8 +601,7 @@ impl Project {
     /// The buckets will be keyed underneath this project key.
     pub fn merge_buckets(&mut self, buckets: Vec<Bucket>) {
         if self.metrics_allowed() {
-            Aggregator::from_registry()
-                .do_send(relay_metrics::MergeBuckets::new(self.project_key, buckets));
+            Aggregator::from_registry().do_send(MergeBuckets::new(self.project_key, buckets));
         }
     }
 
@@ -604,8 +610,7 @@ impl Project {
     /// The metrics will be keyed underneath this project key.
     pub fn insert_metrics(&mut self, metrics: Vec<Metric>) {
         if self.metrics_allowed() {
-            Aggregator::from_registry()
-                .do_send(relay_metrics::InsertMetrics::new(self.project_key, metrics));
+            Aggregator::from_registry().do_send(InsertMetrics::new(self.project_key, metrics));
         }
     }
 
@@ -711,7 +716,7 @@ impl Project {
                     ProjectCache::from_registry()
                         .do_send(AddSamplingState::new(sampling_key, process));
                 } else {
-                    EnvelopeProcessor::from_registry().do_send(process);
+                    EnvelopeProcessor::from_registry().send(process);
                 }
             }
         }
@@ -735,7 +740,7 @@ impl Project {
     fn flush_sampling(&self, mut message: ProcessEnvelope) {
         // Intentionally ignore all errors and leave the envelope unsampled.
         message.sampling_project_state = self.valid_state();
-        EnvelopeProcessor::from_registry().do_send(message);
+        EnvelopeProcessor::from_registry().send(message);
     }
 
     /// Enqueues an envelope for adding a dynamic sampling project state.

@@ -138,6 +138,77 @@ pub enum RelayHistograms {
     /// Size of queries (projectconfig queries, i.e. the request payload, not the response) sent by
     /// Relay over HTTP in bytes.
     UpstreamEnvelopeBodySize,
+
+    /// Counts how often a transaction name was changed before submitting the final transaction.
+    ///
+    /// A value of `0` indicates that the transaction was created with the final transaction name.
+    /// In this case, the DSC will have the correct transaction name guaranteed. However, to
+    /// determine how many traces had wrong transaction names propagated, check the
+    /// `dynamic_sampling.propagations`.
+    ///
+    /// This metric is tagged with:
+    ///
+    ///  - `source`: The transaction source value in the final event payload.
+    ///  - `platform`: The SDK platform value of the event payload.
+    ///  - `sdk_name`: The name of the client SDK as reported in the event payload.
+    ///  - `sdk_version`: The version of the client SDK as reported in the event payload.
+    DynamicSamplingChanges,
+
+    /// Counts the number of propagations before the final transaction name has been determined.
+    ///
+    /// A value of `0` indicates that the entire trace had identical transaction names in the
+    /// Dynamic Sampling Context (DSC). This means that the entire trace is sampled consistently.
+    ///
+    /// Note that this differs from `dynamic_sampling.changes`, which indicates changes even in the
+    /// absence of propagations.
+    ///
+    /// This metric is tagged with:
+    ///
+    ///  - `source`: The transaction source value in the final event payload.
+    ///  - `platform`: The SDK platform value of the event payload.
+    ///  - `sdk_name`: The name of the client SDK as reported in the event payload.
+    ///  - `sdk_version`: The version of the client SDK as reported in the event payload.
+    DynamicSamplingPropagationCount,
+
+    /// The number of propagations before the final transaction name change relative to the total
+    /// number of propagations.
+    ///
+    /// Tracks the same as `dynamic_sampling.propagations`, except that the value of this metric is
+    /// a percentage between `0.0` and `100.0`. A value of `0` means that no propagations occurred,
+    /// and `100` means that all propagations occurred with the wrong transaction name.
+    ///
+    /// This metric is tagged with:
+    ///
+    ///  - `source`: The transaction source value in the final event payload.
+    ///  - `platform`: The SDK platform value of the event payload.
+    ///  - `sdk_name`: The name of the client SDK as reported in the event payload.
+    ///  - `sdk_version`: The version of the client SDK as reported in the event payload.
+    DynamicSamplingPropagationPercentage,
+
+    /// Time in milliseconds from the start of transaction until the final name is determined.
+    ///
+    /// If the transaction name changes multiple times, this records only the last instance. This
+    /// metric is not logged if there were no changes to the transaction name.
+    ///
+    /// This metric is tagged with:
+    ///
+    ///  - `source`: The transaction source value in the final event payload.
+    ///  - `platform`: The SDK platform value of the event payload.
+    ///  - `sdk_name`: The name of the client SDK as reported in the event payload.
+    ///  - `sdk_version`: The version of the client SDK as reported in the event payload.
+    DynamicSamplingChangeDuration,
+
+    /// Timing relative to the transaction duration until the final name is determined.
+    ///
+    /// This is a percentage between `0.0` and `100.0`.
+    ///
+    /// This metric is tagged with:
+    ///
+    ///  - `source`: The transaction source value in the final event payload.
+    ///  - `platform`: The SDK platform value of the event payload.
+    ///  - `sdk_name`: The name of the client SDK as reported in the event payload.
+    ///  - `sdk_version`: The version of the client SDK as reported in the event payload.
+    DynamicSamplingChangePercentage,
 }
 
 impl HistogramMetric for RelayHistograms {
@@ -166,6 +237,13 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::KafkaMessageSize => "kafka.message_size",
             RelayHistograms::UpstreamQueryBodySize => "upstream.query.body_size",
             RelayHistograms::UpstreamEnvelopeBodySize => "upstream.envelope.body_size",
+            RelayHistograms::DynamicSamplingChanges => "dynamic_sampling.changes",
+            RelayHistograms::DynamicSamplingPropagationCount => "dynamic_sampling.propagations",
+            RelayHistograms::DynamicSamplingPropagationPercentage => {
+                "dynamic_sampling.propagation_pct"
+            }
+            RelayHistograms::DynamicSamplingChangeDuration => "dynamic_sampling.change_duration",
+            RelayHistograms::DynamicSamplingChangePercentage => "dynamic_sampling.change_pct",
         }
     }
 }

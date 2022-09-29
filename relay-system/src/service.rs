@@ -104,6 +104,9 @@ use tokio::sync::{mpsc, oneshot};
 /// messages.
 pub trait Interface: Send + 'static {}
 
+/// Services without messages can use `()` as their interface.
+impl Interface for () {}
+
 /// An error when [sending](Addr::send) a message to a service fails.
 #[derive(Clone, Copy, Debug)]
 pub struct SendError;

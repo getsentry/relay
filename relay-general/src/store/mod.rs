@@ -27,7 +27,7 @@ pub use normalize::breakdowns::{
 };
 pub use normalize::{
     compute_measurements, is_valid_platform, light_normalize_event, normalize_dist,
-    LightNormalizationConfig,
+    LightNormalizationConfig, MeasurementsConfig,
 };
 pub use transactions::{
     get_measurement, get_transaction_op, is_high_cardinality_sdk, validate_timestamps,

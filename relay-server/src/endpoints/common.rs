@@ -282,7 +282,7 @@ fn queue_envelope(
 
     if !metric_items.is_empty() {
         relay_log::trace!("sending metrics into processing queue");
-        EnvelopeProcessor::from_registry().do_send(ProcessMetrics {
+        EnvelopeProcessor::from_registry().send(ProcessMetrics {
             items: metric_items,
             project_key: envelope.meta().public_key(),
             start_time: envelope.meta().start_time(),
@@ -321,11 +321,11 @@ fn queue_envelope(
 
 /// Handles Sentry events.
 ///
-/// Sentry events may come either directly from a http request ( the store endpoint calls this
+/// Sentry events may come either directly from an HTTP request (the store endpoint calls this
 /// method directly) or are generated inside Relay from requests to other endpoints (e.g. the
-/// security endpoint)
+/// security endpoint).
 ///
-/// If store_event receives a non empty store_body it will use it as the body of the event otherwise
+/// If store_event receives a non-empty store_body it will use it as the body of the event otherwise
 /// it will try to create a store_body from the request.
 pub fn handle_store_like_request<F, R, I>(
     meta: RequestMeta,

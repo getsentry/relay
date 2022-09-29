@@ -1,20 +1,23 @@
 //! Returns captured events.
 
-use actix_web::actix::*;
+use actix_web::actix::{MailboxError, ResponseFuture};
 use actix_web::{http::Method, HttpResponse, Path};
+use futures::{FutureExt, TryFutureExt};
 use futures01::future::Future;
-
-use crate::actors::envelopes::{EnvelopeManager, GetCapturedEnvelope};
-use crate::envelope;
-use crate::service::ServiceApp;
 
 use relay_general::protocol::EventId;
 
+use crate::actors::test_store::{GetCapturedEnvelope, TestStore};
+use crate::envelope;
+use crate::service::ServiceApp;
+
 fn get_captured_event(event_id: Path<EventId>) -> ResponseFuture<HttpResponse, MailboxError> {
-    let future = EnvelopeManager::from_registry()
+    let future = TestStore::from_registry()
         .send(GetCapturedEnvelope {
             event_id: *event_id,
         })
+        .boxed()
+        .compat()
         .map(|captured_event| match captured_event {
             Some(Ok(envelope)) => HttpResponse::Ok()
                 .content_type(envelope::CONTENT_TYPE)
@@ -23,7 +26,8 @@ fn get_captured_event(event_id: Path<EventId>) -> ResponseFuture<HttpResponse, M
                 .content_type("text/plain")
                 .body(error),
             None => HttpResponse::NotFound().finish(),
-        });
+        })
+        .map_err(|_| MailboxError::Closed);
 
     Box::new(future)
 }

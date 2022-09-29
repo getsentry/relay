@@ -27,6 +27,20 @@ pub enum IsHealthy {
 /// Service interface for the [`IsHealthy`] message.
 pub struct HealthCheck(IsHealthy, Sender<bool>);
 
+impl HealthCheck {
+    /// Returns the [`Addr`] of the [`HealthCheck`] service.
+    ///
+    /// Prior to using this, the service must be started using [`HealthCheckService::start`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if the service was not started using [`HealthCheckService::start`] prior to this
+    /// being used.
+    pub fn from_registry() -> Addr<Self> {
+        REGISTRY.get().unwrap().health_check.clone()
+    }
+}
+
 impl Interface for HealthCheck {}
 
 impl FromMessage<IsHealthy> for HealthCheck {
@@ -45,18 +59,6 @@ pub struct HealthCheckService {
 }
 
 impl HealthCheckService {
-    /// Returns the [`Addr`] of the [`HealthCheck`] service.
-    ///
-    /// Prior to using this, the service must be started using [`HealthCheckService::start`].
-    ///
-    /// # Panics
-    ///
-    /// Panics if the service was not started using [`HealthCheckService::start`] prior to this
-    /// being used.
-    pub fn from_registry() -> Addr<HealthCheck> {
-        REGISTRY.get().unwrap().health_check.clone()
-    }
-
     /// Creates a new instance of the HealthCheck service.
     ///
     /// The service does not run. To run the service, use [`start`](Self::start).
