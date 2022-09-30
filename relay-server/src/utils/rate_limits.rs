@@ -992,8 +992,8 @@ mod tests {
         assert!(enforcement.transaction_processed.is_active());
         assert!(limits.is_limited());
         assert!(envelope.is_empty());
-        mock.assert_call(DataCategory::Transaction, Some(1));
         mock.assert_call(DataCategory::TransactionProcessed, Some(1));
+        mock.assert_not_called(DataCategory::Transaction);
     }
 
     #[test]
@@ -1009,10 +1009,10 @@ mod tests {
 
         assert!(enforcement.event.is_active());
         assert!(!enforcement.transaction_processed.is_active());
-        assert!(!limits.is_limited());
+        assert!(limits.is_limited());
         assert!(!envelope.is_empty());
-        mock.assert_call(DataCategory::Transaction, Some(1));
         mock.assert_call(DataCategory::TransactionProcessed, Some(1));
+        mock.assert_call(DataCategory::Transaction, Some(1));
     }
 
     #[test]
@@ -1026,12 +1026,12 @@ mod tests {
             .enforce(&mut envelope, &scoping(), QuotaCheckReason::CheckEnvelope)
             .unwrap();
 
-        assert!(!enforcement.event.is_active());
+        assert!(enforcement.event.is_active());
         assert!(enforcement.transaction_processed.is_active());
-        assert!(!limits.is_limited());
-        assert!(!envelope.is_empty());
-        mock.assert_call(DataCategory::Transaction, Some(1));
+        assert!(limits.is_limited());
+        assert!(envelope.is_empty());
         mock.assert_call(DataCategory::TransactionProcessed, Some(1));
+        mock.assert_not_called(DataCategory::Transaction);
     }
 
     #[test]
@@ -1049,7 +1049,7 @@ mod tests {
 
         assert!(enforcement.event.is_active());
         assert!(!enforcement.transaction_processed.is_active());
-        assert!(!limits.is_limited());
+        assert!(limits.is_limited());
         assert!(!envelope.is_empty());
         mock.assert_call(DataCategory::Transaction, Some(1));
         mock.assert_call(DataCategory::TransactionProcessed, Some(1));
@@ -1064,8 +1064,43 @@ mod tests {
         assert!(enforcement.event.is_active());
         assert!(!enforcement.transaction_processed.is_active());
         assert!(!limits.is_limited());
-        assert!(!envelope.is_empty());
+        assert!(envelope.is_empty());
         mock.assert_not_called(DataCategory::Transaction);
+        mock.assert_call(DataCategory::TransactionProcessed, Some(1));
+    }
+
+    #[test]
+    #[cfg(feature = "processing")]
+    fn test_transaction_late_enforcement() {
+        let mut envelope = envelope![Transaction];
+
+        // Early enforcement
+        let mut mock = MockLimiter::default();
+        let limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
+
+        let (enforcement, limits) = limiter
+            .enforce(&mut envelope, &scoping(), QuotaCheckReason::CheckEnvelope)
+            .unwrap();
+
+        assert!(!enforcement.event.is_active());
+        assert!(!enforcement.transaction_processed.is_active());
+        assert!(!limits.is_limited());
+        assert!(!envelope.is_empty());
+        mock.assert_call(DataCategory::Transaction, Some(1));
+        mock.assert_call(DataCategory::TransactionProcessed, Some(1));
+
+        // 2nd quota check
+        let mut mock = MockLimiter::default().deny(DataCategory::Transaction);
+        let limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
+        let reason = QuotaCheckReason::EnforceQuota(&enforcement);
+
+        let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping(), reason).unwrap();
+
+        assert!(enforcement.event.is_active());
+        assert!(!enforcement.transaction_processed.is_active());
+        assert!(limits.is_limited());
+        assert!(envelope.is_empty());
+        mock.assert_call(DataCategory::Transaction, Some(1));
         mock.assert_call(DataCategory::TransactionProcessed, Some(1));
     }
 
