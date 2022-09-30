@@ -1764,6 +1764,14 @@ impl EnvelopeProcessorService {
                 .map_err(ProcessingError::QuotasFailed)?
         });
 
+        // Metrics are already extracted from the transaction, remove them again if we now
+        // exhausted quota for them.
+        if enforcement.transaction_processed.is_active() {
+            // Sessions also append to this vector, but envelopes at this stage will never
+            // have both a session and a transaction.
+            state.extracted_metrics.clear();
+        }
+
         if limits.is_limited() {
             ProjectCache::from_registry()
                 .do_send(UpdateRateLimits::new(scoping.project_key, limits));
@@ -2025,9 +2033,10 @@ impl EnvelopeProcessorService {
         }
 
         if_processing!({
-            // TODO: should see it is already rate-limited and not use redis if so
             self.enforce_quotas(state)?;
         });
+        // Note: else: since the project state is now a little bit fresher, we could
+        // re-check the in-memory quotas to see if they are exceeded.
 
         if state.has_event() {
             self.scrub_event(state)?;
