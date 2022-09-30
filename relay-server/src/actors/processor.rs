@@ -1535,11 +1535,6 @@ impl EnvelopeProcessorService {
     }
 
     fn finalize_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        if state.early_enforcement.event.is_active()
-            && state.early_enforcement.event.category() == DataCategory::Transaction
-        {
-            return Ok(());
-        }
         let is_transaction = state.event_type() == Some(EventType::Transaction);
         let envelope = &mut state.envelope;
 
