@@ -128,7 +128,7 @@ fn extract_transaction_op(trace_context: &TraceContext) -> Option<String> {
 fn extract_http_method(transaction: &Event) -> Option<String> {
     let request = transaction.request.value()?;
     let method = request.method.value()?;
-    Some(method.to_owned())
+    Some(method.clone())
 }
 
 /// Satisfaction value used for Apdex and User Misery
@@ -201,10 +201,10 @@ fn is_low_cardinality(source: &TransactionSource, treat_unknown_as_low_cardinali
         TransactionSource::Url => false,
 
         // These four are names of software components, which we assume to be low-cardinality.
-        TransactionSource::Route => true,
-        TransactionSource::View => true,
-        TransactionSource::Component => true,
-        TransactionSource::Task => true,
+        TransactionSource::Route
+        | TransactionSource::View
+        | TransactionSource::Component
+        | TransactionSource::Task => true,
 
         // "unknown" is the value for old SDKs that do not send a transaction source yet.
         // Caller decides how to treat this.
@@ -223,7 +223,7 @@ fn is_low_cardinality(source: &TransactionSource, treat_unknown_as_low_cardinali
 /// Note that this will produce a discrepancy between metrics and raw transaction data.
 fn get_transaction_name(
     event: &Event,
-    accept_transaction_names: &AcceptTransactionNames,
+    accept_transaction_names: AcceptTransactionNames,
 ) -> Option<String> {
     let original_transaction_name = match event.transaction.value() {
         Some(name) => name,
@@ -271,7 +271,7 @@ fn get_transaction_name(
             .client_sdk
             .value()
             .and_then(|c| c.name.value())
-            .map(|s| s.as_str())
+            .map(std::string::String::as_str)
             .unwrap_or_default(),
         name_used = name_used,
     );
@@ -289,17 +289,19 @@ fn extract_universal_tags(
         tags.insert("release".to_owned(), release.to_owned());
     }
     if let Some(dist) = event.dist.value() {
-        tags.insert("dist".to_owned(), dist.to_string());
+        tags.insert("dist".to_owned(), dist.clone());
     }
     if let Some(environment) = event.environment.as_str() {
         tags.insert("environment".to_owned(), environment.to_owned());
     }
-    if let Some(transaction_name) = get_transaction_name(event, &config.accept_transaction_names) {
+    if let Some(transaction_name) = get_transaction_name(event, config.accept_transaction_names) {
         tags.insert("transaction".to_owned(), transaction_name);
     }
 
     // The platform tag should not increase dimensionality in most cases, because most
-    // transactions are specific to one platform
+    // transactions are specific to one platform.
+    // NOTE: we might want to reconsider light normalization a little and include the
+    // `store::is_valid_platform` into light normalization.
     let platform = match event.platform.as_str() {
         Some(platform) if store::is_valid_platform(platform) => platform,
         _ => "other",
@@ -367,7 +369,12 @@ fn extract_transaction_metrics_inner(
         match (event.start_timestamp.value(), event.timestamp.value()) {
             (Some(start), Some(end)) => (*start, *end),
             // invalid transaction
-            _ => return,
+            _ => {
+                relay_log::error!(
+                    "failed to extract the start and the end timestamps from the event"
+                );
+                return;
+            }
         };
 
     let duration_millis = relay_common::chrono_to_positive_millis(end_timestamp - start_timestamp);
