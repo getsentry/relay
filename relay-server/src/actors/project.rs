@@ -11,7 +11,7 @@ use smallvec::SmallVec;
 use url::Url;
 
 use relay_auth::PublicKey;
-use relay_common::{ProjectId, ProjectKey};
+use relay_common::{DataCategory, ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
@@ -848,7 +848,7 @@ impl Project {
             Ok(self.rate_limits.check_with_quotas(quotas, item_scoping))
         });
 
-        let (enforcement, rate_limits) =
+        let (enforcement, mut rate_limits) =
             envelope_limiter.enforce(&mut envelope, &scoping, QuotaCheckReason::CheckEnvelope)?;
         enforcement.track_outcomes(&envelope, &scoping);
         envelope_context.update(&envelope);
@@ -860,6 +860,11 @@ impl Project {
         } else {
             Some((envelope, envelope_context))
         };
+
+        // Transaction quota always runs out before TransactionProcessed, so we remove rate
+        // limits for Transaction so that the endpoint handler only sends 429 responses if
+        // TransactionProcessed is exhausted.
+        rate_limits.retain(|l| !l.categories.contains(&DataCategory::Transaction));
 
         Ok(CheckedEnvelope {
             envelope,
