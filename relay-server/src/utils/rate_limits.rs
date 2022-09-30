@@ -228,6 +228,7 @@ impl CategoryLimit {
     }
 
     /// The [`DataCategory`] this enforcement was created for and checked against.
+    #[cfg(feature = "processing")]
     pub fn category(&self) -> DataCategory {
         self.category
     }
@@ -313,6 +314,8 @@ pub enum QuotaCheckReason<'a> {
     ///
     /// Because this needs to merge the enforcement actions from the earlier call they need
     /// to be provided.
+    // This is not constructed if the processing feature is disabled.
+    #[allow(dead_code)]
     EnforceQuota(&'a Enforcement),
 }
 
