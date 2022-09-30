@@ -57,7 +57,7 @@ use crate::utils::{
 use {
     crate::actors::project_cache::UpdateRateLimits,
     crate::service::ServerErrorKind,
-    crate::utils::EnvelopeLimiter,
+    crate::utils::{EnvelopeLimiter, QuotaCheckReason},
     failure::ResultExt,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
@@ -1757,9 +1757,10 @@ impl EnvelopeProcessorService {
         }
 
         let scoping = state.envelope_context.scoping();
+        let reason = QuotaCheckReason::EnforceQuota(&state.early_enforcement);
         let (enforcement, limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
             envelope_limiter
-                .enforce(&mut state.envelope, &scoping, &state.early_enforcement)
+                .enforce(&mut state.envelope, &scoping, reason)
                 .map_err(ProcessingError::QuotasFailed)?
         });
 
