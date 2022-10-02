@@ -9,7 +9,7 @@ use once_cell::race::OnceBox;
 
 use relay_aws_extension::AwsExtension;
 use relay_config::Config;
-use relay_metrics::Aggregator;
+use relay_metrics::{Aggregator, AggregatorService};
 use relay_redis::RedisPool;
 use relay_system::{Addr, Configure, Controller, Service};
 
@@ -113,6 +113,7 @@ impl From<Context<ServerErrorKind>> for ServerError {
 
 #[derive(Clone)]
 pub struct Registry {
+    pub aggregator: Addr<Aggregator>,
     pub health_check: Addr<HealthCheck>,
     pub outcome_producer: Addr<OutcomeProducer>,
     pub outcome_aggregator: Addr<TrackOutcome>,
@@ -125,6 +126,7 @@ pub struct Registry {
 impl fmt::Debug for Registry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Registry")
+            .field("aggregator", &self.aggregator)
             .field("health_check", &self.health_check)
             .field("outcome_producer", &self.outcome_producer)
             .field("outcome_aggregator", &self.outcome_aggregator)
@@ -194,8 +196,9 @@ impl ServiceState {
         let health_check = HealthCheckService::new(config.clone()).start();
         let relay_cache = RelayCacheService::new(config.clone()).start();
 
-        let aggregator = Aggregator::new(config.aggregator_config(), project_cache.recipient());
-        registry.set(Arbiter::start(|_| aggregator));
+        let aggregator =
+            AggregatorService::new(config.aggregator_config(), project_cache.recipient());
+        let aggregator = aggregator.start();
 
         if let Some(aws_api) = config.aws_runtime_api() {
             if let Ok(aws_extension) = AwsExtension::new(aws_api) {
@@ -205,6 +208,7 @@ impl ServiceState {
 
         REGISTRY
             .set(Box::new(Registry {
+                aggregator,
                 processor,
                 health_check,
                 outcome_producer,

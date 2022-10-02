@@ -1,12 +1,11 @@
-use std::collections::BTreeMap;
-use std::fmt;
+use std::{collections::BTreeMap, fmt};
 
 use actix::prelude::*;
 
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 
 use relay_common::{ProjectKey, UnixTimestamp};
-use relay_metrics::{Aggregator, AggregatorConfig, FlushBuckets, Metric, MetricValue};
+use relay_metrics::{AggregatorConfig, AggregatorService, FlushBuckets, Metric, MetricValue};
 
 #[derive(Clone, Default)]
 struct TestReceiver;
@@ -138,7 +137,7 @@ fn bench_insert_and_flush(c: &mut Criterion) {
                 b.iter_batched(
                     || {
                         (
-                            Aggregator::new(config.clone(), flush_receiver.clone()),
+                            AggregatorService::new(config.clone(), flush_receiver.clone()),
                             input.get_metrics(),
                         )
                     },
@@ -159,7 +158,7 @@ fn bench_insert_and_flush(c: &mut Criterion) {
                 b.iter_batched(
                     || {
                         let mut aggregator =
-                            Aggregator::new(config.clone(), flush_receiver.clone());
+                            AggregatorService::new(config.clone(), flush_receiver.clone());
                         for (project_key, metric) in input.get_metrics() {
                             aggregator.insert(project_key, metric).unwrap();
                         }

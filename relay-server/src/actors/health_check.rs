@@ -4,7 +4,7 @@ use std::sync::Arc;
 use actix::SystemService;
 
 use relay_config::{Config, RelayMode};
-use relay_metrics::{AcceptsMetrics, Aggregator};
+use relay_metrics::AcceptsMetrics;
 use relay_statsd::metric;
 use relay_system::{
     compat, Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service,
@@ -96,9 +96,15 @@ impl HealthCheckService {
                     return false;
                 }
 
-                compat::send(Aggregator::from_registry(), AcceptsMetrics)
-                    .await
-                    .unwrap_or(false)
+                // NOTE: usually this unwrap is hidden in the `from_registry` function on the
+                // specific service or actor. But since the `AggregatorService` is in the different
+                // crate we cannot easily implement that pattarn and for now we have to use
+                // REGISTRY dirrectly and get the aggregator service out of it.
+                let aggregator = REGISTRY
+                    .get()
+                    .map(|registry| registry.aggregator.clone())
+                    .unwrap();
+                aggregator.send(AcceptsMetrics).await.unwrap_or_default()
             }
         }
     }
