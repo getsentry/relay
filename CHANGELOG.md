@@ -14,6 +14,7 @@
 - Pin Rust version to 1.63.0 in Dockerfile. ([#1482](https://github.com/getsentry/relay/pull/1482))
 - Normalize measurement units in event payload. ([#1488](https://github.com/getsentry/relay/pull/1488))
 - Remove long-running futures from metrics flush. ([#1492](https://github.com/getsentry/relay/pull/1492))
+- Update the internal service architecture for metrics aggregator service. ([#1508](https://github.com/getsentry/relay/pull/1508))
 
 ## 22.9.0
 
