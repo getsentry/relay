@@ -1034,6 +1034,10 @@ impl AggregatorConfig {
         let output_timestamp = UnixTimestamp::from_secs(ts);
 
         if output_timestamp < min_timestamp || output_timestamp > max_timestamp {
+            let delta = (ts as i64) - (now as i64);
+            relay_statsd::metric!(
+                histogram(MetricHistograms::InvalidBucketTimestamp) = delta as f64
+            );
             return Err(AggregateMetricsErrorKind::InvalidTimestamp.into());
         }
 
