@@ -8,16 +8,15 @@ use std::{
     time::{Duration, Instant},
 };
 
-use actix::prelude::*;
-
+use actix::{Message, Recipient};
 use failure::Fail;
 use float_ord::FloatOrd;
 use fnv::FnvHasher;
 use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc;
 
 use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
 use relay_system::{AsyncResponse, FromMessage, Interface, NoResponse, Sender, Service};
-use tokio::sync::mpsc;
 
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
 use crate::{
@@ -1181,10 +1180,6 @@ impl Message for FlushBuckets {
 #[derive(Debug)]
 pub struct AcceptsMetrics;
 
-impl Message for AcceptsMetrics {
-    type Result = bool;
-}
-
 enum AggregatorState {
     Running,
     // NOTE: This isn't used at the moment, since this service does not handle the shutdown
@@ -1354,6 +1349,7 @@ impl<T: Iterator<Item = Bucket>> Iterator for CappedBucketIter<T> {
 impl<T: Iterator<Item = Bucket>> FusedIterator for CappedBucketIter<T> {}
 
 /// Flush message which triggers the flush cycle for the [`AggregatorService`]
+#[derive(Debug, Clone, Copy)]
 struct Flush;
 
 /// Aggregator service interface
@@ -1864,8 +1860,6 @@ impl AggregatorService {
     }
 
     async fn handle_message(&mut self, msg: Aggregator) {
-        relay_log::trace!("received message {:?} on aggregator service.", &msg);
-
         match msg {
             // This is `HealthCheck` request where the `AsyncResponse` is expected.
             Aggregator::AcceptsMetrics(AcceptsMetrics, sender) => {
@@ -1971,6 +1965,10 @@ pub struct InsertMetrics {
     metrics: Vec<Metric>,
 }
 
+impl Message for InsertMetrics {
+    type Result = Result<(), AggregateMetricsError>;
+}
+
 impl InsertMetrics {
     /// Creates a new message containing a list of [`Metric`]s.
     pub fn new<I>(project_key: ProjectKey, metrics: I) -> Self
@@ -1995,15 +1993,15 @@ impl InsertMetrics {
     }
 }
 
-impl Message for InsertMetrics {
-    type Result = Result<(), AggregateMetricsError>;
-}
-
 /// A message containing a list of [`Bucket`]s to be inserted into the aggregator.
 #[derive(Debug)]
 pub struct MergeBuckets {
     project_key: ProjectKey,
     buckets: Vec<Bucket>,
+}
+
+impl Message for MergeBuckets {
+    type Result = Result<(), AggregateMetricsError>;
 }
 
 impl MergeBuckets {
@@ -2027,15 +2025,11 @@ impl MergeBuckets {
     }
 }
 
-impl Message for MergeBuckets {
-    type Result = Result<(), AggregateMetricsError>;
-}
-
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, RwLock};
-
+    use actix::prelude::*;
     use futures01::{future, Future};
+    use std::sync::{Arc, RwLock};
 
     use super::*;
 
