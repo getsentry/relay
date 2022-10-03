@@ -69,6 +69,10 @@ def build_native(spec):
         rust_path = ".."
         scratchpad = None
 
+    # if the lib already built we replace the command
+    if os.environ.get("SKIP_RELAY_LIB_BUILD") is not None:
+        cmd = ["echo", "'Use pre-built library.'"]
+
     # Step 1: build the rust library
     build = spec.add_external_build(cmd=cmd, path=rust_path)
 
