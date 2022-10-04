@@ -301,7 +301,7 @@ impl Enforcement {
 /// quota in the later stage.
 #[derive(Clone, Debug)]
 pub enum QuotaCheckReason<'a> {
-    /// Called for the [`CheckEnvelope`](create::actrocs::project_cache::CheckEnvelope) message.
+    /// Called for the [`CheckEnvelope`](crate::actrocs::project_cache::CheckEnvelope) message.
     ///
     /// This is early in the processing and crucially transaction envelope items need to be
     /// retained even if they are out of indexing quota but not yet out of processing quota.
