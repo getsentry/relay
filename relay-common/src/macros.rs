@@ -130,7 +130,7 @@ macro_rules! clone {
         $( let $n = $n.clone(); )+
         move || $body
     }};
-    ($($n:ident ,)+ |$($p:pat),+| $body:expr) => {{
+    ($($n:ident ,)+ |$($p:pat_param),+| $body:expr) => {{
         $( let $n = $n.clone(); )+
         move |$($p),+| $body
     }};

@@ -1,4 +1,4 @@
-use actix_web::http::header;
+use actix_web::http::header::{self, IntoHeaderValue};
 use actix_web::{Error, FromRequest, HttpMessage, HttpRequest};
 
 #[derive(Debug)]
@@ -49,7 +49,7 @@ impl<'a> header::IntoHeaderValue for &'a ForwardedFor {
     type Error = header::InvalidHeaderValue;
 
     fn try_into(self) -> Result<header::HeaderValue, Self::Error> {
-        (self.0.as_str()).try_into()
+        IntoHeaderValue::try_into(self.0.as_str())
     }
 }
 
@@ -57,7 +57,7 @@ impl header::IntoHeaderValue for ForwardedFor {
     type Error = header::InvalidHeaderValueBytes;
 
     fn try_into(self) -> Result<header::HeaderValue, Self::Error> {
-        self.0.try_into()
+        IntoHeaderValue::try_into(self.0)
     }
 }
 
