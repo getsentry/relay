@@ -24,7 +24,7 @@ use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequest, Upstr
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, Request, RequestBuilder, Response};
-use crate::service::REGISTRY;
+use crate::service::{Registry, REGISTRY};
 use crate::statsd::RelayHistograms;
 use crate::utils::EnvelopeContext;
 
@@ -367,13 +367,7 @@ impl EnvelopeManagerService {
                 "failed to submit the envelope, merging buckets back: {}",
                 err
             );
-
-            // Get the `AggregatorService` from the registry and send the message to it.
-            if let Some(registry) = REGISTRY.get() {
-                registry
-                    .aggregator
-                    .send(MergeBuckets::new(scoping.project_key, buckets))
-            }
+            Registry::aggregator().send(MergeBuckets::new(scoping.project_key, buckets))
         }
     }
 

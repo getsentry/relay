@@ -123,6 +123,16 @@ pub struct Registry {
     pub relay_cache: Addr<RelayCache>,
 }
 
+impl Registry {
+    /// Get the [`AggregatorService`] address from the registry.
+    ///
+    /// NOTE: this is temporary solution while migrating `ProjectCache` actor to the new tokio
+    /// runtime and follow up refactoring of the dependencies.
+    pub fn aggregator() -> Addr<Aggregator> {
+        REGISTRY.get().unwrap().aggregator.clone()
+    }
+}
+
 impl fmt::Debug for Registry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Registry")
