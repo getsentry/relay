@@ -19,6 +19,8 @@ struct Frame {
     function: Option<String>,
     #[serde(alias = "line", default, skip_serializing_if = "Option::is_none")]
     lineno: Option<u32>,
+    #[serde(alias = "column", default, skip_serializing_if = "Option::is_none")]
+    colno: Option<u32>,
     #[serde(alias = "file", default, skip_serializing_if = "Option::is_none")]
     filename: Option<String>,
 }
