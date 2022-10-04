@@ -2840,8 +2840,6 @@
 <span id="2838">2838</span>
 <span id="2839">2839</span>
 <span id="2840">2840</span>
-<span id="2841">2841</span>
-<span id="2842">2842</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::cmp::max</span>;
 <span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std::convert::TryFrom</span>;
@@ -4631,7 +4629,6 @@
             <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
         }
 
-        <span class="kw">let</span> <span class="ident">breakdowns_config</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">project_state</span>.<span class="ident">config</span>.<span class="ident">breakdowns_v2</span>.<span class="ident">as_ref</span>();
         <span class="kw">let</span> <span class="ident">conditional_tagging_config</span> <span class="op">=</span> <span class="ident">state</span>
             .<span class="ident">project_state</span>
             .<span class="ident">config</span>
@@ -4647,7 +4644,6 @@
                     <span class="comment">// Actual logic outsourced for unit tests</span>
                     <span class="ident">extracted_anything</span> <span class="op">=</span> <span class="ident">extract_transaction_metrics</span>(
                         <span class="ident">config</span>,
-                        <span class="ident">breakdowns_config</span>,
                         <span class="ident">conditional_tagging_config</span>,
                         <span class="ident">event</span>,
                         <span class="kw-2">&amp;mut</span> <span class="ident">state</span>.<span class="ident">extracted_metrics</span>,
