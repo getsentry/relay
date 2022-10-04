@@ -668,14 +668,25 @@ pub struct LightNormalizationConfig<'a> {
     pub measurements_config: Option<&'a MeasurementsConfig>,
     pub breakdowns_config: Option<&'a BreakdownsConfig>,
     pub normalize_user_agent: Option<bool>,
+    pub is_renormalize: bool,
 }
 
 pub fn light_normalize_event(
     event: &mut Annotated<Event>,
     config: &LightNormalizationConfig,
 ) -> ProcessingResult {
-    transactions::validate_annotated_transaction(event)?;
     event.apply(|event, meta| {
+        if !config.is_renormalize {
+            // Validate and normalize transaction
+            // internally noops for non-transaction events
+            // TODO: Parts of this processor should probably be a filter so we
+            // can revert some changes to ProcessingAction
+            transactions::TransactionsProcessor.process_event(
+                event,
+                meta,
+                ProcessingState::root(),
+            )?;
+        }
         // Check for required and non-empty values
         schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())?;
 
@@ -2273,7 +2284,6 @@ mod tests {
 
             let res = light_normalize_event(&mut modified_event, &Default::default());
 
-            // TODO(jjbayer): Check all instantiations of ProcessingAction::InvalidTransaction
             assert!(res.is_err(), "{:?}", span);
         }
     }

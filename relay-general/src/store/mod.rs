@@ -109,13 +109,6 @@ impl<'a> Processor for StoreProcessor<'a> {
         legacy::LegacyProcessor.process_event(event, meta, state)?;
 
         if !is_renormalize {
-            // internally noops for non-transaction events
-            // TODO: Parts of this processor should probably be a filter once Relay is store so we
-            // can revert some changes to ProcessingAction
-            transactions::TransactionsProcessor.process_event(event, meta, state)?;
-        }
-
-        if !is_renormalize {
             // Normalize data in all interfaces
             self.normalize.process_event(event, meta, state)?;
         }
