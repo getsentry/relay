@@ -1,19 +1,17 @@
-use std::{
-    cmp::max,
-    collections::{btree_map, hash_map::Entry, BTreeMap, BTreeSet, HashMap},
-    fmt,
-    hash::Hasher,
-    iter::{FromIterator, FusedIterator},
-    mem,
-    time::{Duration, Instant},
-};
+use std::cmp::max;
+use std::collections::{btree_map, hash_map::Entry, BTreeMap, BTreeSet, HashMap};
+use std::fmt;
+use std::hash::Hasher;
+use std::iter::{FromIterator, FusedIterator};
+use std::mem;
+use std::time::{Duration, Instant};
 
 use actix::{Message, Recipient};
 use failure::Fail;
 use float_ord::FloatOrd;
 use fnv::FnvHasher;
 use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc;
+use tokio::time;
 
 use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
 use relay_system::{AsyncResponse, FromMessage, Interface, NoResponse, Sender, Service};
@@ -1156,30 +1154,6 @@ pub struct HashedBucket {
     bucket: Bucket,
 }
 
-/// A message containing a vector of buckets to be flushed.
-///
-/// Handlers must respond to this message with a `Result`:
-/// - If flushing has succeeded or the buckets should be dropped for any reason, respond with `Ok`.
-/// - If flushing fails and should be retried at a later time, respond with `Err` containing the
-///   failed buckets. They will be merged back into the aggregator and flushed at a later time.
-#[derive(Clone, Debug)]
-pub struct FlushBuckets {
-    /// The project key.
-    pub project_key: ProjectKey,
-    /// The logical partition to send this batch to.
-    pub partition_key: Option<u64>,
-    /// The buckets to be flushed.
-    pub buckets: Vec<Bucket>,
-}
-
-impl Message for FlushBuckets {
-    type Result = ();
-}
-
-/// Check whether the aggregator has not (yet) exceeded its total limits. Used for health checks.
-#[derive(Debug)]
-pub struct AcceptsMetrics;
-
 enum AggregatorState {
     Running,
     // NOTE: This isn't used at the moment, since this service does not handle the shutdown
@@ -1348,9 +1322,107 @@ impl<T: Iterator<Item = Bucket>> Iterator for CappedBucketIter<T> {
 
 impl<T: Iterator<Item = Bucket>> FusedIterator for CappedBucketIter<T> {}
 
-/// Flush message which triggers the flush cycle for the [`AggregatorService`]
-#[derive(Debug, Clone, Copy)]
-struct Flush;
+/// Check whether the aggregator has not (yet) exceeded its total limits. Used for health checks.
+#[derive(Debug)]
+pub struct AcceptsMetrics;
+
+/// Used only for testing the `AggregatorService`.
+#[cfg(test)]
+#[derive(Debug)]
+pub struct BucketCountInquiry;
+
+/// A message containing a vector of buckets to be flushed.
+///
+/// Handlers must respond to this message with a `Result`:
+/// - If flushing has succeeded or the buckets should be dropped for any reason, respond with `Ok`.
+/// - If flushing fails and should be retried at a later time, respond with `Err` containing the
+///   failed buckets. They will be merged back into the aggregator and flushed at a later time.
+#[derive(Clone, Debug)]
+pub struct FlushBuckets {
+    /// The project key.
+    pub project_key: ProjectKey,
+    /// The logical partition to send this batch to.
+    pub partition_key: Option<u64>,
+    /// The buckets to be flushed.
+    pub buckets: Vec<Bucket>,
+}
+
+// NOTE: this still required till the ProjectCache actor from relay-server will be migrated to the
+// new tokio runtime.
+impl Message for FlushBuckets {
+    type Result = ();
+}
+
+/// A message containing a list of [`Metric`]s to be inserted into the aggregator.
+#[derive(Debug)]
+pub struct InsertMetrics {
+    project_key: ProjectKey,
+    metrics: Vec<Metric>,
+}
+
+// NOTE: this still required till the ProjectCache actor from relay-server will be migrated to the
+// new tokio runtime.
+impl Message for InsertMetrics {
+    type Result = Result<(), AggregateMetricsError>;
+}
+
+impl InsertMetrics {
+    /// Creates a new message containing a list of [`Metric`]s.
+    pub fn new<I>(project_key: ProjectKey, metrics: I) -> Self
+    where
+        I: IntoIterator<Item = Metric>,
+    {
+        Self {
+            project_key,
+            metrics: metrics.into_iter().collect(),
+        }
+    }
+
+    /// Returns the `ProjectKey` for the the current `InsertMetrics` message.
+    pub fn project_key(&self) -> ProjectKey {
+        self.project_key
+    }
+
+    /// Returns the list of the metrics in the current `InsertMetrics` message, consuming the
+    /// message itself.
+    pub fn metrics(self) -> Vec<Metric> {
+        self.metrics
+    }
+}
+
+/// A message containing a list of [`Bucket`]s to be inserted into the aggregator.
+#[derive(Debug)]
+pub struct MergeBuckets {
+    project_key: ProjectKey,
+    buckets: Vec<Bucket>,
+}
+
+// NOTE: this still required till the ProjectCache actor from relay-server will be migrated to the
+// new tokio runtime.
+impl Message for MergeBuckets {
+    type Result = Result<(), AggregateMetricsError>;
+}
+
+impl MergeBuckets {
+    /// Creates a new message containing a list of [`Bucket`]s.
+    pub fn new(project_key: ProjectKey, buckets: Vec<Bucket>) -> Self {
+        Self {
+            project_key,
+            buckets,
+        }
+    }
+
+    /// Returns the `ProjectKey` for the the current `MergeBuckets` message.
+    pub fn project_key(&self) -> ProjectKey {
+        self.project_key
+    }
+
+    /// Returns the list of the buckets in the current `MergeBuckets` message, consuming the
+    /// message itself.
+    pub fn buckets(self) -> Vec<Bucket> {
+        self.buckets
+    }
+}
 
 /// Aggregator service interface
 #[derive(Debug)]
@@ -1366,10 +1438,6 @@ pub enum Aggregator {
     #[cfg(test)]
     BucketCountInquiry(BucketCountInquiry, Sender<usize>),
 }
-
-#[cfg(test)]
-#[derive(Debug)]
-pub struct BucketCountInquiry;
 
 impl Interface for Aggregator {}
 
@@ -1436,10 +1504,11 @@ impl FromMessage<MergeBuckets> for Aggregator {
 pub struct AggregatorService {
     config: AggregatorConfig,
     buckets: HashMap<BucketKey, QueuedBucket>,
+    // NOTE: Recipient is still required here, and will be removed once ProjectCache actor is
+    // migrated to the new tokio runtime.
     receiver: Recipient<FlushBuckets>,
     state: AggregatorState,
     cost_tracker: CostTracker,
-    flush_channel: (mpsc::Sender<Flush>, mpsc::Receiver<Flush>),
 }
 
 impl AggregatorService {
@@ -1454,7 +1523,6 @@ impl AggregatorService {
             receiver,
             state: AggregatorState::Running,
             cost_tracker: CostTracker::default(),
-            flush_channel: mpsc::channel(1),
         }
     }
 
@@ -1911,16 +1979,8 @@ impl Service for AggregatorService {
     type Interface = Aggregator;
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        let (ref flush_tx, _) = self.flush_channel;
-        let sender = flush_tx.clone();
         tokio::spawn(async move {
-            loop {
-                sender.send(Flush).await.ok();
-                // Sleep for duration definited in `FLUSH_INTERVAL` and trigger the flush again.
-                tokio::time::sleep(FLUSH_INTERVAL).await;
-            }
-        });
-        tokio::spawn(async move {
+            let mut ticker = time::interval(FLUSH_INTERVAL);
             // XXX: this requires the old system and runtime, and cannot be started in new tokio
             // runtime ???
             // let mut shutdown = Controller::subscribe_v2().await;
@@ -1929,7 +1989,7 @@ impl Service for AggregatorService {
                 tokio::select! {
                     biased;
 
-                    Some(Flush) = self.flush_channel.1.recv() => self.try_flush(),
+                    _ = ticker.tick() => self.try_flush(),
                     Some(message) = rx.recv() => self.handle_message(message).await,
                     //_ = shutdown.changed() => self.handle_shutdown(&shutdown.borrow_and_update()),
                     else => break,
@@ -1937,12 +1997,6 @@ impl Service for AggregatorService {
             }
             relay_log::info!("AggregatorService has been shutted down.");
         });
-    }
-}
-
-impl Default for AggregatorService {
-    fn default() -> Self {
-        unimplemented!("register with the SystemRegistry instead")
     }
 }
 
@@ -1958,77 +2012,10 @@ impl Drop for AggregatorService {
     }
 }
 
-/// A message containing a list of [`Metric`]s to be inserted into the aggregator.
-#[derive(Debug)]
-pub struct InsertMetrics {
-    project_key: ProjectKey,
-    metrics: Vec<Metric>,
-}
-
-impl Message for InsertMetrics {
-    type Result = Result<(), AggregateMetricsError>;
-}
-
-impl InsertMetrics {
-    /// Creates a new message containing a list of [`Metric`]s.
-    pub fn new<I>(project_key: ProjectKey, metrics: I) -> Self
-    where
-        I: IntoIterator<Item = Metric>,
-    {
-        Self {
-            project_key,
-            metrics: metrics.into_iter().collect(),
-        }
-    }
-
-    /// Returns the `ProjectKey` for the the current `InsertMetrics` message.
-    pub fn project_key(&self) -> ProjectKey {
-        self.project_key
-    }
-
-    /// Returns the list of the metrics in the current `InsertMetrics` message, consuming the
-    /// message itself.
-    pub fn metrics(self) -> Vec<Metric> {
-        self.metrics
-    }
-}
-
-/// A message containing a list of [`Bucket`]s to be inserted into the aggregator.
-#[derive(Debug)]
-pub struct MergeBuckets {
-    project_key: ProjectKey,
-    buckets: Vec<Bucket>,
-}
-
-impl Message for MergeBuckets {
-    type Result = Result<(), AggregateMetricsError>;
-}
-
-impl MergeBuckets {
-    /// Creates a new message containing a list of [`Bucket`]s.
-    pub fn new(project_key: ProjectKey, buckets: Vec<Bucket>) -> Self {
-        Self {
-            project_key,
-            buckets,
-        }
-    }
-
-    /// Returns the `ProjectKey` for the the current `MergeBuckets` message.
-    pub fn project_key(&self) -> ProjectKey {
-        self.project_key
-    }
-
-    /// Returns the list of the buckets in the current `MergeBuckets` message, consuming the
-    /// message itself.
-    pub fn buckets(self) -> Vec<Bucket> {
-        self.buckets
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use actix::prelude::*;
-    use futures01::{future, Future};
+    use futures01::Future;
     use std::sync::{Arc, RwLock};
 
     use super::*;
@@ -2038,6 +2025,8 @@ mod tests {
         buckets: Vec<Bucket>,
     }
 
+    // NOTE: this test receiver with its implementation will be removed onces the project_cache actor
+    // is migrated to the new tokio runtime
     #[derive(Clone, Default)]
     struct TestReceiver {
         // TODO: Better way to communicate with Actor after it's started?
@@ -2053,6 +2042,14 @@ mod tests {
 
         fn bucket_count(&self) -> usize {
             self.data.read().unwrap().buckets.len()
+        }
+
+        async fn bucket_count_async(&self) -> usize {
+            // We have to wait for a bit to let the test receiver to be called once to receive the
+            // message.
+            relay_test::block_fn(|| relay_test::delay(Duration::from_millis(10)).map_err(|_| ()))
+                .ok();
+            self.bucket_count()
         }
     }
 
@@ -2764,52 +2761,40 @@ mod tests {
         assert!(iter.next().is_none());
     }
 
-    #[test]
-    fn test_flush_bucket() {
+    #[tokio::test]
+    async fn test_flush_bucket() {
         relay_test::setup();
 
         let receiver = TestReceiver::default();
-        // Create the new tokio runtime where we start AggregatorService
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        // Run in the old actix system for receiver
-        relay_test::block_fn(|| {
-            let config = AggregatorConfig {
-                bucket_interval: 1,
-                initial_delay: 0,
-                debounce_delay: 0,
-                ..Default::default()
-            };
-            let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-            let recipient = receiver.clone().start().recipient();
+        let config = AggregatorConfig {
+            bucket_interval: 1,
+            initial_delay: 0,
+            debounce_delay: 0,
+            ..Default::default()
+        };
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let recipient = receiver.clone().start().recipient();
 
-            // Run AggregatorService in the new tokio runtime
-            rt.block_on(async {
-                let aggregator = AggregatorService::new(config, recipient).start();
+        // Run AggregatorService in the new tokio runtime
+        let aggregator = AggregatorService::new(config, recipient).start();
 
-                let mut metric = some_metric();
-                metric.timestamp = UnixTimestamp::now();
+        let mut metric = some_metric();
+        metric.timestamp = UnixTimestamp::now();
 
-                aggregator.send(InsertMetrics {
-                    project_key,
-                    metrics: vec![metric],
-                });
+        aggregator.send(InsertMetrics {
+            project_key,
+            metrics: vec![metric],
+        });
 
-                let buckets_count = aggregator.send(BucketCountInquiry).await.unwrap();
-                // Let's check the number of buckets in the aggregator just after sending a
-                // message.
-                assert_eq!(buckets_count, 1);
-            });
-
-            // Wait until flush delay has passed. It is up to 2s: 1s for the current bucket
-            // and 1s for the flush shift. Adding 100ms buffer.
-            future::lazy(|| relay_test::delay(Duration::from_millis(2100)).map_err(|_| ()))
-        })
-        .ok();
-
-        //  just shutdown tokio runtime
-        rt.shutdown_background();
+        let buckets_count = aggregator.send(BucketCountInquiry).await.unwrap();
+        // Let's check the number of buckets in the aggregator just after sending a
+        // message.
+        assert_eq!(buckets_count, 1);
+        // Wait until flush delay has passed. It is up to 2s: 1s for the current bucket
+        // and 1s for the flush shift. Adding 100ms buffer.
+        tokio::time::sleep(Duration::from_millis(2100)).await;
         // receiver must have 1 bucket flushed
-        assert_eq!(receiver.bucket_count(), 1);
+        assert_eq!(receiver.bucket_count_async().await, 1);
     }
 
     #[tokio::test]
