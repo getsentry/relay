@@ -1787,7 +1787,6 @@ impl EnvelopeProcessorService {
             return Ok(());
         }
 
-        let breakdowns_config = state.project_state.config.breakdowns_v2.as_ref();
         let conditional_tagging_config = state
             .project_state
             .config
@@ -1803,7 +1802,6 @@ impl EnvelopeProcessorService {
                     // Actual logic outsourced for unit tests
                     extracted_anything = extract_transaction_metrics(
                         config,
-                        breakdowns_config,
                         conditional_tagging_config,
                         event,
                         &mut state.extracted_metrics,
