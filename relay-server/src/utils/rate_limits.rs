@@ -301,7 +301,7 @@ impl Enforcement {
 /// quota in the later stage.
 #[derive(Clone, Debug)]
 pub enum QuotaCheckReason<'a> {
-    /// Called for the [`CheckEnvelope`] message.
+    /// Called for the [`CheckEnvelope`](create::actrocs::project_cache::CheckEnvelope) message.
     ///
     /// This is early in the processing and crucially transaction envelope items need to be
     /// retained even if they are out of indexing quota but not yet out of processing quota.
@@ -314,6 +314,8 @@ pub enum QuotaCheckReason<'a> {
     ///
     /// Because this needs to merge the enforcement actions from the earlier call they need
     /// to be provided.
+    ///
+    /// [`EnvelopeProcessorService::enforce_quotas`]: crate::actors::processor::EnvelopeProcessorService::enforce_quotas
     // This is not constructed if the processing feature is disabled.
     #[allow(dead_code)]
     EnforceQuota(&'a Enforcement),
@@ -431,7 +433,6 @@ where
         summary: &EnvelopeSummary,
         scoping: &Scoping,
         reason: &QuotaCheckReason<'a>,
-        // early_enforcement: &Enforcement,
     ) -> Result<(Enforcement, RateLimits), E> {
         let mut rate_limits = RateLimits::new();
         let mut enforcement = Enforcement::default();
