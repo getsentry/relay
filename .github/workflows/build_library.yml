@@ -10,13 +10,14 @@ env:
 
 jobs:
   linux:
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         build-arch:
-          - manylinux2010_i686
-          - manylinux2010_x86_64
-          - manylinux2014_aarch64
+          - i686
+          - x86_64
+          - aarch64
 
     name: Python Linux ${{ matrix.build-arch }}
     runs-on: ubuntu-latest
@@ -26,7 +27,7 @@ jobs:
         with:
           submodules: recursive
 
-      - if: matrix.build-arch == 'manylinux2014_aarch64'
+      - if: matrix.build-arch == 'aarch64'
         uses: docker/setup-qemu-action@v1
         with:
           platforms: arm64
@@ -34,7 +35,7 @@ jobs:
       - name: Build in Docker
         run: scripts/docker-manylinux.sh
         env:
-          BUILD_ARCH: ${{ matrix.build-arch }}
+          TARGET: ${{ matrix.build-arch }}
 
       - uses: actions/upload-artifact@v3
         with:

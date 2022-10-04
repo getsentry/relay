@@ -111,6 +111,11 @@ pub enum MetricHistograms {
     /// The distribution of buckets should be even.
     /// If it is not, this metric should expose it.
     PartitionKeys,
+
+    /// Distribution of invalid bucket timestamps observed, relative to the time of observation.
+    ///
+    /// This is a temporary metric to better understand why we see so many invalid timestamp errors.
+    InvalidBucketTimestamp,
 }
 
 impl HistogramMetric for MetricHistograms {
@@ -122,6 +127,7 @@ impl HistogramMetric for MetricHistograms {
             Self::BatchesPerPartition => "metrics.buckets.batches_per_partition",
             Self::BucketsPerBatch => "metrics.buckets.per_batch",
             Self::PartitionKeys => "metrics.buckets.partition_keys",
+            Self::InvalidBucketTimestamp => "metrics.buckets.invalid_timestamp",
         }
     }
 }

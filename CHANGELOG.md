@@ -14,6 +14,7 @@
 - Pin Rust version to 1.63.0 in Dockerfile. ([#1482](https://github.com/getsentry/relay/pull/1482))
 - Normalize measurement units in event payload. ([#1488](https://github.com/getsentry/relay/pull/1488))
 - Remove long-running futures from metrics flush. ([#1492](https://github.com/getsentry/relay/pull/1492))
+- Migrate to 2021 Rust edition. ([#1510](https://github.com/getsentry/relay/pull/1510))
 - Make the profiling frame object compatible with the stacktrace frame object from event. ([#1512](https://github.com/getsentry/relay/pull/1512))
 
 ## 22.9.0

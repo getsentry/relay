@@ -4,7 +4,7 @@ version = "22.9.0"
 authors = ["Sentry <oss@sentry.io>"]
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-edition = "2018"
+edition = "2021"
 license-file = "../LICENSE"
 publish = false
 
