@@ -123,18 +123,12 @@ fn extract_transaction_op(trace_context: &TraceContext) -> Option<String> {
     Some(op.to_string())
 }
 
-fn extract_dist(transaction: &Event) -> Option<String> {
-    let mut dist = transaction.dist.0.clone();
-    store::normalize_dist(&mut dist);
-    dist
-}
-
 /// Extract HTTP method
 /// See <https://github.com/getsentry/snuba/blob/2e038c13a50735d58cc9397a29155ab5422a62e5/snuba/datasets/errors_processor.py#L64-L67>.
 fn extract_http_method(transaction: &Event) -> Option<String> {
     let request = transaction.request.value()?;
     let method = request.method.value()?;
-    Some(method.to_owned())
+    Some(method.clone())
 }
 
 /// Satisfaction value used for Apdex and User Misery
@@ -207,10 +201,10 @@ fn is_low_cardinality(source: &TransactionSource, treat_unknown_as_low_cardinali
         TransactionSource::Url => false,
 
         // These four are names of software components, which we assume to be low-cardinality.
-        TransactionSource::Route => true,
-        TransactionSource::View => true,
-        TransactionSource::Component => true,
-        TransactionSource::Task => true,
+        TransactionSource::Route
+        | TransactionSource::View
+        | TransactionSource::Component
+        | TransactionSource::Task => true,
 
         // "unknown" is the value for old SDKs that do not send a transaction source yet.
         // Caller decides how to treat this.
@@ -229,7 +223,7 @@ fn is_low_cardinality(source: &TransactionSource, treat_unknown_as_low_cardinali
 /// Note that this will produce a discrepancy between metrics and raw transaction data.
 fn get_transaction_name(
     event: &Event,
-    accept_transaction_names: &AcceptTransactionNames,
+    accept_transaction_names: AcceptTransactionNames,
 ) -> Option<String> {
     let original_transaction_name = match event.transaction.value() {
         Some(name) => name,
@@ -277,7 +271,7 @@ fn get_transaction_name(
             .client_sdk
             .value()
             .and_then(|c| c.name.value())
-            .map(|s| s.as_str())
+            .map(std::string::String::as_str)
             .unwrap_or_default(),
         name_used = name_used,
     );
@@ -294,18 +288,20 @@ fn extract_universal_tags(
     if let Some(release) = event.release.as_str() {
         tags.insert("release".to_owned(), release.to_owned());
     }
-    if let Some(dist) = extract_dist(event) {
-        tags.insert("dist".to_owned(), dist);
+    if let Some(dist) = event.dist.value() {
+        tags.insert("dist".to_owned(), dist.clone());
     }
     if let Some(environment) = event.environment.as_str() {
         tags.insert("environment".to_owned(), environment.to_owned());
     }
-    if let Some(transaction_name) = get_transaction_name(event, &config.accept_transaction_names) {
+    if let Some(transaction_name) = get_transaction_name(event, config.accept_transaction_names) {
         tags.insert("transaction".to_owned(), transaction_name);
     }
 
     // The platform tag should not increase dimensionality in most cases, because most
-    // transactions are specific to one platform
+    // transactions are specific to one platform.
+    // NOTE: we might want to reconsider light normalization a little and include the
+    // `store::is_valid_platform` into light normalization.
     let platform = match event.platform.as_str() {
         Some(platform) if store::is_valid_platform(platform) => platform,
         _ => "other",
@@ -347,14 +343,13 @@ fn extract_universal_tags(
 
 pub fn extract_transaction_metrics(
     config: &TransactionMetricsConfig,
-    breakdowns_config: Option<&store::BreakdownsConfig>,
     conditional_tagging_config: &[TaggingRule],
     event: &Event,
     target: &mut Vec<Metric>,
 ) -> bool {
     let before_len = target.len();
 
-    extract_transaction_metrics_inner(config, breakdowns_config, event, target);
+    extract_transaction_metrics_inner(config, event, target);
 
     let added_slice = &mut target[before_len..];
     run_conditional_tagging(event, conditional_tagging_config, added_slice);
@@ -363,7 +358,6 @@ pub fn extract_transaction_metrics(
 
 fn extract_transaction_metrics_inner(
     config: &TransactionMetricsConfig,
-    breakdowns_config: Option<&store::BreakdownsConfig>,
     event: &Event,
     metrics: &mut Vec<Metric>, // output parameter
 ) {
@@ -371,12 +365,18 @@ fn extract_transaction_metrics_inner(
         return;
     }
 
-    let (start_timestamp, end_timestamp) = match store::validate_timestamps(event) {
-        Ok(pair) => pair,
-        Err(_) => {
-            return; // invalid transaction
-        }
-    };
+    let (start_timestamp, end_timestamp) =
+        match (event.start_timestamp.value(), event.timestamp.value()) {
+            (Some(start), Some(end)) => (*start, *end),
+            // invalid transaction
+            _ => {
+                relay_log::error!(
+                    "failed to extract the start and the end timestamps from the event"
+                );
+                return;
+            }
+        };
+
     let duration_millis = relay_common::chrono_to_positive_millis(end_timestamp - start_timestamp);
 
     let unix_timestamp = match UnixTimestamp::from_datetime(end_timestamp.into_inner()) {
@@ -388,8 +388,6 @@ fn extract_transaction_metrics_inner(
 
     // Measurements
     if let Some(measurements) = event.measurements.value() {
-        let mut measurements = measurements.clone();
-        store::compute_measurements(duration_millis, &mut measurements);
         for (name, annotated) in measurements.iter() {
             let measurement = match annotated.value() {
                 Some(m) => m,
@@ -418,36 +416,37 @@ fn extract_transaction_metrics_inner(
     }
 
     // Breakdowns
-    if let Some(breakdowns_config) = breakdowns_config {
-        for (breakdown, measurements) in store::get_breakdown_measurements(event, breakdowns_config)
-        {
-            for (measurement_name, annotated) in measurements.iter() {
-                if measurement_name == "total.time" {
-                    // The only reason we do not emit total.time as a metric is that is was not
-                    // on the allowlist in sentry before, and nobody seems to be missing it.
-                    continue;
+    if let Some(breakdowns) = event.breakdowns.value() {
+        for (breakdown, measurements) in breakdowns.iter() {
+            if let Some(measurements) = measurements.value() {
+                for (measurement_name, annotated) in measurements.iter() {
+                    if measurement_name == "total.time" {
+                        // The only reason we do not emit total.time as a metric is that is was not
+                        // on the allowlist in sentry before, and nobody seems to be missing it.
+                        continue;
+                    }
+
+                    let measurement = match annotated.value() {
+                        Some(m) => m,
+                        None => continue,
+                    };
+
+                    let value = match measurement.value.value() {
+                        Some(value) => *value,
+                        None => continue,
+                    };
+
+                    let unit = measurement.unit.value();
+
+                    metrics.push(Metric::new_mri(
+                        METRIC_NAMESPACE,
+                        format!("breakdowns.{}.{}", breakdown, measurement_name),
+                        unit.copied().unwrap_or(MetricUnit::None),
+                        MetricValue::Distribution(value),
+                        unix_timestamp,
+                        tags.clone(),
+                    ));
                 }
-
-                let measurement = match annotated.value() {
-                    Some(m) => m,
-                    None => continue,
-                };
-
-                let value = match measurement.value.value() {
-                    Some(value) => *value,
-                    None => continue,
-                };
-
-                let unit = measurement.unit.value();
-
-                metrics.push(Metric::new_mri(
-                    METRIC_NAMESPACE,
-                    format!("breakdowns.{}.{}", breakdown, measurement_name),
-                    unit.copied().unwrap_or(MetricUnit::None),
-                    MetricValue::Distribution(value),
-                    unix_timestamp,
-                    tags.clone(),
-                ));
             }
         }
     }
@@ -570,9 +569,9 @@ mod tests {
     use super::*;
 
     use relay_general::protocol::User;
-    use relay_general::store::BreakdownsConfig;
-    use relay_general::store::LightNormalizationConfig;
-    use relay_general::store::MeasurementsConfig;
+    use relay_general::store::{
+        self, BreakdownsConfig, LightNormalizationConfig, MeasurementsConfig,
+    };
     use relay_general::types::Annotated;
     use relay_metrics::DurationUnit;
 
@@ -604,6 +603,8 @@ mod tests {
             },
             "contexts": {
                 "trace": {
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "span_id": "bd429c44b67a3eb4",
                     "op": "myop",
                     "status": "ok"
                 }
@@ -637,7 +638,7 @@ mod tests {
         )
         .unwrap();
 
-        let event = Annotated::from_json(json).unwrap();
+        let mut event = Annotated::from_json(json).unwrap();
 
         let config: TransactionMetricsConfig = serde_json::from_str(
             r#"
@@ -649,14 +650,18 @@ mod tests {
         )
         .unwrap();
 
-        let mut metrics = vec![];
-        extract_transaction_metrics(
-            &config,
-            Some(&breakdowns_config),
-            &[],
-            event.value().unwrap(),
-            &mut metrics,
+        // Normalize first, to make sure that all things are correct as in the real pipeline:
+        let res = store::light_normalize_event(
+            &mut event,
+            &LightNormalizationConfig {
+                breakdowns_config: Some(&breakdowns_config),
+                ..Default::default()
+            },
         );
+        assert!(res.is_ok());
+
+        let mut metrics = vec![];
+        extract_transaction_metrics(&config, &[], event.value().unwrap(), &mut metrics);
 
         insta::assert_debug_snapshot!(metrics, @r###"
         [
@@ -785,7 +790,7 @@ mod tests {
         assert!(res.is_ok(), "{:?}", res);
 
         let mut metrics = vec![];
-        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(&config, &[], event.value().unwrap(), &mut metrics);
 
         insta::assert_debug_snapshot!(metrics, @r###"
         [
@@ -865,7 +870,7 @@ mod tests {
         assert!(res.is_ok(), "{:?}", res);
 
         let mut metrics = vec![];
-        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(&config, &[], event.value().unwrap(), &mut metrics);
 
         insta::assert_debug_snapshot!(metrics, @r###"
         [
@@ -931,7 +936,7 @@ mod tests {
 
         let config = TransactionMetricsConfig::default();
         let mut metrics = vec![];
-        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(&config, &[], event.value().unwrap(), &mut metrics);
 
         assert_eq!(metrics.len(), 1);
 
@@ -986,7 +991,7 @@ mod tests {
         )
         .unwrap();
         let mut metrics = vec![];
-        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(&config, &[], event.value().unwrap(), &mut metrics);
         assert_eq!(metrics.len(), 2);
 
         let duration_metric = &metrics[0];
@@ -1035,7 +1040,7 @@ mod tests {
         )
         .unwrap();
         let mut metrics = vec![];
-        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(&config, &[], event.value().unwrap(), &mut metrics);
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Metric {
@@ -1094,7 +1099,7 @@ mod tests {
         )
         .unwrap();
         let mut metrics = vec![];
-        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(&config, &[], event.value().unwrap(), &mut metrics);
 
         insta::assert_debug_snapshot!(metrics, @r###"
         [
@@ -1166,7 +1171,7 @@ mod tests {
 
         let config = TransactionMetricsConfig::default();
         let mut metrics = vec![];
-        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(&config, &[], event.value().unwrap(), &mut metrics);
 
         insta::assert_debug_snapshot!(metrics, @r###"
             [
@@ -1266,7 +1271,6 @@ mod tests {
         let mut metrics = vec![];
         extract_transaction_metrics(
             &config,
-            None,
             &tagging_config,
             event.value().unwrap(),
             &mut metrics,
@@ -1347,7 +1351,6 @@ mod tests {
         let mut metrics = vec![];
         extract_transaction_metrics(
             &config,
-            None,
             &tagging_config,
             event.value().unwrap(),
             &mut metrics,
@@ -1387,7 +1390,7 @@ mod tests {
         let event = Annotated::from_json(json).unwrap();
 
         let mut metrics = vec![];
-        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(&config, &[], event.value().unwrap(), &mut metrics);
 
         assert_eq!(metrics.len(), 1, "{:?}", metrics);
 
@@ -1414,7 +1417,7 @@ mod tests {
         let event = Annotated::from_json(json).unwrap();
 
         let mut metrics = vec![];
-        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(&config, &[], event.value().unwrap(), &mut metrics);
 
         assert_eq!(metrics.len(), 1, "{:?}", metrics);
 
@@ -1436,7 +1439,7 @@ mod tests {
         config.accept_transaction_names = strategy;
 
         let mut metrics = vec![];
-        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(&config, &[], event.value().unwrap(), &mut metrics);
 
         assert_eq!(metrics.len(), 1);
         metrics[0].tags.get("transaction").cloned()
@@ -1754,6 +1757,12 @@ mod tests {
             "type": "transaction",
             "timestamp": 1619420520,
             "start_timestamp": 1619420400,
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053"
+                }
+            },
             "measurements": {
                 "frames_frozen": {
                     "value": 2
@@ -1773,10 +1782,12 @@ mod tests {
 
         let config = TransactionMetricsConfig::default();
 
-        let event = Annotated::from_json(json).unwrap();
+        let mut event = Annotated::from_json(json).unwrap();
+        // Normalize first, to make sure that the metrics were computed:
+        let _ = store::light_normalize_event(&mut event, &LightNormalizationConfig::default());
 
         let mut metrics = vec![];
-        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(&config, &[], event.value().unwrap(), &mut metrics);
 
         let metrics_names: Vec<_> = metrics.into_iter().map(|m| m.name).collect();
         insta::assert_debug_snapshot!(metrics_names, @r###"
