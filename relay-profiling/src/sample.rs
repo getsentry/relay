@@ -15,12 +15,12 @@ use crate::Platform;
 struct Frame {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     instruction_addr: Option<Addr>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    name: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    line: Option<u32>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    file: Option<String>,
+    #[serde(alias = "name", default, skip_serializing_if = "Option::is_none")]
+    function: Option<String>,
+    #[serde(alias = "line", default, skip_serializing_if = "Option::is_none")]
+    lineno: Option<u32>,
+    #[serde(alias = "file", default, skip_serializing_if = "Option::is_none")]
+    filename: Option<String>,
 }
 
 impl Frame {
