@@ -5,7 +5,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Generates an event payload schema file"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-edition = "2018"
+edition = "2021"
 publish = false
 
 [dependencies]

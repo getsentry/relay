@@ -5,7 +5,7 @@ description = "Configuration for the Relay CLI and server"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
 version = "22.9.0"
-edition = "2018"
+edition = "2021"
 license-file = "../LICENSE"
 publish = false
 
