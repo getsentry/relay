@@ -171,7 +171,7 @@ impl EnvelopeSummary {
         summary
     }
 
-    /// Infers the appropriate [`DataCateogry`] for the envelope [`Item`].
+    /// Infers the appropriate [`DataCategory`] for the envelope [`Item`].
     ///
     /// The inferred category is only applied to the [`EnvelopeSummary`] if there is not yet
     /// a category set.
