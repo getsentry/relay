@@ -20,6 +20,7 @@
 - Remove long-running futures from metrics flush. ([#1492](https://github.com/getsentry/relay/pull/1492))
 - Migrate to 2021 Rust edition. ([#1510](https://github.com/getsentry/relay/pull/1510))
 - Make the profiling frame object compatible with the stacktrace frame object from event. ([#1512](https://github.com/getsentry/relay/pull/1512))
+- Remove unused rate_limits from ProcessEnvelopeState. ([#1516](https://github.com/getsentry/relay/pull/1516))
 
 ## 22.9.0
 
