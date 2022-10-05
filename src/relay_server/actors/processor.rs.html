@@ -2840,6 +2840,7 @@
 <span id="2838">2838</span>
 <span id="2839">2839</span>
 <span id="2840">2840</span>
+<span id="2841">2841</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::cmp::max</span>;
 <span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std::convert::TryFrom</span>;
@@ -4799,6 +4800,7 @@
             <span class="ident">measurements_config</span>: <span class="ident">state</span>.<span class="ident">project_state</span>.<span class="ident">config</span>.<span class="ident">measurements</span>.<span class="ident">as_ref</span>(),
             <span class="ident">breakdowns_config</span>: <span class="ident">state</span>.<span class="ident">project_state</span>.<span class="ident">config</span>.<span class="ident">breakdowns_v2</span>.<span class="ident">as_ref</span>(),
             <span class="ident">normalize_user_agent</span>: <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
+            <span class="ident">is_renormalize</span>: <span class="bool-val">false</span>,
         };
 
         <span class="macro">metric!</span>(<span class="ident">timer</span>(<span class="ident">RelayTimers::EventProcessingLightNormalization</span>), {

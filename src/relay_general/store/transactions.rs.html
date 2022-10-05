@@ -1230,10 +1230,6 @@
 <span id="1228">1228</span>
 <span id="1229">1229</span>
 <span id="1230">1230</span>
-<span id="1231">1231</span>
-<span id="1232">1232</span>
-<span id="1233">1233</span>
-<span id="1234">1234</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">relay_common::SpanStatus</span>;
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor</span>::{<span class="ident">ProcessValue</span>, <span class="ident">ProcessingState</span>, <span class="ident">Processor</span>};
@@ -1290,10 +1286,6 @@
             ))
         }
     }
-}
-
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">validate_annotated_transaction</span>(<span class="ident">event</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span>) -&gt; <span class="ident">ProcessingResult</span> {
-    <span class="ident">event</span>.<span class="ident">apply</span>(<span class="op">|</span><span class="ident">event</span>, <span class="ident">_meta</span><span class="op">|</span> <span class="ident">validate_transaction</span>(<span class="ident">event</span>))
 }
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">validate_transaction</span>(<span class="ident">event</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Event</span>) -&gt; <span class="ident">ProcessingResult</span> {

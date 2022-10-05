@@ -2214,6 +2214,82 @@
 <span id="2212">2212</span>
 <span id="2213">2213</span>
 <span id="2214">2214</span>
+<span id="2215">2215</span>
+<span id="2216">2216</span>
+<span id="2217">2217</span>
+<span id="2218">2218</span>
+<span id="2219">2219</span>
+<span id="2220">2220</span>
+<span id="2221">2221</span>
+<span id="2222">2222</span>
+<span id="2223">2223</span>
+<span id="2224">2224</span>
+<span id="2225">2225</span>
+<span id="2226">2226</span>
+<span id="2227">2227</span>
+<span id="2228">2228</span>
+<span id="2229">2229</span>
+<span id="2230">2230</span>
+<span id="2231">2231</span>
+<span id="2232">2232</span>
+<span id="2233">2233</span>
+<span id="2234">2234</span>
+<span id="2235">2235</span>
+<span id="2236">2236</span>
+<span id="2237">2237</span>
+<span id="2238">2238</span>
+<span id="2239">2239</span>
+<span id="2240">2240</span>
+<span id="2241">2241</span>
+<span id="2242">2242</span>
+<span id="2243">2243</span>
+<span id="2244">2244</span>
+<span id="2245">2245</span>
+<span id="2246">2246</span>
+<span id="2247">2247</span>
+<span id="2248">2248</span>
+<span id="2249">2249</span>
+<span id="2250">2250</span>
+<span id="2251">2251</span>
+<span id="2252">2252</span>
+<span id="2253">2253</span>
+<span id="2254">2254</span>
+<span id="2255">2255</span>
+<span id="2256">2256</span>
+<span id="2257">2257</span>
+<span id="2258">2258</span>
+<span id="2259">2259</span>
+<span id="2260">2260</span>
+<span id="2261">2261</span>
+<span id="2262">2262</span>
+<span id="2263">2263</span>
+<span id="2264">2264</span>
+<span id="2265">2265</span>
+<span id="2266">2266</span>
+<span id="2267">2267</span>
+<span id="2268">2268</span>
+<span id="2269">2269</span>
+<span id="2270">2270</span>
+<span id="2271">2271</span>
+<span id="2272">2272</span>
+<span id="2273">2273</span>
+<span id="2274">2274</span>
+<span id="2275">2275</span>
+<span id="2276">2276</span>
+<span id="2277">2277</span>
+<span id="2278">2278</span>
+<span id="2279">2279</span>
+<span id="2280">2280</span>
+<span id="2281">2281</span>
+<span id="2282">2282</span>
+<span id="2283">2283</span>
+<span id="2284">2284</span>
+<span id="2285">2285</span>
+<span id="2286">2286</span>
+<span id="2287">2287</span>
+<span id="2288">2288</span>
+<span id="2289">2289</span>
+<span id="2290">2290</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections::hash_map::DefaultHasher</span>;
 <span class="kw">use</span> <span class="ident">std::hash</span>::{<span class="ident">Hash</span>, <span class="ident">Hasher</span>};
 <span class="kw">use</span> <span class="ident">std::mem</span>;
@@ -2884,14 +2960,25 @@
     <span class="kw">pub</span> <span class="ident">measurements_config</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">MeasurementsConfig</span><span class="op">&gt;</span>,
     <span class="kw">pub</span> <span class="ident">breakdowns_config</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">BreakdownsConfig</span><span class="op">&gt;</span>,
     <span class="kw">pub</span> <span class="ident">normalize_user_agent</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
+    <span class="kw">pub</span> <span class="ident">is_renormalize</span>: <span class="ident">bool</span>,
 }
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">light_normalize_event</span>(
     <span class="ident">event</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span>,
     <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">LightNormalizationConfig</span>,
 ) -&gt; <span class="ident">ProcessingResult</span> {
-    <span class="ident">transactions::validate_annotated_transaction</span>(<span class="ident">event</span>)<span class="question-mark">?</span>;
     <span class="ident">event</span>.<span class="ident">apply</span>(<span class="op">|</span><span class="ident">event</span>, <span class="ident">meta</span><span class="op">|</span> {
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">config</span>.<span class="ident">is_renormalize</span> {
+            <span class="comment">// Validate and normalize transaction</span>
+            <span class="comment">// (internally noops for non-transaction events).</span>
+            <span class="comment">// TODO: Parts of this processor should probably be a filter so we</span>
+            <span class="comment">// can revert some changes to ProcessingAction</span>
+            <span class="ident">transactions::TransactionsProcessor</span>.<span class="ident">process_event</span>(
+                <span class="ident">event</span>,
+                <span class="ident">meta</span>,
+                <span class="ident">ProcessingState::root</span>(),
+            )<span class="question-mark">?</span>;
+        }
         <span class="comment">// Check for required and non-empty values</span>
         <span class="ident">schema::SchemaProcessor</span>.<span class="ident">process_event</span>(<span class="ident">event</span>, <span class="ident">meta</span>, <span class="ident">ProcessingState::root</span>())<span class="question-mark">?</span>;
 
@@ -4426,6 +4513,71 @@
             },
         )
         &quot;###</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_light_normalize_validates_spans</span>() {
+        <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span><span class="ident">::from_json</span>(
+            <span class="string">r###&quot;
+            {
+                &quot;type&quot;: &quot;transaction&quot;,
+                &quot;transaction&quot;: &quot;/&quot;,
+                &quot;timestamp&quot;: 946684810.0,
+                &quot;start_timestamp&quot;: 946684800.0,
+                &quot;contexts&quot;: {
+                    &quot;trace&quot;: {
+                    &quot;trace_id&quot;: &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;,
+                    &quot;span_id&quot;: &quot;fa90fdead5f74053&quot;,
+                    &quot;op&quot;: &quot;http.server&quot;,
+                    &quot;type&quot;: &quot;trace&quot;
+                    }
+                },
+                &quot;spans&quot;: []
+            }
+            &quot;###</span>,
+        )
+        .<span class="ident">unwrap</span>();
+
+        <span class="comment">// All incomplete spans should be caught by light normalization:</span>
+        <span class="kw">for</span> <span class="ident">span</span> <span class="kw">in</span> [
+            <span class="string">r#&quot;null&quot;#</span>,
+            <span class="string">r#&quot;{
+              &quot;timestamp&quot;: 946684810.0,
+              &quot;start_timestamp&quot;: 946684900.0,
+              &quot;span_id&quot;: &quot;fa90fdead5f74053&quot;,
+              &quot;trace_id&quot;: &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;
+            }&quot;#</span>,
+            <span class="string">r#&quot;{
+              &quot;start_timestamp&quot;: 946684800.0,
+              &quot;span_id&quot;: &quot;fa90fdead5f74053&quot;,
+              &quot;trace_id&quot;: &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;
+            }&quot;#</span>,
+            <span class="string">r#&quot;{
+              &quot;timestamp&quot;: 946684810.0,
+              &quot;span_id&quot;: &quot;fa90fdead5f74053&quot;,
+              &quot;trace_id&quot;: &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;
+            }&quot;#</span>,
+            <span class="string">r#&quot;{
+              &quot;timestamp&quot;: 946684810.0,
+              &quot;start_timestamp&quot;: 946684800.0,
+              &quot;trace_id&quot;: &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;
+            }&quot;#</span>,
+            <span class="string">r#&quot;{
+              &quot;timestamp&quot;: 946684810.0,
+              &quot;start_timestamp&quot;: 946684800.0,
+              &quot;span_id&quot;: &quot;fa90fdead5f74053&quot;
+            }&quot;#</span>,
+        ] {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">modified_event</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">clone</span>();
+            <span class="kw">let</span> <span class="ident">event_ref</span> <span class="op">=</span> <span class="ident">modified_event</span>.<span class="ident">value_mut</span>().<span class="ident">as_mut</span>().<span class="ident">unwrap</span>();
+            <span class="ident">event_ref</span>
+                .<span class="ident">spans</span>
+                .<span class="ident">set_value</span>(<span class="prelude-val">Some</span>(<span class="macro">vec!</span>[<span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Span</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="ident">span</span>).<span class="ident">unwrap</span>()]));
+
+            <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">light_normalize_event</span>(<span class="kw-2">&amp;mut</span> <span class="ident">modified_event</span>, <span class="kw-2">&amp;</span><span class="ident">Default::default</span>());
+
+            <span class="macro">assert!</span>(<span class="ident">res</span>.<span class="ident">is_err</span>(), <span class="string">&quot;{:?}&quot;</span>, <span class="ident">span</span>);
+        }
     }
 }
 </code></pre></div>
