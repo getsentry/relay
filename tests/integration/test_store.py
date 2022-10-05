@@ -470,6 +470,99 @@ def test_processing_quotas(
         assert event["logentry"]["formatted"] == f"otherkey{i}"
 
 
+def test_rate_limit_metrics_buckets(
+    mini_sentry,
+    relay_with_processing,
+    outcomes_consumer,
+    events_consumer,
+    transactions_consumer,
+    event_type,
+    window,
+    max_rate_limit,
+):
+
+    relay = relay_with_processing({"processing": {"max_rate_limit": max_rate_limit}})
+
+    project_id = 42
+    projectconfig = mini_sentry.add_full_project_config(project_id)
+    # add another dsn key (we want 2 keys so we can set limits per key)
+    mini_sentry.add_dsn_key_to_project(project_id)
+
+    # we should have 2 keys (one created with the config and one added above)
+    public_keys = mini_sentry.get_dsn_public_key_configs(project_id)
+
+    key_id = public_keys[0]["numericId"]
+
+    # Default events are also mapped to "error" by Relay.
+    category = "error" if event_type == "default" else event_type
+
+    projectconfig["config"]["quotas"] = [
+        {
+            "id": "test_rate_limiting_{}".format(uuid.uuid4().hex),
+            "scope": "key",
+            "scopeId": six.text_type(key_id),
+            "categories": [category],
+            "limit": 5,
+            "window": window,
+            "reasonCode": "get_lost",
+        }
+    ]
+
+    if event_type == "transaction":
+        transform = make_transaction
+    elif event_type == "error":
+        transform = make_error
+    else:
+        transform = lambda e: e
+
+    for i in range(5):
+        # send using the first dsn
+        relay.send_event(
+            project_id, transform({"message": f"regular{i}"}), dsn_key_idx=0
+        )
+
+        event, _ = events_consumer.get_event()
+        assert event["logentry"]["formatted"] == f"regular{i}"
+
+    # this one will not get a 429 but still get rate limited (silently) because
+    # of our caching
+    relay.send_event(project_id, transform({"message": "some_message"}), dsn_key_idx=0)
+
+    if outcomes_consumer is not None:
+        outcomes_consumer.assert_rate_limited(
+            "get_lost", key_id=key_id, categories=[category]
+        )
+    else:
+        # since we don't wait for the outcome, wait a little for the event to go through
+        sleep(0.1)
+
+    for _ in range(5):
+        with pytest.raises(HTTPError) as excinfo:
+            # Failed: DID NOT RAISE <class 'requests.exceptions.HTTPError'>
+            relay.send_event(project_id, transform({"message": "rate_limited"}))
+        headers = excinfo.value.response.headers
+
+        retry_after = headers["retry-after"]
+        assert int(retry_after) <= window
+        assert int(retry_after) <= max_rate_limit
+        retry_after2, rest = headers["x-sentry-rate-limits"].split(":", 1)
+        assert int(retry_after2) == int(retry_after)
+        assert rest == "%s:key:get_lost" % category
+        if outcomes_consumer is not None:
+            outcomes_consumer.assert_rate_limited(
+                "get_lost", key_id=key_id, categories=[category]
+            )
+
+    for i in range(10):
+        # now send using the second key
+        relay.send_event(
+            project_id, transform({"message": f"otherkey{i}"}), dsn_key_idx=1
+        )
+        event, _ = events_consumer.get_event()
+
+        assert event["logentry"]["formatted"] == f"otherkey{i}"
+
+
 def test_events_buffered_before_auth(relay, mini_sentry):
     evt = threading.Event()
 

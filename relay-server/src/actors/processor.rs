@@ -32,7 +32,7 @@ use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig};
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
 use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
-use relay_quotas::{DataCategory, RateLimits, ReasonCode, Scoping};
+use relay_quotas::{DataCategory, Quota, RateLimits, ReasonCode, Scoping};
 use relay_redis::RedisPool;
 use relay_sampling::{DynamicSamplingContext, RuleId};
 use relay_statsd::metric;
@@ -532,12 +532,11 @@ impl EncodeEnvelope {
 /// Enforce rate limits on metrics buckets, and forward them to the EnvelopeManager if there
 /// is still enough quota.
 ///
-/// NOTE: This struct has the same contents as [`super::envelopes::SendMetrics`], but
-/// is defined as a separate entity to clarify its purpose.
-///
 #[cfg(feature = "processing")]
 #[derive(Debug)]
 pub struct RateLimitMetricsBuckets {
+    /// TODO: docs
+    pub quotas: Vec<Quota>,
     /// The pre-aggregated metric buckets.
     pub buckets: Vec<Bucket>,
     /// Scoping information for the metrics.
@@ -2213,13 +2212,78 @@ impl EnvelopeProcessorService {
 
     #[cfg(feature = "processing")]
     fn handle_rate_limit_metrics_buckets(&self, message: RateLimitMetricsBuckets) {
+        use relay_metrics::{MetricNamespace, MetricResourceIdentifier};
+        use relay_quotas::ItemScoping;
+
         let RateLimitMetricsBuckets {
-            buckets,
+            quotas: quota,
+            mut buckets,
             scoping,
             partition_key,
         } = message;
 
-        // TODO: Enforce rate limits here.
+        let rate_limiter = match self.rate_limiter.as_ref() {
+            Some(rate_limiter) => rate_limiter,
+            None => {
+                relay_log::error!("handle_rate_limit_metrics_buckets called without rate limiter");
+                return;
+            }
+        };
+
+        let item_scoping = ItemScoping {
+            category: DataCategory::TransactionProcessed,
+            scoping: &scoping,
+        };
+
+        // For every metrics bucket, one of three cases applies
+        // 1. The metric is not in the transaction namespace.
+        //    TODO: Should we rate limit sessions as well?
+        // 2. The metric is in the transaction namespace.
+        //      a. The metric is "duration". This is extracted exactly once for every processed
+        //         transaction, so we use it to count against the quota.
+        //      b. For any other metric in the transaction namespace, we check the limit but we
+        //         do not count against the quota.
+        buckets.retain(|bucket| {
+            // TODO: Split this off into `should_keep_bucket`.
+            // FIXME: Add namespace enum to `Bucket` so we don't have to parse the MRI for every bucket.
+            let mri = match MetricResourceIdentifier::parse(bucket.name.as_str()) {
+                Ok(mri) => mri,
+                Err(_) => {
+                    relay_log::error!("Invalid MRI: {}", bucket.name);
+                    return true;
+                }
+            };
+
+            if !matches!(mri.namespace, MetricNamespace::Transactions) {
+                return true;
+            }
+
+            dbg!(mri.name);
+            let quantity = if mri.name == "duration" {
+                bucket.value.len()
+            } else {
+                0
+            };
+
+            // If necessary, we could minimize the number of calls to the rate limiter
+            // by grouping buckets here somehow. But be aware that that would mean we might
+            // under-accept, because the sum of all buckets might exceed the quota, but not individual ones.
+            match rate_limiter.is_rate_limited(&quota, item_scoping, quantity) {
+                Ok(limits) => {
+                    let is_limited = limits.is_limited();
+                    if is_limited {
+                        ProjectCache::from_registry()
+                            .do_send(UpdateRateLimits::new(scoping.project_key, limits));
+                    }
+                    is_limited
+                }
+                Err(_) => todo!(),
+            }
+        });
+
+        if buckets.is_empty() {
+            return;
+        }
 
         // All good, forward to envelope manager.
         EnvelopeManager::from_registry().send(SendMetrics {

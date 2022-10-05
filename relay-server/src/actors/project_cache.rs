@@ -6,12 +6,12 @@ use actix_web::ResponseError;
 use failure::Fail;
 use futures01::{future, Future};
 
-use relay_common::ProjectKey;
+use relay_common::{DataCategory, ProjectKey};
 use relay_config::{Config, RelayMode};
 use relay_metrics::{
     self, AggregateMetricsError, Aggregator, FlushBuckets, InsertMetrics, MergeBuckets,
 };
-use relay_quotas::RateLimits;
+use relay_quotas::{Quota, RateLimits};
 use relay_redis::RedisPool;
 use relay_statsd::metric;
 
@@ -630,7 +630,17 @@ impl Handler<FlushBuckets> for ProjectCache {
         // In processing mode, let the Processor rate limit the outgoing metrics bucket.
         #[cfg(feature = "processing")]
         if self.config.processing_enabled() {
+            let quotas = project_state
+                .config
+                .quotas
+                .iter()
+                .filter(|q| q.categories.contains(&DataCategory::TransactionProcessed))
+                .map(Quota::clone)
+                .collect::<Vec<_>>();
+
+            // TODO: bypass if quota is empty?
             EnvelopeProcessor::from_registry().send(RateLimitMetricsBuckets {
+                quotas,
                 buckets,
                 scoping,
                 partition_key,
