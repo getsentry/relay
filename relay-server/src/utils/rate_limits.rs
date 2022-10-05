@@ -132,6 +132,9 @@ pub struct EnvelopeSummary {
 
     /// Indicates that the envelope contains regular attachments that do not create event payloads.
     pub has_plain_attachments: bool,
+
+    /// Whether the envelope contains a transaction event which already had the metrics extracted.
+    pub metrics_extracted: bool,
 }
 
 impl EnvelopeSummary {
@@ -150,6 +153,10 @@ impl EnvelopeSummary {
             } else if item.ty() == &ItemType::Attachment {
                 // Plain attachments do not create events.
                 summary.has_plain_attachments = true;
+            }
+
+            if item.metrics_extracted() {
+                summary.metrics_extracted = true;
             }
 
             // If the item has been rate limited before, the quota has been consumed and outcomes
@@ -186,7 +193,7 @@ impl EnvelopeSummary {
 
 /// Rate limiting information for a data category.
 #[derive(Debug)]
-struct CategoryLimit {
+pub struct CategoryLimit {
     /// The limited data category.
     category: DataCategory,
     /// The total rate limited quantity across all items.
@@ -218,7 +225,7 @@ impl CategoryLimit {
     ///
     /// This indicates that the category is limited and a certain quantity is removed from the
     /// Envelope. If the limit is inactive, there is no change.
-    fn is_active(&self) -> bool {
+    pub fn is_active(&self) -> bool {
         self.quantity > 0
     }
 }
@@ -237,15 +244,17 @@ impl Default for CategoryLimit {
 #[derive(Default, Debug)]
 pub struct Enforcement {
     /// The event item rate limit.
-    event: CategoryLimit,
+    pub event: CategoryLimit,
     /// The combined attachment item rate limit.
-    attachments: CategoryLimit,
+    pub attachments: CategoryLimit,
     /// The combined session item rate limit.
-    sessions: CategoryLimit,
+    pub sessions: CategoryLimit,
     /// The combined profile item rate limit.
-    profiles: CategoryLimit,
+    pub profiles: CategoryLimit,
     /// The combined replay item rate limit.
-    replays: CategoryLimit,
+    pub replays: CategoryLimit,
+    /// Metrics extracted from a transaction.
+    pub extracted_metrics: CategoryLimit,
 }
 
 impl Enforcement {
@@ -378,18 +387,53 @@ where
         let mut enforcement = Enforcement::default();
 
         if let Some(category) = summary.event_category {
-            let event_limits = (self.check)(scoping.item(category), 1)?;
-            let longest = event_limits.longest();
-            enforcement.event = CategoryLimit::new(category, 1, longest);
+            if category == DataCategory::Transaction {
+                if summary.metrics_extracted {
+                    // Check and increment indexing quota.
+                    let index_limits = (self.check)(scoping.item(DataCategory::Transaction), 1)?;
+                    let longest = index_limits.longest();
+                    enforcement.event = CategoryLimit::new(DataCategory::Transaction, 1, longest);
+                    rate_limits.merge(index_limits);
 
-            // Record the same reason for attachments, if there are any.
-            enforcement.attachments = CategoryLimit::new(
-                DataCategory::Attachment,
-                summary.attachment_quantity,
-                longest,
-            );
+                    // Check processing quota, but DO NOT increment.
+                    let processing_limits =
+                        (self.check)(scoping.item(DataCategory::TransactionProcessed), 0)?;
+                    let longest = processing_limits.longest();
 
-            rate_limits.merge(event_limits);
+                    // Record this as 1, since exactly one extraction is being denied, even
+                    // if we didn't increment the counter.  This works around a quirk of
+                    // CategoryLimit::is_active which only considers something limited if
+                    // the count is larger than 1.
+                    enforcement.extracted_metrics =
+                        CategoryLimit::new(DataCategory::TransactionProcessed, 1, longest);
+                    rate_limits.merge(processing_limits);
+                } else {
+                    let processing_limits =
+                        (self.check)(scoping.item(DataCategory::TransactionProcessed), 0)?;
+                    let longest = processing_limits.longest();
+
+                    // Reject the entire transaction event as we do not want to index it nor
+                    // extract metrics from it.
+                    enforcement.event = CategoryLimit::new(DataCategory::Transaction, 1, longest);
+                    enforcement.extracted_metrics =
+                        CategoryLimit::new(DataCategory::TransactionProcessed, 1, longest);
+
+                    rate_limits.merge(processing_limits);
+                }
+            } else {
+                let event_limits = (self.check)(scoping.item(category), 1)?;
+                let longest = event_limits.longest();
+                enforcement.event = CategoryLimit::new(category, 1, longest);
+
+                // Record the same reason for attachments, if there are any.
+                enforcement.attachments = CategoryLimit::new(
+                    DataCategory::Attachment,
+                    summary.attachment_quantity,
+                    longest,
+                );
+
+                rate_limits.merge(event_limits);
+            }
         }
 
         if !enforcement.event.is_active() && summary.attachment_quantity > 0 {
