@@ -32,13 +32,15 @@ use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig};
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
 use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
-use relay_quotas::{DataCategory, RateLimits, ReasonCode};
+use relay_quotas::{DataCategory, RateLimits, ReasonCode, Scoping};
 use relay_redis::RedisPool;
 use relay_sampling::{DynamicSamplingContext, RuleId};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 
-use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
+use crate::actors::envelopes::{
+    EnvelopeManager, SendEnvelope, SendEnvelopeError, SendMetrics, SubmitEnvelope,
+};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::{Feature, ProjectState};
 use crate::actors::project_cache::ProjectCache;
@@ -527,12 +529,34 @@ impl EncodeEnvelope {
     }
 }
 
+/// Enforce rate limits on metrics buckets, and forward them to the EnvelopeManager if there
+/// is still enough quota.
+///
+/// NOTE: This struct has the same contents as [`super::envelopes::SendMetrics`], but
+/// is defined as a separate entity to clarify its purpose.
+///
+#[cfg(feature = "processing")]
+#[derive(Debug)]
+pub struct RateLimitMetricsBuckets {
+    /// The pre-aggregated metric buckets.
+    pub buckets: Vec<Bucket>,
+    /// Scoping information for the metrics.
+    pub scoping: Scoping,
+    /// The key of the logical partition to send the metrics to.
+    pub partition_key: Option<u64>,
+}
+
+/// Enforce rate limits on a metrics bucket and forward it to EnvelopeManager
+/// to be published.
+
 /// CPU-intensive processing tasks for envelopes.
 #[derive(Debug)]
 pub enum EnvelopeProcessor {
     ProcessEnvelope(Box<ProcessEnvelope>),
     ProcessMetrics(Box<ProcessMetrics>),
     EncodeEnvelope(Box<EncodeEnvelope>),
+    #[cfg(feature = "processing")]
+    RateLimitMetricsBuckets(RateLimitMetricsBuckets), // TODO: why are the others Box<_>?
 }
 
 impl EnvelopeProcessor {
@@ -564,6 +588,15 @@ impl FromMessage<EncodeEnvelope> for EnvelopeProcessor {
 
     fn from_message(message: EncodeEnvelope, _: ()) -> Self {
         Self::EncodeEnvelope(Box::new(message))
+    }
+}
+
+#[cfg(feature = "processing")]
+impl FromMessage<RateLimitMetricsBuckets> for EnvelopeProcessor {
+    type Response = NoResponse;
+
+    fn from_message(message: RateLimitMetricsBuckets, _: ()) -> Self {
+        Self::RateLimitMetricsBuckets(message)
     }
 }
 
@@ -2178,6 +2211,24 @@ impl EnvelopeProcessorService {
         }
     }
 
+    #[cfg(feature = "processing")]
+    fn handle_rate_limit_metrics_buckets(&self, message: RateLimitMetricsBuckets) {
+        let RateLimitMetricsBuckets {
+            buckets,
+            scoping,
+            partition_key,
+        } = message;
+
+        // TODO: Enforce rate limits here.
+
+        // All good, forward to envelope manager.
+        EnvelopeManager::from_registry().send(SendMetrics {
+            buckets,
+            scoping,
+            partition_key,
+        });
+    }
+
     fn encode_envelope_body(
         body: Vec<u8>,
         http_encoding: HttpEncoding,
@@ -2225,6 +2276,10 @@ impl EnvelopeProcessorService {
             EnvelopeProcessor::ProcessEnvelope(message) => self.handle_process_envelope(*message),
             EnvelopeProcessor::ProcessMetrics(message) => self.handle_process_metrics(*message),
             EnvelopeProcessor::EncodeEnvelope(message) => self.handle_encode_envelope(*message),
+            #[cfg(feature = "processing")]
+            EnvelopeProcessor::RateLimitMetricsBuckets(message) => {
+                self.handle_rate_limit_metrics_buckets(message)
+            }
         }
     }
 }

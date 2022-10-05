@@ -25,6 +25,7 @@ use crate::envelope::Envelope;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{self, EnvelopeContext, GarbageDisposal, Response};
 
+use super::processor::{EnvelopeProcessor, RateLimitMetricsBuckets};
 use super::project::ExpiryState;
 
 #[cfg(feature = "processing")]
@@ -626,6 +627,19 @@ impl Handler<FlushBuckets> for ProjectCache {
             return;
         }
 
+        // In processing mode, let the Processor rate limit the outgoing metrics bucket.
+        #[cfg(feature = "processing")]
+        if self.config.processing_enabled() {
+            EnvelopeProcessor::from_registry().send(RateLimitMetricsBuckets {
+                buckets,
+                scoping,
+                partition_key,
+            });
+
+            return;
+        }
+
+        // In non-processing mode, send the buckets to the envelope manager directly.
         EnvelopeManager::from_registry().send(SendMetrics {
             buckets,
             scoping,
