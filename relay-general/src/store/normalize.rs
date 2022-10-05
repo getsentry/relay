@@ -678,7 +678,7 @@ pub fn light_normalize_event(
     event.apply(|event, meta| {
         if !config.is_renormalize {
             // Validate and normalize transaction
-            // internally noops for non-transaction events
+            // (internally noops for non-transaction events).
             // TODO: Parts of this processor should probably be a filter so we
             // can revert some changes to ProcessingAction
             transactions::TransactionsProcessor.process_event(
