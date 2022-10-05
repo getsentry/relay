@@ -56,10 +56,6 @@ pub fn validate_timestamps(
     }
 }
 
-pub fn validate_annotated_transaction(event: &mut Annotated<Event>) -> ProcessingResult {
-    event.apply(|event, _meta| validate_transaction(event))
-}
-
 pub fn validate_transaction(event: &mut Event) -> ProcessingResult {
     if event.ty.value() != Some(&EventType::Transaction) {
         return Ok(());

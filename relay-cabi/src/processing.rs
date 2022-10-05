@@ -111,6 +111,7 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
     let mut event = Annotated::<Event>::from_json((*event).as_str())?;
     let light_normalization_config = LightNormalizationConfig {
         normalize_user_agent: (*processor).config().normalize_user_agent,
+        is_renormalize: (*processor).config().is_renormalize.unwrap_or(false),
         ..Default::default()
     };
     light_normalize_event(&mut event, &light_normalization_config)?;
