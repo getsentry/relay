@@ -20,6 +20,7 @@
 - Remove long-running futures from metrics flush. ([#1492](https://github.com/getsentry/relay/pull/1492))
 - Migrate to 2021 Rust edition. ([#1510](https://github.com/getsentry/relay/pull/1510))
 - Make the profiling frame object compatible with the stacktrace frame object from event. ([#1512](https://github.com/getsentry/relay/pull/1512))
+- Fix quota DataCategory::TransactionProcessed serialisation to match that of the CAPI. ([#1514](https://github.com/getsentry/relay/pull/1514))
 
 ## 22.9.0
 
