@@ -367,7 +367,10 @@ impl EnvelopeManagerService {
                 "failed to submit the envelope, merging buckets back: {}",
                 err
             );
-            Registry::aggregator().send(MergeBuckets::new(scoping.project_key, buckets))
+            Registry::aggregator()
+                .send(MergeBuckets::new(scoping.project_key, buckets))
+                .await
+                .ok();
         }
     }
 

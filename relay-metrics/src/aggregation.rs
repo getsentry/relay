@@ -17,8 +17,7 @@ use tokio::time;
 
 use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
 use relay_system::{
-    compat, AsyncResponse, Controller, FromMessage, Interface, NoResponse, Sender, Service,
-    Shutdown,
+    compat, AsyncResponse, Controller, FromMessage, Interface, Sender, Service, Shutdown,
 };
 
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
@@ -1429,9 +1428,9 @@ pub enum Aggregator {
     /// The health check message which makes sure that the service can accept the requests now.
     AcceptsMetrics(AcceptsMetrics, Sender<bool>),
     /// Insert metrics.
-    InsertMetrics(InsertMetrics),
+    InsertMetrics(InsertMetrics, Sender<Result<(), AggregateMetricsError>>),
     /// Merge the buckets.
-    MergeBuckets(MergeBuckets),
+    MergeBuckets(MergeBuckets, Sender<Result<(), AggregateMetricsError>>),
 
     /// Message is used only for tests to get the current number of buckets in `AggregatorService`.
     #[cfg(test)]
@@ -1456,20 +1455,26 @@ impl FromMessage<BucketCountInquiry> for Aggregator {
 }
 
 impl FromMessage<InsertMetrics> for Aggregator {
-    type Response = NoResponse;
-    fn from_message(message: InsertMetrics, _: ()) -> Self {
-        Self::InsertMetrics(message)
+    type Response = AsyncResponse<Result<(), AggregateMetricsError>>;
+    fn from_message(
+        message: InsertMetrics,
+        sender: Sender<Result<(), AggregateMetricsError>>,
+    ) -> Self {
+        Self::InsertMetrics(message, sender)
     }
 }
 
 impl FromMessage<MergeBuckets> for Aggregator {
-    type Response = NoResponse;
-    fn from_message(message: MergeBuckets, _: ()) -> Self {
-        Self::MergeBuckets(message)
+    type Response = AsyncResponse<Result<(), AggregateMetricsError>>;
+    fn from_message(
+        message: MergeBuckets,
+        sender: Sender<Result<(), AggregateMetricsError>>,
+    ) -> Self {
+        Self::MergeBuckets(message, sender)
     }
 }
 
-/// Represents the closure which accepts the `Recipient` and `FlushBuckets` stract and return the
+/// Represents the closure which accepts the `Recipient` and `FlushBuckets` struct and returns the
 /// pinned box with future, which can be awaited.
 ///
 /// TODO(actix): required by ProjectCache and will be removed with ProjectCache migration.
@@ -1936,23 +1941,30 @@ impl AggregatorService {
             Aggregator::BucketCountInquiry(_, sender) => {
                 sender.send(self.buckets.len());
             }
-            Aggregator::InsertMetrics(InsertMetrics {
-                project_key,
-                metrics,
-            }) => {
+            Aggregator::InsertMetrics(
+                InsertMetrics {
+                    project_key,
+                    metrics,
+                },
+                sender,
+            ) => {
                 for metric in metrics {
                     if let Err(err) = self.insert(project_key, metric) {
-                        relay_log::error!("failed to insert metrics: {}", err)
+                        sender.send(Err(err));
+                        return;
                     }
                 }
+                sender.send(Ok(()));
             }
-            Aggregator::MergeBuckets(MergeBuckets {
-                project_key,
-                buckets,
-            }) => {
-                if let Err(err) = self.merge_all(project_key, buckets) {
-                    relay_log::error!("failed to merge buckets: {}", err)
-                }
+            Aggregator::MergeBuckets(
+                MergeBuckets {
+                    project_key,
+                    buckets,
+                },
+                sender,
+            ) => {
+                let result = self.merge_all(project_key, buckets);
+                sender.send(result);
             }
         }
     }
@@ -1983,7 +1995,7 @@ impl Service for AggregatorService {
         tokio::spawn(async move {
             let mut ticker = time::interval(FLUSH_INTERVAL);
             let mut shutdown = Controller::subscribe_v2().await;
-            relay_log::info!("AggregatorService started.");
+            relay_log::info!("aggregator started");
             loop {
                 tokio::select! {
                     biased;
@@ -1992,12 +2004,12 @@ impl Service for AggregatorService {
                     // TODO(actix): `compat::send_to_recipient` is required by ProjectCache and will be removed with ProjectCache migration.
                     _ = ticker.tick() => self.try_flush(|recipient, flush_buckets| Box::pin(compat::send_to_recipient(recipient, flush_buckets))).await,
                     Some(message) = rx.recv() => self.handle_message(message).await,
-                    _ = shutdown.changed() => self.handle_shutdown(&shutdown.borrow()),
+                    _ = shutdown.changed() => self.handle_shutdown(&shutdown.borrow_and_update()),
 
                     else => break,
                 }
             }
-            relay_log::info!("AggregatorService shutted down.");
+            relay_log::info!("aggregator stopped");
         });
     }
 }
@@ -2017,7 +2029,6 @@ impl Drop for AggregatorService {
 #[cfg(test)]
 mod tests {
     use actix::prelude::*;
-    use futures01::{sync::oneshot, Future};
     use std::sync::{Arc, RwLock};
 
     use super::*;
@@ -2044,14 +2055,6 @@ mod tests {
 
         fn bucket_count(&self) -> usize {
             self.data.read().unwrap().buckets.len()
-        }
-
-        async fn bucket_count_async(&self) -> usize {
-            // We have to wait for a bit to let the test receiver to be called once to receive the
-            // message.
-            relay_test::block_fn(|| relay_test::delay(Duration::from_millis(10)).map_err(|_| ()))
-                .ok();
-            self.bucket_count()
         }
     }
 
@@ -2174,68 +2177,68 @@ mod tests {
     #[test]
     fn test_parse_buckets() {
         let json = r#"[
-           {
-             "name": "endpoint.response_time",
-             "unit": "millisecond",
-             "value": [36, 49, 57, 68],
-             "type": "d",
-             "timestamp": 1615889440,
-             "width": 10,
-             "tags": {
-                 "route": "user_index"
-             }
-           }
-         ]"#;
+          {
+            "name": "endpoint.response_time",
+            "unit": "millisecond",
+            "value": [36, 49, 57, 68],
+            "type": "d",
+            "timestamp": 1615889440,
+            "width": 10,
+            "tags": {
+                "route": "user_index"
+            }
+          }
+        ]"#;
 
         let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
         insta::assert_debug_snapshot!(buckets, @r###"
-         [
-             Bucket {
-                 timestamp: UnixTimestamp(1615889440),
-                 width: 10,
-                 name: "endpoint.response_time",
-                 value: Distribution(
-                     {
-                         36.0: 1,
-                         49.0: 1,
-                         57.0: 1,
-                         68.0: 1,
-                     },
-                 ),
-                 tags: {
-                     "route": "user_index",
-                 },
-             },
-         ]
-         "###);
+        [
+            Bucket {
+                timestamp: UnixTimestamp(1615889440),
+                width: 10,
+                name: "endpoint.response_time",
+                value: Distribution(
+                    {
+                        36.0: 1,
+                        49.0: 1,
+                        57.0: 1,
+                        68.0: 1,
+                    },
+                ),
+                tags: {
+                    "route": "user_index",
+                },
+            },
+        ]
+        "###);
     }
 
     #[test]
     fn test_parse_bucket_defaults() {
         let json = r#"[
-           {
-             "name": "endpoint.hits",
-             "value": 4,
-             "type": "c",
-             "timestamp": 1615889440,
-             "width": 10
-           }
-         ]"#;
+          {
+            "name": "endpoint.hits",
+            "value": 4,
+            "type": "c",
+            "timestamp": 1615889440,
+            "width": 10
+          }
+        ]"#;
 
         let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
         insta::assert_debug_snapshot!(buckets, @r###"
-         [
-             Bucket {
-                 timestamp: UnixTimestamp(1615889440),
-                 width: 10,
-                 name: "endpoint.hits",
-                 value: Counter(
-                     4.0,
-                 ),
-                 tags: {},
-             },
-         ]
-         "###);
+        [
+            Bucket {
+                timestamp: UnixTimestamp(1615889440),
+                width: 10,
+                name: "endpoint.hits",
+                value: Counter(
+                    4.0,
+                ),
+                tags: {},
+            },
+        ]
+        "###);
     }
 
     #[test]
@@ -2432,8 +2435,8 @@ mod tests {
         assert_eq!(
             bucket_key.cost(),
             88 + // BucketKey
-             5 + // name
-             (5 + 5 + 6 + 2) // tags
+            5 + // name
+            (5 + 5 + 6 + 2) // tags
         );
     }
 
@@ -2766,24 +2769,16 @@ mod tests {
     #[test]
     fn test_flush_bucket() {
         relay_test::setup();
-        let system = actix::System::current();
-        let (tx, rx) = oneshot::channel();
-        let rt = tokio::runtime::Runtime::new().unwrap();
-
         let receiver = TestReceiver::default();
-        let config = AggregatorConfig {
-            bucket_interval: 1,
-            initial_delay: 0,
-            debounce_delay: 0,
-            ..Default::default()
-        };
-        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let recipient = receiver.clone().start().recipient();
-
-        rt.spawn(async move {
-            actix::System::set_current(system);
-            compat::init();
-
+        relay_test::block_with_actix(async move {
+            let config = AggregatorConfig {
+                bucket_interval: 1,
+                initial_delay: 0,
+                debounce_delay: 0,
+                ..Default::default()
+            };
+            let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
             let aggregator = AggregatorService::new(config, recipient).start();
 
             let mut metric = some_metric();
@@ -2802,35 +2797,26 @@ mod tests {
             // and 1s for the flush shift. Adding 100ms buffer.
             tokio::time::sleep(Duration::from_millis(2100)).await;
             // receiver must have 1 bucket flushed
-            assert_eq!(receiver.bucket_count_async().await, 1);
-
-            tx.send(()).ok();
+            assert_eq!(receiver.bucket_count(), 1);
         });
-        relay_test::block_fn(|| rx).ok();
     }
 
     #[test]
     fn test_merge_back() {
         relay_test::setup();
-        let system = actix::System::current();
-        let (tx, rx) = oneshot::channel();
-        let rt = tokio::runtime::Runtime::new().unwrap();
-
-        // Create a receiver which accepts nothing:
-        let receiver = TestReceiver {
-            reject_all: true,
-            ..TestReceiver::default()
-        };
-        let config = AggregatorConfig {
-            bucket_interval: 1,
-            initial_delay: 0,
-            debounce_delay: 0,
-            ..Default::default()
-        };
-        let recipient = receiver.clone().start().recipient();
-
-        rt.spawn(async move {
-            actix::System::set_current(system);
+        relay_test::block_with_actix(async move {
+            // Create a receiver which accepts nothing:
+            let receiver = TestReceiver {
+                reject_all: true,
+                ..TestReceiver::default()
+            };
+            let config = AggregatorConfig {
+                bucket_interval: 1,
+                initial_delay: 0,
+                debounce_delay: 0,
+                ..Default::default()
+            };
+            let recipient = receiver.clone().start().recipient();
 
             let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
@@ -2847,10 +2833,7 @@ mod tests {
             let bucket_count = aggregator.send(BucketCountInquiry).await.unwrap();
             assert_eq!(bucket_count, 1);
             assert_eq!(receiver.bucket_count(), 0);
-
-            tx.send(()).ok();
         });
-        relay_test::block_fn(|| rx).ok();
     }
 
     #[test]

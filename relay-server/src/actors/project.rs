@@ -602,7 +602,13 @@ impl Project {
     /// The buckets will be keyed underneath this project key.
     pub fn merge_buckets(&mut self, buckets: Vec<Bucket>) {
         if self.metrics_allowed() {
-            Registry::aggregator().send(MergeBuckets::new(self.project_key, buckets))
+            let project_key = self.project_key;
+            tokio::spawn(async move {
+                Registry::aggregator()
+                    .send(MergeBuckets::new(project_key, buckets))
+                    .await
+                    .ok();
+            });
         }
     }
 
@@ -611,7 +617,13 @@ impl Project {
     /// The metrics will be keyed underneath this project key.
     pub fn insert_metrics(&mut self, metrics: Vec<Metric>) {
         if self.metrics_allowed() {
-            Registry::aggregator().send(InsertMetrics::new(self.project_key, metrics))
+            let project_key = self.project_key;
+            tokio::spawn(async move {
+                Registry::aggregator()
+                    .send(InsertMetrics::new(project_key, metrics))
+                    .await
+                    .ok();
+            });
         }
     }
 
