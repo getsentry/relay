@@ -67,7 +67,7 @@ where
 ///
 /// Panics if this is invoked outside of the [`Controller`](crate::Controller).
 ///
-/// NOTE: required by ProjectCache and will be removed with ProjectCache migration.
+/// TODO(actix): required by ProjectCache and will be removed with ProjectCache migration.
 pub async fn send_to_recipient<M>(addr: Recipient<M>, msg: M) -> Result<M::Result, MailboxError>
 where
     M: Message + Send + 'static,

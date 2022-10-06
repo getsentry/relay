@@ -175,6 +175,7 @@ impl Controller {
 impl Default for Controller {
     fn default() -> Self {
         let (shutdown_sender, shutdown_receiver) = watch::channel(None);
+
         Controller {
             timeout: Duration::from_secs(0),
             subscribers: Vec::new(),

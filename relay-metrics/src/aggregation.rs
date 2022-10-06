@@ -645,7 +645,7 @@ fn tags_cost(tags: &BTreeMap<String, String>) -> usize {
 #[fail(display = "failed to parse metric bucket")]
 pub struct ParseBucketError(#[cause] serde_json::Error);
 
-/// An aggregation of metric values by the [`AggregatorService`].
+/// An aggregation of metric values by the [`Aggregator`].
 ///
 /// As opposed to single metric values, bucket aggregations can carry multiple values. See
 /// [`MetricType`] for a description on how values are aggregated in buckets. Values are aggregated
@@ -1104,7 +1104,7 @@ impl Default for AggregatorConfig {
     }
 }
 
-/// Bucket in the [`AggregatorService`] with a defined flush time.
+/// Bucket in the [`Aggregator`] with a defined flush time.
 ///
 /// This type implements an inverted total ordering. The maximum queued bucket has the lowest flush
 /// time, which is suitable for using it in a [`BinaryHeap`].
@@ -1349,7 +1349,7 @@ pub struct FlushBuckets {
     pub buckets: Vec<Bucket>,
 }
 
-// NOTE(): required by ProjectCache and will be removed with ProjectCache migration.
+// TODO(actix): required by ProjectCache and will be removed with ProjectCache migration.
 impl Message for FlushBuckets {
     type Result = ();
 }
@@ -1361,7 +1361,7 @@ pub struct InsertMetrics {
     metrics: Vec<Metric>,
 }
 
-// NOTE: required by ProjectCache and will be removed with ProjectCache migration.
+// TODO(actix): required by ProjectCache and will be removed with ProjectCache migration.
 impl Message for InsertMetrics {
     type Result = Result<(), AggregateMetricsError>;
 }
@@ -1397,7 +1397,7 @@ pub struct MergeBuckets {
     buckets: Vec<Bucket>,
 }
 
-// NOTE: required by ProjectCache and will be removed with ProjectCache migration.
+// TODO(actix): required by ProjectCache and will be removed with ProjectCache migration.
 impl Message for MergeBuckets {
     type Result = Result<(), AggregateMetricsError>;
 }
@@ -1423,7 +1423,7 @@ impl MergeBuckets {
     }
 }
 
-/// Aggregator service interface
+/// Aggregator service interface.
 #[derive(Debug)]
 pub enum Aggregator {
     /// The health check message which makes sure that the service can accept the requests now.
@@ -1472,7 +1472,7 @@ impl FromMessage<MergeBuckets> for Aggregator {
 /// Represents the closure which accepts the `Recipient` and `FlushBuckets` stract and return the
 /// pinned box with future, which can be awaited.
 ///
-/// NOTE: required by ProjectCache and will be removed with ProjectCache migration.
+/// TODO(actix): required by ProjectCache and will be removed with ProjectCache migration.
 type CompatSender = fn(
     Recipient<FlushBuckets>,
     FlushBuckets,
@@ -1512,7 +1512,7 @@ type CompatSender = fn(
 pub struct AggregatorService {
     config: AggregatorConfig,
     buckets: HashMap<BucketKey, QueuedBucket>,
-    // NOTE: required by ProjectCache and will be removed with ProjectCache migration.
+    // TODO(actix): required by ProjectCache and will be removed with ProjectCache migration.
     receiver: Recipient<FlushBuckets>,
     state: AggregatorState,
     cost_tracker: CostTracker,
@@ -1989,7 +1989,7 @@ impl Service for AggregatorService {
                     biased;
 
 
-                    // NOTE: `compat::send_to_recipient` is required by ProjectCache and will be removed with ProjectCache migration.
+                    // TODO(actix): `compat::send_to_recipient` is required by ProjectCache and will be removed with ProjectCache migration.
                     _ = ticker.tick() => self.try_flush(|recipient, flush_buckets| Box::pin(compat::send_to_recipient(recipient, flush_buckets))).await,
                     Some(message) = rx.recv() => self.handle_message(message).await,
                     _ = shutdown.changed() => self.handle_shutdown(&shutdown.borrow()),
@@ -2027,7 +2027,7 @@ mod tests {
         buckets: Vec<Bucket>,
     }
 
-    // NOTE: this test receiver with its implementation will be removed onces the ProjectCache actor
+    // TODO(actix): this test receiver with its implementation will be removed onces the ProjectCache actor
     // is migrated to the new tokio runtime.
     #[derive(Clone, Default)]
     struct TestReceiver {

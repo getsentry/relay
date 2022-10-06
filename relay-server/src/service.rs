@@ -126,7 +126,7 @@ pub struct Registry {
 impl Registry {
     /// Get the [`AggregatorService`] address from the registry.
     ///
-    /// NOTE: this is temporary solution while migrating `ProjectCache` actor to the new tokio
+    /// TODO(actix): this is temporary solution while migrating `ProjectCache` actor to the new tokio
     /// runtime and follow up refactoring of the dependencies.
     pub fn aggregator() -> Addr<Aggregator> {
         REGISTRY.get().unwrap().aggregator.clone()
@@ -162,6 +162,7 @@ impl ServiceState {
         let registry = system.registry();
 
         let main_runtime = utils::create_runtime(config.cpu_concurrency());
+        let aggregator_runtime = utils::create_runtime(1);
         let outcome_runtime = utils::create_runtime(1);
         let mut _store_runtime = None;
 
@@ -203,12 +204,14 @@ impl ServiceState {
         let project_cache = Arbiter::start(|_| project_cache);
         registry.set(project_cache.clone());
 
-        let health_check = HealthCheckService::new(config.clone()).start();
-        let relay_cache = RelayCacheService::new(config.clone()).start();
-
+        let guard = aggregator_runtime.enter();
         let aggregator =
             AggregatorService::new(config.aggregator_config(), project_cache.recipient());
         let aggregator = aggregator.start();
+        drop(guard);
+
+        let health_check = HealthCheckService::new(config.clone()).start();
+        let relay_cache = RelayCacheService::new(config.clone()).start();
 
         if let Some(aws_api) = config.aws_runtime_api() {
             if let Ok(aws_extension) = AwsExtension::new(aws_api) {
