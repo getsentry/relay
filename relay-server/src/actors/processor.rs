@@ -1957,6 +1957,7 @@ impl EnvelopeProcessorService {
             measurements_config: state.project_state.config.measurements.as_ref(),
             breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
             normalize_user_agent: Some(true),
+            is_renormalize: false,
         };
 
         metric!(timer(RelayTimers::EventProcessingLightNormalization), {

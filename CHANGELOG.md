@@ -7,6 +7,10 @@
 - Limit the number of custom measurements per event. ([#1483](https://github.com/getsentry/relay/pull/1483)))
 - Add INP web vital as a measurement. ([#1487](https://github.com/getsentry/relay/pull/1487))
 
+** Bug Fixes**:
+
+- Make sure that non-processing Relays drop all invalid transactions. ([#1513](https://github.com/getsentry/relay/pull/1513))
+
 **Internal**:
 
 - Introduce a new profile format called `sample`. ([#1462](https://github.com/getsentry/relay/pull/1462))
@@ -15,6 +19,7 @@
 - Normalize measurement units in event payload. ([#1488](https://github.com/getsentry/relay/pull/1488))
 - Remove long-running futures from metrics flush. ([#1492](https://github.com/getsentry/relay/pull/1492))
 - Migrate to 2021 Rust edition. ([#1510](https://github.com/getsentry/relay/pull/1510))
+- Make the profiling frame object compatible with the stacktrace frame object from event. ([#1512](https://github.com/getsentry/relay/pull/1512))
 - Update the internal service architecture for metrics aggregator service. ([#1508](https://github.com/getsentry/relay/pull/1508))
 
 ## 22.9.0
