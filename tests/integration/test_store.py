@@ -1,12 +1,13 @@
 import json
 import os
 import queue
-import datetime
+from time import sleep
 import uuid
 import six
 import socket
 import threading
 import pytest
+from datetime import datetime
 
 from requests.exceptions import HTTPError
 from flask import abort, Response
@@ -471,96 +472,89 @@ def test_processing_quotas(
 
 
 def test_rate_limit_metrics_buckets(
-    mini_sentry,
-    relay_with_processing,
-    outcomes_consumer,
-    events_consumer,
-    transactions_consumer,
-    event_type,
-    window,
-    max_rate_limit,
+    mini_sentry, relay_with_processing, metrics_consumer,
 ):
-
-    relay = relay_with_processing({"processing": {"max_rate_limit": max_rate_limit}})
+    bucket_interval = 1  # second
+    relay = relay_with_processing(
+        {
+            "processing": {"max_rate_limit": 2 * 86400},
+            "aggregator": {
+                "bucket_interval": bucket_interval,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+            },
+        }
+    )
+    metrics_consumer = metrics_consumer()
 
     project_id = 42
     projectconfig = mini_sentry.add_full_project_config(project_id)
     # add another dsn key (we want 2 keys so we can set limits per key)
     mini_sentry.add_dsn_key_to_project(project_id)
 
-    # we should have 2 keys (one created with the config and one added above)
     public_keys = mini_sentry.get_dsn_public_key_configs(project_id)
-
     key_id = public_keys[0]["numericId"]
-
-    # Default events are also mapped to "error" by Relay.
-    category = "error" if event_type == "default" else event_type
 
     projectconfig["config"]["quotas"] = [
         {
             "id": "test_rate_limiting_{}".format(uuid.uuid4().hex),
             "scope": "key",
             "scopeId": six.text_type(key_id),
-            "categories": [category],
+            "categories": ["transaction_processed"],
             "limit": 5,
-            "window": window,
+            "window": 86400,
             "reasonCode": "get_lost",
         }
     ]
 
-    if event_type == "transaction":
-        transform = make_transaction
-    elif event_type == "error":
-        transform = make_error
-    else:
-        transform = lambda e: e
+    def generate_ticks():
+        # Generate a new timestamp for every bucket, so they do not get merged by the aggregator
+        tick = int(datetime.utcnow().timestamp() // bucket_interval * bucket_interval)
+        while True:
+            yield tick
+            tick += bucket_interval
 
-    for i in range(5):
-        # send using the first dsn
-        relay.send_event(
-            project_id, transform({"message": f"regular{i}"}), dsn_key_idx=0
-        )
+    tick = generate_ticks()
 
-        event, _ = events_consumer.get_event()
-        assert event["logentry"]["formatted"] == f"regular{i}"
+    def make_bucket(name, type_, values):
+        return {
+            "org_id": 1,
+            "project_id": project_id,
+            "timestamp": next(tick),
+            "name": name,
+            "type": type_,
+            "value": values,
+            "width": bucket_interval,
+        }
 
-    # this one will not get a 429 but still get rate limited (silently) because
-    # of our caching
-    relay.send_event(project_id, transform({"message": "some_message"}), dsn_key_idx=0)
+    relay.send_metrics_buckets(
+        project_id,
+        [
+            # Send a few non-duration buckets, they will not deplete the quota
+            make_bucket("d:transactions/measurements.lcp@millisecond", "d", 10 * [1.0]),
+            # Session metrics are accepted
+            make_bucket("d:sessions/session@none", "c", 1),
+            make_bucket("d:sessions/duration@second", "d", 9 * [1]),
+            # Duration metric, subtract 3 from quota
+            make_bucket("d:transactions/duration@millisecond", "d", [1, 2, 3]),
+            # Can still send unlimited other metrics
+            make_bucket("d:transactions/measurements.lcp@millisecond", "d", 10 * [1.0]),
+            # Duration metric, subtract 2 from quota. Now, quota is exceeded.
+            make_bucket("d:transactions/duration@millisecond", "d", [4, 5]),
+            # FCP buckets won't make it into kakfa.
+            make_bucket("d:transactions/measurements.fcp@millisecond", "d", 10 * [1.0]),
+            # Another three for duration, won't make it into kafka.
+            make_bucket("d:transactions/duration@millisecond", "d", [6, 7, 8]),
+            # Session metrics are still accepted.
+            make_bucket("d:sessions/session@user", "s", [1254]),
+        ],
+    )
 
-    if outcomes_consumer is not None:
-        outcomes_consumer.assert_rate_limited(
-            "get_lost", key_id=key_id, categories=[category]
-        )
-    else:
-        # since we don't wait for the outcome, wait a little for the event to go through
-        sleep(0.1)
+    # Expect two of 9 buckets to be dropped:
+    produced_buckets = [metrics_consumer.get_metric() for _ in range(7)]
+    metrics_consumer.assert_empty()
 
-    for _ in range(5):
-        with pytest.raises(HTTPError) as excinfo:
-            # Failed: DID NOT RAISE <class 'requests.exceptions.HTTPError'>
-            relay.send_event(project_id, transform({"message": "rate_limited"}))
-        headers = excinfo.value.response.headers
-
-        retry_after = headers["retry-after"]
-        assert int(retry_after) <= window
-        assert int(retry_after) <= max_rate_limit
-        retry_after2, rest = headers["x-sentry-rate-limits"].split(":", 1)
-        assert int(retry_after2) == int(retry_after)
-        assert rest == "%s:key:get_lost" % category
-        if outcomes_consumer is not None:
-            outcomes_consumer.assert_rate_limited(
-                "get_lost", key_id=key_id, categories=[category]
-            )
-
-    for i in range(10):
-        # now send using the second key
-        relay.send_event(
-            project_id, transform({"message": f"otherkey{i}"}), dsn_key_idx=1
-        )
-        event, _ = events_consumer.get_event()
-
-        assert event["logentry"]["formatted"] == f"otherkey{i}"
+    assert produced_buckets == []
 
 
 def test_events_buffered_before_auth(relay, mini_sentry):

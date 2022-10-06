@@ -2255,6 +2255,7 @@ impl EnvelopeProcessorService {
             };
 
             if !matches!(mri.namespace, MetricNamespace::Transactions) {
+                // TODO: Should we rate limit sessions as well?
                 return true;
             }
 
