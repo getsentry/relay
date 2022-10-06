@@ -2827,20 +2827,6 @@
 <span id="2825">2825</span>
 <span id="2826">2826</span>
 <span id="2827">2827</span>
-<span id="2828">2828</span>
-<span id="2829">2829</span>
-<span id="2830">2830</span>
-<span id="2831">2831</span>
-<span id="2832">2832</span>
-<span id="2833">2833</span>
-<span id="2834">2834</span>
-<span id="2835">2835</span>
-<span id="2836">2836</span>
-<span id="2837">2837</span>
-<span id="2838">2838</span>
-<span id="2839">2839</span>
-<span id="2840">2840</span>
-<span id="2841">2841</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::cmp::max</span>;
 <span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std::convert::TryFrom</span>;
@@ -2875,7 +2861,7 @@
 <span class="kw">use</span> <span class="ident">relay_general::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Array</span>, <span class="ident">FromValue</span>, <span class="ident">Object</span>, <span class="ident">ProcessingAction</span>, <span class="ident">Value</span>};
 <span class="kw">use</span> <span class="ident">relay_log::LogError</span>;
 <span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">Bucket</span>, <span class="ident">InsertMetrics</span>, <span class="ident">MergeBuckets</span>, <span class="ident">Metric</span>};
-<span class="kw">use</span> <span class="ident">relay_quotas</span>::{<span class="ident">DataCategory</span>, <span class="ident">RateLimits</span>, <span class="ident">ReasonCode</span>};
+<span class="kw">use</span> <span class="ident">relay_quotas</span>::{<span class="ident">DataCategory</span>, <span class="ident">ReasonCode</span>};
 <span class="kw">use</span> <span class="ident">relay_redis::RedisPool</span>;
 <span class="kw">use</span> <span class="ident">relay_sampling</span>::{<span class="ident">DynamicSamplingContext</span>, <span class="ident">RuleId</span>};
 <span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
@@ -3070,14 +3056,6 @@
     <span class="doccomment">/// This element is obtained from the event or transaction item and re-serialized into the</span>
     <span class="doccomment">/// resulting item.</span>
     <span class="ident">sample_rates</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Rate limits returned in processing mode.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The rate limiter is invoked in processing mode, after which the resulting limits are stored</span>
-    <span class="doccomment">/// in this field. Note that there can be rate limits even if the envelope still carries items.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// These are always empty in non-processing mode, since the rate limiter is not invoked.</span>
-    <span class="ident">rate_limits</span>: <span class="ident">RateLimits</span>,
 
     <span class="doccomment">/// Metrics extracted from items in the envelope.</span>
     <span class="doccomment">///</span>
@@ -3306,9 +3284,6 @@
     <span class="doccomment">/// removed from the envelope. Otherwise, if the envelope is empty or the entire envelope needs</span>
     <span class="doccomment">/// to be dropped, this is `None`.</span>
     <span class="kw">pub</span> <span class="ident">envelope</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">Envelope</span>, <span class="ident">EnvelopeContext</span>)<span class="op">&gt;</span>,
-
-    <span class="doccomment">/// All rate limits that have been applied on the envelope.</span>
-    <span class="kw">pub</span> <span class="ident">rate_limits</span>: <span class="ident">RateLimits</span>,
 }
 
 <span class="doccomment">/// Applies processing to all contents of the given envelope.</span>
@@ -3995,7 +3970,6 @@
             <span class="ident">transaction_metrics_extracted</span>: <span class="bool-val">false</span>,
             <span class="ident">metrics</span>: <span class="ident">Metrics::default</span>(),
             <span class="ident">sample_rates</span>: <span class="prelude-val">None</span>,
-            <span class="ident">rate_limits</span>: <span class="ident">RateLimits::new</span>(),
             <span class="ident">extracted_metrics</span>: <span class="ident">Vec::new</span>(),
             <span class="ident">project_state</span>,
             <span class="ident">sampling_project_state</span>,
@@ -4597,10 +4571,9 @@
 
         <span class="kw">if</span> <span class="ident">limits</span>.<span class="ident">is_limited</span>() {
             <span class="ident">ProjectCache::from_registry</span>()
-                .<span class="ident">do_send</span>(<span class="ident">UpdateRateLimits::new</span>(<span class="ident">scoping</span>.<span class="ident">project_key</span>, <span class="ident">limits</span>.<span class="ident">clone</span>()));
+                .<span class="ident">do_send</span>(<span class="ident">UpdateRateLimits::new</span>(<span class="ident">scoping</span>.<span class="ident">project_key</span>, <span class="ident">limits</span>));
         }
 
-        <span class="ident">state</span>.<span class="ident">rate_limits</span> <span class="op">=</span> <span class="ident">limits</span>;
         <span class="ident">enforcement</span>.<span class="ident">track_outcomes</span>(<span class="kw-2">&amp;</span><span class="ident">state</span>.<span class="ident">envelope</span>, <span class="kw-2">&amp;</span><span class="ident">state</span>.<span class="ident">envelope_context</span>.<span class="ident">scoping</span>());
 
         <span class="kw">if</span> <span class="ident">remove_event</span> {
@@ -4911,7 +4884,6 @@
 
                         <span class="prelude-val">Ok</span>(<span class="ident">ProcessEnvelopeResponse</span> {
                             <span class="ident">envelope</span>: <span class="ident">envelope_response</span>,
-                            <span class="ident">rate_limits</span>: <span class="ident">state</span>.<span class="ident">rate_limits</span>,
                         })
                     }
                     <span class="prelude-val">Err</span>(<span class="ident">err</span>) =&gt; {

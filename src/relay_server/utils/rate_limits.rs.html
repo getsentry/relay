@@ -847,6 +847,12 @@
 <span id="845">845</span>
 <span id="846">846</span>
 <span id="847">847</span>
+<span id="848">848</span>
+<span id="849">849</span>
+<span id="850">850</span>
+<span id="851">851</span>
+<span id="852">852</span>
+<span id="853">853</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>::{<span class="self">self</span>, <span class="ident">Write</span>};
 
 <span class="kw">use</span> <span class="ident">relay_quotas</span>::{
@@ -1020,6 +1026,10 @@
         <span class="ident">summary</span>
     }
 
+    <span class="doccomment">/// Infers the appropriate [`DataCategory`] for the envelope [`Item`].</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The inferred category is only applied to the [`EnvelopeSummary`] if there is not yet</span>
+    <span class="doccomment">/// a category set.</span>
     <span class="kw">fn</span> <span class="ident">infer_category</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">item</span>: <span class="kw-2">&amp;</span><span class="ident">Item</span>) {
         <span class="kw">if</span> <span class="macro">matches!</span>(<span class="self">self</span>.<span class="ident">event_category</span>, <span class="prelude-val">None</span> <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="ident">DataCategory::Default</span>)) {
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">category</span>) <span class="op">=</span> <span class="ident">infer_event_category</span>(<span class="ident">item</span>) {
@@ -1035,6 +1045,8 @@
     <span class="doccomment">/// The limited data category.</span>
     <span class="ident">category</span>: <span class="ident">DataCategory</span>,
     <span class="doccomment">/// The total rate limited quantity across all items.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This will be `0` if nothing was rate limited.</span>
     <span class="ident">quantity</span>: <span class="ident">usize</span>,
     <span class="doccomment">/// The reason code of the applied rate limit.</span>
     <span class="doccomment">///</span>

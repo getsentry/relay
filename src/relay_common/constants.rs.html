@@ -662,6 +662,8 @@
 <span id="660">660</span>
 <span id="661">661</span>
 <span id="662">662</span>
+<span id="663">663</span>
+<span id="664">664</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Constants shared with the C-ABI and Sentry.</span>
 
 <span class="kw">use</span> <span class="ident">std::convert::TryInto</span>;
@@ -758,7 +760,7 @@
 
 <span class="doccomment">/// Classifies the type of data that is being ingested.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">Hash</span>, <span class="ident">Ord</span>, <span class="ident">PartialEq</span>, <span class="ident">PartialOrd</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;lowercase&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;snake_case&quot;</span>)]</span>
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">i8</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">DataCategory</span> {
     <span class="doccomment">/// Reserved and unused.</span>
@@ -792,6 +794,7 @@
 <span class="kw">impl</span> <span class="ident">DataCategory</span> {
     <span class="doccomment">/// Returns the data category corresponding to the given name.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_name</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="self">Self</span> {
+        <span class="comment">// TODO: This should probably use serde.</span>
         <span class="kw">match</span> <span class="ident">string</span> {
             <span class="string">&quot;default&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Default</span>,
             <span class="string">&quot;error&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Error</span>,
@@ -808,6 +811,7 @@
 
     <span class="doccomment">/// Returns the canonical name of this data category.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">name</span>(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+        <span class="comment">// TODO: This should probably use serde.</span>
         <span class="kw">match</span> <span class="self">self</span> {
             <span class="ident"><span class="self">Self</span>::Default</span> =&gt; <span class="string">&quot;default&quot;</span>,
             <span class="ident"><span class="self">Self</span>::Error</span> =&gt; <span class="string">&quot;error&quot;</span>,
