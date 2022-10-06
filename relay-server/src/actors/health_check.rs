@@ -11,7 +11,7 @@ use relay_system::{
 };
 
 use crate::actors::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
-use crate::service::REGISTRY;
+use crate::service::{Registry, REGISTRY};
 use crate::statsd::RelayGauges;
 
 /// Checks whether Relay is alive and healthy based on its variant.
@@ -96,15 +96,10 @@ impl HealthCheckService {
                     return false;
                 }
 
-                // NOTE: usually this unwrap is hidden in the `from_registry` function on the
-                // specific service or actor. But since the `AggregatorService` is in the different
-                // crate we cannot easily implement that pattarn and for now we have to use
-                // REGISTRY dirrectly and get the aggregator service out of it.
-                let aggregator = REGISTRY
-                    .get()
-                    .map(|registry| registry.aggregator.clone())
-                    .unwrap();
-                aggregator.send(AcceptsMetrics).await.unwrap_or_default()
+                Registry::aggregator()
+                    .send(AcceptsMetrics)
+                    .await
+                    .unwrap_or_default()
             }
         }
     }

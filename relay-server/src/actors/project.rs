@@ -32,7 +32,7 @@ use crate::extractors::RequestMeta;
 use crate::metrics_extraction::sessions::SessionMetricsConfig;
 use crate::metrics_extraction::transactions::TransactionMetricsConfig;
 use crate::metrics_extraction::TaggingRule;
-use crate::service::REGISTRY;
+use crate::service::Registry;
 use crate::statsd::RelayCounters;
 use crate::utils::{self, EnvelopeContext, EnvelopeLimiter, ErrorBoundary, Response};
 
@@ -602,12 +602,7 @@ impl Project {
     /// The buckets will be keyed underneath this project key.
     pub fn merge_buckets(&mut self, buckets: Vec<Bucket>) {
         if self.metrics_allowed() {
-            // Get the `AggregatorService` from the registry and send the message to it.
-            if let Some(registry) = REGISTRY.get() {
-                registry
-                    .aggregator
-                    .send(MergeBuckets::new(self.project_key, buckets))
-            }
+            Registry::aggregator().send(MergeBuckets::new(self.project_key, buckets))
         }
     }
 
@@ -616,12 +611,7 @@ impl Project {
     /// The metrics will be keyed underneath this project key.
     pub fn insert_metrics(&mut self, metrics: Vec<Metric>) {
         if self.metrics_allowed() {
-            // Get the `AggregatorService` from the registry and send the message to it.
-            if let Some(registry) = REGISTRY.get() {
-                registry
-                    .aggregator
-                    .send(InsertMetrics::new(self.project_key, metrics))
-            }
+            Registry::aggregator().send(InsertMetrics::new(self.project_key, metrics))
         }
     }
 
