@@ -365,6 +365,55 @@ mod tests {
     }
 
     #[test]
+    fn test_quantity_0() {
+        let quotas = &[Quota {
+            id: Some(format!("test_quantity_0_{:?}", SystemTime::now())),
+            categories: DataCategories::new(),
+            scope: QuotaScope::Organization,
+            scope_id: None,
+            limit: Some(1),
+            window: Some(60),
+            reason_code: Some(ReasonCode::new("get_lost")),
+        }];
+
+        let scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: &Scoping {
+                organization_id: 42,
+                project_id: ProjectId::new(43),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(44),
+            },
+        };
+
+        let rate_limiter = build_rate_limiter();
+
+        // limit is 1, so first call not rate limited
+        assert!(!rate_limiter
+            .is_rate_limited(quotas, scoping, 1)
+            .unwrap()
+            .is_limited());
+
+        // quota is now exhausted
+        assert!(rate_limiter
+            .is_rate_limited(quotas, scoping, 1)
+            .unwrap()
+            .is_limited());
+
+        // quota is exhausted, regardless of the quantity
+        assert!(rate_limiter
+            .is_rate_limited(quotas, scoping, 0)
+            .unwrap()
+            .is_limited());
+
+        // quota is exhausted, regardless of the quantity
+        assert!(rate_limiter
+            .is_rate_limited(quotas, scoping, 1)
+            .unwrap()
+            .is_limited());
+    }
+
+    #[test]
     fn test_bails_immediately_without_any_quota() {
         let scoping = ItemScoping {
             category: DataCategory::Error,
