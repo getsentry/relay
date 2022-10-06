@@ -2244,7 +2244,8 @@ impl EnvelopeProcessorService {
         //      b. For any other metric in the transaction namespace, we check the limit but we
         //         do not count against the quota.
         buckets.retain(|bucket| {
-            // TODO: Split this off into `should_keep_bucket`.
+            // NOTE: The order of buckets is not deterministic here, because `Aggregator::pop_flush_buckets`
+            //       produces a hash map.
             // FIXME: Add namespace enum to `Bucket` so we don't have to parse the MRI for every bucket.
             let mri = match MetricResourceIdentifier::parse(bucket.name.as_str()) {
                 Ok(mri) => mri,
@@ -2259,7 +2260,6 @@ impl EnvelopeProcessorService {
                 return true;
             }
 
-            dbg!(mri.name);
             let quantity = if mri.name == "duration" {
                 bucket.value.len()
             } else {
@@ -2276,7 +2276,8 @@ impl EnvelopeProcessorService {
                         ProjectCache::from_registry()
                             .do_send(UpdateRateLimits::new(scoping.project_key, limits));
                     }
-                    is_limited
+                    // only retain if not limited:
+                    !is_limited
                 }
                 Err(_) => todo!(),
             }

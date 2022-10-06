@@ -500,7 +500,9 @@ def test_rate_limit_metrics_buckets(
             "id": "test_rate_limiting_{}".format(uuid.uuid4().hex),
             "scope": "key",
             "scopeId": six.text_type(key_id),
-            "categories": ["transaction_processed"],
+            "categories": [
+                "transactionprocessed"
+            ],  # TODO: change to transaction_processed
             "limit": 5,
             "window": 86400,
             "reasonCode": "get_lost",
@@ -527,34 +529,114 @@ def test_rate_limit_metrics_buckets(
             "width": bucket_interval,
         }
 
-    relay.send_metrics_buckets(
-        project_id,
+    def send_buckets(buckets):
+        relay.send_metrics_buckets(project_id, buckets)
+        sleep(0.1)  # give relay time to flush the buckets
+
+    # NOTE: Sending these buckets in multiple envelopes because the order of flushing
+    # and also the order of rate limiting is not deterministic.
+    send_buckets(
         [
             # Send a few non-duration buckets, they will not deplete the quota
             make_bucket("d:transactions/measurements.lcp@millisecond", "d", 10 * [1.0]),
             # Session metrics are accepted
             make_bucket("d:sessions/session@none", "c", 1),
             make_bucket("d:sessions/duration@second", "d", 9 * [1]),
+        ]
+    )
+    send_buckets(
+        [
             # Duration metric, subtract 3 from quota
             make_bucket("d:transactions/duration@millisecond", "d", [1, 2, 3]),
-            # Can still send unlimited other metrics
-            make_bucket("d:transactions/measurements.lcp@millisecond", "d", 10 * [1.0]),
+        ],
+    )
+    send_buckets(
+        [
+            # Can still send unlimited non-duration metrics
+            make_bucket("d:transactions/measurements.lcp@millisecond", "d", 10 * [2.0]),
+        ],
+    )
+    send_buckets(
+        [
             # Duration metric, subtract 2 from quota. Now, quota is exceeded.
-            make_bucket("d:transactions/duration@millisecond", "d", [4, 5]),
+            make_bucket("d:transactions/duration@millisecond", "d", [4, 5, 6]),
+        ],
+    )
+    send_buckets(
+        [
             # FCP buckets won't make it into kakfa.
-            make_bucket("d:transactions/measurements.fcp@millisecond", "d", 10 * [1.0]),
+            make_bucket("d:transactions/measurements.fcp@millisecond", "d", 10 * [7.0]),
             # Another three for duration, won't make it into kafka.
-            make_bucket("d:transactions/duration@millisecond", "d", [6, 7, 8]),
+        ],
+    )
+    send_buckets(
+        [
+            make_bucket("d:transactions/duration@millisecond", "d", [7, 8, 9]),
             # Session metrics are still accepted.
             make_bucket("d:sessions/session@user", "s", [1254]),
         ],
     )
 
     # Expect two of 9 buckets to be dropped:
-    produced_buckets = [metrics_consumer.get_metric() for _ in range(7)]
+    produced_buckets = [metrics_consumer.get_metric(timeout=1) for _ in range(7)]
     metrics_consumer.assert_empty()
 
-    assert produced_buckets == []
+    # Sort buckets to prevent ordering flakiness:
+    produced_buckets.sort(key=lambda b: b["name"])
+    for bucket in produced_buckets:
+        del bucket["timestamp"]
+
+    assert produced_buckets == [
+        {
+            "name": "d:sessions/duration@second",
+            "org_id": 1,
+            "project_id": 42,
+            "type": "d",
+            "value": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+        },
+        {
+            "name": "d:sessions/session@none",
+            "org_id": 1,
+            "project_id": 42,
+            "type": "c",
+            "value": 1.0,
+        },
+        {
+            "name": "d:sessions/session@user",
+            "org_id": 1,
+            "project_id": 42,
+            "type": "s",
+            "value": [1254],
+        },
+        {
+            "name": "d:transactions/duration@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "type": "d",
+            "value": [1.0, 2.0, 3.0],
+        },
+        # {
+        #     "name": "d:transactions/measurements.fcp@millisecond",
+        #     "org_id": 1,
+        #     "project_id": 42,
+        #     "type": "d",
+        #     "value": [7.0, 7.0, 7.0, 7.0, 7.0, 7.0, 7.0, 7.0, 7.0, 7.0],
+        # },
+        {
+            "name": "d:transactions/measurements.lcp@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "type": "d",
+            "value": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+        },
+        {
+            "name": "d:transactions/measurements.lcp@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "type": "d",
+            "value": [2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0],
+        },
+    ]
 
 
 def test_events_buffered_before_auth(relay, mini_sentry):
