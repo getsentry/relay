@@ -1,5 +1,6 @@
 ---
 source: relay-general/tests/test_fixtures.rs
+assertion_line: 109
 expression: "relay_general::protocol::event_json_schema()"
 ---
 {
@@ -917,6 +918,9 @@ expression: "relay_general::protocol::event_json_schema()"
           "$ref": "#/definitions/NativeDebugImage"
         },
         {
+          "$ref": "#/definitions/NativeDebugImage"
+        },
+        {
           "$ref": "#/definitions/ProguardDebugImage"
         },
         {
@@ -1450,7 +1454,7 @@ expression: "relay_general::protocol::event_json_schema()"
               ]
             },
             "addr_mode": {
-              "description": " Defines the addressing mode for addresses.",
+              "description": " Defines the addressing mode for addresses.\n\n This can be:\n - `\"abs\"` (the default): `instruction_addr` is absolute.\n - `\"rel:$idx\"`: `instruction_addr` is relative to the `debug_meta.image` identified by its index in the list.\n - `\"rel:$uuid\"`: `instruction_addr` is relative to the `debug_meta.image` identified by its `debug_id`.\n\n If one of the `\"rel:XXX\"` variants is given together with `function_id`, the `instruction_addr` is relative\n to the uniquely identified function in the references `debug_meta.image`.",
               "default": null,
               "type": [
                 "string",
@@ -1493,6 +1497,18 @@ expression: "relay_general::protocol::event_json_schema()"
               "type": [
                 "string",
                 "null"
+              ]
+            },
+            "function_id": {
+              "description": " (.NET) The function id / index that uniquely identifies a function inside a module.\n\n This is the `MetadataToken` of a .NET `MethodBase`.",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Addr"
+                },
+                {
+                  "type": "null"
+                }
               ]
             },
             "image_addr": {
@@ -2182,6 +2198,14 @@ expression: "relay_general::protocol::event_json_schema()"
                 {
                   "type": "null"
                 }
+              ]
+            },
+            "debug_checksum": {
+              "description": " The optional checksum of the debug companion file.\n\n - `pe_dotnet`: This is the hash algorithm and hex-formatted checksum of the associated PDB file.\n  This should have the format `$algorithm:$hash`, for example `SHA256:aabbccddeeff...`.\n\n   See: https://github.com/dotnet/runtime/blob/main/docs/design/specs/PE-COFF.md#pdb-checksum-debug-directory-entry-type-19",
+              "default": null,
+              "type": [
+                "string",
+                "null"
               ]
             },
             "debug_file": {
