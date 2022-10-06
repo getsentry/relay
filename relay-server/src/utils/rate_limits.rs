@@ -171,6 +171,10 @@ impl EnvelopeSummary {
         summary
     }
 
+    /// Infers the appropriate [`DataCategory`] for the envelope [`Item`].
+    ///
+    /// The inferred category is only applied to the [`EnvelopeSummary`] if there is not yet
+    /// a category set.
     fn infer_category(&mut self, item: &Item) {
         if matches!(self.event_category, None | Some(DataCategory::Default)) {
             if let Some(category) = infer_event_category(item) {
@@ -186,6 +190,8 @@ struct CategoryLimit {
     /// The limited data category.
     category: DataCategory,
     /// The total rate limited quantity across all items.
+    ///
+    /// This will be `0` if nothing was rate limited.
     quantity: usize,
     /// The reason code of the applied rate limit.
     ///
