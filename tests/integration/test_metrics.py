@@ -839,7 +839,6 @@ def test_no_transaction_metrics_when_filtered(mini_sentry, relay):
     assert mini_sentry.captured_events.qsize() == 0
 
 
-@pytest.mark.skip(reason="it dose not handle the shutdown signal just yet")
 def test_graceful_shutdown(mini_sentry, relay):
     relay = relay(
         mini_sentry,

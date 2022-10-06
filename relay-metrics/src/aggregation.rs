@@ -1,12 +1,14 @@
 use std::cmp::max;
 use std::collections::{btree_map, hash_map::Entry, BTreeMap, BTreeSet, HashMap};
 use std::fmt;
+use std::future::Future;
 use std::hash::Hasher;
 use std::iter::{FromIterator, FusedIterator};
 use std::mem;
+use std::pin::Pin;
 use std::time::{Duration, Instant};
 
-use actix::{Message, Recipient};
+use actix::{MailboxError, Message, Recipient};
 use failure::Fail;
 use float_ord::FloatOrd;
 use fnv::FnvHasher;
@@ -14,7 +16,10 @@ use serde::{Deserialize, Serialize};
 use tokio::time;
 
 use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
-use relay_system::{AsyncResponse, FromMessage, Interface, NoResponse, Sender, Service};
+use relay_system::{
+    compat, AsyncResponse, Controller, FromMessage, Interface, NoResponse, Sender, Service,
+    Shutdown,
+};
 
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
 use crate::{
@@ -1156,9 +1161,6 @@ pub struct HashedBucket {
 
 enum AggregatorState {
     Running,
-    // NOTE: This isn't used at the moment, since this service does not handle the shutdown
-    // messages just yet.
-    #[allow(dead_code)]
     ShuttingDown,
 }
 
@@ -1347,8 +1349,7 @@ pub struct FlushBuckets {
     pub buckets: Vec<Bucket>,
 }
 
-// NOTE: this still required till the ProjectCache actor from relay-server will be migrated to the
-// new tokio runtime.
+// NOTE(): required by ProjectCache and will be removed with ProjectCache migration.
 impl Message for FlushBuckets {
     type Result = ();
 }
@@ -1360,8 +1361,7 @@ pub struct InsertMetrics {
     metrics: Vec<Metric>,
 }
 
-// NOTE: this still required till the ProjectCache actor from relay-server will be migrated to the
-// new tokio runtime.
+// NOTE: required by ProjectCache and will be removed with ProjectCache migration.
 impl Message for InsertMetrics {
     type Result = Result<(), AggregateMetricsError>;
 }
@@ -1397,8 +1397,7 @@ pub struct MergeBuckets {
     buckets: Vec<Bucket>,
 }
 
-// NOTE: this still required till the ProjectCache actor from relay-server will be migrated to the
-// new tokio runtime.
+// NOTE: required by ProjectCache and will be removed with ProjectCache migration.
 impl Message for MergeBuckets {
     type Result = Result<(), AggregateMetricsError>;
 }
@@ -1470,6 +1469,15 @@ impl FromMessage<MergeBuckets> for Aggregator {
     }
 }
 
+/// Represents the closure which accepts the `Recipient` and `FlushBuckets` stract and return the
+/// pinned box with future, which can be awaited.
+///
+/// NOTE: required by ProjectCache and will be removed with ProjectCache migration.
+type CompatSender = fn(
+    Recipient<FlushBuckets>,
+    FlushBuckets,
+) -> Pin<Box<dyn Future<Output = Result<(), MailboxError>> + Send>>;
+
 /// A collector of [`Metric`] submissions.
 ///
 /// # Aggregation
@@ -1504,8 +1512,7 @@ impl FromMessage<MergeBuckets> for Aggregator {
 pub struct AggregatorService {
     config: AggregatorConfig,
     buckets: HashMap<BucketKey, QueuedBucket>,
-    // NOTE: Recipient is still required here, and will be removed once ProjectCache actor is
-    // migrated to the new tokio runtime.
+    // NOTE: required by ProjectCache and will be removed with ProjectCache migration.
     receiver: Recipient<FlushBuckets>,
     state: AggregatorState,
     cost_tracker: CostTracker,
@@ -1857,36 +1864,12 @@ impl AggregatorService {
         partitions
     }
 
-    /// Split the provided buckets into batches and process each batch with the given function.
-    ///
-    /// For each batch, log a histogram metric.
-    fn process_batches<F>(&self, buckets: impl IntoIterator<Item = Bucket>, mut process: F)
-    where
-        F: FnMut(Vec<Bucket>),
-    {
-        let capped_batches =
-            CappedBucketIter::new(buckets.into_iter(), self.config.max_flush_bytes);
-
-        let num_batches = capped_batches
-            .map(|batch| {
-                relay_statsd::metric!(
-                    histogram(MetricHistograms::BucketsPerBatch) = batch.len() as f64,
-                );
-                process(batch);
-            })
-            .count();
-
-        relay_statsd::metric!(
-            histogram(MetricHistograms::BatchesPerPartition) = num_batches as f64,
-        );
-    }
-
     /// Sends the [`FlushBuckets`] message to the receiver in the fire and forget fashion. It is up
     /// to the receiver to send the [`MergeBuckets`] message back if buckets could not be flushed
     /// and we require another re-try.
     ///
     /// If `force` is true, flush all buckets unconditionally and do not attempt to merge back.
-    fn try_flush(&mut self) {
+    async fn try_flush(&mut self, sender: CompatSender) {
         let flush_buckets = self.pop_flush_buckets();
 
         if flush_buckets.is_empty() {
@@ -1906,13 +1889,22 @@ impl AggregatorService {
             let num_partitions = self.config.flush_partitions;
             let partitioned_buckets = self.partition_buckets(project_buckets, num_partitions);
             for (partition_key, buckets) in partitioned_buckets {
-                self.process_batches(buckets, |batch| {
+                let capped_batches =
+                    CappedBucketIter::new(buckets.into_iter(), self.config.max_flush_bytes);
+
+                let mut num_batches = 0;
+                for batch in capped_batches {
+                    relay_statsd::metric!(
+                        histogram(MetricHistograms::BucketsPerBatch) = batch.len() as f64,
+                    );
                     let batch_size = batch.len() as u64;
-                    let result = self.receiver.do_send(FlushBuckets {
+                    let receiver = self.receiver.clone();
+                    let flush = FlushBuckets {
                         project_key,
                         partition_key,
                         buckets: batch,
-                    });
+                    };
+                    let result = sender(receiver, flush).await;
                     if let Err(err) = result {
                         // remove the failed batch size from the total count, since it failed and
                         // will be dropped
@@ -1921,7 +1913,11 @@ impl AggregatorService {
                             "Failed to flush the buckets, dropping {batch_size} buckets: {err}."
                         );
                     }
-                });
+                }
+                num_batches += 1;
+                relay_statsd::metric!(
+                    histogram(MetricHistograms::BatchesPerPartition) = num_batches as f64,
+                );
             }
         }
         relay_statsd::metric!(histogram(MetricHistograms::BucketsFlushed) = total_bucket_count);
@@ -1929,7 +1925,7 @@ impl AggregatorService {
 
     async fn handle_message(&mut self, msg: Aggregator) {
         match msg {
-            // This is `HealthCheck` request where the `AsyncResponse` is expected.
+            // This is the `HealthCheck` request where the `AsyncResponse` is expected.
             Aggregator::AcceptsMetrics(AcceptsMetrics, sender) => {
                 let result = !self
                     .cost_tracker
@@ -1945,24 +1941,29 @@ impl AggregatorService {
                 metrics,
             }) => {
                 for metric in metrics {
-                    self.insert(project_key, metric).unwrap()
+                    if let Err(err) = self.insert(project_key, metric) {
+                        relay_log::error!("failed to insert metrics: {}", err)
+                    }
                 }
             }
             Aggregator::MergeBuckets(MergeBuckets {
                 project_key,
                 buckets,
-            }) => self.merge_all(project_key, buckets).unwrap(),
+            }) => {
+                if let Err(err) = self.merge_all(project_key, buckets) {
+                    relay_log::error!("failed to merge buckets: {}", err)
+                }
+            }
         }
     }
 
-    //fn handle_shutdown(&mut self, message: &Option<Shutdown>) {
-    //    if let Some(message) = message {
-    //        if message.timeout.is_some() {
-    //            self.state = AggregatorState::ShuttingDown;
-    //            relay_log::info!("outcome aggregator stopped");
-    //        }
-    //    }
-    //}
+    fn handle_shutdown(&mut self, message: &Option<Shutdown>) {
+        if let Some(message) = message {
+            if message.timeout.is_some() {
+                self.state = AggregatorState::ShuttingDown;
+            }
+        }
+    }
 }
 
 impl fmt::Debug for AggregatorService {
@@ -1981,21 +1982,22 @@ impl Service for AggregatorService {
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
             let mut ticker = time::interval(FLUSH_INTERVAL);
-            // XXX: this requires the old system and runtime, and cannot be started in new tokio
-            // runtime ???
-            // let mut shutdown = Controller::subscribe_v2().await;
+            let mut shutdown = Controller::subscribe_v2().await;
             relay_log::info!("AggregatorService started.");
             loop {
                 tokio::select! {
                     biased;
 
-                    _ = ticker.tick() => self.try_flush(),
+
+                    // NOTE: `compat::send_to_recipient` is required by ProjectCache and will be removed with ProjectCache migration.
+                    _ = ticker.tick() => self.try_flush(|recipient, flush_buckets| Box::pin(compat::send_to_recipient(recipient, flush_buckets))).await,
                     Some(message) = rx.recv() => self.handle_message(message).await,
-                    //_ = shutdown.changed() => self.handle_shutdown(&shutdown.borrow_and_update()),
+                    _ = shutdown.changed() => self.handle_shutdown(&shutdown.borrow()),
+
                     else => break,
                 }
             }
-            relay_log::info!("AggregatorService has been shutted down.");
+            relay_log::info!("AggregatorService shutted down.");
         });
     }
 }
@@ -2015,7 +2017,7 @@ impl Drop for AggregatorService {
 #[cfg(test)]
 mod tests {
     use actix::prelude::*;
-    use futures01::Future;
+    use futures01::{sync::oneshot, Future};
     use std::sync::{Arc, RwLock};
 
     use super::*;
@@ -2025,8 +2027,8 @@ mod tests {
         buckets: Vec<Bucket>,
     }
 
-    // NOTE: this test receiver with its implementation will be removed onces the project_cache actor
-    // is migrated to the new tokio runtime
+    // NOTE: this test receiver with its implementation will be removed onces the ProjectCache actor
+    // is migrated to the new tokio runtime.
     #[derive(Clone, Default)]
     struct TestReceiver {
         // TODO: Better way to communicate with Actor after it's started?
@@ -2761,9 +2763,12 @@ mod tests {
         assert!(iter.next().is_none());
     }
 
-    #[tokio::test]
-    async fn test_flush_bucket() {
+    #[test]
+    fn test_flush_bucket() {
         relay_test::setup();
+        let system = actix::System::current();
+        let (tx, rx) = oneshot::channel();
+        let rt = tokio::runtime::Runtime::new().unwrap();
 
         let receiver = TestReceiver::default();
         let config = AggregatorConfig {
@@ -2775,38 +2780,47 @@ mod tests {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let recipient = receiver.clone().start().recipient();
 
-        // Run AggregatorService in the new tokio runtime
-        let aggregator = AggregatorService::new(config, recipient).start();
+        rt.spawn(async move {
+            actix::System::set_current(system);
+            compat::init();
 
-        let mut metric = some_metric();
-        metric.timestamp = UnixTimestamp::now();
+            let aggregator = AggregatorService::new(config, recipient).start();
 
-        aggregator.send(InsertMetrics {
-            project_key,
-            metrics: vec![metric],
+            let mut metric = some_metric();
+            metric.timestamp = UnixTimestamp::now();
+
+            aggregator.send(InsertMetrics {
+                project_key,
+                metrics: vec![metric],
+            });
+
+            let buckets_count = aggregator.send(BucketCountInquiry).await.unwrap();
+            // Let's check the number of buckets in the aggregator just after sending a
+            // message.
+            assert_eq!(buckets_count, 1);
+            // Wait until flush delay has passed. It is up to 2s: 1s for the current bucket
+            // and 1s for the flush shift. Adding 100ms buffer.
+            tokio::time::sleep(Duration::from_millis(2100)).await;
+            // receiver must have 1 bucket flushed
+            assert_eq!(receiver.bucket_count_async().await, 1);
+
+            tx.send(()).ok();
         });
-
-        let buckets_count = aggregator.send(BucketCountInquiry).await.unwrap();
-        // Let's check the number of buckets in the aggregator just after sending a
-        // message.
-        assert_eq!(buckets_count, 1);
-        // Wait until flush delay has passed. It is up to 2s: 1s for the current bucket
-        // and 1s for the flush shift. Adding 100ms buffer.
-        tokio::time::sleep(Duration::from_millis(2100)).await;
-        // receiver must have 1 bucket flushed
-        assert_eq!(receiver.bucket_count_async().await, 1);
+        relay_test::block_fn(|| rx).ok();
     }
 
-    #[tokio::test]
-    async fn test_merge_back() {
+    #[test]
+    fn test_merge_back() {
         relay_test::setup();
+        let system = actix::System::current();
+        let (tx, rx) = oneshot::channel();
+        let rt = tokio::runtime::Runtime::new().unwrap();
 
         // Create a receiver which accepts nothing:
         let receiver = TestReceiver {
             reject_all: true,
             ..TestReceiver::default()
         };
-
         let config = AggregatorConfig {
             bucket_interval: 1,
             initial_delay: 0,
@@ -2814,21 +2828,29 @@ mod tests {
             ..Default::default()
         };
         let recipient = receiver.clone().start().recipient();
-        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
-        let aggregator = AggregatorService::new(config, recipient).start();
+        rt.spawn(async move {
+            actix::System::set_current(system);
 
-        let mut metric = some_metric();
-        metric.timestamp = UnixTimestamp::now();
-        aggregator.send(InsertMetrics {
-            project_key,
-            metrics: vec![metric],
+            let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+
+            let aggregator = AggregatorService::new(config, recipient).start();
+
+            let mut metric = some_metric();
+            metric.timestamp = UnixTimestamp::now();
+            aggregator.send(InsertMetrics {
+                project_key,
+                metrics: vec![metric],
+            });
+            assert_eq!(receiver.bucket_count(), 0);
+            tokio::time::sleep(Duration::from_millis(1100)).await;
+            let bucket_count = aggregator.send(BucketCountInquiry).await.unwrap();
+            assert_eq!(bucket_count, 1);
+            assert_eq!(receiver.bucket_count(), 0);
+
+            tx.send(()).ok();
         });
-        assert_eq!(receiver.bucket_count(), 0);
-        tokio::time::sleep(Duration::from_millis(1100)).await;
-        let bucket_count = aggregator.send(BucketCountInquiry).await.unwrap();
-        assert_eq!(bucket_count, 1);
-        assert_eq!(receiver.bucket_count(), 0);
+        relay_test::block_fn(|| rx).ok();
     }
 
     #[test]
@@ -3031,6 +3053,7 @@ mod tests {
 
     #[test]
     fn test_aggregator_cost_enforcement_project() {
+        relay_test::setup();
         let config = AggregatorConfig {
             max_project_key_bucket_bytes: Some(1),
             ..test_config()
@@ -3076,16 +3099,20 @@ mod tests {
             tags: BTreeMap::new(),
         };
 
-        let receiver = TestReceiver::start_default().recipient();
-        let mut aggregator = AggregatorService::new(config, receiver);
+        let receiver = TestReceiver::default();
+        let recipient = receiver.start().recipient();
+        let mut aggregator = AggregatorService::new(config, recipient);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
-
+        let rt = tokio::runtime::Runtime::new().unwrap();
         let captures = relay_statsd::with_capturing_test_client(|| {
             aggregator.insert(project_key, metric1).ok();
             aggregator.insert(project_key, metric2).ok();
-            aggregator.try_flush();
+            rt.block_on(async {
+                aggregator
+                    .try_flush(|_, _| Box::pin(async { Ok(()) }))
+                    .await;
+            });
         });
-
         captures
             .into_iter()
             .filter(|x| {
