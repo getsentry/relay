@@ -143,7 +143,7 @@ pub fn delay(timeout: Duration) -> Delay {
     Delay::new(Instant::now() + timeout)
 }
 
-/// Creates a new runtime for the future to run on, and also keeps [`actix::Systems`] around for
+/// Creates a new runtime for the future to run on, and also keeps [`actix::System`] around for
 /// things which are still depend on it.
 pub fn block_with_actix(f: impl Future<Output = ()> + Send + 'static) {
     let system = actix::System::current();
