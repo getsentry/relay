@@ -204,12 +204,6 @@ impl ServiceState {
         let project_cache = Arbiter::start(|_| project_cache);
         registry.set(project_cache.clone());
 
-        let guard = aggregator_runtime.enter();
-        let aggregator =
-            AggregatorService::new(config.aggregator_config(), project_cache.recipient());
-        let aggregator = aggregator.start();
-        drop(guard);
-
         let health_check = HealthCheckService::new(config.clone()).start();
         let relay_cache = RelayCacheService::new(config.clone()).start();
 
@@ -218,6 +212,12 @@ impl ServiceState {
                 aws_extension.start();
             }
         }
+
+        let guard = aggregator_runtime.enter();
+        let aggregator =
+            AggregatorService::new(config.aggregator_config(), Some(project_cache.recipient()));
+        let aggregator = aggregator.start();
+        drop(guard);
 
         REGISTRY
             .set(Box::new(Registry {

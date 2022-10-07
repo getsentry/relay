@@ -1,14 +1,12 @@
 use std::cmp::max;
 use std::collections::{btree_map, hash_map::Entry, BTreeMap, BTreeSet, HashMap};
 use std::fmt;
-use std::future::Future;
 use std::hash::Hasher;
 use std::iter::{FromIterator, FusedIterator};
 use std::mem;
-use std::pin::Pin;
 use std::time::{Duration, Instant};
 
-use actix::{MailboxError, Message, Recipient};
+use actix::{Message, Recipient};
 use failure::Fail;
 use float_ord::FloatOrd;
 use fnv::FnvHasher;
@@ -1474,15 +1472,6 @@ impl FromMessage<MergeBuckets> for Aggregator {
     }
 }
 
-/// Represents the closure which accepts the `Recipient` and `FlushBuckets` struct and returns the
-/// pinned box with future, which can be awaited.
-///
-/// TODO(actix): required by ProjectCache and will be removed with ProjectCache migration.
-type CompatSender = fn(
-    Recipient<FlushBuckets>,
-    FlushBuckets,
-) -> Pin<Box<dyn Future<Output = Result<(), MailboxError>> + Send>>;
-
 /// A collector of [`Metric`] submissions.
 ///
 /// # Aggregation
@@ -1518,7 +1507,7 @@ pub struct AggregatorService {
     config: AggregatorConfig,
     buckets: HashMap<BucketKey, QueuedBucket>,
     // TODO(actix): required by ProjectCache and will be removed with ProjectCache migration.
-    receiver: Recipient<FlushBuckets>,
+    receiver: Option<Recipient<FlushBuckets>>,
     state: AggregatorState,
     cost_tracker: CostTracker,
 }
@@ -1528,7 +1517,7 @@ impl AggregatorService {
     ///
     /// The aggregator will flush a list of buckets to the receiver in regular intervals based on
     /// the given `config`.
-    pub fn new(config: AggregatorConfig, receiver: Recipient<FlushBuckets>) -> Self {
+    pub fn new(config: AggregatorConfig, receiver: Option<Recipient<FlushBuckets>>) -> Self {
         Self {
             config,
             buckets: HashMap::new(),
@@ -1869,12 +1858,36 @@ impl AggregatorService {
         partitions
     }
 
+    /// Split the provided buckets into batches and process each batch with the given function.
+    ///
+    /// For each batch, log a histogram metric.
+    fn process_batches<F>(&self, buckets: impl IntoIterator<Item = Bucket>, mut process: F)
+    where
+        F: FnMut(Vec<Bucket>),
+    {
+        let capped_batches =
+            CappedBucketIter::new(buckets.into_iter(), self.config.max_flush_bytes);
+
+        let num_batches = capped_batches
+            .map(|batch| {
+                relay_statsd::metric!(
+                    histogram(MetricHistograms::BucketsPerBatch) = batch.len() as f64,
+                );
+                process(batch);
+            })
+            .count();
+
+        relay_statsd::metric!(
+            histogram(MetricHistograms::BatchesPerPartition) = num_batches as f64,
+        );
+    }
+
     /// Sends the [`FlushBuckets`] message to the receiver in the fire and forget fashion. It is up
     /// to the receiver to send the [`MergeBuckets`] message back if buckets could not be flushed
     /// and we require another re-try.
     ///
     /// If `force` is true, flush all buckets unconditionally and do not attempt to merge back.
-    async fn try_flush(&mut self, sender: CompatSender) {
+    fn try_flush(&mut self) {
         let flush_buckets = self.pop_flush_buckets();
 
         if flush_buckets.is_empty() {
@@ -1894,78 +1907,74 @@ impl AggregatorService {
             let num_partitions = self.config.flush_partitions;
             let partitioned_buckets = self.partition_buckets(project_buckets, num_partitions);
             for (partition_key, buckets) in partitioned_buckets {
-                let capped_batches =
-                    CappedBucketIter::new(buckets.into_iter(), self.config.max_flush_bytes);
-
-                let mut num_batches = 0;
-                for batch in capped_batches {
-                    relay_statsd::metric!(
-                        histogram(MetricHistograms::BucketsPerBatch) = batch.len() as f64,
-                    );
+                self.process_batches(buckets, |batch| {
                     let batch_size = batch.len() as u64;
-                    let receiver = self.receiver.clone();
-                    let flush = FlushBuckets {
-                        project_key,
-                        partition_key,
-                        buckets: batch,
-                    };
-                    let result = sender(receiver, flush).await;
-                    if let Err(err) = result {
-                        // remove the failed batch size from the total count, since it failed and
-                        // will be dropped
-                        total_bucket_count -= batch_size;
-                        relay_log::error!(
-                            "Failed to flush the buckets, dropping {batch_size} buckets: {err}."
-                        );
+                    if let Some(receiver) = self.receiver.clone() {
+                        tokio::spawn(async move {
+                            let flush_buckets = FlushBuckets {
+                                project_key,
+                                partition_key,
+                                buckets: batch,
+                            };
+                            let result = compat::send_to_recipient(receiver, flush_buckets).await;
+                            if let Err(err) = result {
+                                relay_log::error!("Failed to flush the buckets, dropping {batch_size} buckets: {err}.");
+                            }
+                        });
                     }
-                }
-                num_batches += 1;
-                relay_statsd::metric!(
-                    histogram(MetricHistograms::BatchesPerPartition) = num_batches as f64,
-                );
+                });
             }
         }
         relay_statsd::metric!(histogram(MetricHistograms::BucketsFlushed) = total_bucket_count);
     }
 
-    async fn handle_message(&mut self, msg: Aggregator) {
-        match msg {
-            // This is the `HealthCheck` request where the `AsyncResponse` is expected.
-            Aggregator::AcceptsMetrics(AcceptsMetrics, sender) => {
-                let result = !self
-                    .cost_tracker
-                    .totals_cost_exceeded(self.config.max_total_bucket_bytes);
-                sender.send(result);
+    fn handle_accepts_metrics(&self, sender: Sender<bool>) {
+        let result = !self
+            .cost_tracker
+            .totals_cost_exceeded(self.config.max_total_bucket_bytes);
+        sender.send(result);
+    }
+
+    fn handle_insert_metrics(
+        &mut self,
+        msg: InsertMetrics,
+        sender: Sender<Result<(), AggregateMetricsError>>,
+    ) {
+        let InsertMetrics {
+            project_key,
+            metrics,
+        } = msg;
+        for metric in metrics {
+            if let Err(err) = self.insert(project_key, metric) {
+                sender.send(Err(err));
+                return;
             }
+        }
+        sender.send(Ok(()));
+    }
+
+    fn handle_merge_buckets(
+        &mut self,
+        msg: MergeBuckets,
+        sender: Sender<Result<(), AggregateMetricsError>>,
+    ) {
+        let MergeBuckets {
+            project_key,
+            buckets,
+        } = msg;
+        let result = self.merge_all(project_key, buckets);
+        sender.send(result);
+    }
+
+    fn handle_message(&mut self, msg: Aggregator) {
+        match msg {
+            Aggregator::AcceptsMetrics(_, sender) => self.handle_accepts_metrics(sender),
             #[cfg(test)]
             Aggregator::BucketCountInquiry(_, sender) => {
                 sender.send(self.buckets.len());
             }
-            Aggregator::InsertMetrics(
-                InsertMetrics {
-                    project_key,
-                    metrics,
-                },
-                sender,
-            ) => {
-                for metric in metrics {
-                    if let Err(err) = self.insert(project_key, metric) {
-                        sender.send(Err(err));
-                        return;
-                    }
-                }
-                sender.send(Ok(()));
-            }
-            Aggregator::MergeBuckets(
-                MergeBuckets {
-                    project_key,
-                    buckets,
-                },
-                sender,
-            ) => {
-                let result = self.merge_all(project_key, buckets);
-                sender.send(result);
-            }
+            Aggregator::InsertMetrics(msg, sender) => self.handle_insert_metrics(msg, sender),
+            Aggregator::MergeBuckets(msg, sender) => self.handle_merge_buckets(msg, sender),
         }
     }
 
@@ -2000,10 +2009,9 @@ impl Service for AggregatorService {
                 tokio::select! {
                     biased;
 
-
                     // TODO(actix): `compat::send_to_recipient` is required by ProjectCache and will be removed with ProjectCache migration.
-                    _ = ticker.tick() => self.try_flush(|recipient, flush_buckets| Box::pin(compat::send_to_recipient(recipient, flush_buckets))).await,
-                    Some(message) = rx.recv() => self.handle_message(message).await,
+                    _ = ticker.tick() => self.try_flush(),
+                    Some(message) = rx.recv() => self.handle_message(message),
                     _ = shutdown.changed() => self.handle_shutdown(&shutdown.borrow_and_update()),
 
                     else => break,
@@ -2444,9 +2452,7 @@ mod tests {
     fn test_aggregator_merge_counters() {
         relay_test::setup();
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-
-        let receiver = TestReceiver::start_default().recipient();
-        let mut aggregator = AggregatorService::new(test_config(), receiver);
+        let mut aggregator = AggregatorService::new(test_config(), None);
 
         let metric1 = some_metric();
 
@@ -2485,10 +2491,8 @@ mod tests {
             bucket_interval: 10,
             ..test_config()
         };
-        let receiver = TestReceiver::start_default().recipient();
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-
-        let mut aggregator = AggregatorService::new(config, receiver);
+        let mut aggregator = AggregatorService::new(config, None);
 
         let metric1 = some_metric();
 
@@ -2545,11 +2549,10 @@ mod tests {
             ..test_config()
         };
 
-        let receiver = TestReceiver::start_default().recipient();
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
-        let mut aggregator = AggregatorService::new(config, receiver);
+        let mut aggregator = AggregatorService::new(config, None);
 
         // It's OK to have same metric with different projects:
         aggregator.insert(project_key1, some_metric()).unwrap();
@@ -2631,8 +2634,7 @@ mod tests {
     #[test]
     fn test_aggregator_cost_tracking() {
         // Make sure that the right cost is added / subtracted
-        let receiver = TestReceiver::start_default().recipient();
-        let mut aggregator = AggregatorService::new(test_config(), receiver);
+        let mut aggregator = AggregatorService::new(test_config(), None);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
         let metric = Metric {
@@ -2779,7 +2781,7 @@ mod tests {
                 ..Default::default()
             };
             let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-            let aggregator = AggregatorService::new(config, recipient).start();
+            let aggregator = AggregatorService::new(config, Some(recipient)).start();
 
             let mut metric = some_metric();
             metric.timestamp = UnixTimestamp::now();
@@ -2820,7 +2822,7 @@ mod tests {
 
             let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
-            let aggregator = AggregatorService::new(config, recipient).start();
+            let aggregator = AggregatorService::new(config, Some(recipient)).start();
 
             let mut metric = some_metric();
             metric.timestamp = UnixTimestamp::now();
@@ -3023,8 +3025,7 @@ mod tests {
             tags: BTreeMap::new(),
         };
 
-        let receiver = TestReceiver::start_default().recipient();
-        let mut aggregator = AggregatorService::new(config, receiver);
+        let mut aggregator = AggregatorService::new(config, None);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
         aggregator.insert(project_key, metric.clone()).unwrap();
@@ -3049,8 +3050,7 @@ mod tests {
             tags: BTreeMap::new(),
         };
 
-        let receiver = TestReceiver::start_default().recipient();
-        let mut aggregator = AggregatorService::new(config, receiver);
+        let mut aggregator = AggregatorService::new(config, None);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
         aggregator.insert(project_key, metric.clone()).unwrap();
@@ -3082,19 +3082,12 @@ mod tests {
             tags: BTreeMap::new(),
         };
 
-        let receiver = TestReceiver::default();
-        let recipient = receiver.start().recipient();
-        let mut aggregator = AggregatorService::new(config, recipient);
+        let mut aggregator = AggregatorService::new(config, None);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
-        let rt = tokio::runtime::Runtime::new().unwrap();
         let captures = relay_statsd::with_capturing_test_client(|| {
             aggregator.insert(project_key, metric1).ok();
             aggregator.insert(project_key, metric2).ok();
-            rt.block_on(async {
-                aggregator
-                    .try_flush(|_, _| Box::pin(async { Ok(()) }))
-                    .await;
-            });
+            aggregator.try_flush();
         });
         captures
             .into_iter()
