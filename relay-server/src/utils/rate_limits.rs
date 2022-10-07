@@ -134,7 +134,7 @@ pub struct EnvelopeSummary {
     pub has_plain_attachments: bool,
 
     /// Whether the envelope contains a transaction event which already had the metrics extracted.
-    pub metrics_extracted: bool,
+    pub transaction_metrics_extracted: bool,
 }
 
 impl EnvelopeSummary {
@@ -155,8 +155,8 @@ impl EnvelopeSummary {
                 summary.has_plain_attachments = true;
             }
 
-            if item.metrics_extracted() {
-                summary.metrics_extracted = true;
+            if *item.ty() == ItemType::Transaction && item.metrics_extracted() {
+                summary.transaction_metrics_extracted = true;
             }
 
             // If the item has been rate limited before, the quota has been consumed and outcomes
@@ -388,7 +388,7 @@ where
 
         if let Some(category) = summary.event_category {
             if category == DataCategory::Transaction {
-                if summary.metrics_extracted {
+                if summary.transaction_metrics_extracted {
                     // Check and increment indexing quota.
                     let index_limits = (self.check)(scoping.item(DataCategory::Transaction), 1)?;
                     let longest = index_limits.longest();
