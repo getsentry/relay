@@ -167,6 +167,10 @@ impl RedisRateLimiter {
     ///
     /// If no key is specified, then only organization-wide and project-wide quotas are checked. If
     /// a key is specified, then key-quotas are also checked.
+    ///
+    /// The passed `quantity` may be `0`. In this case, the rate limiter will check if the quota
+    /// limit has been reached or exceeded without incrementing it in the success case. This can be
+    /// useful to check for required quotas in a different data category.
     pub fn is_rate_limited(
         &self,
         quotas: &[Quota],
