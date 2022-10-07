@@ -94,7 +94,7 @@ impl fmt::Display for EventType {
 
 /// Classifies the type of data that is being ingested.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 #[repr(i8)]
 pub enum DataCategory {
     /// Reserved and unused.
@@ -128,6 +128,7 @@ pub enum DataCategory {
 impl DataCategory {
     /// Returns the data category corresponding to the given name.
     pub fn from_name(string: &str) -> Self {
+        // TODO: This should probably use serde.
         match string {
             "default" => Self::Default,
             "error" => Self::Error,
@@ -144,6 +145,7 @@ impl DataCategory {
 
     /// Returns the canonical name of this data category.
     pub fn name(self) -> &'static str {
+        // TODO: This should probably use serde.
         match self {
             Self::Default => "default",
             Self::Error => "error",
