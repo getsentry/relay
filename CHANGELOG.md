@@ -21,7 +21,7 @@
 - Migrate to 2021 Rust edition. ([#1510](https://github.com/getsentry/relay/pull/1510))
 - Make the profiling frame object compatible with the stacktrace frame object from event. ([#1512](https://github.com/getsentry/relay/pull/1512))
 - Fix quota DataCategory::TransactionProcessed serialisation to match that of the CAPI. ([#1514](https://github.com/getsentry/relay/pull/1514))
-- Remove unused rate_limits from ProcessEnvelopeState. ([#1516](https://github.com/getsentry/relay/pull/1516))
+- Support checking quotas in the Redis rate limiter without incrementing them. ([#1519](https://github.com/getsentry/relay/pull/1519))
 
 ## 22.9.0
 
