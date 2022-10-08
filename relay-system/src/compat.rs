@@ -68,15 +68,11 @@ where
 /// Panics if this is invoked outside of the [`Controller`](crate::Controller).
 ///
 /// TODO(actix): required by ProjectCache and will be removed with ProjectCache migration.
-pub async fn send_to_recipient<M>(addr: Recipient<M>, msg: M) -> Result<M::Result, MailboxError>
+pub fn send_to_recipient<M>(addr: Recipient<M>, msg: M)
 where
     M: Message + Send + 'static,
     M::Result: Send,
 {
-    let (tx, rx) = oneshot::channel();
-    let f = futures01::future::lazy(move || addr.send(msg))
-        .then(|res| tx.send(res))
-        .map_err(|_| ());
+    let f = futures01::future::lazy(move || addr.do_send(msg)).map_err(|_| ());
     EXECUTOR.get().unwrap().spawn(f);
-    rx.await.map_err(|_| MailboxError::Closed)?
 }

@@ -14,8 +14,10 @@ use serde::{Deserialize, Serialize};
 use tokio::time;
 
 use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
+use relay_log::LogError;
 use relay_system::{
-    compat, AsyncResponse, Controller, FromMessage, Interface, Sender, Service, Shutdown,
+    compat, AsyncResponse, Controller, FromMessage, Interface, NoResponse, Sender, Service,
+    Shutdown,
 };
 
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
@@ -1426,9 +1428,9 @@ pub enum Aggregator {
     /// The health check message which makes sure that the service can accept the requests now.
     AcceptsMetrics(AcceptsMetrics, Sender<bool>),
     /// Insert metrics.
-    InsertMetrics(InsertMetrics, Sender<Result<(), AggregateMetricsError>>),
+    InsertMetrics(InsertMetrics),
     /// Merge the buckets.
-    MergeBuckets(MergeBuckets, Sender<Result<(), AggregateMetricsError>>),
+    MergeBuckets(MergeBuckets),
 
     /// Message is used only for tests to get the current number of buckets in `AggregatorService`.
     #[cfg(test)]
@@ -1453,22 +1455,16 @@ impl FromMessage<BucketCountInquiry> for Aggregator {
 }
 
 impl FromMessage<InsertMetrics> for Aggregator {
-    type Response = AsyncResponse<Result<(), AggregateMetricsError>>;
-    fn from_message(
-        message: InsertMetrics,
-        sender: Sender<Result<(), AggregateMetricsError>>,
-    ) -> Self {
-        Self::InsertMetrics(message, sender)
+    type Response = NoResponse;
+    fn from_message(message: InsertMetrics, _: ()) -> Self {
+        Self::InsertMetrics(message)
     }
 }
 
 impl FromMessage<MergeBuckets> for Aggregator {
-    type Response = AsyncResponse<Result<(), AggregateMetricsError>>;
-    fn from_message(
-        message: MergeBuckets,
-        sender: Sender<Result<(), AggregateMetricsError>>,
-    ) -> Self {
-        Self::MergeBuckets(message, sender)
+    type Response = NoResponse;
+    fn from_message(message: MergeBuckets, _: ()) -> Self {
+        Self::MergeBuckets(message)
     }
 }
 
@@ -1908,19 +1904,13 @@ impl AggregatorService {
             let partitioned_buckets = self.partition_buckets(project_buckets, num_partitions);
             for (partition_key, buckets) in partitioned_buckets {
                 self.process_batches(buckets, |batch| {
-                    let batch_size = batch.len() as u64;
                     if let Some(receiver) = self.receiver.clone() {
-                        tokio::spawn(async move {
-                            let flush_buckets = FlushBuckets {
-                                project_key,
-                                partition_key,
-                                buckets: batch,
-                            };
-                            let result = compat::send_to_recipient(receiver, flush_buckets).await;
-                            if let Err(err) = result {
-                                relay_log::error!("Failed to flush the buckets, dropping {batch_size} buckets: {err}.");
-                            }
-                        });
+                        let flush_buckets = FlushBuckets {
+                            project_key,
+                            partition_key,
+                            buckets: batch,
+                        };
+                        compat::send_to_recipient(receiver, flush_buckets);
                     }
                 });
             }
@@ -1935,35 +1925,26 @@ impl AggregatorService {
         sender.send(result);
     }
 
-    fn handle_insert_metrics(
-        &mut self,
-        msg: InsertMetrics,
-        sender: Sender<Result<(), AggregateMetricsError>>,
-    ) {
+    fn handle_insert_metrics(&mut self, msg: InsertMetrics) {
         let InsertMetrics {
             project_key,
             metrics,
         } = msg;
         for metric in metrics {
             if let Err(err) = self.insert(project_key, metric) {
-                sender.send(Err(err));
-                return;
+                relay_log::error!("failed to insert mertrics: {}", LogError(&err));
             }
         }
-        sender.send(Ok(()));
     }
 
-    fn handle_merge_buckets(
-        &mut self,
-        msg: MergeBuckets,
-        sender: Sender<Result<(), AggregateMetricsError>>,
-    ) {
+    fn handle_merge_buckets(&mut self, msg: MergeBuckets) {
         let MergeBuckets {
             project_key,
             buckets,
         } = msg;
-        let result = self.merge_all(project_key, buckets);
-        sender.send(result);
+        if let Err(err) = self.merge_all(project_key, buckets) {
+            relay_log::error!("failed to merge buckets: {}", LogError(&err));
+        }
     }
 
     fn handle_message(&mut self, msg: Aggregator) {
@@ -1973,8 +1954,8 @@ impl AggregatorService {
             Aggregator::BucketCountInquiry(_, sender) => {
                 sender.send(self.buckets.len());
             }
-            Aggregator::InsertMetrics(msg, sender) => self.handle_insert_metrics(msg, sender),
-            Aggregator::MergeBuckets(msg, sender) => self.handle_merge_buckets(msg, sender),
+            Aggregator::InsertMetrics(msg) => self.handle_insert_metrics(msg),
+            Aggregator::MergeBuckets(msg) => self.handle_merge_buckets(msg),
         }
     }
 
@@ -2774,6 +2755,7 @@ mod tests {
         let receiver = TestReceiver::default();
         let recipient = receiver.clone().start().recipient();
         relay_test::block_with_actix(async move {
+            compat::init();
             let config = AggregatorConfig {
                 bucket_interval: 1,
                 initial_delay: 0,

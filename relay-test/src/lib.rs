@@ -39,8 +39,6 @@ use futures01::{future, IntoFuture};
 pub use actix_web::test::*;
 use tokio_timer::Delay;
 
-use relay_system::compat;
-
 thread_local! {
     static SYSTEM: RefCell<Inner> = RefCell::new(Inner::new());
 }
@@ -157,11 +155,10 @@ pub fn block_with_actix(f: impl Future<Output = ()> + Send + 'static) {
 
     rt.spawn(async move {
         actix::System::set_current(system);
-        compat::init();
         f.await;
         tx.send(()).ok();
     });
 
     // Note that this also resolves with error if `f` panics.
-    block_fn(|| rx).ok();
+    block_fn(|| rx).unwrap()
 }
