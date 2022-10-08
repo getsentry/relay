@@ -8,7 +8,7 @@
 -- ``ARGV`` (3 per quota):
 --  * [number] Quota limit. Can be ``-1`` for unlimited quotas.
 --  * [number] Absolute Expiration time as Unix timestamp (secs since 1.1.1970 ) for the key.
---  * [number] Quantity to increment the quota by.
+--  * [number] Quantity to increment the quota by, or ``0`` to check without incrementing.
 --
 -- For example, to check the following two quotas each with a timeout of 10 minutes from now:
 --  * Key ``foo``, refund key ``foo_refund``, limit ``10``; quantity ``5``
@@ -43,7 +43,13 @@ for i=0, num_quotas - 1 do
     local rejected = false
     -- limit=-1 means "no limit"
     if limit >= 0 then
-        rejected = (redis.call('GET', KEYS[k]) or 0) - (redis.call('GET', KEYS[k + 1]) or 0) + quantity > limit
+        local consumed = (redis.call('GET', KEYS[k]) or 0) - (redis.call('GET', KEYS[k + 1]) or 0)
+        -- we never increment past the limit. if quantity is 0, check instead if we reached limit.
+        if quantity == 0 then
+            rejected = consumed >= limit
+        else
+            rejected = consumed + quantity > limit
+        end
     end
 
     if rejected then
@@ -57,8 +63,10 @@ if not failed then
         local k = i * 2 + 1
         local v = i * 3 + 1
 
-        redis.call('INCRBY', KEYS[k], ARGV[v + 2])
-        redis.call('EXPIREAT', KEYS[k], ARGV[v + 1])
+        if tonumber(ARGV[v + 2]) > 0 then
+            redis.call('INCRBY', KEYS[k], ARGV[v + 2])
+            redis.call('EXPIREAT', KEYS[k], ARGV[v + 1])
+        end
     end
 end
 
