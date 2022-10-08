@@ -150,6 +150,7 @@ impl fmt::Debug for Registry {
 pub struct ServiceState {
     config: Arc<Config>,
     buffer_guard: Arc<BufferGuard>,
+    _aggregator_runtime: Arc<tokio::runtime::Runtime>,
     _outcome_runtime: Arc<tokio::runtime::Runtime>,
     _main_runtime: Arc<tokio::runtime::Runtime>,
     _store_runtime: Option<Arc<tokio::runtime::Runtime>>,
@@ -215,8 +216,8 @@ impl ServiceState {
 
         let guard = aggregator_runtime.enter();
         let aggregator =
-            AggregatorService::new(config.aggregator_config(), Some(project_cache.recipient()));
-        let aggregator = aggregator.start();
+            AggregatorService::new(config.aggregator_config(), Some(project_cache.recipient()))
+                .start();
         drop(guard);
 
         REGISTRY
@@ -235,6 +236,7 @@ impl ServiceState {
         Ok(ServiceState {
             buffer_guard: buffer,
             config,
+            _aggregator_runtime: Arc::new(aggregator_runtime),
             _outcome_runtime: Arc::new(outcome_runtime),
             _main_runtime: Arc::new(main_runtime),
             _store_runtime: _store_runtime.map(Arc::new),
