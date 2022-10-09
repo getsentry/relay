@@ -152,10 +152,10 @@ enum ConfigFormat {
 }
 
 impl ConfigFormat {
-    pub fn extension(&self) -> &'static str {
+    pub fn extensions(&self) -> Vec<&'static str> {
         match self {
-            ConfigFormat::Yaml => "yml",
-            ConfigFormat::Json => "json",
+            ConfigFormat::Yaml => vec!["yml", "yaml"],
+            ConfigFormat::Json => vec!["json"],
         }
     }
 }
@@ -169,7 +169,18 @@ trait ConfigObject: DeserializeOwned + Serialize {
 
     /// The full filename of the config file, including the file extension.
     fn path(base: &Path) -> PathBuf {
-        base.join(format!("{}.{}", Self::name(), Self::format().extension()))
+        let extensions = Self::format().extensions();
+
+        for extension in &extensions[..extensions.len() - 1] {
+            let path = base.join(format!("{}.{}", Self::name(), extension));
+
+            if path.exists() {
+                return path;
+            }
+        }
+
+        // It must returns something, so returns the last extension even if it does not exist
+        base.join(format!("{}.{}", Self::name(), extensions.last().unwrap()))
     }
 
     /// Loads the config file from a file within the given directory location.
