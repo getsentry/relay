@@ -154,7 +154,7 @@ enum ConfigFormat {
 impl ConfigFormat {
     pub fn extensions(&self) -> Vec<&'static str> {
         match self {
-            ConfigFormat::Yaml => vec!["yml", "yaml"],
+            ConfigFormat::Yaml => vec!["yaml", "yml"],
             ConfigFormat::Json => vec!["json"],
         }
     }
