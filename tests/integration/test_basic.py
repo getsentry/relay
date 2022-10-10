@@ -6,6 +6,12 @@ import signal
 import zlib
 import subprocess
 
+def test_config_file(mini_sentry, relay):
+    config_file = "config.yaml"
+    relay = relay(mini_sentry, config_file=config_file)
+
+    assert os.path.exists(relay.config_dir.join(config_file))
+
 
 def test_graceful_shutdown(mini_sentry, relay):
     from time import sleep

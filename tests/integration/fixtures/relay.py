@@ -99,6 +99,7 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
         external=None,
         wait_health_check=True,
         static_relays=None,
+        config_file="config.yml",
         version="latest",
     ):
         relay_bin = get_relay_binary(version)
@@ -134,7 +135,7 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
                 default_opts.setdefault(key, {}).update(options[key])
 
         dir = config_dir("relay")
-        dir.join("config.yml").write(yaml.dump(default_opts))
+        dir.join(config_file).write(yaml.dump(default_opts))
 
         output = subprocess.check_output(
             relay_bin + ["-c", str(dir), "credentials", "generate"]
