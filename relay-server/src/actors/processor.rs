@@ -2221,18 +2221,11 @@ impl EnvelopeProcessorService {
             scoping: &scoping,
         };
 
-        // For every metrics bucket, one of three cases applies
-        // 1. The metric is not in the transaction namespace.
-        //    TODO: Should we rate limit sessions as well?
-        // 2. The metric is in the transaction namespace.
-        //      a. The metric is "duration". This is extracted exactly once for every processed
-        //         transaction, so we use it to count against the quota.
-        //      b. For any other metric in the transaction namespace, we check the limit but we
-        //         do not count against the quota.
+        // Check which buckets are rate limited:
         buckets.retain(|bucket| {
             // NOTE: The order of buckets is not deterministic here, because `Aggregator::pop_flush_buckets`
             //       produces a hash map.
-            // FIXME: Add namespace enum to `Bucket` so we don't have to parse the MRI for every bucket.
+            // TODO: Add namespace enum to `Bucket` so we don't have to parse the MRI for every bucket?
             let mri = match MetricResourceIdentifier::parse(bucket.name.as_str()) {
                 Ok(mri) => mri,
                 Err(_) => {
@@ -2241,23 +2234,29 @@ impl EnvelopeProcessorService {
                 }
             };
 
+            // Keep all metrics that are not transaction related:
             if !matches!(mri.namespace, MetricNamespace::Transactions) {
                 // TODO: Should we rate limit sessions as well?
                 return true;
             }
 
-            let quantity = if mri.name == "duration" {
+            let transaction_count = if mri.name == "duration" {
+                // The "duration" metric is extracted exactly once for every processed transaction,
+                // so we can use it to count the number of transactions.
                 bucket.value.len()
             } else {
+                // For any other metric in the transaction namespace, we check the limit with quantity=0
+                // so transactions are not double counted against the quota.
                 0
             };
 
             // If necessary, we could minimize the number of calls to the rate limiter
             // by grouping buckets here somehow. But be aware that that would mean we might
             // under-accept, because the sum of all buckets might exceed the quota, but not individual ones.
-            match rate_limiter.is_rate_limited(&quota, item_scoping, quantity) {
+            match rate_limiter.is_rate_limited(&quota, item_scoping, transaction_count) {
                 Ok(limits) => {
                     let is_limited = limits.is_limited();
+
                     if is_limited {
                         ProjectCache::from_registry()
                             .do_send(UpdateRateLimits::new(scoping.project_key, limits));

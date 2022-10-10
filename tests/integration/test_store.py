@@ -500,9 +500,7 @@ def test_rate_limit_metrics_buckets(
             "id": "test_rate_limiting_{}".format(uuid.uuid4().hex),
             "scope": "key",
             "scopeId": six.text_type(key_id),
-            "categories": [
-                "transactionprocessed"
-            ],  # TODO: change to transaction_processed
+            "categories": ["transaction_processed"],
             "limit": 5,
             "window": 86400,
             "reasonCode": "get_lost",
@@ -559,25 +557,26 @@ def test_rate_limit_metrics_buckets(
     send_buckets(
         [
             # Duration metric, subtract 2 from quota. Now, quota is exceeded.
-            make_bucket("d:transactions/duration@millisecond", "d", [4, 5, 6]),
+            make_bucket("d:transactions/duration@millisecond", "d", [4, 5]),
         ],
     )
     send_buckets(
         [
-            # FCP buckets won't make it into kakfa.
+            # FCP buckets won't make it into kakfa, because we are exactly at the limit,
+            # and for quantity=0, the lua script does a >= check.
             make_bucket("d:transactions/measurements.fcp@millisecond", "d", 10 * [7.0]),
-            # Another three for duration, won't make it into kafka.
         ],
     )
     send_buckets(
         [
+            # Another three for duration, won't make it into kafka.
             make_bucket("d:transactions/duration@millisecond", "d", [7, 8, 9]),
             # Session metrics are still accepted.
             make_bucket("d:sessions/session@user", "s", [1254]),
         ],
     )
 
-    # Expect two of 9 buckets to be dropped:
+    # Expect 2 of 9 buckets to be dropped:
     produced_buckets = [metrics_consumer.get_metric(timeout=1) for _ in range(7)]
     metrics_consumer.assert_empty()
 
@@ -615,13 +614,13 @@ def test_rate_limit_metrics_buckets(
             "type": "d",
             "value": [1.0, 2.0, 3.0],
         },
-        # {
-        #     "name": "d:transactions/measurements.fcp@millisecond",
-        #     "org_id": 1,
-        #     "project_id": 42,
-        #     "type": "d",
-        #     "value": [7.0, 7.0, 7.0, 7.0, 7.0, 7.0, 7.0, 7.0, 7.0, 7.0],
-        # },
+        {
+            "name": "d:transactions/duration@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "type": "d",
+            "value": [4.0, 5.0],
+        },
         {
             "name": "d:transactions/measurements.lcp@millisecond",
             "org_id": 1,
