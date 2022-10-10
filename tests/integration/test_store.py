@@ -471,9 +471,15 @@ def test_processing_quotas(
         assert event["logentry"]["formatted"] == f"otherkey{i}"
 
 
+@pytest.mark.parametrize("violating_bucket", [[4.0, 5.0], [4.0, 5.0, 6.0]])
 def test_rate_limit_metrics_buckets(
-    mini_sentry, relay_with_processing, metrics_consumer,
+    mini_sentry, relay_with_processing, metrics_consumer, violating_bucket
 ):
+    """
+    param violating_bucket is parametrized so we cover both cases:
+        1. the quota is matched exactly
+        2. quota is exceeded by one
+    """
     bucket_interval = 1  # second
     relay = relay_with_processing(
         {
@@ -556,14 +562,14 @@ def test_rate_limit_metrics_buckets(
     )
     send_buckets(
         [
-            # Duration metric, subtract 2 from quota. Now, quota is exceeded.
-            make_bucket("d:transactions/duration@millisecond", "d", [4, 5]),
+            # Duration metric, subtract from quota. This bucket is still accepted, but the rest
+            # will be exceeded.
+            make_bucket("d:transactions/duration@millisecond", "d", violating_bucket),
         ],
     )
     send_buckets(
         [
-            # FCP buckets won't make it into kakfa, because we are exactly at the limit,
-            # and for quantity=0, the lua script does a >= check.
+            # FCP buckets won't make it into kakfa
             make_bucket("d:transactions/measurements.fcp@millisecond", "d", 10 * [7.0]),
         ],
     )
@@ -619,7 +625,7 @@ def test_rate_limit_metrics_buckets(
             "org_id": 1,
             "project_id": 42,
             "type": "d",
-            "value": [4.0, 5.0],
+            "value": violating_bucket,
         },
         {
             "name": "d:transactions/measurements.lcp@millisecond",
