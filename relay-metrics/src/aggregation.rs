@@ -1986,6 +1986,9 @@ impl Service for AggregatorService {
             let mut ticker = time::interval(FLUSH_INTERVAL);
             let mut shutdown = Controller::subscribe_v2().await;
             relay_log::info!("aggregator started");
+
+            // Note that currently this loop never exists and will run till the tokio runtime shuts
+            // down. This is about to change with the refactoring for the shutdown process.
             loop {
                 tokio::select! {
                     biased;
