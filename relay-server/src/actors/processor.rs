@@ -523,7 +523,7 @@ impl EncodeEnvelope {
 ///
 #[cfg(feature = "processing")]
 #[derive(Debug)]
-pub struct RateLimitMetricsBuckets {
+pub struct RateLimitMetrics {
     /// TODO: docs
     pub quotas: Vec<Quota>,
     /// The pre-aggregated metric buckets.
@@ -544,7 +544,7 @@ pub enum EnvelopeProcessor {
     ProcessMetrics(Box<ProcessMetrics>),
     EncodeEnvelope(Box<EncodeEnvelope>),
     #[cfg(feature = "processing")]
-    RateLimitMetricsBuckets(RateLimitMetricsBuckets), // TODO: why are the others Box<_>?
+    RateLimitMetrics(RateLimitMetrics), // TODO: why are the others Box<_>?
 }
 
 impl EnvelopeProcessor {
@@ -580,11 +580,11 @@ impl FromMessage<EncodeEnvelope> for EnvelopeProcessor {
 }
 
 #[cfg(feature = "processing")]
-impl FromMessage<RateLimitMetricsBuckets> for EnvelopeProcessor {
+impl FromMessage<RateLimitMetrics> for EnvelopeProcessor {
     type Response = NoResponse;
 
-    fn from_message(message: RateLimitMetricsBuckets, _: ()) -> Self {
-        Self::RateLimitMetricsBuckets(message)
+    fn from_message(message: RateLimitMetrics, _: ()) -> Self {
+        Self::RateLimitMetrics(message)
     }
 }
 
@@ -2197,11 +2197,11 @@ impl EnvelopeProcessorService {
     }
 
     #[cfg(feature = "processing")]
-    fn handle_rate_limit_metrics_buckets(&self, message: RateLimitMetricsBuckets) {
+    fn handle_rate_limit_metrics_buckets(&self, message: RateLimitMetrics) {
         use relay_metrics::{MetricNamespace, MetricResourceIdentifier};
         use relay_quotas::ItemScoping;
 
-        let RateLimitMetricsBuckets {
+        let RateLimitMetrics {
             quotas: quota,
             mut buckets,
             scoping,
@@ -2329,7 +2329,7 @@ impl EnvelopeProcessorService {
             EnvelopeProcessor::ProcessMetrics(message) => self.handle_process_metrics(*message),
             EnvelopeProcessor::EncodeEnvelope(message) => self.handle_encode_envelope(*message),
             #[cfg(feature = "processing")]
-            EnvelopeProcessor::RateLimitMetricsBuckets(message) => {
+            EnvelopeProcessor::RateLimitMetrics(message) => {
                 self.handle_rate_limit_metrics_buckets(message)
             }
         }

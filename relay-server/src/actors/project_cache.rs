@@ -18,15 +18,14 @@ use relay_statsd::metric;
 use crate::actors::envelopes::{EnvelopeManager, SendMetrics};
 use crate::actors::outcome::DiscardReason;
 use crate::actors::processor::ProcessEnvelope;
-use crate::actors::project::{Project, ProjectState};
+#[cfg(feature = "processing")]
+use crate::actors::processor::{EnvelopeProcessor, RateLimitMetrics};
+use crate::actors::project::{ExpiryState, Project, ProjectState};
 use crate::actors::project_local::LocalProjectSource;
 use crate::actors::project_upstream::UpstreamProjectSource;
 use crate::envelope::Envelope;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{self, EnvelopeContext, GarbageDisposal, Response};
-
-use super::processor::{EnvelopeProcessor, RateLimitMetricsBuckets};
-use super::project::ExpiryState;
 
 #[cfg(feature = "processing")]
 use {crate::actors::project_redis::RedisProjectSource, relay_common::clone};
@@ -639,7 +638,7 @@ impl Handler<FlushBuckets> for ProjectCache {
                 .collect::<Vec<_>>();
 
             // TODO: bypass if quota is empty?
-            EnvelopeProcessor::from_registry().send(RateLimitMetricsBuckets {
+            EnvelopeProcessor::from_registry().send(RateLimitMetrics {
                 quotas,
                 buckets,
                 scoping,
