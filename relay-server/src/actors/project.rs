@@ -600,6 +600,7 @@ impl Project {
     ///
     /// The buckets will be keyed underneath this project key.
     pub fn merge_buckets(&mut self, buckets: Vec<Bucket>) {
+        // TODO: rate limits
         if self.metrics_allowed() {
             Aggregator::from_registry().do_send(MergeBuckets::new(self.project_key, buckets));
         }
@@ -609,6 +610,8 @@ impl Project {
     ///
     /// The metrics will be keyed underneath this project key.
     pub fn insert_metrics(&mut self, metrics: Vec<Metric>) {
+        // TODO: rate limits
+        // TODO: code sharing for incoming buckets, incoming metrics, outgoing buckets
         if self.metrics_allowed() {
             Aggregator::from_registry().do_send(InsertMetrics::new(self.project_key, metrics));
         }

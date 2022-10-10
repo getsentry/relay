@@ -2225,7 +2225,6 @@ impl EnvelopeProcessorService {
         buckets.retain(|bucket| {
             // NOTE: The order of buckets is not deterministic here, because `Aggregator::pop_flush_buckets`
             //       produces a hash map.
-            // TODO: Add namespace enum to `Bucket` so we don't have to parse the MRI for every bucket?
             let mri = match MetricResourceIdentifier::parse(bucket.name.as_str()) {
                 Ok(mri) => mri,
                 Err(_) => {
@@ -2235,8 +2234,8 @@ impl EnvelopeProcessorService {
             };
 
             // Keep all metrics that are not transaction related:
-            if !matches!(mri.namespace, MetricNamespace::Transactions) {
-                // TODO: Should we rate limit sessions as well?
+            if mri.namespace != MetricNamespace::Transactions {
+                // Not limiting sessions for now.
                 return true;
             }
 
@@ -2250,9 +2249,7 @@ impl EnvelopeProcessorService {
                 0
             };
 
-            // If necessary, we could minimize the number of calls to the rate limiter
-            // by grouping buckets here somehow. But be aware that that would mean we might
-            // under-accept, because the sum of all buckets might exceed the quota, but not individual ones.
+            // TODO: Call rate limiter only once for each call of this function
             match rate_limiter.is_rate_limited(&quota, item_scoping, transaction_count) {
                 Ok(limits) => {
                     let is_limited = limits.is_limited();
@@ -2267,6 +2264,8 @@ impl EnvelopeProcessorService {
                 Err(_) => todo!(),
             }
         });
+
+        // TODO: log outcomes for dropped buckets. ()
 
         if buckets.is_empty() {
             return;

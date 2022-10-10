@@ -637,7 +637,8 @@ impl Handler<FlushBuckets> for ProjectCache {
                 .map(Quota::clone)
                 .collect::<Vec<_>>();
 
-            // TODO: bypass if quota is empty?
+            // TODO: bypass if quota is 0 or rate limit cached on the project?
+            //       (run project.rate_limits.check_with_quotas)
             EnvelopeProcessor::from_registry().send(RateLimitMetrics {
                 quotas,
                 buckets,
