@@ -366,7 +366,7 @@ def test_processing(
 @pytest.mark.parametrize(
     "window,max_rate_limit", [(86400, 2 * 86400), (2 * 86400, 86400)]
 )
-@pytest.mark.parametrize("event_type", ["default", "error", "transaction"])
+@pytest.mark.parametrize("event_type", ["default", "error"])
 def test_processing_quotas(
     mini_sentry,
     relay_with_processing,
