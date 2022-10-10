@@ -6,6 +6,7 @@
 
 - Limit the number of custom measurements per event. ([#1483](https://github.com/getsentry/relay/pull/1483)))
 - Add INP web vital as a measurement. ([#1487](https://github.com/getsentry/relay/pull/1487))
+- Add support for multi-extensions config. ([#1520](https://github.com/getsentry/relay/pull/1520))
 
 ** Bug Fixes**:
 
@@ -37,7 +38,6 @@
 - Fix error message filtering when formatting the message of logentry. ([#1442](https://github.com/getsentry/relay/pull/1442))
 - Loosen type requirements for the `user.id` field in Replays. ([#1443](https://github.com/getsentry/relay/pull/1443))
 - Fix panic in datascrubbing when number of sensitive fields was too large. ([#1474](https://github.com/getsentry/relay/pull/1474))
-
 
 **Internal**:
 
