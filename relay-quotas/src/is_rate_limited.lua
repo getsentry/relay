@@ -17,7 +17,7 @@
 -- Send these values:
 --
 --     KEYS = {"foo", "foo_refund", "bar", "bar_refund"}
---     ARGV = {10, 600 + now(), 5, 20, 600 + now(), 1}
+--     ARGV = {10, 600 + now(), 5, false, 20, 600 + now(), 1, true}
 --
 -- The script applies the following logic:
 --  * If all checks pass, the item is accepted and the counters for all quotas
@@ -28,24 +28,36 @@
 -- The result is a Lua table/array (Redis multi bulk reply) that specifies
 -- whether or not the item was *rejected* based on the provided limit.
 assert(#KEYS % 2 == 0, "there must be 2 keys per quota")
-assert(#ARGV % 3 == 0, "there must be 3 args per quota")
-assert(#KEYS / 2 == #ARGV / 3, "incorrect number of keys and arguments provided")
+assert(#ARGV % 4 == 0, "there must be 4 args per quota")
+assert(#KEYS / 2 == #ARGV / 4, "incorrect number of keys and arguments provided")
+
+-- parase the incoming string into boolean, returns `nil` if could not parse which is also considered `false`
+local function parse_boolean(v)
+    if v == '1' or v == 'true' or v == 'TRUE' then
+        return true
+    elseif v == '0' or v == 'false' or v == 'FALSE' then
+        return false
+    else
+        return nil
+    end
+end
 
 local results = {}
 local failed = false
 local num_quotas = #KEYS / 2
 for i=0, num_quotas - 1 do
     local k = i * 2 + 1
-    local v = i * 3 + 1
+    local v = i * 4 + 1
 
     local limit = tonumber(ARGV[v])
     local quantity = tonumber(ARGV[v+2])
+    local over_accept_once = parse_boolean(ARGV[v+3])
     local rejected = false
     -- limit=-1 means "no limit"
     if limit >= 0 then
         local consumed = (redis.call('GET', KEYS[k]) or 0) - (redis.call('GET', KEYS[k + 1]) or 0)
         -- we never increment past the limit. if quantity is 0, check instead if we reached limit.
-        if quantity == 0 then
+        if quantity == 0 or over_accept_once then
             rejected = consumed >= limit
         else
             rejected = consumed + quantity > limit
@@ -61,7 +73,7 @@ end
 if not failed then
     for i=0, num_quotas - 1 do
         local k = i * 2 + 1
-        local v = i * 3 + 1
+        local v = i * 4 + 1
 
         if tonumber(ARGV[v + 2]) > 0 then
             redis.call('INCRBY', KEYS[k], ARGV[v + 2])
