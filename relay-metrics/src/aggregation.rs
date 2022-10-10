@@ -1990,7 +1990,6 @@ impl Service for AggregatorService {
                 tokio::select! {
                     biased;
 
-                    // TODO(actix): `compat::send_to_recipient` is required by ProjectCache and will be removed with ProjectCache migration.
                     _ = ticker.tick() => self.try_flush(),
                     Some(message) = rx.recv() => self.handle_message(message),
                     _ = shutdown.changed() => self.handle_shutdown(&shutdown.borrow_and_update()),
@@ -2755,6 +2754,8 @@ mod tests {
         let receiver = TestReceiver::default();
         let recipient = receiver.clone().start().recipient();
         relay_test::block_with_actix(async move {
+            // Note that this is needed to initiate the compatibility layer so we can send the
+            // message from the new tokio runtime to the old system.
             compat::init();
             let config = AggregatorConfig {
                 bucket_interval: 1,
