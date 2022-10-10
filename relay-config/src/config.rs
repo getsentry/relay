@@ -13,6 +13,7 @@ use std::time::Duration;
 use failure::{Backtrace, Context, Fail};
 use serde::de::{Unexpected, Visitor};
 use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize, Serializer};
+use smallvec::{smallvec, SmallVec};
 
 use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
 use relay_common::{Dsn, Uuid};
@@ -152,10 +153,10 @@ enum ConfigFormat {
 }
 
 impl ConfigFormat {
-    pub fn extensions(&self) -> Vec<&'static str> {
+    pub fn extensions(&self) -> SmallVec<[&'static str; 2]> {
         match self {
-            ConfigFormat::Yaml => vec!["yaml", "yml"],
-            ConfigFormat::Json => vec!["json"],
+            ConfigFormat::Yaml => smallvec!["yaml", "yml"],
+            ConfigFormat::Json => smallvec!["json"],
         }
     }
 }
