@@ -2203,7 +2203,7 @@ impl EnvelopeProcessorService {
 
         let RateLimitMetrics {
             quotas: quota,
-            mut buckets,
+            buckets,
             scoping,
             partition_key,
         } = message;
@@ -2221,51 +2221,65 @@ impl EnvelopeProcessorService {
             scoping: &scoping,
         };
 
-        // Check which buckets are rate limited:
-        buckets.retain(|bucket| {
-            // NOTE: The order of buckets is not deterministic here, because `Aggregator::pop_flush_buckets`
-            //       produces a hash map.
-            let mri = match MetricResourceIdentifier::parse(bucket.name.as_str()) {
-                Ok(mri) => mri,
-                Err(_) => {
-                    relay_log::error!("Invalid MRI: {}", bucket.name);
-                    return true;
-                }
-            };
-
-            // Keep all metrics that are not transaction related:
-            if mri.namespace != MetricNamespace::Transactions {
-                // Not limiting sessions for now.
-                return true;
-            }
-
-            let transaction_count = if mri.name == "duration" {
-                // The "duration" metric is extracted exactly once for every processed transaction,
-                // so we can use it to count the number of transactions.
-                bucket.value.len()
-            } else {
-                // For any other metric in the transaction namespace, we check the limit with quantity=0
-                // so transactions are not double counted against the quota.
-                0
-            };
-
-            // TODO: Call rate limiter only once for each call of this function
-            match rate_limiter.is_rate_limited(&quota, item_scoping, transaction_count) {
-                Ok(limits) => {
-                    let is_limited = limits.is_limited();
-
-                    if is_limited {
-                        ProjectCache::from_registry()
-                            .do_send(UpdateRateLimits::new(scoping.project_key, limits));
+        // Collect bucket information (bucket, transaction_count)
+        let mut buckets: Vec<_> = buckets
+            .into_iter()
+            .map(|bucket| {
+                let mri = match MetricResourceIdentifier::parse(bucket.name.as_str()) {
+                    Ok(mri) => mri,
+                    Err(_) => {
+                        relay_log::error!("Invalid MRI: {}", bucket.name);
+                        return (bucket, None);
                     }
-                    // only retain if not limited:
-                    !is_limited
-                }
-                Err(_) => todo!(),
-            }
-        });
+                };
 
-        // TODO: log outcomes for dropped buckets. ()
+                // Keep all metrics that are not transaction related:
+                if mri.namespace != MetricNamespace::Transactions {
+                    // Not limiting sessions for now.
+                    return (bucket, None);
+                }
+
+                if mri.name == "duration" {
+                    // The "duration" metric is extracted exactly once for every processed transaction,
+                    // so we can use it to count the number of transactions.
+                    let count = bucket.value.len();
+                    (bucket, Some(count))
+                } else {
+                    // For any other metric in the transaction namespace, we check the limit with quantity=0
+                    // so transactions are not double counted against the quota.
+                    (bucket, Some(0))
+                }
+            })
+            .collect();
+
+        // Accumulate the total transaction count:
+        let transaction_count =
+            buckets.iter().fold(
+                None,
+                |acc, (_, transaction_count)| match transaction_count {
+                    Some(count) => Some(acc.unwrap_or(0) + count),
+                    None => acc,
+                },
+            );
+
+        // Call rate limiter if necessary:
+        if let Some(transaction_count) = transaction_count {
+            let limits = match rate_limiter.is_rate_limited(&quota, item_scoping, transaction_count)
+            {
+                Ok(limits) => limits,
+                Err(_) => todo!(),
+            };
+
+            if limits.is_limited() {
+                ProjectCache::from_registry()
+                    .do_send(UpdateRateLimits::new(scoping.project_key, limits));
+
+                // Only keep non-transaction buckets:
+                buckets.retain(|(_, count)| count.is_none());
+
+                // TODO: log outcomes for dropped buckets. ()
+            }
+        }
 
         if buckets.is_empty() {
             return;
@@ -2273,7 +2287,7 @@ impl EnvelopeProcessorService {
 
         // All good, forward to envelope manager.
         EnvelopeManager::from_registry().send(SendMetrics {
-            buckets,
+            buckets: buckets.into_iter().map(|(b, _)| b).collect(),
             scoping,
             partition_key,
         });
