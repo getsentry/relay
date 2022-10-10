@@ -473,7 +473,11 @@ def test_processing_quotas(
 
 @pytest.mark.parametrize("violating_bucket", [[4.0, 5.0], [4.0, 5.0, 6.0]])
 def test_rate_limit_metrics_buckets(
-    mini_sentry, relay_with_processing, metrics_consumer, violating_bucket
+    mini_sentry,
+    relay_with_processing,
+    metrics_consumer,
+    outcomes_consumer,
+    violating_bucket,
 ):
     """
     param violating_bucket is parametrized so we cover both cases:
@@ -492,6 +496,7 @@ def test_rate_limit_metrics_buckets(
         }
     )
     metrics_consumer = metrics_consumer()
+    outcomes_consumer = outcomes_consumer()
 
     project_id = 42
     projectconfig = mini_sentry.add_full_project_config(project_id)
@@ -501,6 +506,8 @@ def test_rate_limit_metrics_buckets(
     public_keys = mini_sentry.get_dsn_public_key_configs(project_id)
     key_id = public_keys[0]["numericId"]
 
+    reason_code = uuid.uuid4().hex
+
     projectconfig["config"]["quotas"] = [
         {
             "id": "test_rate_limiting_{}".format(uuid.uuid4().hex),
@@ -509,7 +516,7 @@ def test_rate_limit_metrics_buckets(
             "categories": ["transaction_processed"],
             "limit": 5,
             "window": 86400,
-            "reasonCode": "get_lost",
+            "reasonCode": reason_code,
         }
     ]
 
@@ -642,6 +649,10 @@ def test_rate_limit_metrics_buckets(
             "value": [2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0],
         },
     ]
+
+    outcomes_consumer.assert_rate_limited(
+        reason_code, key_id=key_id, categories=["transaction_processed"], quantity=3,
+    )
 
 
 def test_events_buffered_before_auth(relay, mini_sentry):

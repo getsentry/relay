@@ -200,6 +200,8 @@ def category_value(category):
         return 4
     if category == "session":
         return 5
+    if category == "transaction_processed":
+        return 8
     assert False, "invalid category"
 
 
@@ -224,7 +226,7 @@ class OutcomesConsumer(ConsumerBase):
         assert len(outcomes) == 1, "More than one outcome was consumed"
         return outcomes[0]
 
-    def assert_rate_limited(self, reason, key_id=None, categories=None):
+    def assert_rate_limited(self, reason, key_id=None, categories=None, quantity=None):
         if categories is None:
             outcome = self.get_outcome()
             assert isinstance(outcome["category"], int)
@@ -240,6 +242,10 @@ class OutcomesConsumer(ConsumerBase):
             assert outcome["reason"] == reason, outcome["reason"]
             if key_id is not None:
                 assert outcome["key_id"] == key_id
+
+        if quantity is not None:
+            count = sum(outcome["quantity"] for outcome in outcomes)
+            assert count == quantity
 
 
 @pytest.fixture

@@ -2253,7 +2253,7 @@ impl EnvelopeProcessorService {
             .collect();
 
         // Accumulate the total transaction count:
-        let transaction_count =
+        let total_transaction_count =
             buckets.iter().fold(
                 None,
                 |acc, (_, transaction_count)| match transaction_count {
@@ -2263,7 +2263,7 @@ impl EnvelopeProcessorService {
             );
 
         // Call rate limiter if necessary:
-        if let Some(transaction_count) = transaction_count {
+        if let Some(transaction_count) = total_transaction_count {
             let limits = match rate_limiter.is_rate_limited(&quota, item_scoping, transaction_count)
             {
                 Ok(limits) => limits,
@@ -2275,20 +2275,22 @@ impl EnvelopeProcessorService {
                 buckets.retain(|(_, count)| count.is_none());
 
                 // Track outcome for the processed transactions we dropped here:
-                for limit in &limits {
-                    if limit
-                        .categories
-                        .contains(&DataCategory::TransactionProcessed)
-                    {
-                        TrackOutcome::from_registry().send(TrackOutcome {
-                            timestamp: UnixTimestamp::now().as_datetime(), // as good as any timestamp
-                            scoping: *item_scoping,
-                            outcome: Outcome::RateLimited(limit.reason_code.clone()),
-                            event_id: None,
-                            remote_addr: None,
-                            category: DataCategory::TransactionProcessed,
-                            quantity: transaction_count as u32,
-                        });
+                if transaction_count > 0 {
+                    for limit in &limits {
+                        if limit
+                            .categories
+                            .contains(&DataCategory::TransactionProcessed)
+                        {
+                            TrackOutcome::from_registry().send(TrackOutcome {
+                                timestamp: UnixTimestamp::now().as_datetime(), // as good as any timestamp
+                                scoping: *item_scoping,
+                                outcome: Outcome::RateLimited(limit.reason_code.clone()),
+                                event_id: None,
+                                remote_addr: None,
+                                category: DataCategory::TransactionProcessed,
+                                quantity: transaction_count as u32,
+                            });
+                        }
                     }
                 }
 
