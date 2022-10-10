@@ -2271,13 +2271,29 @@ impl EnvelopeProcessorService {
             };
 
             if limits.is_limited() {
-                ProjectCache::from_registry()
-                    .do_send(UpdateRateLimits::new(scoping.project_key, limits));
-
                 // Only keep non-transaction buckets:
                 buckets.retain(|(_, count)| count.is_none());
 
-                // TODO: log outcomes for dropped buckets. ()
+                // Track outcome for the processed transactions we dropped here:
+                for limit in &limits {
+                    if limit
+                        .categories
+                        .contains(&DataCategory::TransactionProcessed)
+                    {
+                        TrackOutcome::from_registry().send(TrackOutcome {
+                            timestamp: UnixTimestamp::now().as_datetime(), // as good as any timestamp
+                            scoping: *item_scoping,
+                            outcome: Outcome::RateLimited(limit.reason_code.clone()),
+                            event_id: None,
+                            remote_addr: None,
+                            category: DataCategory::TransactionProcessed,
+                            quantity: transaction_count as u32,
+                        });
+                    }
+                }
+
+                ProjectCache::from_registry()
+                    .do_send(UpdateRateLimits::new(scoping.project_key, limits));
             }
         }
 
