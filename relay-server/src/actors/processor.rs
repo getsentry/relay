@@ -1752,7 +1752,7 @@ impl EnvelopeProcessorService {
                 .map_err(ProcessingError::QuotasFailed)?
         });
 
-        if enforcement.extracted_metrics.is_active() {
+        if enforcement.extracted_transaction_metrics.is_active() {
             state.extracted_metrics.clear();
         }
 

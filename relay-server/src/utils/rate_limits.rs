@@ -253,8 +253,8 @@ pub struct Enforcement {
     pub profiles: CategoryLimit,
     /// The combined replay item rate limit.
     pub replays: CategoryLimit,
-    /// Metrics extracted from a transaction.
-    pub extracted_metrics: CategoryLimit,
+    /// Metrics extraction from a transaction is rate limited.
+    pub extracted_transaction_metrics: CategoryLimit,
 }
 
 impl Enforcement {
@@ -404,7 +404,7 @@ where
                     // if we didn't increment the counter.  This works around a quirk of
                     // CategoryLimit::is_active which only considers something limited if
                     // the count is larger than 1.
-                    enforcement.extracted_metrics =
+                    enforcement.extracted_transaction_metrics =
                         CategoryLimit::new(DataCategory::TransactionProcessed, 1, longest);
                     rate_limits.merge(processing_limits);
                 } else {
@@ -415,7 +415,7 @@ where
                     // Reject the entire transaction event as we do not want to index it nor
                     // extract metrics from it.
                     enforcement.event = CategoryLimit::new(DataCategory::Transaction, 1, longest);
-                    enforcement.extracted_metrics =
+                    enforcement.extracted_transaction_metrics =
                         CategoryLimit::new(DataCategory::TransactionProcessed, 1, longest);
 
                     rate_limits.merge(processing_limits);
@@ -866,14 +866,14 @@ mod tests {
     fn test_enforce_limit_assumed_event() {
         let mut envelope = envelope![];
 
-        let mut mock = MockLimiter::default().deny(DataCategory::Transaction);
+        let mut mock = MockLimiter::default().deny(DataCategory::TransactionProcessed);
         let mut limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
         limiter.assume_event(DataCategory::Transaction);
         let (_, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
         assert!(limits.is_limited());
         assert!(envelope.is_empty()); // obviously
-        mock.assert_call(DataCategory::Transaction, Some(1));
+        mock.assert_call(DataCategory::TransactionProcessed, Some(0));
         mock.assert_call(DataCategory::Attachment, None);
         mock.assert_call(DataCategory::Session, None);
     }
@@ -893,5 +893,70 @@ mod tests {
         mock.assert_call(DataCategory::Error, Some(1));
         mock.assert_call(DataCategory::Attachment, None);
         mock.assert_call(DataCategory::Session, None);
+    }
+
+    #[test]
+    fn test_enforce_transaction_no_metrics_extracted() {
+        let mut envelope = envelope![Transaction];
+
+        let mut mock = MockLimiter::default().deny(DataCategory::TransactionProcessed);
+        let limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
+        let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
+
+        assert!(limits.is_limited());
+        assert!(enforcement.extracted_transaction_metrics.is_active());
+        assert!(enforcement.event.is_active());
+        mock.assert_call(DataCategory::TransactionProcessed, Some(0));
+    }
+
+    #[test]
+    fn test_enforce_transaction_metrics_extracted() {
+        let mut envelope = envelope![Transaction];
+        envelope
+            .get_item_by_mut(|item| *item.ty() == ItemType::Transaction)
+            .unwrap()
+            .set_metrics_extracted(true);
+
+        let mut mock = MockLimiter::default().deny(DataCategory::TransactionProcessed);
+        let limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
+        let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
+
+        assert!(limits.is_limited());
+        assert!(enforcement.extracted_transaction_metrics.is_active());
+        assert!(!enforcement.event.is_active());
+    }
+
+    #[test]
+    fn test_enforce_transaction_no_indexing_quota() {
+        let mut envelope = envelope![Transaction];
+
+        let mut mock = MockLimiter::default().deny(DataCategory::Transaction);
+        let limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
+        let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
+
+        assert!(!limits.is_limited());
+        assert!(!enforcement.extracted_transaction_metrics.is_active());
+
+        // Note we never check for the DataCategory::Transaction so we are not setting this
+        // to enforced.  After metrics extraction will check the rate limiter again and then
+        // this will actually do something.
+        assert!(!enforcement.event.is_active());
+    }
+
+    #[test]
+    fn test_enforce_transaction_metrics_extracted_no_indexing_quota() {
+        let mut envelope = envelope![Transaction];
+        envelope
+            .get_item_by_mut(|item| *item.ty() == ItemType::Transaction)
+            .unwrap()
+            .set_metrics_extracted(true);
+
+        let mut mock = MockLimiter::default().deny(DataCategory::Transaction);
+        let limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
+        let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
+
+        assert!(limits.is_limited());
+        assert!(!enforcement.extracted_transaction_metrics.is_active());
+        assert!(enforcement.event.is_active());
     }
 }
