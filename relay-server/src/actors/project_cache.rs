@@ -6,11 +6,15 @@ use actix_web::ResponseError;
 use failure::Fail;
 use futures01::{future, Future};
 
-use relay_common::{DataCategory, ProjectKey};
+use relay_common::ProjectKey;
+#[cfg(feature = "processing")]
+use relay_common::{clone, DataCategory};
 use relay_config::{Config, RelayMode};
 use relay_metrics::{self, AggregateMetricsError, FlushBuckets, InsertMetrics, MergeBuckets};
 
-use relay_quotas::{Quota, RateLimits};
+#[cfg(feature = "processing")]
+use relay_quotas::Quota;
+use relay_quotas::RateLimits;
 
 use relay_redis::RedisPool;
 use relay_statsd::metric;
@@ -22,14 +26,13 @@ use crate::actors::processor::ProcessEnvelope;
 use crate::actors::processor::{EnvelopeProcessor, RateLimitMetrics};
 use crate::actors::project::{ExpiryState, Project, ProjectState};
 use crate::actors::project_local::LocalProjectSource;
+#[cfg(feature = "processing")]
+use crate::actors::project_redis::RedisProjectSource;
 use crate::actors::project_upstream::UpstreamProjectSource;
 use crate::envelope::Envelope;
 use crate::service::Registry;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{self, EnvelopeContext, GarbageDisposal, Response};
-
-#[cfg(feature = "processing")]
-use {crate::actors::project_redis::RedisProjectSource, relay_common::clone};
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {

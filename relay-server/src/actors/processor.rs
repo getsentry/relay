@@ -32,15 +32,17 @@ use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig};
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
 use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
-use relay_quotas::{DataCategory, Quota, ReasonCode, Scoping};
+use relay_quotas::{DataCategory, ReasonCode};
+#[cfg(feature = "processing")]
+use relay_quotas::{Quota, Scoping};
 use relay_redis::RedisPool;
 use relay_sampling::{DynamicSamplingContext, RuleId};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 
-use crate::actors::envelopes::{
-    EnvelopeManager, SendEnvelope, SendEnvelopeError, SendMetrics, SubmitEnvelope,
-};
+#[cfg(feature = "processing")]
+use crate::actors::envelopes::SendMetrics;
+use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::{Feature, ProjectState};
 use crate::actors::project_cache::ProjectCache;
