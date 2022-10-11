@@ -168,8 +168,8 @@ trait ConfigObject: DeserializeOwned + Serialize {
     /// The basename of the config file.
     fn name() -> &'static str;
 
-    /// Check the full filename of the config file if it exists in the file storage. If none of
-    /// the defined files exist, it returns the last one even if it does not exist
+    /// The full filename of the config file, including the file extension.
+    /// The first matching file is returned, falling back to the last extension if none match.
     fn path(base: &Path) -> PathBuf {
         let extensions = Self::format().extensions();
 
