@@ -2451,20 +2451,20 @@ mod tests {
             .collect();
 
         insta::assert_debug_snapshot!(buckets, @r###"
-         [
-             (
-                 BucketKey {
-                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
-                     timestamp: UnixTimestamp(999994711),
-                     metric_name: "c:transactions/foo@none",
-                     tags: {},
-                 },
-                 Counter(
-                     85.0,
-                 ),
-             ),
-         ]
-         "###);
+        [
+            (
+                BucketKey {
+                    project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
+                    timestamp: UnixTimestamp(999994711),
+                    metric_name: "c:transactions/foo@none",
+                    tags: {},
+                },
+                Counter(
+                    85.0,
+                ),
+            ),
+        ]
+        "###);
     }
 
     #[test]
@@ -2496,31 +2496,31 @@ mod tests {
 
         buckets.sort_by(|a, b| a.0.timestamp.cmp(&b.0.timestamp));
         insta::assert_debug_snapshot!(buckets, @r###"
-         [
-             (
-                 BucketKey {
-                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
-                     timestamp: UnixTimestamp(999994710),
-                     metric_name: "c:transactions/foo@none",
-                     tags: {},
-                 },
-                 Counter(
-                     84.0,
-                 ),
-             ),
-             (
-                 BucketKey {
-                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
-                     timestamp: UnixTimestamp(999994720),
-                     metric_name: "c:transactions/foo@none",
-                     tags: {},
-                 },
-                 Counter(
-                     42.0,
-                 ),
-             ),
-         ]
-         "###);
+        [
+            (
+                BucketKey {
+                    project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
+                    timestamp: UnixTimestamp(999994710),
+                    metric_name: "c:transactions/foo@none",
+                    tags: {},
+                },
+                Counter(
+                    84.0,
+                ),
+            ),
+            (
+                BucketKey {
+                    project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
+                    timestamp: UnixTimestamp(999994720),
+                    metric_name: "c:transactions/foo@none",
+                    tags: {},
+                },
+                Counter(
+                    42.0,
+                ),
+            ),
+        ]
+        "###);
     }
 
     #[test]
@@ -2551,67 +2551,67 @@ mod tests {
         let project_key3 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
         let mut cost_tracker = CostTracker::default();
         insta::assert_debug_snapshot!(cost_tracker, @r###"
-         CostTracker {
-             total_cost: 0,
-             cost_per_project_key: {},
-         }
-         "###);
+        CostTracker {
+            total_cost: 0,
+            cost_per_project_key: {},
+        }
+        "###);
         cost_tracker.add_cost(project_key1, 100);
         insta::assert_debug_snapshot!(cost_tracker, @r###"
-         CostTracker {
-             total_cost: 100,
-             cost_per_project_key: {
-                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
-             },
-         }
-         "###);
+        CostTracker {
+            total_cost: 100,
+            cost_per_project_key: {
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
+            },
+        }
+        "###);
         cost_tracker.add_cost(project_key2, 200);
         insta::assert_debug_snapshot!(cost_tracker, @r###"
-         CostTracker {
-             total_cost: 300,
-             cost_per_project_key: {
-                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
-                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
-             },
-         }
-         "###);
+        CostTracker {
+            total_cost: 300,
+            cost_per_project_key: {
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
+            },
+        }
+        "###);
         // Unknown project: Will log error, but not crash
         cost_tracker.subtract_cost(project_key3, 666);
         insta::assert_debug_snapshot!(cost_tracker, @r###"
-         CostTracker {
-             total_cost: 300,
-             cost_per_project_key: {
-                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
-                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
-             },
-         }
-         "###);
+        CostTracker {
+            total_cost: 300,
+            cost_per_project_key: {
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
+            },
+        }
+        "###);
         // Subtract too much: Will log error, but not crash
         cost_tracker.subtract_cost(project_key1, 666);
         insta::assert_debug_snapshot!(cost_tracker, @r###"
-         CostTracker {
-             total_cost: 200,
-             cost_per_project_key: {
-                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
-             },
-         }
-         "###);
+        CostTracker {
+            total_cost: 200,
+            cost_per_project_key: {
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
+            },
+        }
+        "###);
         cost_tracker.subtract_cost(project_key2, 20);
         insta::assert_debug_snapshot!(cost_tracker, @r###"
-         CostTracker {
-             total_cost: 180,
-             cost_per_project_key: {
-                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 180,
-             },
-         }
-         "###);
+        CostTracker {
+            total_cost: 180,
+            cost_per_project_key: {
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 180,
+            },
+        }
+        "###);
         cost_tracker.subtract_cost(project_key2, 180);
         insta::assert_debug_snapshot!(cost_tracker, @r###"
-         CostTracker {
-             total_cost: 0,
-             cost_per_project_key: {},
-         }
-         "###);
+        CostTracker {
+            total_cost: 0,
+            cost_per_project_key: {},
+        }
+        "###);
     }
 
     #[test]
@@ -2690,18 +2690,18 @@ mod tests {
     #[test]
     fn test_capped_iter_single() {
         let json = r#"[
-           {
-             "name": "endpoint.response_time",
-             "unit": "millisecond",
-             "value": [36, 49, 57, 68],
-             "type": "d",
-             "timestamp": 1615889440,
-             "width": 10,
-             "tags": {
-                 "route": "user_index"
-             }
-           }
-         ]"#;
+          {
+            "name": "endpoint.response_time",
+            "unit": "millisecond",
+            "value": [36, 49, 57, 68],
+            "type": "d",
+            "timestamp": 1615889440,
+            "width": 10,
+            "tags": {
+                "route": "user_index"
+            }
+          }
+        ]"#;
 
         let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
 
@@ -2715,18 +2715,18 @@ mod tests {
     #[test]
     fn test_capped_iter_split() {
         let json = r#"[
-           {
-             "name": "endpoint.response_time",
-             "unit": "millisecond",
-             "value": [1, 1, 1, 1],
-             "type": "d",
-             "timestamp": 1615889440,
-             "width": 10,
-             "tags": {
-                 "route": "user_index"
-             }
-           }
-         ]"#;
+          {
+            "name": "endpoint.response_time",
+            "unit": "millisecond",
+            "value": [1, 1, 1, 1],
+            "type": "d",
+            "timestamp": 1615889440,
+            "width": 10,
+            "tags": {
+                "route": "user_index"
+            }
+          }
+        ]"#;
 
         let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
 
@@ -2962,11 +2962,11 @@ mod tests {
         assert!(AggregatorService::validate_bucket_key(short_metric, &aggregator_config).is_ok());
 
         let long_metric = BucketKey {
-             project_key,
-             timestamp: UnixTimestamp::now(),
-             metric_name: "c:transactions/long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is".to_owned(),
-             tags: BTreeMap::new(),
-         };
+            project_key,
+            timestamp: UnixTimestamp::now(),
+            metric_name: "c:transactions/long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is".to_owned(),
+            tags: BTreeMap::new(),
+        };
         let validation = AggregatorService::validate_bucket_key(long_metric, &aggregator_config);
 
         assert_eq!(
@@ -2975,22 +2975,22 @@ mod tests {
         );
 
         let short_metric_long_tag_key = BucketKey {
-             project_key,
-             timestamp: UnixTimestamp::now(),
-             metric_name: "c:transactions/a_short_metric_with_long_tag_key".to_owned(),
-             tags: BTreeMap::from([("i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book".into(), "tag_value".into())]),
-         };
+            project_key,
+            timestamp: UnixTimestamp::now(),
+            metric_name: "c:transactions/a_short_metric_with_long_tag_key".to_owned(),
+            tags: BTreeMap::from([("i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book".into(), "tag_value".into())]),
+        };
         let validation =
             AggregatorService::validate_bucket_key(short_metric_long_tag_key, &aggregator_config)
                 .unwrap();
         assert_eq!(validation.tags.len(), 0);
 
         let short_metric_long_tag_value = BucketKey {
-             project_key,
-             timestamp: UnixTimestamp::now(),
-             metric_name: "c:transactions/a_short_metric_with_long_tag_value".to_owned(),
-                 tags: BTreeMap::from([("tag_key".into(), "i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book".into())]),
-         };
+            project_key,
+            timestamp: UnixTimestamp::now(),
+            metric_name: "c:transactions/a_short_metric_with_long_tag_value".to_owned(),
+            tags: BTreeMap::from([("tag_key".into(), "i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book".into())]),
+        };
         let validation =
             AggregatorService::validate_bucket_key(short_metric_long_tag_value, &aggregator_config)
                 .unwrap();
@@ -3092,11 +3092,11 @@ mod tests {
     fn test_bucket_partitioning_dummy() {
         let output = run_test_bucket_partitioning(None);
         insta::assert_debug_snapshot!(output, @r###"
-         [
-             "metrics.buckets.per_batch:2|h",
-             "metrics.buckets.batches_per_partition:1|h",
-         ]
-         "###);
+        [
+            "metrics.buckets.per_batch:2|h",
+            "metrics.buckets.batches_per_partition:1|h",
+        ]
+        "###);
     }
 
     #[test]
@@ -3113,29 +3113,29 @@ mod tests {
          "###);
 
         insta::assert_debug_snapshot!(tail, @r###"
-         [
-             "metrics.buckets.per_batch:1|h",
-             "metrics.buckets.batches_per_partition:1|h",
-             "metrics.buckets.per_batch:1|h",
-             "metrics.buckets.batches_per_partition:1|h",
-         ]
-         "###);
+        [
+            "metrics.buckets.per_batch:1|h",
+            "metrics.buckets.batches_per_partition:1|h",
+            "metrics.buckets.per_batch:1|h",
+            "metrics.buckets.batches_per_partition:1|h",
+        ]
+        "###);
     }
 
     fn test_capped_iter_completeness(max_flush_bytes: usize, expected_elements: usize) {
         let json = r#"[
-           {
-             "name": "endpoint.response_time",
-             "unit": "millisecond",
-             "value": [1, 1, 1, 1],
-             "type": "d",
-             "timestamp": 1615889440,
-             "width": 10,
-             "tags": {
-                 "route": "user_index"
-             }
-           }
-         ]"#;
+          {
+            "name": "endpoint.response_time",
+            "unit": "millisecond",
+            "value": [1, 1, 1, 1],
+            "type": "d",
+            "timestamp": 1615889440,
+            "width": 10,
+            "tags": {
+                "route": "user_index"
+            }
+          }
+        ]"#;
 
         let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
 
