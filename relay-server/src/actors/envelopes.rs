@@ -11,7 +11,7 @@ use relay_common::ProjectKey;
 use relay_config::{Config, HttpEncoding};
 use relay_general::protocol::ClientReport;
 use relay_log::LogError;
-use relay_metrics::{Aggregator, Bucket, MergeBuckets};
+use relay_metrics::{Bucket, MergeBuckets};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse};
@@ -24,7 +24,7 @@ use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequest, Upstr
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, Request, RequestBuilder, Response};
-use crate::service::REGISTRY;
+use crate::service::{Registry, REGISTRY};
 use crate::statsd::RelayHistograms;
 use crate::utils::EnvelopeContext;
 
@@ -367,7 +367,7 @@ impl EnvelopeManagerService {
                 "failed to submit the envelope, merging buckets back: {}",
                 err
             );
-            Aggregator::from_registry().do_send(MergeBuckets::new(scoping.project_key, buckets))
+            Registry::aggregator().send(MergeBuckets::new(scoping.project_key, buckets));
         }
     }
 

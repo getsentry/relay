@@ -4,14 +4,14 @@ use std::sync::Arc;
 use actix::SystemService;
 
 use relay_config::{Config, RelayMode};
-use relay_metrics::{AcceptsMetrics, Aggregator};
+use relay_metrics::AcceptsMetrics;
 use relay_statsd::metric;
 use relay_system::{
     compat, Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service,
 };
 
 use crate::actors::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
-use crate::service::REGISTRY;
+use crate::service::{Registry, REGISTRY};
 use crate::statsd::RelayGauges;
 
 /// Checks whether Relay is alive and healthy based on its variant.
@@ -96,9 +96,10 @@ impl HealthCheckService {
                     return false;
                 }
 
-                compat::send(Aggregator::from_registry(), AcceptsMetrics)
+                Registry::aggregator()
+                    .send(AcceptsMetrics)
                     .await
-                    .unwrap_or(false)
+                    .unwrap_or_default()
             }
         }
     }

@@ -19,7 +19,7 @@ static RUNTIME: OnceCell<tokio01::runtime::Runtime> = OnceCell::new();
 static EXECUTOR: OnceCell<tokio01::runtime::TaskExecutor> = OnceCell::new();
 
 /// Initializes the compatibility layer.
-pub(crate) fn init() {
+pub fn init() {
     let system = System::current();
 
     let runtime = RUNTIME.get_or_init(move || {
@@ -56,4 +56,23 @@ where
         .map_err(|_| ());
     EXECUTOR.get().unwrap().spawn(f);
     rx.await.map_err(|_| MailboxError::Closed)?
+}
+
+/// Sends a message to a recipient using `actix` 0.7 from a `tokio` 1.0 context.
+///
+/// The message is internally forwarded through a `tokio` 0.1 runtime in order to avoid panics when
+/// the channel queues fill up and tasks are getting parked.
+///
+/// # Panics
+///
+/// Panics if this is invoked outside of the [`Controller`](crate::Controller).
+///
+/// TODO(actix): required by ProjectCache and will be removed with ProjectCache migration.
+pub fn send_to_recipient<M>(addr: Recipient<M>, msg: M)
+where
+    M: Message + Send + 'static,
+    M::Result: Send,
+{
+    let f = futures01::future::lazy(move || addr.do_send(msg)).map_err(|_| ());
+    EXECUTOR.get().unwrap().spawn(f);
 }
