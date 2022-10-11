@@ -3106,11 +3106,11 @@ mod tests {
         // be processed, so we need to convert them to a set:
         let (partition_keys, tail) = output.split_at(2);
         insta::assert_debug_snapshot!(BTreeSet::from_iter(partition_keys), @r###"
-         {
-             "metrics.buckets.partition_keys:59|h",
-             "metrics.buckets.partition_keys:62|h",
-         }
-         "###);
+        {
+            "metrics.buckets.partition_keys:59|h",
+            "metrics.buckets.partition_keys:62|h",
+        }
+        "###);
 
         insta::assert_debug_snapshot!(tail, @r###"
         [
