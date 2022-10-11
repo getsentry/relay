@@ -6,9 +6,10 @@
 --  * [string] Key of the refund counter.
 --
 -- ``ARGV`` (3 per quota):
---  * [number] Quota limit. Can be ``-1`` for unlimited quotas.
---  * [number] Absolute Expiration time as Unix timestamp (secs since 1.1.1970 ) for the key.
---  * [number] Quantity to increment the quota by, or ``0`` to check without incrementing.
+--  * [number]  Quota limit. Can be ``-1`` for unlimited quotas.
+--  * [number]  Absolute Expiration time as Unix timestamp (secs since 1.1.1970 ) for the key.
+--  * [number]  Quantity to increment the quota by, or ``0`` to check without incrementing.
+--  * [boolean] If set to `true` - reject only if the previous update already reached the limit.
 --
 -- For example, to check the following two quotas each with a timeout of 10 minutes from now:
 --  * Key ``foo``, refund key ``foo_refund``, limit ``10``; quantity ``5``
@@ -31,7 +32,7 @@ assert(#KEYS % 2 == 0, "there must be 2 keys per quota")
 assert(#ARGV % 4 == 0, "there must be 4 args per quota")
 assert(#KEYS / 2 == #ARGV / 4, "incorrect number of keys and arguments provided")
 
--- parase the incoming string into boolean, returns `nil` if could not parse which is also considered `false`
+-- parse the incoming string into boolean, returns `nil` if could not parse which is also considered `false`
 local function parse_boolean(v)
     if v == '1' or v == 'true' or v == 'TRUE' then
         return true
@@ -56,7 +57,10 @@ for i=0, num_quotas - 1 do
     -- limit=-1 means "no limit"
     if limit >= 0 then
         local consumed = (redis.call('GET', KEYS[k]) or 0) - (redis.call('GET', KEYS[k + 1]) or 0)
-        -- we never increment past the limit. if quantity is 0, check instead if we reached limit.
+        -- Without over_accept_once, we never increment past the limit. if quantity is 0, check instead if we reached limit.
+        -- With over_accept_once, we only reject if the previous update already reached the limit. 
+        -- This way, we ensure that we increment to or past the limit at some point,
+        -- such that subsequent checks with quantity=0 are actually rejected.
         if quantity == 0 or over_accept_once then
             rejected = consumed >= limit
         else
