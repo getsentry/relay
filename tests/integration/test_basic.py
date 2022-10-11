@@ -6,6 +6,7 @@ import signal
 import zlib
 import subprocess
 
+
 def test_config_file(mini_sentry, relay):
     config_file = "config.yaml"
     relay = relay(mini_sentry, config_file=config_file)
