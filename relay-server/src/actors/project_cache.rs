@@ -60,8 +60,6 @@ async fn rate_limit_buckets(
     scoping: Scoping,
     processing_enabled: bool,
 ) -> Vec<Bucket> {
-    dbg!("DOING THE RATE LIMITING");
-
     // Collect bucket information (bucket, transaction_count)
     let mut annotated_buckets: Vec<_> = buckets
         .into_iter()
@@ -761,23 +759,26 @@ impl Handler<FlushBuckets> for ProjectCache {
         let processing_enabled = config.processing_enabled();
         let rate_limits = project.rate_limits().clone();
         let future = async move {
-            rate_limit_buckets(buckets, quotas, &rate_limits, scoping, processing_enabled).await;
-            Ok(())
+            let buckets =
+                rate_limit_buckets(buckets, quotas, &rate_limits, scoping, processing_enabled)
+                    .await;
+            Ok(buckets)
         };
 
         let future = future.boxed();
 
         let future = future.compat();
 
-        // let future = future.and_then(|buckets| {
-        //     if !buckets.is_empty() {
-        //         EnvelopeManager::from_registry().send(SendMetrics {
-        //             buckets,
-        //             scoping,
-        //             partition_key,
-        //         });
-        //     }
-        // });
+        let future = future.and_then(move |buckets| {
+            if !buckets.is_empty() {
+                EnvelopeManager::from_registry().send(SendMetrics {
+                    buckets,
+                    scoping,
+                    partition_key,
+                });
+            }
+            Ok(())
+        });
 
         let actor_future = future.into_actor(self);
         actor_future.spawn(context);
