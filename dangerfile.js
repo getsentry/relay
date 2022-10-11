@@ -62,10 +62,8 @@ async function checkChangelog() {
 }
 
 async function checkAll() {
-  // See: https://spectrum.chat/danger/javascript/support-for-github-draft-prs~82948576-ce84-40e7-a043-7675e5bf5690
-  const isDraft = danger.github.pr.mergeable_state === "draft";
-
-  if (isDraft) {
+  const pr = danger.github.pr;
+  if (pr.draft || pr.merged) {
     return;
   }
 
