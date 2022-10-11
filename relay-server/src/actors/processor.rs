@@ -518,9 +518,7 @@ impl EncodeEnvelope {
     }
 }
 
-/// Enforce rate limits on metrics buckets, and forward them to the EnvelopeManager if there
-/// is still enough quota.
-///
+/// TODO: docs
 #[cfg(feature = "processing")]
 #[derive(Debug)]
 pub struct CheckRateLimits {
@@ -533,9 +531,6 @@ pub struct CheckRateLimits {
     /// By how much the quota usage is incremented.
     pub quantity: usize,
 }
-
-/// Enforce rate limits on a metrics bucket and forward it to EnvelopeManager
-/// to be published.
 
 /// CPU-intensive processing tasks for envelopes.
 #[derive(Debug)]
@@ -2196,9 +2191,9 @@ impl EnvelopeProcessorService {
         }
     }
 
-    /// Returns `true` if a rate limit is active.
+    /// Returns redis rate limits.
     #[cfg(feature = "processing")]
-    fn handle_rate_limit_metrics_buckets(&self, message: CheckRateLimits) -> RateLimits {
+    fn handle_check_rate_limits(&self, message: CheckRateLimits) -> RateLimits {
         use relay_quotas::ItemScoping;
 
         let CheckRateLimits {
@@ -2217,16 +2212,14 @@ impl EnvelopeProcessorService {
         };
 
         let item_scoping = ItemScoping {
-            category: DataCategory::TransactionProcessed,
+            category,
             scoping: &scoping,
         };
 
-        let limits = match rate_limiter.is_rate_limited(&quotas, item_scoping, quantity) {
+        match rate_limiter.is_rate_limited(&quotas, item_scoping, quantity) {
             Ok(limits) => limits,
             Err(_) => todo!(),
-        };
-
-        limits
+        }
     }
 
     fn encode_envelope_body(
@@ -2278,7 +2271,7 @@ impl EnvelopeProcessorService {
             EnvelopeProcessor::EncodeEnvelope(message) => self.handle_encode_envelope(*message),
             #[cfg(feature = "processing")]
             EnvelopeProcessor::CheckRateLimits(message, sender) => {
-                sender.send(self.handle_rate_limit_metrics_buckets(message));
+                sender.send(self.handle_check_rate_limits(message));
             }
         }
     }
