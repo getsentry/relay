@@ -17,7 +17,7 @@ use relay_metrics::{
 
 #[cfg(feature = "processing")]
 use relay_quotas::Quota;
-use relay_quotas::{ItemScoping, RateLimits};
+use relay_quotas::{ItemScoping, RateLimits, Scoping};
 
 use relay_redis::RedisPool;
 use relay_statsd::metric;
@@ -136,8 +136,10 @@ impl ProjectCache {
     async fn rate_limit_buckets(
         &self,
         buckets: Vec<Bucket>,
-        project: &Project,
+        project: &mut Project,
         project_state: &ProjectState,
+        scoping: &Scoping,
+        processing_enabled: bool,
     ) -> Vec<Bucket> {
         let quotas = project_state
             .config
@@ -194,19 +196,19 @@ impl ProjectCache {
         if let Some(transaction_count) = total_transaction_count {
             let item_scoping = ItemScoping {
                 category: DataCategory::TransactionProcessed,
-                scoping: project.scoping(),
+                scoping,
             };
-            let rate_limits = project
+            let mut rate_limits = project
                 .rate_limits()
                 .check_with_quotas(quotas.as_slice(), item_scoping);
 
             #[cfg(feature = "processing")]
-            if processing() && !rate_limits.is_limited() {
+            if processing_enabled && !rate_limits.is_limited() {
                 // Await rate limits from redis before continuing.
                 let res = EnvelopeProcessor::from_registry().send(CheckRateLimits {
                     quotas,
                     category: DataCategory::TransactionProcessed,
-                    scoping,
+                    scoping: *scoping,
                     quantity: transaction_count,
                 });
 
@@ -220,7 +222,7 @@ impl ProjectCache {
                 rate_limits.merge(redis_rate_limits);
 
                 // Also update our own cache:
-                project.merge_rate_limits(rate_limits);
+                project.merge_rate_limits(rate_limits.clone());
             }
 
             if rate_limits.is_limited() {
@@ -711,7 +713,7 @@ impl Handler<MergeBuckets> for ProjectCache {
 impl Handler<FlushBuckets> for ProjectCache {
     type Result = ();
 
-    fn handle(&mut self, message: FlushBuckets, _context: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: FlushBuckets, context: &mut Self::Context) -> Self::Result {
         let FlushBuckets {
             project_key,
             partition_key,
@@ -754,16 +756,24 @@ impl Handler<FlushBuckets> for ProjectCache {
             return;
         }
 
-        let buckets = self
-            .rate_limit_buckets(buckets, project, project_state.as_ref())
-            .into_actor();
+        let future = futures::compat::Compat::new(self.rate_limit_buckets(
+            buckets,
+            project,
+            project_state.as_ref(),
+            &scoping,
+            self.config.processing_enabled(),
+        ));
 
-        if !buckets.is_empty() {
-            EnvelopeManager::from_registry().send(SendMetrics {
-                buckets,
-                scoping,
-                partition_key,
-            });
-        }
+        let future = future.and_then(|buckets| {
+            if !buckets.is_empty() {
+                EnvelopeManager::from_registry().send(SendMetrics {
+                    buckets,
+                    scoping,
+                    partition_key,
+                });
+            }
+        });
+
+        context.spawn(future);
     }
 }

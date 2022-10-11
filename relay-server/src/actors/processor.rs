@@ -2221,7 +2221,7 @@ impl EnvelopeProcessorService {
             scoping: &scoping,
         };
 
-        let limits = match rate_limiter.is_rate_limited(&quota, item_scoping, quantity) {
+        let limits = match rate_limiter.is_rate_limited(&quotas, item_scoping, quantity) {
             Ok(limits) => limits,
             Err(_) => todo!(),
         };
