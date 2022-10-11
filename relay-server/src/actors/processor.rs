@@ -34,14 +34,12 @@ use relay_log::LogError;
 use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
 use relay_quotas::{DataCategory, ReasonCode};
 #[cfg(feature = "processing")]
-use relay_quotas::{Quota, Scoping};
+use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_redis::RedisPool;
 use relay_sampling::{DynamicSamplingContext, RuleId};
 use relay_statsd::metric;
-use relay_system::{Addr, FromMessage, NoResponse, Service};
+use relay_system::{Addr, AsyncResponse, FromMessage, NoResponse, Sender, Service};
 
-#[cfg(feature = "processing")]
-use crate::actors::envelopes::SendMetrics;
 use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::{Feature, ProjectState};
@@ -525,15 +523,15 @@ impl EncodeEnvelope {
 ///
 #[cfg(feature = "processing")]
 #[derive(Debug)]
-pub struct RateLimitMetrics {
-    /// TODO: docs
+pub struct CheckRateLimits {
+    /// Quotas to be checked.
     pub quotas: Vec<Quota>,
-    /// The pre-aggregated metric buckets.
-    pub buckets: Vec<Bucket>,
-    /// Scoping information for the metrics.
+    /// Category to check against.
+    pub category: DataCategory,
+    /// Scoping information for the project.
     pub scoping: Scoping,
-    /// The key of the logical partition to send the metrics to.
-    pub partition_key: Option<u64>,
+    /// By how much the quota usage is incremented.
+    pub quantity: usize,
 }
 
 /// Enforce rate limits on a metrics bucket and forward it to EnvelopeManager
@@ -546,7 +544,7 @@ pub enum EnvelopeProcessor {
     ProcessMetrics(Box<ProcessMetrics>),
     EncodeEnvelope(Box<EncodeEnvelope>),
     #[cfg(feature = "processing")]
-    RateLimitMetrics(RateLimitMetrics), // TODO: why are the others Box<_>?
+    CheckRateLimits(CheckRateLimits, Sender<RateLimits>), // TODO: why are the others Box<_>?
 }
 
 impl EnvelopeProcessor {
@@ -582,11 +580,11 @@ impl FromMessage<EncodeEnvelope> for EnvelopeProcessor {
 }
 
 #[cfg(feature = "processing")]
-impl FromMessage<RateLimitMetrics> for EnvelopeProcessor {
-    type Response = NoResponse;
+impl FromMessage<CheckRateLimits> for EnvelopeProcessor {
+    type Response = AsyncResponse<RateLimits>;
 
-    fn from_message(message: RateLimitMetrics, _: ()) -> Self {
-        Self::RateLimitMetrics(message)
+    fn from_message(message: CheckRateLimits, sender: Sender<RateLimits>) -> Self {
+        Self::CheckRateLimits(message, sender)
     }
 }
 
@@ -2198,23 +2196,23 @@ impl EnvelopeProcessorService {
         }
     }
 
+    /// Returns `true` if a rate limit is active.
     #[cfg(feature = "processing")]
-    fn handle_rate_limit_metrics_buckets(&self, message: RateLimitMetrics) {
-        use relay_metrics::{MetricNamespace, MetricResourceIdentifier};
+    fn handle_rate_limit_metrics_buckets(&self, message: CheckRateLimits) -> RateLimits {
         use relay_quotas::ItemScoping;
 
-        let RateLimitMetrics {
-            quotas: quota,
-            buckets,
+        let CheckRateLimits {
+            quotas,
+            category,
             scoping,
-            partition_key,
+            quantity,
         } = message;
 
         let rate_limiter = match self.rate_limiter.as_ref() {
             Some(rate_limiter) => rate_limiter,
             None => {
                 relay_log::error!("handle_rate_limit_metrics_buckets called without rate limiter");
-                return;
+                return RateLimits::new(); // empty
             }
         };
 
@@ -2223,94 +2221,12 @@ impl EnvelopeProcessorService {
             scoping: &scoping,
         };
 
-        // Collect bucket information (bucket, transaction_count)
-        let mut buckets: Vec<_> = buckets
-            .into_iter()
-            .map(|bucket| {
-                let mri = match MetricResourceIdentifier::parse(bucket.name.as_str()) {
-                    Ok(mri) => mri,
-                    Err(_) => {
-                        relay_log::error!("Invalid MRI: {}", bucket.name);
-                        return (bucket, None);
-                    }
-                };
+        let limits = match rate_limiter.is_rate_limited(&quota, item_scoping, quantity) {
+            Ok(limits) => limits,
+            Err(_) => todo!(),
+        };
 
-                // Keep all metrics that are not transaction related:
-                if mri.namespace != MetricNamespace::Transactions {
-                    // Not limiting sessions for now.
-                    return (bucket, None);
-                }
-
-                if mri.name == "duration" {
-                    // The "duration" metric is extracted exactly once for every processed transaction,
-                    // so we can use it to count the number of transactions.
-                    let count = bucket.value.len();
-                    (bucket, Some(count))
-                } else {
-                    // For any other metric in the transaction namespace, we check the limit with quantity=0
-                    // so transactions are not double counted against the quota.
-                    (bucket, Some(0))
-                }
-            })
-            .collect();
-
-        // Accumulate the total transaction count:
-        let total_transaction_count =
-            buckets.iter().fold(
-                None,
-                |acc, (_, transaction_count)| match transaction_count {
-                    Some(count) => Some(acc.unwrap_or(0) + count),
-                    None => acc,
-                },
-            );
-
-        // Call rate limiter if necessary:
-        if let Some(transaction_count) = total_transaction_count {
-            let limits = match rate_limiter.is_rate_limited(&quota, item_scoping, transaction_count)
-            {
-                Ok(limits) => limits,
-                Err(_) => todo!(),
-            };
-
-            if limits.is_limited() {
-                // Only keep non-transaction buckets:
-                buckets.retain(|(_, count)| count.is_none());
-
-                // Track outcome for the processed transactions we dropped here:
-                if transaction_count > 0 {
-                    for limit in &limits {
-                        if limit
-                            .categories
-                            .contains(&DataCategory::TransactionProcessed)
-                        {
-                            TrackOutcome::from_registry().send(TrackOutcome {
-                                timestamp: UnixTimestamp::now().as_datetime(), // as good as any timestamp
-                                scoping: *item_scoping,
-                                outcome: Outcome::RateLimited(limit.reason_code.clone()),
-                                event_id: None,
-                                remote_addr: None,
-                                category: DataCategory::TransactionProcessed,
-                                quantity: transaction_count as u32,
-                            });
-                        }
-                    }
-                }
-
-                ProjectCache::from_registry()
-                    .do_send(UpdateRateLimits::new(scoping.project_key, limits));
-            }
-        }
-
-        if buckets.is_empty() {
-            return;
-        }
-
-        // All good, forward to envelope manager.
-        EnvelopeManager::from_registry().send(SendMetrics {
-            buckets: buckets.into_iter().map(|(b, _)| b).collect(),
-            scoping,
-            partition_key,
-        });
+        limits
     }
 
     fn encode_envelope_body(
@@ -2361,8 +2277,8 @@ impl EnvelopeProcessorService {
             EnvelopeProcessor::ProcessMetrics(message) => self.handle_process_metrics(*message),
             EnvelopeProcessor::EncodeEnvelope(message) => self.handle_encode_envelope(*message),
             #[cfg(feature = "processing")]
-            EnvelopeProcessor::RateLimitMetrics(message) => {
-                self.handle_rate_limit_metrics_buckets(message)
+            EnvelopeProcessor::CheckRateLimits(message, sender) => {
+                sender.send(self.handle_rate_limit_metrics_buckets(message));
             }
         }
     }

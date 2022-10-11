@@ -585,6 +585,11 @@ impl Project {
         }
     }
 
+    /// The rate limits that are active for this project.
+    pub fn rate_limits(&self) -> &RateLimits {
+        &self.rate_limits
+    }
+
     /// The last time the project state was updated
     pub fn last_updated_at(&self) -> Instant {
         self.last_updated_at

@@ -6,15 +6,18 @@ use actix_web::ResponseError;
 use failure::Fail;
 use futures01::{future, Future};
 
-use relay_common::ProjectKey;
 #[cfg(feature = "processing")]
 use relay_common::{clone, DataCategory};
+use relay_common::{ProjectKey, UnixTimestamp};
 use relay_config::{Config, RelayMode};
-use relay_metrics::{self, AggregateMetricsError, FlushBuckets, InsertMetrics, MergeBuckets};
+use relay_metrics::{
+    self, AggregateMetricsError, Bucket, FlushBuckets, InsertMetrics, MergeBuckets,
+    MetricNamespace, MetricResourceIdentifier,
+};
 
 #[cfg(feature = "processing")]
 use relay_quotas::Quota;
-use relay_quotas::RateLimits;
+use relay_quotas::{ItemScoping, RateLimits};
 
 use relay_redis::RedisPool;
 use relay_statsd::metric;
@@ -23,7 +26,7 @@ use crate::actors::envelopes::{EnvelopeManager, SendMetrics};
 use crate::actors::outcome::DiscardReason;
 use crate::actors::processor::ProcessEnvelope;
 #[cfg(feature = "processing")]
-use crate::actors::processor::{EnvelopeProcessor, RateLimitMetrics};
+use crate::actors::processor::{CheckRateLimits, EnvelopeProcessor};
 use crate::actors::project::{ExpiryState, Project, ProjectState};
 use crate::actors::project_local::LocalProjectSource;
 #[cfg(feature = "processing")]
@@ -33,6 +36,8 @@ use crate::envelope::Envelope;
 use crate::service::Registry;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{self, EnvelopeContext, GarbageDisposal, Response};
+
+use super::outcome::{Outcome, TrackOutcome};
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {
@@ -125,6 +130,127 @@ impl ProjectCache {
                 metric!(counter(RelayCounters::ProjectCacheMiss) += 1);
                 Project::new(project_key, config)
             })
+    }
+
+    /// Remove rate limited metrics buckets and track outcomes for them.
+    async fn rate_limit_buckets(
+        &self,
+        buckets: Vec<Bucket>,
+        project: &Project,
+        project_state: &ProjectState,
+    ) -> Vec<Bucket> {
+        let quotas = project_state
+            .config
+            .quotas
+            .iter()
+            .filter(|q| q.categories.contains(&DataCategory::TransactionProcessed))
+            .map(Quota::clone)
+            .collect::<Vec<_>>();
+
+        // Collect bucket information (bucket, transaction_count)
+        let mut annotated_buckets: Vec<_> = buckets
+            .into_iter()
+            .map(|bucket| {
+                let mri = match MetricResourceIdentifier::parse(bucket.name.as_str()) {
+                    Ok(mri) => mri,
+                    Err(_) => {
+                        relay_log::error!("Invalid MRI: {}", bucket.name);
+                        return (bucket, None);
+                    }
+                };
+
+                // Keep all metrics that are not transaction related:
+                if mri.namespace != MetricNamespace::Transactions {
+                    // Not limiting sessions for now.
+                    return (bucket, None);
+                }
+
+                if mri.name == "duration" {
+                    // The "duration" metric is extracted exactly once for every processed transaction,
+                    // so we can use it to count the number of transactions.
+                    let count = bucket.value.len();
+                    (bucket, Some(count))
+                } else {
+                    // For any other metric in the transaction namespace, we check the limit with quantity=0
+                    // so transactions are not double counted against the quota.
+                    (bucket, Some(0))
+                }
+            })
+            .collect();
+
+        // Accumulate the total transaction count:
+        let total_transaction_count =
+            annotated_buckets
+                .iter()
+                .fold(
+                    None,
+                    |acc, (_, transaction_count)| match transaction_count {
+                        Some(count) => Some(acc.unwrap_or(0) + count),
+                        None => acc,
+                    },
+                );
+
+        // Check rate limits if necessary:
+        if let Some(transaction_count) = total_transaction_count {
+            let item_scoping = ItemScoping {
+                category: DataCategory::TransactionProcessed,
+                scoping: project.scoping(),
+            };
+            let rate_limits = project
+                .rate_limits()
+                .check_with_quotas(quotas.as_slice(), item_scoping);
+
+            #[cfg(feature = "processing")]
+            if processing() && !rate_limits.is_limited() {
+                // Await rate limits from redis before continuing.
+                let res = EnvelopeProcessor::from_registry().send(CheckRateLimits {
+                    quotas,
+                    category: DataCategory::TransactionProcessed,
+                    scoping,
+                    quantity: transaction_count,
+                });
+
+                let limits = res.await;
+
+                let redis_rate_limits = match limits {
+                    Ok(limits) => limits,
+                    Err(_) => todo!(),
+                };
+
+                rate_limits.merge(redis_rate_limits);
+
+                // Also update our own cache:
+                project.merge_rate_limits(rate_limits);
+            }
+
+            if rate_limits.is_limited() {
+                // Only keep non-transaction buckets:
+                annotated_buckets.retain(|(_, count)| count.is_none());
+
+                // Track outcome for the processed transactions we dropped here:
+                if transaction_count > 0 {
+                    for limit in &rate_limits {
+                        if limit
+                            .categories
+                            .contains(&DataCategory::TransactionProcessed)
+                        {
+                            TrackOutcome::from_registry().send(TrackOutcome {
+                                timestamp: UnixTimestamp::now().as_datetime(), // as good as any timestamp
+                                scoping: *item_scoping,
+                                outcome: Outcome::RateLimited(limit.reason_code.clone()),
+                                event_id: None,
+                                remote_addr: None,
+                                category: DataCategory::TransactionProcessed,
+                                quantity: transaction_count as u32,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        // Restore vector of buckets
+        annotated_buckets.into_iter().map(|(b, _)| b).collect()
     }
 }
 
@@ -628,34 +754,16 @@ impl Handler<FlushBuckets> for ProjectCache {
             return;
         }
 
-        // In processing mode, let the Processor rate limit the outgoing metrics bucket.
-        #[cfg(feature = "processing")]
-        if self.config.processing_enabled() {
-            let quotas = project_state
-                .config
-                .quotas
-                .iter()
-                .filter(|q| q.categories.contains(&DataCategory::TransactionProcessed))
-                .map(Quota::clone)
-                .collect::<Vec<_>>();
+        let buckets = self
+            .rate_limit_buckets(buckets, project, project_state.as_ref())
+            .into_actor();
 
-            // TODO: bypass if quota is 0 or rate limit cached on the project?
-            //       (run project.rate_limits.check_with_quotas)
-            EnvelopeProcessor::from_registry().send(RateLimitMetrics {
-                quotas,
+        if !buckets.is_empty() {
+            EnvelopeManager::from_registry().send(SendMetrics {
                 buckets,
                 scoping,
                 partition_key,
             });
-
-            return;
         }
-
-        // In non-processing mode, send the buckets to the envelope manager directly.
-        EnvelopeManager::from_registry().send(SendMetrics {
-            buckets,
-            scoping,
-            partition_key,
-        });
     }
 }
