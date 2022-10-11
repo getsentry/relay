@@ -6,8 +6,9 @@
 
 - Limit the number of custom measurements per event. ([#1483](https://github.com/getsentry/relay/pull/1483)))
 - Add INP web vital as a measurement. ([#1487](https://github.com/getsentry/relay/pull/1487))
+- Enforce rate limits on metrics buckets using the transactions_processed quota. ([#1515](https://github.com/getsentry/relay/pull/1515))
 
-** Bug Fixes**:
+**Bug Fixes**:
 
 - Make sure that non-processing Relays drop all invalid transactions. ([#1513](https://github.com/getsentry/relay/pull/1513))
 
