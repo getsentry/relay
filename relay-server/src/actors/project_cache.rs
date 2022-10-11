@@ -8,10 +8,10 @@ use futures01::{future, Future};
 
 use relay_common::{DataCategory, ProjectKey};
 use relay_config::{Config, RelayMode};
-use relay_metrics::{
-    self, AggregateMetricsError, Aggregator, FlushBuckets, InsertMetrics, MergeBuckets,
-};
+use relay_metrics::{self, AggregateMetricsError, FlushBuckets, InsertMetrics, MergeBuckets};
+
 use relay_quotas::{Quota, RateLimits};
+
 use relay_redis::RedisPool;
 use relay_statsd::metric;
 
@@ -24,6 +24,7 @@ use crate::actors::project::{ExpiryState, Project, ProjectState};
 use crate::actors::project_local::LocalProjectSource;
 use crate::actors::project_upstream::UpstreamProjectSource;
 use crate::envelope::Envelope;
+use crate::service::Registry;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{self, EnvelopeContext, GarbageDisposal, Response};
 
@@ -602,8 +603,7 @@ impl Handler<FlushBuckets> for ProjectCache {
                 relay_log::trace!("project expired: merging back {} buckets", buckets.len());
                 // If the state is outdated, we need to wait for an updated state. Put them back into the
                 // aggregator.
-                Aggregator::from_registry()
-                    .do_send(relay_metrics::MergeBuckets::new(project_key, buckets));
+                Registry::aggregator().send(MergeBuckets::new(project_key, buckets));
                 return;
             }
         };
@@ -615,8 +615,7 @@ impl Handler<FlushBuckets> for ProjectCache {
                     "there is no scoping: merging back {} buckets",
                     buckets.len()
                 );
-                Aggregator::from_registry()
-                    .do_send(relay_metrics::MergeBuckets::new(project_key, buckets));
+                Registry::aggregator().send(MergeBuckets::new(project_key, buckets));
                 return;
             }
         };

@@ -11,7 +11,9 @@ publish = false
 
 [dependencies]
 actix = "0.7.9"
+failure = "0.1.8"
 float-ord = "0.3.1"
+fnv = "1.0.7"
 hash32 = "0.1.1"
 relay-common = { path = "../relay-common" }
 relay-log = { path = "../relay-log" }
@@ -19,8 +21,7 @@ relay-statsd = { path = "../relay-statsd" }
 relay-system = { path = "../relay-system" }
 serde = { version = "1.0.114", features = ["derive"] }
 serde_json = "1.0.55"
-failure = "0.1.8"
-fnv = "1.0.7"
+tokio = { version = "1.0", features = ["macros", "time"] }
 
 [dev-dependencies]
 criterion = "0.3"

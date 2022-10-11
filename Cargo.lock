@@ -3366,6 +3366,7 @@ dependencies = [
  "relay-test",
  "serde",
  "serde_json",
+ "tokio 1.19.2",
 ]
 
 [[package]]
@@ -3533,6 +3534,8 @@ dependencies = [
  "actix-web",
  "futures 0.1.31",
  "relay-log",
+ "relay-system",
+ "tokio 1.19.2",
  "tokio-timer",
 ]
 

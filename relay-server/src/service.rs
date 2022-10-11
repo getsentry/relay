@@ -9,7 +9,7 @@ use once_cell::race::OnceBox;
 
 use relay_aws_extension::AwsExtension;
 use relay_config::Config;
-use relay_metrics::Aggregator;
+use relay_metrics::{Aggregator, AggregatorService};
 use relay_redis::RedisPool;
 use relay_system::{Addr, Configure, Controller, Service};
 
@@ -113,6 +113,7 @@ impl From<Context<ServerErrorKind>> for ServerError {
 
 #[derive(Clone)]
 pub struct Registry {
+    pub aggregator: Addr<Aggregator>,
     pub health_check: Addr<HealthCheck>,
     pub outcome_producer: Addr<OutcomeProducer>,
     pub outcome_aggregator: Addr<TrackOutcome>,
@@ -122,9 +123,20 @@ pub struct Registry {
     pub relay_cache: Addr<RelayCache>,
 }
 
+impl Registry {
+    /// Get the [`AggregatorService`] address from the registry.
+    ///
+    /// TODO(actix): this is temporary solution while migrating `ProjectCache` actor to the new tokio
+    /// runtime and follow up refactoring of the dependencies.
+    pub fn aggregator() -> Addr<Aggregator> {
+        REGISTRY.get().unwrap().aggregator.clone()
+    }
+}
+
 impl fmt::Debug for Registry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Registry")
+            .field("aggregator", &self.aggregator)
             .field("health_check", &self.health_check)
             .field("outcome_producer", &self.outcome_producer)
             .field("outcome_aggregator", &self.outcome_aggregator)
@@ -138,6 +150,7 @@ impl fmt::Debug for Registry {
 pub struct ServiceState {
     config: Arc<Config>,
     buffer_guard: Arc<BufferGuard>,
+    _aggregator_runtime: Arc<tokio::runtime::Runtime>,
     _outcome_runtime: Arc<tokio::runtime::Runtime>,
     _main_runtime: Arc<tokio::runtime::Runtime>,
     _store_runtime: Option<Arc<tokio::runtime::Runtime>>,
@@ -150,6 +163,7 @@ impl ServiceState {
         let registry = system.registry();
 
         let main_runtime = utils::create_runtime(config.cpu_concurrency());
+        let aggregator_runtime = utils::create_runtime(1);
         let outcome_runtime = utils::create_runtime(1);
         let mut _store_runtime = None;
 
@@ -194,17 +208,21 @@ impl ServiceState {
         let health_check = HealthCheckService::new(config.clone()).start();
         let relay_cache = RelayCacheService::new(config.clone()).start();
 
-        let aggregator = Aggregator::new(config.aggregator_config(), project_cache.recipient());
-        registry.set(Arbiter::start(|_| aggregator));
-
         if let Some(aws_api) = config.aws_runtime_api() {
             if let Ok(aws_extension) = AwsExtension::new(aws_api) {
                 aws_extension.start();
             }
         }
 
+        let guard = aggregator_runtime.enter();
+        let aggregator =
+            AggregatorService::new(config.aggregator_config(), Some(project_cache.recipient()))
+                .start();
+        drop(guard);
+
         REGISTRY
             .set(Box::new(Registry {
+                aggregator,
                 processor,
                 health_check,
                 outcome_producer,
@@ -218,6 +236,7 @@ impl ServiceState {
         Ok(ServiceState {
             buffer_guard: buffer,
             config,
+            _aggregator_runtime: Arc::new(aggregator_runtime),
             _outcome_runtime: Arc::new(outcome_runtime),
             _main_runtime: Arc::new(main_runtime),
             _store_runtime: _store_runtime.map(Arc::new),

@@ -17,7 +17,7 @@ use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 use relay_general::store::{BreakdownsConfig, MeasurementsConfig};
 use relay_general::types::SpanAttribute;
-use relay_metrics::{self, Aggregator, Bucket, InsertMetrics, MergeBuckets, Metric};
+use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::SamplingConfig;
 use relay_statsd::metric;
@@ -32,6 +32,7 @@ use crate::extractors::RequestMeta;
 use crate::metrics_extraction::sessions::SessionMetricsConfig;
 use crate::metrics_extraction::transactions::TransactionMetricsConfig;
 use crate::metrics_extraction::TaggingRule;
+use crate::service::Registry;
 use crate::statsd::RelayCounters;
 use crate::utils::{self, EnvelopeContext, EnvelopeLimiter, ErrorBoundary, Response};
 
@@ -602,7 +603,7 @@ impl Project {
     pub fn merge_buckets(&mut self, buckets: Vec<Bucket>) {
         // TODO: rate limits
         if self.metrics_allowed() {
-            Aggregator::from_registry().do_send(MergeBuckets::new(self.project_key, buckets));
+            Registry::aggregator().send(MergeBuckets::new(self.project_key, buckets));
         }
     }
 
@@ -613,7 +614,7 @@ impl Project {
         // TODO: rate limits
         // TODO: code sharing for incoming buckets, incoming metrics, outgoing buckets
         if self.metrics_allowed() {
-            Aggregator::from_registry().do_send(InsertMetrics::new(self.project_key, metrics));
+            Registry::aggregator().send(InsertMetrics::new(self.project_key, metrics));
         }
     }
 
