@@ -448,7 +448,7 @@
 <span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">HttpEncoding</span>};
 <span class="kw">use</span> <span class="ident">relay_general::protocol::ClientReport</span>;
 <span class="kw">use</span> <span class="ident">relay_log::LogError</span>;
-<span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">Aggregator</span>, <span class="ident">Bucket</span>, <span class="ident">MergeBuckets</span>};
+<span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">Bucket</span>, <span class="ident">MergeBuckets</span>};
 <span class="kw">use</span> <span class="ident">relay_quotas::Scoping</span>;
 <span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
 <span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">Addr</span>, <span class="ident">FromMessage</span>, <span class="ident">NoResponse</span>};
@@ -461,7 +461,7 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope</span>::{<span class="self">self</span>, <span class="ident">ContentType</span>, <span class="ident">Envelope</span>, <span class="ident">EnvelopeError</span>, <span class="ident">Item</span>, <span class="ident">ItemType</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::extractors</span>::{<span class="ident">PartialDsn</span>, <span class="ident">RequestMeta</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::http</span>::{<span class="ident">HttpError</span>, <span class="ident">Request</span>, <span class="ident">RequestBuilder</span>, <span class="ident">Response</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service::REGISTRY</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service</span>::{<span class="ident">Registry</span>, <span class="ident">REGISTRY</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd::RelayHistograms</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils::EnvelopeContext</span>;
 
@@ -804,7 +804,7 @@
                 <span class="string">&quot;failed to submit the envelope, merging buckets back: {}&quot;</span>,
                 <span class="ident">err</span>
             );
-            <span class="ident">Aggregator::from_registry</span>().<span class="ident">do_send</span>(<span class="ident">MergeBuckets::new</span>(<span class="ident">scoping</span>.<span class="ident">project_key</span>, <span class="ident">buckets</span>))
+            <span class="ident">Registry::aggregator</span>().<span class="ident">send</span>(<span class="ident">MergeBuckets::new</span>(<span class="ident">scoping</span>.<span class="ident">project_key</span>, <span class="ident">buckets</span>));
         }
     }
 

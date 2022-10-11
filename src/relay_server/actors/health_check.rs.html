@@ -138,20 +138,21 @@
 <span id="136">136</span>
 <span id="137">137</span>
 <span id="138">138</span>
+<span id="139">139</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::sync::atomic</span>::{<span class="ident">AtomicBool</span>, <span class="ident">Ordering</span>};
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 
 <span class="kw">use</span> <span class="ident">actix::SystemService</span>;
 
 <span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">RelayMode</span>};
-<span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">AcceptsMetrics</span>, <span class="ident">Aggregator</span>};
+<span class="kw">use</span> <span class="ident">relay_metrics::AcceptsMetrics</span>;
 <span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
 <span class="kw">use</span> <span class="ident">relay_system</span>::{
     <span class="ident">compat</span>, <span class="ident">Addr</span>, <span class="ident">AsyncResponse</span>, <span class="ident">Controller</span>, <span class="ident">FromMessage</span>, <span class="ident">Interface</span>, <span class="ident">Sender</span>, <span class="ident">Service</span>,
 };
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::upstream</span>::{<span class="ident">IsAuthenticated</span>, <span class="ident">IsNetworkOutage</span>, <span class="ident">UpstreamRelay</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service::REGISTRY</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service</span>::{<span class="ident">Registry</span>, <span class="ident">REGISTRY</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd::RelayGauges</span>;
 
 <span class="doccomment">/// Checks whether Relay is alive and healthy based on its variant.</span>
@@ -236,9 +237,10 @@
                     <span class="kw">return</span> <span class="bool-val">false</span>;
                 }
 
-                <span class="ident">compat::send</span>(<span class="ident">Aggregator::from_registry</span>(), <span class="ident">AcceptsMetrics</span>)
+                <span class="ident">Registry::aggregator</span>()
+                    .<span class="ident">send</span>(<span class="ident">AcceptsMetrics</span>)
                     .<span class="kw">await</span>
-                    .<span class="ident">unwrap_or</span>(<span class="bool-val">false</span>)
+                    .<span class="ident">unwrap_or_default</span>()
             }
         }
     }

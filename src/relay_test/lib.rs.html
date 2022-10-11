@@ -141,6 +141,29 @@
 <span id="139">139</span>
 <span id="140">140</span>
 <span id="141">141</span>
+<span id="142">142</span>
+<span id="143">143</span>
+<span id="144">144</span>
+<span id="145">145</span>
+<span id="146">146</span>
+<span id="147">147</span>
+<span id="148">148</span>
+<span id="149">149</span>
+<span id="150">150</span>
+<span id="151">151</span>
+<span id="152">152</span>
+<span id="153">153</span>
+<span id="154">154</span>
+<span id="155">155</span>
+<span id="156">156</span>
+<span id="157">157</span>
+<span id="158">158</span>
+<span id="159">159</span>
+<span id="160">160</span>
+<span id="161">161</span>
+<span id="162">162</span>
+<span id="163">163</span>
+<span id="164">164</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Helpers for testing the web server and services.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! When writing tests, keep the following points in mind:</span>
@@ -172,6 +195,7 @@
 
 <span class="kw">use</span> <span class="ident">std</span>::{
     <span class="ident">cell::RefCell</span>,
+    <span class="ident">future::Future</span>,
     <span class="ident">time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>},
 };
 
@@ -281,6 +305,28 @@
 <span class="doccomment">/// ```</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">delay</span>(<span class="ident">timeout</span>: <span class="ident">Duration</span>) -&gt; <span class="ident">Delay</span> {
     <span class="ident">Delay::new</span>(<span class="ident">Instant::now</span>() <span class="op">+</span> <span class="ident">timeout</span>)
+}
+
+<span class="doccomment">/// Creates a new runtime for the future to run on, and also keeps [`actix::System`] around for</span>
+<span class="doccomment">/// things which are still depend on it.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">block_with_actix</span>(<span class="ident">f</span>: <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> ()<span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;static</span>) {
+    <span class="kw">let</span> <span class="ident">system</span> <span class="op">=</span> <span class="ident">actix::System::current</span>();
+    <span class="kw">let</span> (<span class="ident">tx</span>, <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">futures01::sync::oneshot::channel</span>();
+
+    <span class="kw">let</span> <span class="ident">rt</span> <span class="op">=</span> <span class="ident">tokio::runtime::Builder::new_multi_thread</span>()
+        .<span class="ident">worker_threads</span>(<span class="number">1</span>)
+        .<span class="ident">enable_all</span>()
+        .<span class="ident">build</span>()
+        .<span class="ident">unwrap</span>();
+
+    <span class="ident">rt</span>.<span class="ident">spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
+        <span class="ident">actix::System::set_current</span>(<span class="ident">system</span>);
+        <span class="ident">f</span>.<span class="kw">await</span>;
+        <span class="ident">tx</span>.<span class="ident">send</span>(()).<span class="ident">ok</span>();
+    });
+
+    <span class="comment">// Note that this also resolves with error if `f` panics.</span>
+    <span class="ident">block_fn</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">rx</span>).<span class="ident">unwrap</span>()
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_test" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>

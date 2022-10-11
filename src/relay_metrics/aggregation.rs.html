@@ -3159,24 +3159,35 @@
 <span id="3157">3157</span>
 <span id="3158">3158</span>
 <span id="3159">3159</span>
+<span id="3160">3160</span>
+<span id="3161">3161</span>
+<span id="3162">3162</span>
+<span id="3163">3163</span>
+<span id="3164">3164</span>
+<span id="3165">3165</span>
+<span id="3166">3166</span>
+<span id="3167">3167</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::cmp::max</span>;
 <span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">btree_map</span>, <span class="ident">hash_map::Entry</span>, <span class="ident">BTreeMap</span>, <span class="ident">BTreeSet</span>, <span class="ident">HashMap</span>};
-
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::hash::Hasher</span>;
 <span class="kw">use</span> <span class="ident">std::iter</span>::{<span class="ident">FromIterator</span>, <span class="ident">FusedIterator</span>};
 <span class="kw">use</span> <span class="ident">std::mem</span>;
 <span class="kw">use</span> <span class="ident">std::time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>};
 
-<span class="kw">use</span> <span class="ident">actix::prelude</span>::<span class="kw-2">*</span>;
-
+<span class="kw">use</span> <span class="ident">actix</span>::{<span class="ident">Message</span>, <span class="ident">Recipient</span>};
 <span class="kw">use</span> <span class="ident">failure::Fail</span>;
 <span class="kw">use</span> <span class="ident">float_ord::FloatOrd</span>;
 <span class="kw">use</span> <span class="ident">fnv::FnvHasher</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
+<span class="kw">use</span> <span class="ident">tokio::time</span>;
 
 <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">MonotonicResult</span>, <span class="ident">ProjectKey</span>, <span class="ident">UnixTimestamp</span>};
-<span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">Controller</span>, <span class="ident">Shutdown</span>};
+<span class="kw">use</span> <span class="ident">relay_log::LogError</span>;
+<span class="kw">use</span> <span class="ident">relay_system</span>::{
+    <span class="ident">compat</span>, <span class="ident">AsyncResponse</span>, <span class="ident">Controller</span>, <span class="ident">FromMessage</span>, <span class="ident">Interface</span>, <span class="ident">NoResponse</span>, <span class="ident">Sender</span>, <span class="ident">Service</span>,
+    <span class="ident">Shutdown</span>,
+};
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd</span>::{<span class="ident">MetricCounters</span>, <span class="ident">MetricGauges</span>, <span class="ident">MetricHistograms</span>, <span class="ident">MetricSets</span>, <span class="ident">MetricTimers</span>};
 <span class="kw">use</span> <span class="kw">crate</span>::{
@@ -3184,7 +3195,7 @@
     <span class="ident">MetricResourceIdentifier</span>, <span class="ident">MetricType</span>, <span class="ident">MetricValue</span>, <span class="ident">SetType</span>,
 };
 
-<span class="doccomment">/// Interval for the flush cycle of the [`Aggregator`].</span>
+<span class="doccomment">/// Interval for the flush cycle of the [`AggregatorService`].</span>
 <span class="kw">const</span> <span class="ident">FLUSH_INTERVAL</span>: <span class="ident">Duration</span> <span class="op">=</span> <span class="ident">Duration::from_millis</span>(<span class="number">100</span>);
 
 <span class="doccomment">/// The average size of values when serialized.</span>
@@ -4066,7 +4077,7 @@
     }
 }
 
-<span class="doccomment">/// Parameters used by the [`Aggregator`].</span>
+<span class="doccomment">/// Parameters used by the [`AggregatorService`].</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AggregatorConfig</span> {
@@ -4316,43 +4327,6 @@
     <span class="ident">bucket</span>: <span class="ident">Bucket</span>,
 }
 
-<span class="doccomment">/// A message containing a vector of buckets to be flushed.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Handlers must respond to this message with a `Result`:</span>
-<span class="doccomment">/// - If flushing has succeeded or the buckets should be dropped for any reason, respond with `Ok`.</span>
-<span class="doccomment">/// - If flushing fails and should be retried at a later time, respond with `Err` containing the</span>
-<span class="doccomment">///   failed buckets. They will be merged back into the aggregator and flushed at a later time.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FlushBuckets</span> {
-    <span class="doccomment">/// The project key.</span>
-    <span class="kw">pub</span> <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>,
-    <span class="doccomment">/// The logical partition to send this batch to.</span>
-    <span class="kw">pub</span> <span class="ident">partition_key</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// The buckets to be flushed.</span>
-    <span class="kw">pub</span> <span class="ident">buckets</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span>,
-}
-
-<span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">FlushBuckets</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
-}
-
-<span class="doccomment">/// Check whether the aggregator has not (yet) exceeded its total limits. Used for health checks.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AcceptsMetrics</span>;
-
-<span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">AcceptsMetrics</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">bool</span>;
-}
-
-<span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">AcceptsMetrics</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Aggregator</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">bool</span>;
-
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">_msg</span>: <span class="ident">AcceptsMetrics</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
-        <span class="op">!</span><span class="self">self</span>
-            .<span class="ident">cost_tracker</span>
-            .<span class="ident">totals_cost_exceeded</span>(<span class="self">self</span>.<span class="ident">config</span>.<span class="ident">max_total_bucket_bytes</span>)
-    }
-}
-
 <span class="kw">enum</span> <span class="ident">AggregatorState</span> {
     <span class="ident">Running</span>,
     <span class="ident">ShuttingDown</span>,
@@ -4518,6 +4492,151 @@
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Iterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">Bucket</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="ident">FusedIterator</span> <span class="kw">for</span> <span class="ident">CappedBucketIter</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {}
 
+<span class="doccomment">/// Check whether the aggregator has not (yet) exceeded its total limits. Used for health checks.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AcceptsMetrics</span>;
+
+<span class="doccomment">/// Used only for testing the `AggregatorService`.</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">BucketCountInquiry</span>;
+
+<span class="doccomment">/// A message containing a vector of buckets to be flushed.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Handlers must respond to this message with a `Result`:</span>
+<span class="doccomment">/// - If flushing has succeeded or the buckets should be dropped for any reason, respond with `Ok`.</span>
+<span class="doccomment">/// - If flushing fails and should be retried at a later time, respond with `Err` containing the</span>
+<span class="doccomment">///   failed buckets. They will be merged back into the aggregator and flushed at a later time.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FlushBuckets</span> {
+    <span class="doccomment">/// The project key.</span>
+    <span class="kw">pub</span> <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>,
+    <span class="doccomment">/// The logical partition to send this batch to.</span>
+    <span class="kw">pub</span> <span class="ident">partition_key</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The buckets to be flushed.</span>
+    <span class="kw">pub</span> <span class="ident">buckets</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span>,
+}
+
+<span class="comment">// TODO(actix): required by ProjectCache and will be removed with ProjectCache migration.</span>
+<span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">FlushBuckets</span> {
+    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
+}
+
+<span class="doccomment">/// A message containing a list of [`Metric`]s to be inserted into the aggregator.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">InsertMetrics</span> {
+    <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>,
+    <span class="ident">metrics</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Metric</span><span class="op">&gt;</span>,
+}
+
+<span class="comment">// TODO(actix): required by ProjectCache and will be removed with ProjectCache migration.</span>
+<span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">InsertMetrics</span> {
+    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">AggregateMetricsError</span><span class="op">&gt;</span>;
+}
+
+<span class="kw">impl</span> <span class="ident">InsertMetrics</span> {
+    <span class="doccomment">/// Creates a new message containing a list of [`Metric`]s.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span>(<span class="ident">project_key</span>: <span class="ident">ProjectKey</span>, <span class="ident">metrics</span>: <span class="ident">I</span>) -&gt; <span class="self">Self</span>
+    <span class="kw">where</span>
+        <span class="ident">I</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">Metric</span><span class="op">&gt;</span>,
+    {
+        <span class="self">Self</span> {
+            <span class="ident">project_key</span>,
+            <span class="ident">metrics</span>: <span class="ident">metrics</span>.<span class="ident">into_iter</span>().<span class="ident">collect</span>(),
+        }
+    }
+
+    <span class="doccomment">/// Returns the `ProjectKey` for the the current `InsertMetrics` message.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">project_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">ProjectKey</span> {
+        <span class="self">self</span>.<span class="ident">project_key</span>
+    }
+
+    <span class="doccomment">/// Returns the list of the metrics in the current `InsertMetrics` message, consuming the</span>
+    <span class="doccomment">/// message itself.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">metrics</span>(<span class="self">self</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Metric</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">metrics</span>
+    }
+}
+
+<span class="doccomment">/// A message containing a list of [`Bucket`]s to be inserted into the aggregator.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MergeBuckets</span> {
+    <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>,
+    <span class="ident">buckets</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span>,
+}
+
+<span class="comment">// TODO(actix): required by ProjectCache and will be removed with ProjectCache migration.</span>
+<span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">MergeBuckets</span> {
+    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">AggregateMetricsError</span><span class="op">&gt;</span>;
+}
+
+<span class="kw">impl</span> <span class="ident">MergeBuckets</span> {
+    <span class="doccomment">/// Creates a new message containing a list of [`Bucket`]s.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">project_key</span>: <span class="ident">ProjectKey</span>, <span class="ident">buckets</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
+        <span class="self">Self</span> {
+            <span class="ident">project_key</span>,
+            <span class="ident">buckets</span>,
+        }
+    }
+
+    <span class="doccomment">/// Returns the `ProjectKey` for the the current `MergeBuckets` message.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">project_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">ProjectKey</span> {
+        <span class="self">self</span>.<span class="ident">project_key</span>
+    }
+
+    <span class="doccomment">/// Returns the list of the buckets in the current `MergeBuckets` message, consuming the</span>
+    <span class="doccomment">/// message itself.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">buckets</span>(<span class="self">self</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">buckets</span>
+    }
+}
+
+<span class="doccomment">/// Aggregator service interface.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Aggregator</span> {
+    <span class="doccomment">/// The health check message which makes sure that the service can accept the requests now.</span>
+    <span class="ident">AcceptsMetrics</span>(<span class="ident">AcceptsMetrics</span>, <span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>),
+    <span class="doccomment">/// Insert metrics.</span>
+    <span class="ident">InsertMetrics</span>(<span class="ident">InsertMetrics</span>),
+    <span class="doccomment">/// Merge the buckets.</span>
+    <span class="ident">MergeBuckets</span>(<span class="ident">MergeBuckets</span>),
+
+    <span class="doccomment">/// Message is used only for tests to get the current number of buckets in `AggregatorService`.</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+    <span class="ident">BucketCountInquiry</span>(<span class="ident">BucketCountInquiry</span>, <span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>),
+}
+
+<span class="kw">impl</span> <span class="ident">Interface</span> <span class="kw">for</span> <span class="ident">Aggregator</span> {}
+
+<span class="kw">impl</span> <span class="ident">FromMessage</span><span class="op">&lt;</span><span class="ident">AcceptsMetrics</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Aggregator</span> {
+    <span class="kw">type</span> <span class="ident">Response</span> <span class="op">=</span> <span class="ident">AsyncResponse</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>;
+    <span class="kw">fn</span> <span class="ident">from_message</span>(<span class="ident">message</span>: <span class="ident">AcceptsMetrics</span>, <span class="ident">sender</span>: <span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
+        <span class="ident"><span class="self">Self</span>::AcceptsMetrics</span>(<span class="ident">message</span>, <span class="ident">sender</span>)
+    }
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="kw">impl</span> <span class="ident">FromMessage</span><span class="op">&lt;</span><span class="ident">BucketCountInquiry</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Aggregator</span> {
+    <span class="kw">type</span> <span class="ident">Response</span> <span class="op">=</span> <span class="ident">AsyncResponse</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>;
+    <span class="kw">fn</span> <span class="ident">from_message</span>(<span class="ident">message</span>: <span class="ident">BucketCountInquiry</span>, <span class="ident">sender</span>: <span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
+        <span class="ident"><span class="self">Self</span>::BucketCountInquiry</span>(<span class="ident">message</span>, <span class="ident">sender</span>)
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">FromMessage</span><span class="op">&lt;</span><span class="ident">InsertMetrics</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Aggregator</span> {
+    <span class="kw">type</span> <span class="ident">Response</span> <span class="op">=</span> <span class="ident">NoResponse</span>;
+    <span class="kw">fn</span> <span class="ident">from_message</span>(<span class="ident">message</span>: <span class="ident">InsertMetrics</span>, <span class="kw">_</span>: ()) -&gt; <span class="self">Self</span> {
+        <span class="ident"><span class="self">Self</span>::InsertMetrics</span>(<span class="ident">message</span>)
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">FromMessage</span><span class="op">&lt;</span><span class="ident">MergeBuckets</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Aggregator</span> {
+    <span class="kw">type</span> <span class="ident">Response</span> <span class="op">=</span> <span class="ident">NoResponse</span>;
+    <span class="kw">fn</span> <span class="ident">from_message</span>(<span class="ident">message</span>: <span class="ident">MergeBuckets</span>, <span class="kw">_</span>: ()) -&gt; <span class="self">Self</span> {
+        <span class="ident"><span class="self">Self</span>::MergeBuckets</span>(<span class="ident">message</span>)
+    }
+}
+
 <span class="doccomment">/// A collector of [`Metric`] submissions.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Aggregation</span>
@@ -4549,20 +4668,21 @@
 <span class="doccomment">/// all elapsed buckets belonging to the same [`ProjectKey`] are flushed together.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// Receivers must implement a handler for the [`FlushBuckets`] message.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Aggregator</span> {
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AggregatorService</span> {
     <span class="ident">config</span>: <span class="ident">AggregatorConfig</span>,
     <span class="ident">buckets</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">BucketKey</span>, <span class="ident">QueuedBucket</span><span class="op">&gt;</span>,
-    <span class="ident">receiver</span>: <span class="ident">Recipient</span><span class="op">&lt;</span><span class="ident">FlushBuckets</span><span class="op">&gt;</span>,
+    <span class="comment">// TODO(actix): required by ProjectCache and will be removed with ProjectCache migration.</span>
+    <span class="ident">receiver</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Recipient</span><span class="op">&lt;</span><span class="ident">FlushBuckets</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">state</span>: <span class="ident">AggregatorState</span>,
     <span class="ident">cost_tracker</span>: <span class="ident">CostTracker</span>,
 }
 
-<span class="kw">impl</span> <span class="ident">Aggregator</span> {
+<span class="kw">impl</span> <span class="ident">AggregatorService</span> {
     <span class="doccomment">/// Create a new aggregator and connect it to `receiver`.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// The aggregator will flush a list of buckets to the receiver in regular intervals based on</span>
     <span class="doccomment">/// the given `config`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">config</span>: <span class="ident">AggregatorConfig</span>, <span class="ident">receiver</span>: <span class="ident">Recipient</span><span class="op">&lt;</span><span class="ident">FlushBuckets</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">config</span>: <span class="ident">AggregatorConfig</span>, <span class="ident">receiver</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Recipient</span><span class="op">&lt;</span><span class="ident">FlushBuckets</span><span class="op">&gt;</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="ident">config</span>,
             <span class="ident">buckets</span>: <span class="ident">HashMap::new</span>(),
@@ -4953,29 +5073,71 @@
             <span class="kw">let</span> <span class="ident">partitioned_buckets</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">partition_buckets</span>(<span class="ident">project_buckets</span>, <span class="ident">num_partitions</span>);
             <span class="kw">for</span> (<span class="ident">partition_key</span>, <span class="ident">buckets</span>) <span class="kw">in</span> <span class="ident">partitioned_buckets</span> {
                 <span class="self">self</span>.<span class="ident">process_batches</span>(<span class="ident">buckets</span>, <span class="op">|</span><span class="ident">batch</span><span class="op">|</span> {
-                    <span class="kw">let</span> <span class="ident">batch_size</span> <span class="op">=</span> <span class="ident">batch</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u64</span>;
-                    <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">receiver</span>.<span class="ident">do_send</span>(<span class="ident">FlushBuckets</span> {
-                        <span class="ident">project_key</span>,
-                        <span class="ident">partition_key</span>,
-                        <span class="ident">buckets</span>: <span class="ident">batch</span>,
-                    });
-                    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=</span> <span class="ident">result</span> {
-                        <span class="comment">// remove the failed batch size from the total count, since it failed and</span>
-                        <span class="comment">// will be dropped</span>
-                        <span class="ident">total_bucket_count</span> <span class="op">-</span><span class="op">=</span> <span class="ident">batch_size</span>;
-                        <span class="macro">relay_log::error!</span>(
-                            <span class="string">&quot;Failed to flush the buckets, dropping {batch_size} buckets: {err}.&quot;</span>
-                        );
+                    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">receiver</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">receiver</span>.<span class="ident">clone</span>() {
+                        <span class="kw">let</span> <span class="ident">flush_buckets</span> <span class="op">=</span> <span class="ident">FlushBuckets</span> {
+                            <span class="ident">project_key</span>,
+                            <span class="ident">partition_key</span>,
+                            <span class="ident">buckets</span>: <span class="ident">batch</span>,
+                        };
+                        <span class="ident">compat::send_to_recipient</span>(<span class="ident">receiver</span>, <span class="ident">flush_buckets</span>);
                     }
                 });
             }
         }
-
         <span class="macro">relay_statsd::metric!</span>(<span class="ident">histogram</span>(<span class="ident">MetricHistograms::BucketsFlushed</span>) <span class="op">=</span> <span class="ident">total_bucket_count</span>);
+    }
+
+    <span class="kw">fn</span> <span class="ident">handle_accepts_metrics</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">sender</span>: <span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>) {
+        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="op">!</span><span class="self">self</span>
+            .<span class="ident">cost_tracker</span>
+            .<span class="ident">totals_cost_exceeded</span>(<span class="self">self</span>.<span class="ident">config</span>.<span class="ident">max_total_bucket_bytes</span>);
+        <span class="ident">sender</span>.<span class="ident">send</span>(<span class="ident">result</span>);
+    }
+
+    <span class="kw">fn</span> <span class="ident">handle_insert_metrics</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">msg</span>: <span class="ident">InsertMetrics</span>) {
+        <span class="kw">let</span> <span class="ident">InsertMetrics</span> {
+            <span class="ident">project_key</span>,
+            <span class="ident">metrics</span>,
+        } <span class="op">=</span> <span class="ident">msg</span>;
+        <span class="kw">for</span> <span class="ident">metric</span> <span class="kw">in</span> <span class="ident">metrics</span> {
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">insert</span>(<span class="ident">project_key</span>, <span class="ident">metric</span>) {
+                <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to insert mertrics: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">err</span>));
+            }
+        }
+    }
+
+    <span class="kw">fn</span> <span class="ident">handle_merge_buckets</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">msg</span>: <span class="ident">MergeBuckets</span>) {
+        <span class="kw">let</span> <span class="ident">MergeBuckets</span> {
+            <span class="ident">project_key</span>,
+            <span class="ident">buckets</span>,
+        } <span class="op">=</span> <span class="ident">msg</span>;
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">merge_all</span>(<span class="ident">project_key</span>, <span class="ident">buckets</span>) {
+            <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to merge buckets: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">err</span>));
+        }
+    }
+
+    <span class="kw">fn</span> <span class="ident">handle_message</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">msg</span>: <span class="ident">Aggregator</span>) {
+        <span class="kw">match</span> <span class="ident">msg</span> {
+            <span class="ident">Aggregator::AcceptsMetrics</span>(<span class="kw">_</span>, <span class="ident">sender</span>) =&gt; <span class="self">self</span>.<span class="ident">handle_accepts_metrics</span>(<span class="ident">sender</span>),
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+            <span class="ident">Aggregator::BucketCountInquiry</span>(<span class="kw">_</span>, <span class="ident">sender</span>) =&gt; {
+                <span class="ident">sender</span>.<span class="ident">send</span>(<span class="self">self</span>.<span class="ident">buckets</span>.<span class="ident">len</span>());
+            }
+            <span class="ident">Aggregator::InsertMetrics</span>(<span class="ident">msg</span>) =&gt; <span class="self">self</span>.<span class="ident">handle_insert_metrics</span>(<span class="ident">msg</span>),
+            <span class="ident">Aggregator::MergeBuckets</span>(<span class="ident">msg</span>) =&gt; <span class="self">self</span>.<span class="ident">handle_merge_buckets</span>(<span class="ident">msg</span>),
+        }
+    }
+
+    <span class="kw">fn</span> <span class="ident">handle_shutdown</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Shutdown</span><span class="op">&gt;</span>) {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">message</span>) <span class="op">=</span> <span class="ident">message</span> {
+            <span class="kw">if</span> <span class="ident">message</span>.<span class="ident">timeout</span>.<span class="ident">is_some</span>() {
+                <span class="self">self</span>.<span class="ident">state</span> <span class="op">=</span> <span class="ident">AggregatorState::ShuttingDown</span>;
+            }
+        }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">Aggregator</span> {
+<span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">AggregatorService</span> {
     <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="ident">f</span>.<span class="ident">debug_struct</span>(<span class="ident">std::any::type_name</span>::<span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>())
             .<span class="ident">field</span>(<span class="string">&quot;config&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>)
@@ -4985,49 +5147,34 @@
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Actor</span> <span class="kw">for</span> <span class="ident">Aggregator</span> {
-    <span class="kw">type</span> <span class="ident">Context</span> <span class="op">=</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>;
+<span class="kw">impl</span> <span class="ident">Service</span> <span class="kw">for</span> <span class="ident">AggregatorService</span> {
+    <span class="kw">type</span> <span class="ident">Interface</span> <span class="op">=</span> <span class="ident">Aggregator</span>;
 
-    <span class="kw">fn</span> <span class="ident">started</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">ctx</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) {
-        <span class="macro">relay_log::info!</span>(<span class="string">&quot;aggregator started&quot;</span>);
+    <span class="kw">fn</span> <span class="ident">spawn_handler</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">rx</span>: <span class="ident">relay_system::Receiver</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Interface</span><span class="op">&gt;</span>) {
+        <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ticker</span> <span class="op">=</span> <span class="ident">time::interval</span>(<span class="ident">FLUSH_INTERVAL</span>);
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">shutdown</span> <span class="op">=</span> <span class="ident">Controller::subscribe_v2</span>().<span class="kw">await</span>;
+            <span class="macro">relay_log::info!</span>(<span class="string">&quot;aggregator started&quot;</span>);
 
-        <span class="comment">// Subscribe to shutdown</span>
-        <span class="ident">Controller::subscribe</span>(<span class="ident">ctx</span>.<span class="ident">address</span>());
+            <span class="comment">// Note that currently this loop never exists and will run till the tokio runtime shuts</span>
+            <span class="comment">// down. This is about to change with the refactoring for the shutdown process.</span>
+            <span class="kw">loop</span> {
+                <span class="macro">tokio::select!</span> {
+                    <span class="ident">biased</span>;
 
-        <span class="comment">// TODO: Consider a better approach than busy polling</span>
-        <span class="ident">ctx</span>.<span class="ident">run_interval</span>(<span class="ident">FLUSH_INTERVAL</span>, <span class="op">|</span><span class="ident">slf</span>, <span class="ident">_context</span><span class="op">|</span> {
-            <span class="ident">slf</span>.<span class="ident">try_flush</span>();
+                    <span class="kw">_</span> <span class="op">=</span> <span class="ident">ticker</span>.<span class="ident">tick</span>() =&gt; <span class="self">self</span>.<span class="ident">try_flush</span>(),
+                    <span class="prelude-val">Some</span>(<span class="ident">message</span>) <span class="op">=</span> <span class="ident">rx</span>.<span class="ident">recv</span>() =&gt; <span class="self">self</span>.<span class="ident">handle_message</span>(<span class="ident">message</span>),
+                    <span class="kw">_</span> <span class="op">=</span> <span class="ident">shutdown</span>.<span class="ident">changed</span>() =&gt; <span class="self">self</span>.<span class="ident">handle_shutdown</span>(<span class="kw-2">&amp;</span><span class="ident">shutdown</span>.<span class="ident">borrow_and_update</span>()),
+
+                    <span class="kw">else</span> =&gt; <span class="kw">break</span>,
+                }
+            }
+            <span class="macro">relay_log::info!</span>(<span class="string">&quot;aggregator stopped&quot;</span>);
         });
     }
-
-    <span class="kw">fn</span> <span class="ident">stopped</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) {
-        <span class="macro">relay_log::info!</span>(<span class="string">&quot;aggregator stopped&quot;</span>);
-    }
 }
 
-<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">Aggregator</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
-        <span class="macro">unimplemented!</span>(<span class="string">&quot;register with the SystemRegistry instead&quot;</span>)
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">Supervised</span> <span class="kw">for</span> <span class="ident">Aggregator</span> {}
-
-<span class="kw">impl</span> <span class="ident">SystemService</span> <span class="kw">for</span> <span class="ident">Aggregator</span> {}
-
-<span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">Shutdown</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Aggregator</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span>;
-
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">Shutdown</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
-        <span class="kw">if</span> <span class="ident">message</span>.<span class="ident">timeout</span>.<span class="ident">is_some</span>() {
-            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Shutting down...&quot;</span>);
-            <span class="self">self</span>.<span class="ident">state</span> <span class="op">=</span> <span class="ident">AggregatorState::ShuttingDown</span>;
-        }
-        <span class="prelude-val">Ok</span>(())
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">Aggregator</span> {
+<span class="kw">impl</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">AggregatorService</span> {
     <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
         <span class="kw">let</span> <span class="ident">remaining_buckets</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">buckets</span>.<span class="ident">len</span>();
         <span class="kw">if</span> <span class="ident">remaining_buckets</span> <span class="op">&gt;</span> <span class="number">0</span> {
@@ -5039,119 +5186,20 @@
     }
 }
 
-<span class="doccomment">/// A message containing a list of [`Metric`]s to be inserted into the aggregator.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">InsertMetrics</span> {
-    <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>,
-    <span class="ident">metrics</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Metric</span><span class="op">&gt;</span>,
-}
-
-<span class="kw">impl</span> <span class="ident">InsertMetrics</span> {
-    <span class="doccomment">/// Creates a new message containing a list of [`Metric`]s.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span>(<span class="ident">project_key</span>: <span class="ident">ProjectKey</span>, <span class="ident">metrics</span>: <span class="ident">I</span>) -&gt; <span class="self">Self</span>
-    <span class="kw">where</span>
-        <span class="ident">I</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">Metric</span><span class="op">&gt;</span>,
-    {
-        <span class="self">Self</span> {
-            <span class="ident">project_key</span>,
-            <span class="ident">metrics</span>: <span class="ident">metrics</span>.<span class="ident">into_iter</span>().<span class="ident">collect</span>(),
-        }
-    }
-
-    <span class="doccomment">/// Returns the `ProjectKey` for the the current `InsertMetrics` message.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">project_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">ProjectKey</span> {
-        <span class="self">self</span>.<span class="ident">project_key</span>
-    }
-
-    <span class="doccomment">/// Returns the list of the metrics in the current `InsertMetrics` message, consuming the</span>
-    <span class="doccomment">/// message itself.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">metrics</span>(<span class="self">self</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Metric</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">metrics</span>
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">InsertMetrics</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">AggregateMetricsError</span><span class="op">&gt;</span>;
-}
-
-<span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">InsertMetrics</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Aggregator</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">AggregateMetricsError</span><span class="op">&gt;</span>;
-
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">msg</span>: <span class="ident">InsertMetrics</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
-        <span class="kw">for</span> <span class="ident">metric</span> <span class="kw">in</span> <span class="ident">msg</span>.<span class="ident">metrics</span> {
-            <span class="self">self</span>.<span class="ident">insert</span>(<span class="ident">msg</span>.<span class="ident">project_key</span>, <span class="ident">metric</span>)<span class="question-mark">?</span>;
-        }
-
-        <span class="prelude-val">Ok</span>(())
-    }
-}
-
-<span class="doccomment">/// A message containing a list of [`Bucket`]s to be inserted into the aggregator.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MergeBuckets</span> {
-    <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>,
-    <span class="ident">buckets</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span>,
-}
-
-<span class="kw">impl</span> <span class="ident">MergeBuckets</span> {
-    <span class="doccomment">/// Creates a new message containing a list of [`Bucket`]s.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">project_key</span>: <span class="ident">ProjectKey</span>, <span class="ident">buckets</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> {
-            <span class="ident">project_key</span>,
-            <span class="ident">buckets</span>,
-        }
-    }
-
-    <span class="doccomment">/// Returns the `ProjectKey` for the the current `MergeBuckets` message.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">project_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">ProjectKey</span> {
-        <span class="self">self</span>.<span class="ident">project_key</span>
-    }
-
-    <span class="doccomment">/// Returns the list of the buckets in the current `MergeBuckets` message, consuming the</span>
-    <span class="doccomment">/// message itself.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">buckets</span>(<span class="self">self</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">buckets</span>
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">MergeBuckets</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">AggregateMetricsError</span><span class="op">&gt;</span>;
-}
-
-<span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">MergeBuckets</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Aggregator</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">AggregateMetricsError</span><span class="op">&gt;</span>;
-
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">msg</span>: <span class="ident">MergeBuckets</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
-        <span class="self">self</span>.<span class="ident">merge_all</span>(<span class="ident">msg</span>.<span class="ident">project_key</span>, <span class="ident">msg</span>.<span class="ident">buckets</span>)
-    }
-}
-
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">futures01::future::Future</span>;
+    <span class="kw">use</span> <span class="ident">actix::prelude</span>::<span class="kw-2">*</span>;
     <span class="kw">use</span> <span class="ident">std::sync</span>::{<span class="ident">Arc</span>, <span class="ident">RwLock</span>};
 
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
-
-    <span class="kw">struct</span> <span class="ident">BucketCountInquiry</span>;
-
-    <span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">BucketCountInquiry</span> {
-        <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">usize</span>;
-    }
-
-    <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">BucketCountInquiry</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Aggregator</span> {
-        <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">usize</span>;
-
-        <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="kw">_</span>: <span class="ident">BucketCountInquiry</span>, <span class="kw">_</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
-            <span class="self">self</span>.<span class="ident">buckets</span>.<span class="ident">len</span>()
-        }
-    }
 
     <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Default</span>)]</span>
     <span class="kw">struct</span> <span class="ident">ReceivedData</span> {
         <span class="ident">buckets</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span>,
     }
 
+    <span class="comment">// TODO(actix): this test receiver with its implementation will be removed onces the ProjectCache actor</span>
+    <span class="comment">// is migrated to the new tokio runtime.</span>
     <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Default</span>)]</span>
     <span class="kw">struct</span> <span class="ident">TestReceiver</span> {
         <span class="comment">// TODO: Better way to communicate with Actor after it&#39;s started?</span>
@@ -5556,9 +5604,7 @@
     <span class="kw">fn</span> <span class="ident">test_aggregator_merge_counters</span>() {
         <span class="ident">relay_test::setup</span>();
         <span class="kw">let</span> <span class="ident">project_key</span> <span class="op">=</span> <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).<span class="ident">unwrap</span>();
-
-        <span class="kw">let</span> <span class="ident">receiver</span> <span class="op">=</span> <span class="ident">TestReceiver::start_default</span>().<span class="ident">recipient</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">Aggregator::new</span>(<span class="ident">test_config</span>(), <span class="ident">receiver</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">AggregatorService::new</span>(<span class="ident">test_config</span>(), <span class="prelude-val">None</span>);
 
         <span class="kw">let</span> <span class="ident">metric1</span> <span class="op">=</span> <span class="ident">some_metric</span>();
 
@@ -5597,10 +5643,8 @@
             <span class="ident">bucket_interval</span>: <span class="number">10</span>,
             ..<span class="ident">test_config</span>()
         };
-        <span class="kw">let</span> <span class="ident">receiver</span> <span class="op">=</span> <span class="ident">TestReceiver::start_default</span>().<span class="ident">recipient</span>();
         <span class="kw">let</span> <span class="ident">project_key</span> <span class="op">=</span> <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).<span class="ident">unwrap</span>();
-
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">Aggregator::new</span>(<span class="ident">config</span>, <span class="ident">receiver</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">AggregatorService::new</span>(<span class="ident">config</span>, <span class="prelude-val">None</span>);
 
         <span class="kw">let</span> <span class="ident">metric1</span> <span class="op">=</span> <span class="ident">some_metric</span>();
 
@@ -5657,11 +5701,10 @@
             ..<span class="ident">test_config</span>()
         };
 
-        <span class="kw">let</span> <span class="ident">receiver</span> <span class="op">=</span> <span class="ident">TestReceiver::start_default</span>().<span class="ident">recipient</span>();
         <span class="kw">let</span> <span class="ident">project_key1</span> <span class="op">=</span> <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fed&quot;</span>).<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">project_key2</span> <span class="op">=</span> <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).<span class="ident">unwrap</span>();
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">Aggregator::new</span>(<span class="ident">config</span>, <span class="ident">receiver</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">AggregatorService::new</span>(<span class="ident">config</span>, <span class="prelude-val">None</span>);
 
         <span class="comment">// It&#39;s OK to have same metric with different projects:</span>
         <span class="ident">aggregator</span>.<span class="ident">insert</span>(<span class="ident">project_key1</span>, <span class="ident">some_metric</span>()).<span class="ident">unwrap</span>();
@@ -5743,8 +5786,7 @@
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_aggregator_cost_tracking</span>() {
         <span class="comment">// Make sure that the right cost is added / subtracted</span>
-        <span class="kw">let</span> <span class="ident">receiver</span> <span class="op">=</span> <span class="ident">TestReceiver::start_default</span>().<span class="ident">recipient</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">Aggregator::new</span>(<span class="ident">test_config</span>(), <span class="ident">receiver</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">AggregatorService::new</span>(<span class="ident">test_config</span>(), <span class="prelude-val">None</span>);
         <span class="kw">let</span> <span class="ident">project_key</span> <span class="op">=</span> <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fed&quot;</span>).<span class="ident">unwrap</span>();
 
         <span class="kw">let</span> <span class="ident">metric</span> <span class="op">=</span> <span class="ident">Metric</span> {
@@ -5882,57 +5924,49 @@
     <span class="kw">fn</span> <span class="ident">test_flush_bucket</span>() {
         <span class="ident">relay_test::setup</span>();
         <span class="kw">let</span> <span class="ident">receiver</span> <span class="op">=</span> <span class="ident">TestReceiver::default</span>();
-        <span class="ident">relay_test::block_fn</span>(<span class="op">|</span><span class="op">|</span> {
+        <span class="kw">let</span> <span class="ident">recipient</span> <span class="op">=</span> <span class="ident">receiver</span>.<span class="ident">clone</span>().<span class="ident">start</span>().<span class="ident">recipient</span>();
+        <span class="ident">relay_test::block_with_actix</span>(<span class="kw">async</span> <span class="kw">move</span> {
+            <span class="comment">// Note that this is needed to initiate the compatibility layer so we can send the</span>
+            <span class="comment">// message from the new tokio runtime to the old system.</span>
+            <span class="ident">compat::init</span>();
             <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">AggregatorConfig</span> {
                 <span class="ident">bucket_interval</span>: <span class="number">1</span>,
                 <span class="ident">initial_delay</span>: <span class="number">0</span>,
                 <span class="ident">debounce_delay</span>: <span class="number">0</span>,
                 ..<span class="ident">Default::default</span>()
             };
-            <span class="kw">let</span> <span class="ident">recipient</span> <span class="op">=</span> <span class="ident">receiver</span>.<span class="ident">clone</span>().<span class="ident">start</span>().<span class="ident">recipient</span>();
             <span class="kw">let</span> <span class="ident">project_key</span> <span class="op">=</span> <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).<span class="ident">unwrap</span>();
-            <span class="kw">let</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">Aggregator::new</span>(<span class="ident">config</span>, <span class="ident">recipient</span>).<span class="ident">start</span>();
+            <span class="kw">let</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">AggregatorService::new</span>(<span class="ident">config</span>, <span class="prelude-val">Some</span>(<span class="ident">recipient</span>)).<span class="ident">start</span>();
 
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metric</span> <span class="op">=</span> <span class="ident">some_metric</span>();
             <span class="ident">metric</span>.<span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::now</span>();
-            <span class="ident">aggregator</span>
-                .<span class="ident">send</span>(<span class="ident">InsertMetrics</span> {
-                    <span class="ident">project_key</span>,
-                    <span class="ident">metrics</span>: <span class="macro">vec!</span>[<span class="ident">metric</span>],
-                })
-                .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">aggregator</span>.<span class="ident">send</span>(<span class="ident">BucketCountInquiry</span>))
-                .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ())
-                .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">bucket_count</span><span class="op">|</span> {
-                    <span class="comment">// Immediately after sending the metric, nothing has been flushed:</span>
-                    <span class="macro">assert_eq!</span>(<span class="ident">bucket_count</span>, <span class="number">1</span>);
-                    <span class="macro">assert_eq!</span>(<span class="ident">receiver</span>.<span class="ident">bucket_count</span>(), <span class="number">0</span>);
-                    <span class="prelude-val">Ok</span>(())
-                })
-                .<span class="ident">and_then</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> {
-                    <span class="comment">// Wait until flush delay has passed. It is up to 2s: 1s for the current bucket</span>
-                    <span class="comment">// and 1s for the flush shift. Adding 100ms buffer.</span>
-                    <span class="ident">relay_test::delay</span>(<span class="ident">Duration::from_millis</span>(<span class="number">2100</span>)).<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ())
-                })
-                .<span class="ident">and_then</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> {
-                    <span class="comment">// After the flush delay has passed, the receiver should have the bucket:</span>
-                    <span class="macro">assert_eq!</span>(<span class="ident">receiver</span>.<span class="ident">bucket_count</span>(), <span class="number">1</span>);
-                    <span class="prelude-val">Ok</span>(())
-                })
-        })
-        .<span class="ident">ok</span>();
+
+            <span class="ident">aggregator</span>.<span class="ident">send</span>(<span class="ident">InsertMetrics</span> {
+                <span class="ident">project_key</span>,
+                <span class="ident">metrics</span>: <span class="macro">vec!</span>[<span class="ident">metric</span>],
+            });
+
+            <span class="kw">let</span> <span class="ident">buckets_count</span> <span class="op">=</span> <span class="ident">aggregator</span>.<span class="ident">send</span>(<span class="ident">BucketCountInquiry</span>).<span class="kw">await</span>.<span class="ident">unwrap</span>();
+            <span class="comment">// Let&#39;s check the number of buckets in the aggregator just after sending a</span>
+            <span class="comment">// message.</span>
+            <span class="macro">assert_eq!</span>(<span class="ident">buckets_count</span>, <span class="number">1</span>);
+            <span class="comment">// Wait until flush delay has passed. It is up to 2s: 1s for the current bucket</span>
+            <span class="comment">// and 1s for the flush shift. Adding 100ms buffer.</span>
+            <span class="ident">tokio::time::sleep</span>(<span class="ident">Duration::from_millis</span>(<span class="number">2100</span>)).<span class="kw">await</span>;
+            <span class="comment">// receiver must have 1 bucket flushed</span>
+            <span class="macro">assert_eq!</span>(<span class="ident">receiver</span>.<span class="ident">bucket_count</span>(), <span class="number">1</span>);
+        });
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_merge_back</span>() {
         <span class="ident">relay_test::setup</span>();
-
-        <span class="comment">// Create a receiver which accepts nothing:</span>
-        <span class="kw">let</span> <span class="ident">receiver</span> <span class="op">=</span> <span class="ident">TestReceiver</span> {
-            <span class="ident">reject_all</span>: <span class="bool-val">true</span>,
-            ..<span class="ident">TestReceiver::default</span>()
-        };
-
-        <span class="ident">relay_test::block_fn</span>(<span class="op">|</span><span class="op">|</span> {
+        <span class="ident">relay_test::block_with_actix</span>(<span class="kw">async</span> <span class="kw">move</span> {
+            <span class="comment">// Create a receiver which accepts nothing:</span>
+            <span class="kw">let</span> <span class="ident">receiver</span> <span class="op">=</span> <span class="ident">TestReceiver</span> {
+                <span class="ident">reject_all</span>: <span class="bool-val">true</span>,
+                ..<span class="ident">TestReceiver::default</span>()
+            };
             <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">AggregatorConfig</span> {
                 <span class="ident">bucket_interval</span>: <span class="number">1</span>,
                 <span class="ident">initial_delay</span>: <span class="number">0</span>,
@@ -5940,38 +5974,23 @@
                 ..<span class="ident">Default::default</span>()
             };
             <span class="kw">let</span> <span class="ident">recipient</span> <span class="op">=</span> <span class="ident">receiver</span>.<span class="ident">clone</span>().<span class="ident">start</span>().<span class="ident">recipient</span>();
+
             <span class="kw">let</span> <span class="ident">project_key</span> <span class="op">=</span> <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).<span class="ident">unwrap</span>();
 
-            <span class="kw">let</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">Aggregator::new</span>(<span class="ident">config</span>, <span class="ident">recipient</span>).<span class="ident">start</span>();
+            <span class="kw">let</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">AggregatorService::new</span>(<span class="ident">config</span>, <span class="prelude-val">Some</span>(<span class="ident">recipient</span>)).<span class="ident">start</span>();
 
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metric</span> <span class="op">=</span> <span class="ident">some_metric</span>();
             <span class="ident">metric</span>.<span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::now</span>();
-            <span class="ident">aggregator</span>
-                .<span class="ident">send</span>(<span class="ident">InsertMetrics</span> {
-                    <span class="ident">project_key</span>,
-                    <span class="ident">metrics</span>: <span class="macro">vec!</span>[<span class="ident">metric</span>],
-                })
-                .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ())
-                .<span class="ident">and_then</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> {
-                    <span class="comment">// Immediately after sending the metric, nothing has been flushed:</span>
-                    <span class="macro">assert_eq!</span>(<span class="ident">receiver</span>.<span class="ident">bucket_count</span>(), <span class="number">0</span>);
-                    <span class="prelude-val">Ok</span>(())
-                })
-                .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ())
-                .<span class="ident">and_then</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> {
-                    <span class="comment">// Wait until flush delay has passed</span>
-                    <span class="ident">relay_test::delay</span>(<span class="ident">Duration::from_millis</span>(<span class="number">1100</span>)).<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ())
-                })
-                .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">aggregator</span>.<span class="ident">send</span>(<span class="ident">BucketCountInquiry</span>).<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ()))
-                .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">bucket_count</span><span class="op">|</span> {
-                    <span class="comment">// After the flush delay has passed, the receiver should still not have the</span>
-                    <span class="comment">// bucket</span>
-                    <span class="macro">assert_eq!</span>(<span class="ident">bucket_count</span>, <span class="number">1</span>);
-                    <span class="macro">assert_eq!</span>(<span class="ident">receiver</span>.<span class="ident">bucket_count</span>(), <span class="number">0</span>);
-                    <span class="prelude-val">Ok</span>(())
-                })
-        })
-        .<span class="ident">ok</span>();
+            <span class="ident">aggregator</span>.<span class="ident">send</span>(<span class="ident">InsertMetrics</span> {
+                <span class="ident">project_key</span>,
+                <span class="ident">metrics</span>: <span class="macro">vec!</span>[<span class="ident">metric</span>],
+            });
+            <span class="macro">assert_eq!</span>(<span class="ident">receiver</span>.<span class="ident">bucket_count</span>(), <span class="number">0</span>);
+            <span class="ident">tokio::time::sleep</span>(<span class="ident">Duration::from_millis</span>(<span class="number">1100</span>)).<span class="kw">await</span>;
+            <span class="kw">let</span> <span class="ident">bucket_count</span> <span class="op">=</span> <span class="ident">aggregator</span>.<span class="ident">send</span>(<span class="ident">BucketCountInquiry</span>).<span class="kw">await</span>.<span class="ident">unwrap</span>();
+            <span class="macro">assert_eq!</span>(<span class="ident">bucket_count</span>, <span class="number">1</span>);
+            <span class="macro">assert_eq!</span>(<span class="ident">receiver</span>.<span class="ident">bucket_count</span>(), <span class="number">0</span>);
+        });
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -6084,7 +6103,7 @@
         <span class="kw">let</span> <span class="ident">aggregator_config</span> <span class="op">=</span> <span class="ident">test_config</span>();
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bucket_key</span> <span class="op">=</span>
-            <span class="ident">Aggregator::validate_bucket_key</span>(<span class="ident">bucket_key</span>, <span class="kw-2">&amp;</span><span class="ident">aggregator_config</span>).<span class="ident">unwrap</span>();
+            <span class="ident">AggregatorService::validate_bucket_key</span>(<span class="ident">bucket_key</span>, <span class="kw-2">&amp;</span><span class="ident">aggregator_config</span>).<span class="ident">unwrap</span>();
 
         <span class="macro">assert_eq!</span>(<span class="ident">bucket_key</span>.<span class="ident">tags</span>.<span class="ident">len</span>(), <span class="number">1</span>);
         <span class="macro">assert_eq!</span>(
@@ -6094,7 +6113,7 @@
         <span class="macro">assert_eq!</span>(<span class="ident">bucket_key</span>.<span class="ident">tags</span>.<span class="ident">get</span>(<span class="string">&quot;another\0garbage&quot;</span>), <span class="prelude-val">None</span>);
 
         <span class="ident">bucket_key</span>.<span class="ident">metric_name</span> <span class="op">=</span> <span class="string">&quot;hergus\0bergus&quot;</span>.<span class="ident">to_owned</span>();
-        <span class="ident">Aggregator::validate_bucket_key</span>(<span class="ident">bucket_key</span>, <span class="kw-2">&amp;</span><span class="ident">aggregator_config</span>).<span class="ident">unwrap_err</span>();
+        <span class="ident">AggregatorService::validate_bucket_key</span>(<span class="ident">bucket_key</span>, <span class="kw-2">&amp;</span><span class="ident">aggregator_config</span>).<span class="ident">unwrap_err</span>();
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -6109,7 +6128,7 @@
             <span class="ident">metric_name</span>: <span class="string">&quot;c:transactions/a_short_metric&quot;</span>.<span class="ident">to_owned</span>(),
             <span class="ident">tags</span>: <span class="ident">BTreeMap::new</span>(),
         };
-        <span class="macro">assert!</span>(<span class="ident">Aggregator::validate_bucket_key</span>(<span class="ident">short_metric</span>, <span class="kw-2">&amp;</span><span class="ident">aggregator_config</span>).<span class="ident">is_ok</span>());
+        <span class="macro">assert!</span>(<span class="ident">AggregatorService::validate_bucket_key</span>(<span class="ident">short_metric</span>, <span class="kw-2">&amp;</span><span class="ident">aggregator_config</span>).<span class="ident">is_ok</span>());
 
         <span class="kw">let</span> <span class="ident">long_metric</span> <span class="op">=</span> <span class="ident">BucketKey</span> {
             <span class="ident">project_key</span>,
@@ -6117,7 +6136,7 @@
             <span class="ident">metric_name</span>: <span class="string">&quot;c:transactions/long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is&quot;</span>.<span class="ident">to_owned</span>(),
             <span class="ident">tags</span>: <span class="ident">BTreeMap::new</span>(),
         };
-        <span class="kw">let</span> <span class="ident">validation</span> <span class="op">=</span> <span class="ident">Aggregator::validate_bucket_key</span>(<span class="ident">long_metric</span>, <span class="kw-2">&amp;</span><span class="ident">aggregator_config</span>);
+        <span class="kw">let</span> <span class="ident">validation</span> <span class="op">=</span> <span class="ident">AggregatorService::validate_bucket_key</span>(<span class="ident">long_metric</span>, <span class="kw-2">&amp;</span><span class="ident">aggregator_config</span>);
 
         <span class="macro">assert_eq!</span>(
             <span class="ident">validation</span>.<span class="ident">unwrap_err</span>(),
@@ -6131,17 +6150,18 @@
             <span class="ident">tags</span>: <span class="ident">BTreeMap::from</span>([(<span class="string">&quot;i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book&quot;</span>.<span class="ident">into</span>(), <span class="string">&quot;tag_value&quot;</span>.<span class="ident">into</span>())]),
         };
         <span class="kw">let</span> <span class="ident">validation</span> <span class="op">=</span>
-            <span class="ident">Aggregator::validate_bucket_key</span>(<span class="ident">short_metric_long_tag_key</span>, <span class="kw-2">&amp;</span><span class="ident">aggregator_config</span>).<span class="ident">unwrap</span>();
+            <span class="ident">AggregatorService::validate_bucket_key</span>(<span class="ident">short_metric_long_tag_key</span>, <span class="kw-2">&amp;</span><span class="ident">aggregator_config</span>)
+                .<span class="ident">unwrap</span>();
         <span class="macro">assert_eq!</span>(<span class="ident">validation</span>.<span class="ident">tags</span>.<span class="ident">len</span>(), <span class="number">0</span>);
 
         <span class="kw">let</span> <span class="ident">short_metric_long_tag_value</span> <span class="op">=</span> <span class="ident">BucketKey</span> {
             <span class="ident">project_key</span>,
             <span class="ident">timestamp</span>: <span class="ident">UnixTimestamp::now</span>(),
             <span class="ident">metric_name</span>: <span class="string">&quot;c:transactions/a_short_metric_with_long_tag_value&quot;</span>.<span class="ident">to_owned</span>(),
-                <span class="ident">tags</span>: <span class="ident">BTreeMap::from</span>([(<span class="string">&quot;tag_key&quot;</span>.<span class="ident">into</span>(), <span class="string">&quot;i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book&quot;</span>.<span class="ident">into</span>())]),
+            <span class="ident">tags</span>: <span class="ident">BTreeMap::from</span>([(<span class="string">&quot;tag_key&quot;</span>.<span class="ident">into</span>(), <span class="string">&quot;i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book&quot;</span>.<span class="ident">into</span>())]),
         };
         <span class="kw">let</span> <span class="ident">validation</span> <span class="op">=</span>
-            <span class="ident">Aggregator::validate_bucket_key</span>(<span class="ident">short_metric_long_tag_value</span>, <span class="kw-2">&amp;</span><span class="ident">aggregator_config</span>)
+            <span class="ident">AggregatorService::validate_bucket_key</span>(<span class="ident">short_metric_long_tag_value</span>, <span class="kw-2">&amp;</span><span class="ident">aggregator_config</span>)
                 .<span class="ident">unwrap</span>();
         <span class="macro">assert_eq!</span>(<span class="ident">validation</span>.<span class="ident">tags</span>.<span class="ident">len</span>(), <span class="number">0</span>);
     }
@@ -6160,8 +6180,7 @@
             <span class="ident">tags</span>: <span class="ident">BTreeMap::new</span>(),
         };
 
-        <span class="kw">let</span> <span class="ident">receiver</span> <span class="op">=</span> <span class="ident">TestReceiver::start_default</span>().<span class="ident">recipient</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">Aggregator::new</span>(<span class="ident">config</span>, <span class="ident">receiver</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">AggregatorService::new</span>(<span class="ident">config</span>, <span class="prelude-val">None</span>);
         <span class="kw">let</span> <span class="ident">project_key</span> <span class="op">=</span> <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fed&quot;</span>).<span class="ident">unwrap</span>();
 
         <span class="ident">aggregator</span>.<span class="ident">insert</span>(<span class="ident">project_key</span>, <span class="ident">metric</span>.<span class="ident">clone</span>()).<span class="ident">unwrap</span>();
@@ -6173,6 +6192,7 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_aggregator_cost_enforcement_project</span>() {
+        <span class="ident">relay_test::setup</span>();
         <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">AggregatorConfig</span> {
             <span class="ident">max_project_key_bucket_bytes</span>: <span class="prelude-val">Some</span>(<span class="number">1</span>),
             ..<span class="ident">test_config</span>()
@@ -6185,8 +6205,7 @@
             <span class="ident">tags</span>: <span class="ident">BTreeMap::new</span>(),
         };
 
-        <span class="kw">let</span> <span class="ident">receiver</span> <span class="op">=</span> <span class="ident">TestReceiver::start_default</span>().<span class="ident">recipient</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">Aggregator::new</span>(<span class="ident">config</span>, <span class="ident">receiver</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">AggregatorService::new</span>(<span class="ident">config</span>, <span class="prelude-val">None</span>);
         <span class="kw">let</span> <span class="ident">project_key</span> <span class="op">=</span> <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fed&quot;</span>).<span class="ident">unwrap</span>();
 
         <span class="ident">aggregator</span>.<span class="ident">insert</span>(<span class="ident">project_key</span>, <span class="ident">metric</span>.<span class="ident">clone</span>()).<span class="ident">unwrap</span>();
@@ -6218,16 +6237,13 @@
             <span class="ident">tags</span>: <span class="ident">BTreeMap::new</span>(),
         };
 
-        <span class="kw">let</span> <span class="ident">receiver</span> <span class="op">=</span> <span class="ident">TestReceiver::start_default</span>().<span class="ident">recipient</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">Aggregator::new</span>(<span class="ident">config</span>, <span class="ident">receiver</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">AggregatorService::new</span>(<span class="ident">config</span>, <span class="prelude-val">None</span>);
         <span class="kw">let</span> <span class="ident">project_key</span> <span class="op">=</span> <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fed&quot;</span>).<span class="ident">unwrap</span>();
-
         <span class="kw">let</span> <span class="ident">captures</span> <span class="op">=</span> <span class="ident">relay_statsd::with_capturing_test_client</span>(<span class="op">|</span><span class="op">|</span> {
             <span class="ident">aggregator</span>.<span class="ident">insert</span>(<span class="ident">project_key</span>, <span class="ident">metric1</span>).<span class="ident">ok</span>();
             <span class="ident">aggregator</span>.<span class="ident">insert</span>(<span class="ident">project_key</span>, <span class="ident">metric2</span>).<span class="ident">ok</span>();
             <span class="ident">aggregator</span>.<span class="ident">try_flush</span>();
         });
-
         <span class="ident">captures</span>
             .<span class="ident">into_iter</span>()
             .<span class="ident">filter</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> {

@@ -632,9 +632,6 @@
 <span id="630">630</span>
 <span id="631">631</span>
 <span id="632">632</span>
-<span id="633">633</span>
-<span id="634">634</span>
-<span id="635">635</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 <span class="kw">use</span> <span class="ident">std::time::Instant</span>;
 
@@ -645,9 +642,7 @@
 
 <span class="kw">use</span> <span class="ident">relay_common::ProjectKey</span>;
 <span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">RelayMode</span>};
-<span class="kw">use</span> <span class="ident">relay_metrics</span>::{
-    <span class="self">self</span>, <span class="ident">AggregateMetricsError</span>, <span class="ident">Aggregator</span>, <span class="ident">FlushBuckets</span>, <span class="ident">InsertMetrics</span>, <span class="ident">MergeBuckets</span>,
-};
+<span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="self">self</span>, <span class="ident">AggregateMetricsError</span>, <span class="ident">FlushBuckets</span>, <span class="ident">InsertMetrics</span>, <span class="ident">MergeBuckets</span>};
 <span class="kw">use</span> <span class="ident">relay_quotas::RateLimits</span>;
 <span class="kw">use</span> <span class="ident">relay_redis::RedisPool</span>;
 <span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
@@ -659,6 +654,7 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::project_local::LocalProjectSource</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::project_upstream::UpstreamProjectSource</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope::Envelope</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service::Registry</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayGauges</span>, <span class="ident">RelayHistograms</span>, <span class="ident">RelayTimers</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{<span class="self">self</span>, <span class="ident">EnvelopeContext</span>, <span class="ident">GarbageDisposal</span>, <span class="ident">Response</span>};
 
@@ -1239,8 +1235,7 @@
                 <span class="macro">relay_log::trace!</span>(<span class="string">&quot;project expired: merging back {} buckets&quot;</span>, <span class="ident">buckets</span>.<span class="ident">len</span>());
                 <span class="comment">// If the state is outdated, we need to wait for an updated state. Put them back into the</span>
                 <span class="comment">// aggregator.</span>
-                <span class="ident">Aggregator::from_registry</span>()
-                    .<span class="ident">do_send</span>(<span class="ident">relay_metrics::MergeBuckets::new</span>(<span class="ident">project_key</span>, <span class="ident">buckets</span>));
+                <span class="ident">Registry::aggregator</span>().<span class="ident">send</span>(<span class="ident">MergeBuckets::new</span>(<span class="ident">project_key</span>, <span class="ident">buckets</span>));
                 <span class="kw">return</span>;
             }
         };
@@ -1252,8 +1247,7 @@
                     <span class="string">&quot;there is no scoping: merging back {} buckets&quot;</span>,
                     <span class="ident">buckets</span>.<span class="ident">len</span>()
                 );
-                <span class="ident">Aggregator::from_registry</span>()
-                    .<span class="ident">do_send</span>(<span class="ident">relay_metrics::MergeBuckets::new</span>(<span class="ident">project_key</span>, <span class="ident">buckets</span>));
+                <span class="ident">Registry::aggregator</span>().<span class="ident">send</span>(<span class="ident">MergeBuckets::new</span>(<span class="ident">project_key</span>, <span class="ident">buckets</span>));
                 <span class="kw">return</span>;
             }
         };

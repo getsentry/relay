@@ -59,6 +59,25 @@
 <span id="57">57</span>
 <span id="58">58</span>
 <span id="59">59</span>
+<span id="60">60</span>
+<span id="61">61</span>
+<span id="62">62</span>
+<span id="63">63</span>
+<span id="64">64</span>
+<span id="65">65</span>
+<span id="66">66</span>
+<span id="67">67</span>
+<span id="68">68</span>
+<span id="69">69</span>
+<span id="70">70</span>
+<span id="71">71</span>
+<span id="72">72</span>
+<span id="73">73</span>
+<span id="74">74</span>
+<span id="75">75</span>
+<span id="76">76</span>
+<span id="77">77</span>
+<span id="78">78</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Compatibility layer for bridging between `actix` and `tokio` 1.0.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Needed to allow services to communicate with the legacy actors (using `actix` 0.7.9).</span>
@@ -80,7 +99,7 @@
 <span class="kw">static</span> <span class="ident">EXECUTOR</span>: <span class="ident">OnceCell</span><span class="op">&lt;</span><span class="ident">tokio01::runtime::TaskExecutor</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">OnceCell::new</span>();
 
 <span class="doccomment">/// Initializes the compatibility layer.</span>
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">init</span>() {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">init</span>() {
     <span class="kw">let</span> <span class="ident">system</span> <span class="op">=</span> <span class="ident">System::current</span>();
 
     <span class="kw">let</span> <span class="ident">runtime</span> <span class="op">=</span> <span class="ident">RUNTIME</span>.<span class="ident">get_or_init</span>(<span class="kw">move</span> <span class="op">|</span><span class="op">|</span> {
@@ -117,6 +136,25 @@
         .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ());
     <span class="ident">EXECUTOR</span>.<span class="ident">get</span>().<span class="ident">unwrap</span>().<span class="ident">spawn</span>(<span class="ident">f</span>);
     <span class="ident">rx</span>.<span class="kw">await</span>.<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">MailboxError::Closed</span>)<span class="question-mark">?</span>
+}
+
+<span class="doccomment">/// Sends a message to a recipient using `actix` 0.7 from a `tokio` 1.0 context.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The message is internally forwarded through a `tokio` 0.1 runtime in order to avoid panics when</span>
+<span class="doccomment">/// the channel queues fill up and tasks are getting parked.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Panics</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Panics if this is invoked outside of the [`Controller`](crate::Controller).</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// TODO(actix): required by ProjectCache and will be removed with ProjectCache migration.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">send_to_recipient</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span>(<span class="ident">addr</span>: <span class="ident">Recipient</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span>, <span class="ident">msg</span>: <span class="ident">M</span>)
+<span class="kw">where</span>
+    <span class="ident">M</span>: <span class="ident">Message</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;static</span>,
+    <span class="ident">M::Result</span>: <span class="ident">Send</span>,
+{
+    <span class="kw">let</span> <span class="ident">f</span> <span class="op">=</span> <span class="ident">futures01::future::lazy</span>(<span class="kw">move</span> <span class="op">|</span><span class="op">|</span> <span class="ident">addr</span>.<span class="ident">do_send</span>(<span class="ident">msg</span>)).<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ());
+    <span class="ident">EXECUTOR</span>.<span class="ident">get</span>().<span class="ident">unwrap</span>().<span class="ident">spawn</span>(<span class="ident">f</span>);
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_system" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>

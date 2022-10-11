@@ -366,6 +366,25 @@
 <span id="364">364</span>
 <span id="365">365</span>
 <span id="366">366</span>
+<span id="367">367</span>
+<span id="368">368</span>
+<span id="369">369</span>
+<span id="370">370</span>
+<span id="371">371</span>
+<span id="372">372</span>
+<span id="373">373</span>
+<span id="374">374</span>
+<span id="375">375</span>
+<span id="376">376</span>
+<span id="377">377</span>
+<span id="378">378</span>
+<span id="379">379</span>
+<span id="380">380</span>
+<span id="381">381</span>
+<span id="382">382</span>
+<span id="383">383</span>
+<span id="384">384</span>
+<span id="385">385</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 
@@ -377,7 +396,7 @@
 
 <span class="kw">use</span> <span class="ident">relay_aws_extension::AwsExtension</span>;
 <span class="kw">use</span> <span class="ident">relay_config::Config</span>;
-<span class="kw">use</span> <span class="ident">relay_metrics::Aggregator</span>;
+<span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">Aggregator</span>, <span class="ident">AggregatorService</span>};
 <span class="kw">use</span> <span class="ident">relay_redis::RedisPool</span>;
 <span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">Addr</span>, <span class="ident">Configure</span>, <span class="ident">Controller</span>, <span class="ident">Service</span>};
 
@@ -481,6 +500,7 @@
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Registry</span> {
+    <span class="kw">pub</span> <span class="ident">aggregator</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">Aggregator</span><span class="op">&gt;</span>,
     <span class="kw">pub</span> <span class="ident">health_check</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">HealthCheck</span><span class="op">&gt;</span>,
     <span class="kw">pub</span> <span class="ident">outcome_producer</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">OutcomeProducer</span><span class="op">&gt;</span>,
     <span class="kw">pub</span> <span class="ident">outcome_aggregator</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">TrackOutcome</span><span class="op">&gt;</span>,
@@ -490,9 +510,20 @@
     <span class="kw">pub</span> <span class="ident">relay_cache</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">RelayCache</span><span class="op">&gt;</span>,
 }
 
+<span class="kw">impl</span> <span class="ident">Registry</span> {
+    <span class="doccomment">/// Get the [`AggregatorService`] address from the registry.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// TODO(actix): this is temporary solution while migrating `ProjectCache` actor to the new tokio</span>
+    <span class="doccomment">/// runtime and follow up refactoring of the dependencies.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">aggregator</span>() -&gt; <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">Aggregator</span><span class="op">&gt;</span> {
+        <span class="ident">REGISTRY</span>.<span class="ident">get</span>().<span class="ident">unwrap</span>().<span class="ident">aggregator</span>.<span class="ident">clone</span>()
+    }
+}
+
 <span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">Registry</span> {
     <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="ident">f</span>.<span class="ident">debug_struct</span>(<span class="string">&quot;Registry&quot;</span>)
+            .<span class="ident">field</span>(<span class="string">&quot;aggregator&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">aggregator</span>)
             .<span class="ident">field</span>(<span class="string">&quot;health_check&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">health_check</span>)
             .<span class="ident">field</span>(<span class="string">&quot;outcome_producer&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">outcome_producer</span>)
             .<span class="ident">field</span>(<span class="string">&quot;outcome_aggregator&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">outcome_aggregator</span>)
@@ -506,6 +537,7 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ServiceState</span> {
     <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
     <span class="ident">buffer_guard</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">BufferGuard</span><span class="op">&gt;</span>,
+    <span class="ident">_aggregator_runtime</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">tokio::runtime::Runtime</span><span class="op">&gt;</span>,
     <span class="ident">_outcome_runtime</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">tokio::runtime::Runtime</span><span class="op">&gt;</span>,
     <span class="ident">_main_runtime</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">tokio::runtime::Runtime</span><span class="op">&gt;</span>,
     <span class="ident">_store_runtime</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">tokio::runtime::Runtime</span><span class="op">&gt;</span><span class="op">&gt;</span>,
@@ -518,6 +550,7 @@
         <span class="kw">let</span> <span class="ident">registry</span> <span class="op">=</span> <span class="ident">system</span>.<span class="ident">registry</span>();
 
         <span class="kw">let</span> <span class="ident">main_runtime</span> <span class="op">=</span> <span class="ident">utils::create_runtime</span>(<span class="ident">config</span>.<span class="ident">cpu_concurrency</span>());
+        <span class="kw">let</span> <span class="ident">aggregator_runtime</span> <span class="op">=</span> <span class="ident">utils::create_runtime</span>(<span class="number">1</span>);
         <span class="kw">let</span> <span class="ident">outcome_runtime</span> <span class="op">=</span> <span class="ident">utils::create_runtime</span>(<span class="number">1</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">_store_runtime</span> <span class="op">=</span> <span class="prelude-val">None</span>;
 
@@ -562,17 +595,21 @@
         <span class="kw">let</span> <span class="ident">health_check</span> <span class="op">=</span> <span class="ident">HealthCheckService::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>()).<span class="ident">start</span>();
         <span class="kw">let</span> <span class="ident">relay_cache</span> <span class="op">=</span> <span class="ident">RelayCacheService::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>()).<span class="ident">start</span>();
 
-        <span class="kw">let</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">Aggregator::new</span>(<span class="ident">config</span>.<span class="ident">aggregator_config</span>(), <span class="ident">project_cache</span>.<span class="ident">recipient</span>());
-        <span class="ident">registry</span>.<span class="ident">set</span>(<span class="ident">Arbiter::start</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">aggregator</span>));
-
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">aws_api</span>) <span class="op">=</span> <span class="ident">config</span>.<span class="ident">aws_runtime_api</span>() {
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">aws_extension</span>) <span class="op">=</span> <span class="ident">AwsExtension::new</span>(<span class="ident">aws_api</span>) {
                 <span class="ident">aws_extension</span>.<span class="ident">start</span>();
             }
         }
 
+        <span class="kw">let</span> <span class="ident">guard</span> <span class="op">=</span> <span class="ident">aggregator_runtime</span>.<span class="ident">enter</span>();
+        <span class="kw">let</span> <span class="ident">aggregator</span> <span class="op">=</span>
+            <span class="ident">AggregatorService::new</span>(<span class="ident">config</span>.<span class="ident">aggregator_config</span>(), <span class="prelude-val">Some</span>(<span class="ident">project_cache</span>.<span class="ident">recipient</span>()))
+                .<span class="ident">start</span>();
+        <span class="ident">drop</span>(<span class="ident">guard</span>);
+
         <span class="ident">REGISTRY</span>
             .<span class="ident">set</span>(<span class="ident">Box::new</span>(<span class="ident">Registry</span> {
+                <span class="ident">aggregator</span>,
                 <span class="ident">processor</span>,
                 <span class="ident">health_check</span>,
                 <span class="ident">outcome_producer</span>,
@@ -586,6 +623,7 @@
         <span class="prelude-val">Ok</span>(<span class="ident">ServiceState</span> {
             <span class="ident">buffer_guard</span>: <span class="ident">buffer</span>,
             <span class="ident">config</span>,
+            <span class="ident">_aggregator_runtime</span>: <span class="ident">Arc::new</span>(<span class="ident">aggregator_runtime</span>),
             <span class="ident">_outcome_runtime</span>: <span class="ident">Arc::new</span>(<span class="ident">outcome_runtime</span>),
             <span class="ident">_main_runtime</span>: <span class="ident">Arc::new</span>(<span class="ident">main_runtime</span>),
             <span class="ident">_store_runtime</span>: <span class="ident">_store_runtime</span>.<span class="ident">map</span>(<span class="ident">Arc::new</span>),
