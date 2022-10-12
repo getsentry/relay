@@ -5,7 +5,7 @@
 --  * [string] Key of the counter.
 --  * [string] Key of the refund counter.
 --
--- ``ARGV`` (3 per quota):
+-- ``ARGV`` (4 per quota):
 --  * [number]  Quota limit. Can be ``-1`` for unlimited quotas.
 --  * [number]  Absolute Expiration time as Unix timestamp (secs since 1.1.1970 ) for the key.
 --  * [number]  Quantity to increment the quota by, or ``0`` to check without incrementing.
@@ -34,9 +34,9 @@ assert(#KEYS / 2 == #ARGV / 4, "incorrect number of keys and arguments provided"
 
 -- parse the incoming string into boolean, returns `nil` if could not parse which is also considered `false`
 local function parse_boolean(v)
-    if v == '1' or v == 'true' or v == 'TRUE' then
+    if v == 'true' then
         return true
-    elseif v == '0' or v == 'false' or v == 'FALSE' then
+    elseif v == 'false' then
         return false
     else
         return nil

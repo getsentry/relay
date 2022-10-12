@@ -447,7 +447,7 @@ mod tests {
 
         let rate_limiter = build_rate_limiter();
 
-        // limit is 1, so first call not rate limited
+        // limit is 2, so first call not rate limited
         let is_limited = rate_limiter
             .is_rate_limited(quotas, scoping, 1, true)
             .unwrap()
