@@ -2,7 +2,7 @@ use std::fmt;
 use std::str::FromStr;
 use std::time::{Duration, Instant};
 
-use relay_common::{ProjectId, ProjectKey};
+use relay_common::{DataCategory, ProjectId, ProjectKey};
 
 use crate::quota::{DataCategories, ItemScoping, Quota, QuotaScope, ReasonCode, Scoping};
 use crate::REJECT_ALL_SECS;
@@ -233,6 +233,12 @@ impl RateLimits {
     /// Returns `true` if this instance contains active rate limits.
     pub fn is_limited(&self) -> bool {
         self.iter().any(|limit| !limit.retry_after.expired())
+    }
+
+    /// Returns `true` if this instance contains active rate limits for the given data category.
+    pub fn limit_for(&self, category: DataCategory) -> Option<&RateLimit> {
+        self.iter()
+            .find(|limit| !limit.retry_after.expired() && limit.categories.contains(&category))
     }
 
     /// Removes expired rate limits from this instance.

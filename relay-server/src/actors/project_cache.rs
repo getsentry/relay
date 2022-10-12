@@ -159,10 +159,7 @@ async fn rate_limit_buckets(
         match rate_limits {
             Ok(rate_limits) => {
                 // If a rate limit is active, discard transaction buckets.
-                if let Some(limit) = rate_limits.into_iter().find(|r| {
-                    !r.retry_after.expired()
-                        && r.categories.contains(&DataCategory::TransactionProcessed)
-                }) {
+                if let Some(limit) = rate_limits.limit_for(DataCategory::TransactionProcessed) {
                     annotated_buckets.retain(|(_, count)| count.is_none());
 
                     // Track outcome for the processed transactions we dropped here:
