@@ -51,6 +51,48 @@ pub enum ProjectError {
 
 impl ResponseError for ProjectError {}
 
+#[cfg(feature = "processing")]
+async fn check_rate_limits(
+    transaction_count: usize,
+    cached_rate_limits: &RateLimits,
+    quotas: Vec<Quota>,
+    item_scoping: ItemScoping<'_>,
+    check_redis: bool,
+) -> Result<RateLimits, Outcome> {
+    let scoping = *item_scoping.scoping;
+    let mut rate_limits = cached_rate_limits.check_with_quotas(quotas.as_slice(), item_scoping);
+
+    if check_redis && !rate_limits.is_limited() {
+        // Await rate limits from redis before continuing.
+        let request = EnvelopeProcessor::from_registry().send(CheckRateLimits {
+            quotas,
+            category: DataCategory::TransactionProcessed,
+            scoping,
+            quantity: transaction_count,
+        });
+
+        let redis_rate_limits = match request.await {
+            Ok(Ok(limits)) => limits,
+            Err(_) | Ok(Err(_)) => {
+                // There was either a SendError or a problem with redis. Track outcomes and
+                // drop all buckets.
+                return Err(Outcome::Invalid(DiscardReason::Internal));
+                // TODO: track outcomes
+            }
+        };
+
+        rate_limits.merge(redis_rate_limits);
+
+        // Also update the in-memory cache:
+        ProjectCache::from_registry().do_send(UpdateRateLimits::new(
+            scoping.project_key,
+            rate_limits.clone(),
+        ));
+    }
+
+    Ok(rate_limits)
+}
+
 /// Remove rate limited metrics buckets and track outcomes for them.
 ///
 /// Returns any buckets that were *not* rate limited.
@@ -107,58 +149,53 @@ async fn rate_limit_buckets(
             category: DataCategory::TransactionProcessed,
             scoping: &scoping,
         };
-        let mut rate_limits = cached_rate_limits.check_with_quotas(quotas.as_slice(), item_scoping);
 
-        #[cfg(feature = "processing")]
-        if check_redis && !rate_limits.is_limited() {
-            // Await rate limits from redis before continuing.
-            let res = EnvelopeProcessor::from_registry().send(CheckRateLimits {
-                quotas,
-                category: DataCategory::TransactionProcessed,
-                scoping,
-                quantity: transaction_count,
-            });
+        let rate_limits = check_rate_limits(
+            transaction_count,
+            &cached_rate_limits,
+            quotas,
+            item_scoping,
+            check_redis,
+        )
+        .await;
 
-            let limits = res.await;
+        match rate_limits {
+            Ok(rate_limits) => {
+                // Only keep non-transaction buckets:
+                annotated_buckets.retain(|(_, count)| count.is_none());
 
-            let redis_rate_limits = match limits {
-                Ok(limits) => limits,
-                Err(_) => todo!(),
-            };
-
-            rate_limits.merge(redis_rate_limits);
-
-            // Also update the in-memory cache:
-            ProjectCache::from_registry().do_send(UpdateRateLimits::new(
-                scoping.project_key,
-                rate_limits.clone(),
-            ));
-        }
-
-        if rate_limits.is_limited() {
-            // Only keep non-transaction buckets:
-            annotated_buckets.retain(|(_, count)| count.is_none());
-
-            // Track outcome for the processed transactions we dropped here:
-            if transaction_count > 0 {
-                for limit in &rate_limits {
-                    if limit
-                        .categories
-                        .contains(&DataCategory::TransactionProcessed)
-                    {
-                        TrackOutcome::from_registry().send(TrackOutcome {
-                            timestamp: UnixTimestamp::now().as_datetime(), // as good as any timestamp
-                            scoping: *item_scoping,
-                            outcome: Outcome::RateLimited(limit.reason_code.clone()),
-                            event_id: None,
-                            remote_addr: None,
-                            category: DataCategory::TransactionProcessed,
-                            quantity: transaction_count as u32,
-                        });
+                // Track outcome for the processed transactions we dropped here:
+                if transaction_count > 0 {
+                    for limit in &rate_limits {
+                        if limit
+                            .categories
+                            .contains(&DataCategory::TransactionProcessed)
+                        {
+                            TrackOutcome::from_registry().send(TrackOutcome {
+                                timestamp: UnixTimestamp::now().as_datetime(), // as good as any timestamp
+                                scoping: *item_scoping,
+                                outcome: Outcome::RateLimited(limit.reason_code.clone()),
+                                event_id: None,
+                                remote_addr: None,
+                                category: DataCategory::TransactionProcessed,
+                                quantity: transaction_count as u32,
+                            });
+                        }
                     }
                 }
             }
-        }
+            Err(outcome) => {
+                TrackOutcome::from_registry().send(TrackOutcome {
+                    timestamp: UnixTimestamp::now().as_datetime(), // as good as any timestamp
+                    scoping: *item_scoping,
+                    outcome,
+                    event_id: None,
+                    remote_addr: None,
+                    category: DataCategory::TransactionProcessed,
+                    quantity: transaction_count as u32,
+                });
+            }
+        };
     }
 
     // Restore vector of buckets

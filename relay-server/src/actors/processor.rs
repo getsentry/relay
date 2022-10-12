@@ -538,7 +538,10 @@ pub enum EnvelopeProcessor {
     ProcessMetrics(Box<ProcessMetrics>),
     EncodeEnvelope(Box<EncodeEnvelope>),
     #[cfg(feature = "processing")]
-    CheckRateLimits(CheckRateLimits, Sender<RateLimits>), // TODO: why are the others Box<_>?
+    CheckRateLimits(
+        CheckRateLimits,
+        Sender<Result<RateLimits, RateLimitingError>>,
+    ), // TODO: why are the others Box<_>?
 }
 
 impl EnvelopeProcessor {
@@ -575,9 +578,12 @@ impl FromMessage<EncodeEnvelope> for EnvelopeProcessor {
 
 #[cfg(feature = "processing")]
 impl FromMessage<CheckRateLimits> for EnvelopeProcessor {
-    type Response = AsyncResponse<RateLimits>;
+    type Response = AsyncResponse<Result<RateLimits, RateLimitingError>>;
 
-    fn from_message(message: CheckRateLimits, sender: Sender<RateLimits>) -> Self {
+    fn from_message(
+        message: CheckRateLimits,
+        sender: Sender<Result<RateLimits, RateLimitingError>>,
+    ) -> Self {
         Self::CheckRateLimits(message, sender)
     }
 }
@@ -2192,7 +2198,10 @@ impl EnvelopeProcessorService {
 
     /// Returns redis rate limits.
     #[cfg(feature = "processing")]
-    fn handle_check_rate_limits(&self, message: CheckRateLimits) -> RateLimits {
+    fn handle_check_rate_limits(
+        &self,
+        message: CheckRateLimits,
+    ) -> Result<RateLimits, RateLimitingError> {
         use relay_quotas::ItemScoping;
 
         let CheckRateLimits {
@@ -2206,7 +2215,7 @@ impl EnvelopeProcessorService {
             Some(rate_limiter) => rate_limiter,
             None => {
                 relay_log::error!("handle_rate_limit_metrics_buckets called without rate limiter");
-                return RateLimits::new(); // empty
+                return Ok(RateLimits::new()); // empty
             }
         };
 
@@ -2215,10 +2224,7 @@ impl EnvelopeProcessorService {
             scoping: &scoping,
         };
 
-        match rate_limiter.is_rate_limited(&quotas, item_scoping, quantity) {
-            Ok(limits) => limits,
-            Err(_) => todo!(),
-        }
+        rate_limiter.is_rate_limited(&quotas, item_scoping, quantity)
     }
 
     fn encode_envelope_body(
