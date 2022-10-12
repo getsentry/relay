@@ -2,15 +2,14 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use actix::prelude::*;
-use actix_web::http::header::CacheDirective;
 use actix_web::ResponseError;
 use failure::Fail;
-use futures::{FutureExt, TryFuture, TryFutureExt};
+// use futures::{FutureExt, TryFuture, TryFutureExt};
 use futures01::{future, Future};
 
 #[cfg(feature = "processing")]
-use relay_common::{clone, DataCategory};
-use relay_common::{ProjectKey, UnixTimestamp};
+use relay_common::clone;
+use relay_common::{DataCategory, ProjectKey, UnixTimestamp};
 use relay_config::{Config, RelayMode};
 use relay_metrics::{
     self, AggregateMetricsError, Bucket, FlushBuckets, InsertMetrics, MergeBuckets,
@@ -53,13 +52,15 @@ pub enum ProjectError {
 impl ResponseError for ProjectError {}
 
 /// Remove rate limited metrics buckets and track outcomes for them.
+///
+/// Returns any buckets that were *not* rate limited.
 async fn rate_limit_buckets(
     buckets: Vec<Bucket>,
     quotas: Vec<Quota>,
-    cached_rate_limits: &RateLimits,
+    cached_rate_limits: RateLimits,
     scoping: Scoping,
-    processing_enabled: bool,
-) -> Vec<Bucket> {
+    check_redis: bool,
+) -> Result<Vec<Bucket>, ()> {
     // Collect bucket information (bucket, transaction_count)
     let mut annotated_buckets: Vec<_> = buckets
         .into_iter()
@@ -109,7 +110,7 @@ async fn rate_limit_buckets(
         let mut rate_limits = cached_rate_limits.check_with_quotas(quotas.as_slice(), item_scoping);
 
         #[cfg(feature = "processing")]
-        if processing_enabled && !rate_limits.is_limited() {
+        if check_redis && !rate_limits.is_limited() {
             // Await rate limits from redis before continuing.
             let res = EnvelopeProcessor::from_registry().send(CheckRateLimits {
                 quotas,
@@ -161,7 +162,7 @@ async fn rate_limit_buckets(
     }
 
     // Restore vector of buckets
-    annotated_buckets.into_iter().map(|(b, _)| b).collect()
+    Ok(annotated_buckets.into_iter().map(|(b, _)| b).collect())
 }
 
 pub struct ProjectCache {
@@ -755,30 +756,23 @@ impl Handler<FlushBuckets> for ProjectCache {
             .filter(|q| q.categories.contains(&DataCategory::TransactionProcessed))
             .map(Quota::clone)
             .collect::<Vec<_>>();
-
         let processing_enabled = config.processing_enabled();
         let rate_limits = project.rate_limits().clone();
-        let future = async move {
-            let buckets =
-                rate_limit_buckets(buckets, quotas, &rate_limits, scoping, processing_enabled)
-                    .await;
-            Ok(buckets)
-        };
-
-        let future = future.boxed();
-
-        let future = future.compat();
-
-        let future = future.and_then(move |buckets| {
-            if !buckets.is_empty() {
-                EnvelopeManager::from_registry().send(SendMetrics {
-                    buckets,
-                    scoping,
-                    partition_key,
-                });
-            }
-            Ok(())
-        });
+        use futures::{FutureExt, TryFutureExt};
+        let future = rate_limit_buckets(buckets, quotas, rate_limits, scoping, processing_enabled)
+            .boxed()
+            .compat()
+            .and_then(move |buckets| {
+                // After checking rate limits, send buckets to envelope manager:
+                if !buckets.is_empty() {
+                    EnvelopeManager::from_registry().send(SendMetrics {
+                        buckets,
+                        scoping,
+                        partition_key,
+                    });
+                }
+                Ok(())
+            });
 
         let actor_future = future.into_actor(self);
         actor_future.spawn(context);

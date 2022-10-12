@@ -16,6 +16,19 @@ use once_cell::sync::OnceCell;
 use serde_json::Value as SerdeValue;
 use tokio::sync::Semaphore;
 
+use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
+use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::actors::project::{Feature, ProjectState};
+use crate::actors::project_cache::ProjectCache;
+use crate::actors::upstream::{SendRequest, UpstreamRelay};
+use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
+use crate::metrics_extraction::sessions::{extract_session_metrics, SessionMetricsConfig};
+use crate::metrics_extraction::transactions::extract_transaction_metrics;
+use crate::service::{ServerError, REGISTRY};
+use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
+use crate::utils::{
+    self, ChunkedFormDataAggregator, EnvelopeContext, ErrorBoundary, FormDataIter, SamplingResult,
+};
 use relay_auth::RelayVersion;
 use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding};
@@ -39,20 +52,6 @@ use relay_redis::RedisPool;
 use relay_sampling::{DynamicSamplingContext, RuleId};
 use relay_statsd::metric;
 use relay_system::{Addr, AsyncResponse, FromMessage, NoResponse, Sender, Service};
-
-use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
-use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::project::{Feature, ProjectState};
-use crate::actors::project_cache::ProjectCache;
-use crate::actors::upstream::{SendRequest, UpstreamRelay};
-use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
-use crate::metrics_extraction::sessions::{extract_session_metrics, SessionMetricsConfig};
-use crate::metrics_extraction::transactions::extract_transaction_metrics;
-use crate::service::{ServerError, REGISTRY};
-use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-use crate::utils::{
-    self, ChunkedFormDataAggregator, EnvelopeContext, ErrorBoundary, FormDataIter, SamplingResult,
-};
 
 #[cfg(feature = "processing")]
 use {
