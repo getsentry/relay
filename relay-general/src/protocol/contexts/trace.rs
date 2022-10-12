@@ -3,7 +3,6 @@ use regex::Regex;
 use serde::{Serialize, Serializer};
 
 use crate::processor::ProcessValue;
-use crate::protocol::LenientString;
 use crate::types::{
     Annotated, Empty, Error, FromValue, IntoValue, Object, SkipSerialization, Value,
 };

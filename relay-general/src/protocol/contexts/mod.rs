@@ -17,15 +17,7 @@ pub use runtime::*;
 mod trace;
 pub use trace::*;
 
-use once_cell::sync::OnceCell;
-use regex::Regex;
-use serde::{Serialize, Serializer};
-
-use crate::processor::ProcessValue;
-use crate::protocol::LenientString;
-use crate::types::{
-    Annotated, Empty, Error, FromValue, IntoValue, Object, SkipSerialization, Value,
-};
+use crate::types::{Annotated, FromValue, Object, Value};
 
 /// Operation type such as `db.statement` for database queries or `http` for external HTTP calls.
 /// Tries to follow OpenCensus/OpenTracing's span types.
