@@ -617,7 +617,6 @@ impl Project {
     /// The metrics will be keyed underneath this project key.
     pub fn insert_metrics(&mut self, metrics: Vec<Metric>) {
         // TODO: rate limits
-        // TODO: code sharing for incoming buckets, incoming metrics, outgoing buckets
         if self.metrics_allowed() {
             Registry::aggregator().send(InsertMetrics::new(self.project_key, metrics));
         }

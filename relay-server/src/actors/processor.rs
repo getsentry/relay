@@ -517,8 +517,7 @@ impl EncodeEnvelope {
         Self { request }
     }
 }
-
-/// TODO: docs
+/// Check rate limits and increment the quota.
 #[cfg(feature = "processing")]
 #[derive(Debug)]
 pub struct CheckRateLimits {
@@ -542,7 +541,7 @@ pub enum EnvelopeProcessor {
     CheckRateLimits(
         CheckRateLimits,
         Sender<Result<RateLimits, RateLimitingError>>,
-    ), // TODO: why are the others Box<_>?
+    ),
 }
 
 impl EnvelopeProcessor {
