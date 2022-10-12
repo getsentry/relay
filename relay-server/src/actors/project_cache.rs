@@ -51,7 +51,6 @@ pub enum ProjectError {
 
 impl ResponseError for ProjectError {}
 
-#[cfg(feature = "processing")]
 async fn check_rate_limits(
     transaction_count: usize,
     cached_rate_limits: &RateLimits,
@@ -62,6 +61,7 @@ async fn check_rate_limits(
     let scoping = *item_scoping.scoping;
     let mut rate_limits = cached_rate_limits.check_with_quotas(quotas.as_slice(), item_scoping);
 
+    #[cfg(feature = "processing")]
     if check_redis && !rate_limits.is_limited() {
         // Await rate limits from redis before continuing.
         let request = EnvelopeProcessor::from_registry().send(CheckRateLimits {
@@ -77,7 +77,6 @@ async fn check_rate_limits(
                 // There was either a SendError or a problem with redis. Track outcomes and
                 // drop all buckets.
                 return Err(Outcome::Invalid(DiscardReason::Internal));
-                // TODO: track outcomes
             }
         };
 
@@ -161,25 +160,28 @@ async fn rate_limit_buckets(
 
         match rate_limits {
             Ok(rate_limits) => {
-                // Only keep non-transaction buckets:
-                annotated_buckets.retain(|(_, count)| count.is_none());
+                // If a rate limit is active, discard transaction buckets.
+                if rate_limits.is_limited() {
+                    annotated_buckets.retain(|(_, count)| count.is_none());
 
-                // Track outcome for the processed transactions we dropped here:
-                if transaction_count > 0 {
-                    for limit in &rate_limits {
-                        if limit
-                            .categories
-                            .contains(&DataCategory::TransactionProcessed)
-                        {
-                            TrackOutcome::from_registry().send(TrackOutcome {
-                                timestamp: UnixTimestamp::now().as_datetime(), // as good as any timestamp
-                                scoping: *item_scoping,
-                                outcome: Outcome::RateLimited(limit.reason_code.clone()),
-                                event_id: None,
-                                remote_addr: None,
-                                category: DataCategory::TransactionProcessed,
-                                quantity: transaction_count as u32,
-                            });
+                    // Track outcome for the processed transactions we dropped here:
+                    if transaction_count > 0 {
+                        // TODO: Should we really loop here? That creates multiple outcomes for the same bucket.
+                        for limit in &rate_limits {
+                            if limit
+                                .categories
+                                .contains(&DataCategory::TransactionProcessed)
+                            {
+                                TrackOutcome::from_registry().send(TrackOutcome {
+                                    timestamp: UnixTimestamp::now().as_datetime(), // as good as any timestamp
+                                    scoping: *item_scoping,
+                                    outcome: Outcome::RateLimited(limit.reason_code.clone()),
+                                    event_id: None,
+                                    remote_addr: None,
+                                    category: DataCategory::TransactionProcessed,
+                                    quantity: transaction_count as u32,
+                                });
+                            }
                         }
                     }
                 }

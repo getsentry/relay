@@ -590,7 +590,11 @@ def test_rate_limit_metrics_buckets(
     )
 
     # Expect 2 of 9 buckets to be dropped:
-    produced_buckets = [metrics_consumer.get_metric(timeout=1) for _ in range(7)]
+    num_expected_buckets = 7
+
+    produced_buckets = [
+        metrics_consumer.get_metric(timeout=1) for _ in range(num_expected_buckets)
+    ]
     metrics_consumer.assert_empty()
 
     # Sort buckets to prevent ordering flakiness:
