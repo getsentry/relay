@@ -319,7 +319,7 @@ jobs:
           # GITHUB_SHA in pull requests points to the merge commit
           RELAY_TEST_IMAGE=us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }}
           echo "We expected GCB to push this image $RELAY_TEST_IMAGE"
-          echo "::set-output name=relay-test-image::$RELAY_TEST_IMAGE"
+          echo "relay-test-image=$RELAY_TEST_IMAGE" >> "$GITHUB_OUTPUT"
           # We cannot execute actions that are not placed under .github of the main repo
           mkdir -p .github/actions
           cp -r sentry/.github/actions/setup-sentry .github/actions/
