@@ -51,7 +51,7 @@ use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_redis::RedisPool;
 use relay_sampling::{DynamicSamplingContext, RuleId};
 use relay_statsd::metric;
-use relay_system::{Addr, AsyncResponse, FromMessage, NoResponse, Sender, Service};
+use relay_system::{Addr, FromMessage, NoResponse, Service};
 
 #[cfg(feature = "processing")]
 use {
@@ -61,6 +61,7 @@ use {
     failure::ResultExt,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
+    relay_system::{AsyncResponse, Sender},
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 

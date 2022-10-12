@@ -16,9 +16,7 @@ use relay_metrics::{
     MetricNamespace, MetricResourceIdentifier,
 };
 
-#[cfg(feature = "processing")]
-use relay_quotas::Quota;
-use relay_quotas::{ItemScoping, RateLimits, Scoping};
+use relay_quotas::{ItemScoping, Quota, RateLimits, Scoping};
 
 use relay_redis::RedisPool;
 use relay_statsd::metric;
@@ -161,28 +159,23 @@ async fn rate_limit_buckets(
         match rate_limits {
             Ok(rate_limits) => {
                 // If a rate limit is active, discard transaction buckets.
-                if rate_limits.is_limited() {
+                if let Some(limit) = rate_limits.into_iter().find(|r| {
+                    !r.retry_after.expired()
+                        && r.categories.contains(&DataCategory::TransactionProcessed)
+                }) {
                     annotated_buckets.retain(|(_, count)| count.is_none());
 
                     // Track outcome for the processed transactions we dropped here:
                     if transaction_count > 0 {
-                        // TODO: Should we really loop here? That creates multiple outcomes for the same bucket.
-                        for limit in &rate_limits {
-                            if limit
-                                .categories
-                                .contains(&DataCategory::TransactionProcessed)
-                            {
-                                TrackOutcome::from_registry().send(TrackOutcome {
-                                    timestamp: UnixTimestamp::now().as_datetime(), // as good as any timestamp
-                                    scoping: *item_scoping,
-                                    outcome: Outcome::RateLimited(limit.reason_code.clone()),
-                                    event_id: None,
-                                    remote_addr: None,
-                                    category: DataCategory::TransactionProcessed,
-                                    quantity: transaction_count as u32,
-                                });
-                            }
-                        }
+                        TrackOutcome::from_registry().send(TrackOutcome {
+                            timestamp: UnixTimestamp::now().as_datetime(), // as good as any timestamp
+                            scoping: *item_scoping,
+                            outcome: Outcome::RateLimited(limit.reason_code.clone()),
+                            event_id: None,
+                            remote_addr: None,
+                            category: DataCategory::TransactionProcessed,
+                            quantity: transaction_count as u32,
+                        });
                     }
                 }
             }
