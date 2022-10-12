@@ -92,6 +92,30 @@ async fn check_rate_limits(
     Ok(rate_limits)
 }
 
+// Helper function for `rate_limit_buckets`.
+fn drop_with_outcome(
+    annotated_buckets: &mut Vec<(Bucket, Option<usize>)>,
+    transaction_count: usize,
+    outcome: Outcome,
+    scoping: Scoping,
+) {
+    // Drop transaction buckets:
+    annotated_buckets.retain(|(_, count)| count.is_none());
+
+    // Track outcome for the processed transactions we dropped here:
+    if transaction_count > 0 {
+        TrackOutcome::from_registry().send(TrackOutcome {
+            timestamp: UnixTimestamp::now().as_datetime(), // as good as any timestamp
+            scoping,
+            outcome,
+            event_id: None,
+            remote_addr: None,
+            category: DataCategory::TransactionProcessed,
+            quantity: transaction_count as u32,
+        });
+    }
+}
+
 /// Remove rate limited metrics buckets and track outcomes for them.
 ///
 /// Returns any buckets that were *not* rate limited.
@@ -162,32 +186,22 @@ async fn rate_limit_buckets(
             Ok(rate_limits) => {
                 // If a rate limit is active, discard transaction buckets.
                 if let Some(limit) = rate_limits.limit_for(DataCategory::TransactionProcessed) {
-                    annotated_buckets.retain(|(_, count)| count.is_none());
-
-                    // Track outcome for the processed transactions we dropped here:
-                    if transaction_count > 0 {
-                        TrackOutcome::from_registry().send(TrackOutcome {
-                            timestamp: UnixTimestamp::now().as_datetime(), // as good as any timestamp
-                            scoping: *item_scoping,
-                            outcome: Outcome::RateLimited(limit.reason_code.clone()),
-                            event_id: None,
-                            remote_addr: None,
-                            category: DataCategory::TransactionProcessed,
-                            quantity: transaction_count as u32,
-                        });
-                    }
+                    drop_with_outcome(
+                        &mut annotated_buckets,
+                        transaction_count,
+                        Outcome::RateLimited(limit.reason_code.clone()),
+                        *item_scoping,
+                    );
                 }
             }
             Err(outcome) => {
-                TrackOutcome::from_registry().send(TrackOutcome {
-                    timestamp: UnixTimestamp::now().as_datetime(), // as good as any timestamp
-                    scoping: *item_scoping,
+                // Error from rate limiter, drop transaction buckets.
+                drop_with_outcome(
+                    &mut annotated_buckets,
+                    transaction_count,
                     outcome,
-                    event_id: None,
-                    remote_addr: None,
-                    category: DataCategory::TransactionProcessed,
-                    quantity: transaction_count as u32,
-                });
+                    *item_scoping,
+                );
             }
         };
     }
