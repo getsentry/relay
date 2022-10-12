@@ -49,6 +49,8 @@ pub enum ProjectError {
 
 impl ResponseError for ProjectError {}
 
+// Helper function for `rate_limit_buckets`.
+#[cfg_attr(not(feature = "processing"), allow(unused_mut, unused_variables))]
 async fn check_rate_limits(
     transaction_count: usize,
     cached_rate_limits: &RateLimits,
