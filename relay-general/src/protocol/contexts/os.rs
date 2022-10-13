@@ -1,12 +1,5 @@
-use once_cell::sync::OnceCell;
-use regex::Regex;
-use serde::{Serialize, Serializer};
-
-use crate::processor::ProcessValue;
 use crate::protocol::LenientString;
-use crate::types::{
-    Annotated, Empty, Error, FromValue, IntoValue, Object, SkipSerialization, Value,
-};
+use crate::types::{Annotated, Object, Value};
 
 /// Operating system information.
 ///
@@ -66,6 +59,7 @@ fn test_os_context_roundtrip() {
   "other": "value",
   "type": "os"
 }"#;
+    use crate::protocol::Context;
     let context = Annotated::new(Context::Os(Box::new(OsContext {
         name: Annotated::new("iOS".to_string()),
         version: Annotated::new("11.4.2".to_string()),

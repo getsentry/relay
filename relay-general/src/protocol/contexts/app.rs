@@ -48,9 +48,14 @@ impl AppContext {
     }
 }
 
-#[test]
-fn test_app_context_roundtrip() {
-    let json = r#"{
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::protocol::{BrowserContext, Context};
+
+    #[test]
+    pub(crate) fn test_app_context_roundtrip() {
+        let json = r#"{
   "app_start_time": "2018-02-08T22:21:57Z",
   "device_app_hash": "4c793e3776474877ae30618378e9662a",
   "build_type": "testflight",
@@ -62,50 +67,51 @@ fn test_app_context_roundtrip() {
   "other": "value",
   "type": "app"
 }"#;
-    let context = Annotated::new(Context::App(Box::new(AppContext {
-        app_start_time: Annotated::new("2018-02-08T22:21:57Z".to_string()),
-        device_app_hash: Annotated::new("4c793e3776474877ae30618378e9662a".to_string()),
-        build_type: Annotated::new("testflight".to_string()),
-        app_identifier: Annotated::new("foo.bar.baz".to_string()),
-        app_name: Annotated::new("Baz App".to_string()),
-        app_version: Annotated::new("1.0".to_string()),
-        app_build: Annotated::new("100001".to_string().into()),
-        app_memory: Annotated::new(22883948),
-        other: {
-            let mut map = Object::new();
-            map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
-            );
-            map
-        },
-    })));
+        let context = Annotated::new(Context::App(Box::new(AppContext {
+            app_start_time: Annotated::new("2018-02-08T22:21:57Z".to_string()),
+            device_app_hash: Annotated::new("4c793e3776474877ae30618378e9662a".to_string()),
+            build_type: Annotated::new("testflight".to_string()),
+            app_identifier: Annotated::new("foo.bar.baz".to_string()),
+            app_name: Annotated::new("Baz App".to_string()),
+            app_version: Annotated::new("1.0".to_string()),
+            app_build: Annotated::new("100001".to_string().into()),
+            app_memory: Annotated::new(22883948),
+            other: {
+                let mut map = Object::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                map
+            },
+        })));
 
-    assert_eq!(context, Annotated::from_json(json).unwrap());
-    assert_eq!(json, context.to_json_pretty().unwrap());
-}
+        assert_eq!(context, Annotated::from_json(json).unwrap());
+        assert_eq!(json, context.to_json_pretty().unwrap());
+    }
 
-#[test]
-fn test_browser_context_roundtrip() {
-    let json = r#"{
+    #[test]
+    pub(crate) fn test_browser_context_roundtrip() {
+        let json = r#"{
   "name": "Google Chrome",
   "version": "67.0.3396.99",
   "other": "value",
   "type": "browser"
 }"#;
-    let context = Annotated::new(Context::Browser(Box::new(BrowserContext {
-        name: Annotated::new("Google Chrome".to_string()),
-        version: Annotated::new("67.0.3396.99".to_string()),
-        other: {
-            let mut map = Object::new();
-            map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
-            );
-            map
-        },
-    })));
+        let context = Annotated::new(Context::Browser(Box::new(BrowserContext {
+            name: Annotated::new("Google Chrome".to_string()),
+            version: Annotated::new("67.0.3396.99".to_string()),
+            other: {
+                let mut map = Object::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                map
+            },
+        })));
 
-    assert_eq!(context, Annotated::from_json(json).unwrap());
-    assert_eq!(json, context.to_json_pretty().unwrap());
+        assert_eq!(context, Annotated::from_json(json).unwrap());
+        assert_eq!(json, context.to_json_pretty().unwrap());
+    }
 }

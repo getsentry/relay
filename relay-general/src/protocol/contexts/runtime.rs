@@ -49,6 +49,7 @@ fn test_runtime_context_roundtrip() {
   "other": "value",
   "type": "runtime"
 }"#;
+    use crate::protocol::Context;
     let context = Annotated::new(Context::Runtime(Box::new(RuntimeContext {
         name: Annotated::new("rustc".to_string()),
         version: Annotated::new("1.27.0".to_string()),

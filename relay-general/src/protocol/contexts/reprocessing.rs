@@ -1,12 +1,4 @@
-use once_cell::sync::OnceCell;
-use regex::Regex;
-use serde::{Serialize, Serializer};
-
-use crate::processor::ProcessValue;
-use crate::protocol::LenientString;
-use crate::types::{
-    Annotated, Empty, Error, FromValue, IntoValue, Object, SkipSerialization, Value,
-};
+use crate::types::{Annotated, Object, Value};
 
 /// Auxilliary data that Sentry attaches for reprocessed events.
 // This context is explicitly typed out such that we can disable datascrubbing for it, and for
@@ -43,6 +35,7 @@ fn test_reprocessing_context_roundtrip() {
   "random": "stuff",
   "type": "reprocessing"
 }"#;
+    use crate::protocol::Context;
     let context = Annotated::new(Context::Reprocessing(Box::new(ReprocessingContext {
         original_issue_id: Annotated::new(123),
         original_primary_hash: Annotated::new("9f3ee8ff49e6ca0a2bee80d76fee8f0c".to_string()),

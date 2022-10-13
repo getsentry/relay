@@ -1,6 +1,4 @@
-use crate::processor::ProcessValue;
-use crate::protocol::LenientString;
-use crate::types::{Annotated, Empty, Object, Value};
+use crate::types::{Annotated, Object, Value};
 
 /// Device information.
 ///
@@ -213,6 +211,7 @@ fn test_device_context_roundtrip() {
   "other": "value",
   "type": "device"
 }"#;
+    use crate::protocol::Context;
     let context = Annotated::new(Context::Device(Box::new(DeviceContext {
         name: Annotated::new("iphone".to_string()),
         family: Annotated::new("iphone".to_string()),

@@ -3,6 +3,7 @@ use regex::Regex;
 use serde::{Serialize, Serializer};
 
 use crate::processor::ProcessValue;
+use crate::protocol::OperationType;
 use crate::types::{
     Annotated, Empty, Error, FromValue, IntoValue, Object, SkipSerialization, Value,
 };
@@ -187,9 +188,15 @@ impl TraceContext {
     }
 }
 
-#[test]
-fn test_trace_context_roundtrip() {
-    let json = r#"{
+#[cfg(test)]
+mod tests {
+    use crate::protocol::Context;
+
+    use super::*;
+
+    #[test]
+    pub(crate) fn test_trace_context_roundtrip() {
+        let json = r#"{
   "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
   "span_id": "fa90fdead5f74052",
   "parent_span_id": "fa90fdead5f74053",
@@ -200,40 +207,41 @@ fn test_trace_context_roundtrip() {
   "other": "value",
   "type": "trace"
 }"#;
-    let context = Annotated::new(Context::Trace(Box::new(TraceContext {
-        trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
-        span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
-        parent_span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-        op: Annotated::new("http".into()),
-        status: Annotated::new(SpanStatus::Ok),
-        exclusive_time: Annotated::new(0.0),
-        client_sample_rate: Annotated::new(0.5),
-        other: {
-            let mut map = Object::new();
-            map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
-            );
-            map
-        },
-    })));
+        let context = Annotated::new(Context::Trace(Box::new(TraceContext {
+            trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+            span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
+            parent_span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+            op: Annotated::new("http".into()),
+            status: Annotated::new(SpanStatus::Ok),
+            exclusive_time: Annotated::new(0.0),
+            client_sample_rate: Annotated::new(0.5),
+            other: {
+                let mut map = Object::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                map
+            },
+        })));
 
-    assert_eq!(context, Annotated::from_json(json).unwrap());
-    assert_eq!(json, context.to_json_pretty().unwrap());
-}
+        assert_eq!(context, Annotated::from_json(json).unwrap());
+        assert_eq!(json, context.to_json_pretty().unwrap());
+    }
 
-#[test]
-fn test_trace_context_normalization() {
-    let json = r#"{
+    #[test]
+    pub(crate) fn test_trace_context_normalization() {
+        let json = r#"{
   "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
   "span_id": "FA90FDEAD5F74052",
   "type": "trace"
 }"#;
-    let context = Annotated::new(Context::Trace(Box::new(TraceContext {
-        trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
-        span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
-        ..Default::default()
-    })));
+        let context = Annotated::new(Context::Trace(Box::new(TraceContext {
+            trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+            span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
+            ..Default::default()
+        })));
 
-    assert_eq!(context, Annotated::from_json(json).unwrap());
+        assert_eq!(context, Annotated::from_json(json).unwrap());
+    }
 }
