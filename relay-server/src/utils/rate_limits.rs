@@ -244,20 +244,25 @@ impl Default for CategoryLimit {
 #[derive(Default, Debug)]
 pub struct Enforcement {
     /// The event item rate limit.
-    pub event: CategoryLimit,
+    event: CategoryLimit,
     /// The combined attachment item rate limit.
-    pub attachments: CategoryLimit,
+    attachments: CategoryLimit,
     /// The combined session item rate limit.
-    pub sessions: CategoryLimit,
+    sessions: CategoryLimit,
     /// The combined profile item rate limit.
-    pub profiles: CategoryLimit,
+    profiles: CategoryLimit,
     /// The combined replay item rate limit.
-    pub replays: CategoryLimit,
+    replays: CategoryLimit,
     /// Metrics extraction from a transaction is rate limited.
-    pub extracted_transaction_metrics: CategoryLimit,
+    extracted_transaction_metrics: CategoryLimit,
 }
 
 impl Enforcement {
+    /// The enforcement of the metrics extraction from the transaction in the envelope.
+    pub fn extracted_transaction_metrics(&self) -> &CategoryLimit {
+        &self.extracted_transaction_metrics
+    }
+
     /// Invokes [`TrackOutcome`] on all enforcements reported by the [`EnvelopeLimiter`].
     ///
     /// Relay generally does not emit outcomes for sessions, so those are skipped.
