@@ -529,6 +529,9 @@ pub struct CheckRateLimits {
     pub scoping: Scoping,
     /// By how much the quota usage is incremented.
     pub quantity: usize,
+    /// Do we accept the first call that goes over the rate limit?
+    /// Useful to ensure that subsequent calls with quantity=0 will be rejected.
+    pub over_accept_once: bool,
 }
 
 /// CPU-intensive processing tasks for envelopes.
@@ -2209,6 +2212,7 @@ impl EnvelopeProcessorService {
             category,
             scoping,
             quantity,
+            over_accept_once,
         } = message;
 
         let rate_limiter = match self.rate_limiter.as_ref() {
@@ -2224,7 +2228,7 @@ impl EnvelopeProcessorService {
             scoping: &scoping,
         };
 
-        rate_limiter.is_rate_limited(&quotas, item_scoping, quantity)
+        rate_limiter.is_rate_limited(&quotas, item_scoping, quantity, over_accept_once)
     }
 
     fn encode_envelope_body(

@@ -69,6 +69,10 @@ async fn check_rate_limits(
             category: DataCategory::TransactionProcessed,
             scoping,
             quantity: transaction_count,
+            // Because we call this function with transaction_count=0 (for metrics other than
+            // "duration"), we need to over-accept once to ensure that the limit is reached
+            // and those cases are actually rejected.
+            over_accept_once: true,
         });
 
         let redis_rate_limits = match request.await {
