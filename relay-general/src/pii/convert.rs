@@ -1368,4 +1368,35 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let pii_config = pii_config.unwrap();
         insta::assert_json_snapshot!(pii_config);
     }
+
+    #[test]
+    fn test_safe_fields_for_token() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "extra": {
+                    "password": "foo",
+                    "github_token": "bar",
+                    "access_token": "quz",
+                    "stripetoken": "baz",
+                    "my-token": "secret",
+                    "new_token": "hidden,"
+                }
+            })
+            .into(),
+        );
+        let pii_config = to_pii_config(&DataScrubbingConfig {
+            sensitive_fields: vec![],
+            exclude_fields: vec![
+                "GITHUB_TOKEN".to_owned(),
+                "access_token".to_owned(),
+                "stripetoken".to_owned(),
+            ],
+            ..simple_enabled_config()
+        });
+
+        let pii_config = pii_config.unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(data);
+    }
 }
