@@ -235,10 +235,11 @@ impl RateLimits {
         self.iter().any(|limit| !limit.retry_after.expired())
     }
 
-    /// Returns `true` if this instance contains active rate limits for the given data category.
-    pub fn limit_for(&self, category: DataCategory) -> Option<&RateLimit> {
+    /// Returns the longest limit for the given data category, if any exists.
+    pub fn longest_for(&self, category: DataCategory) -> Option<&RateLimit> {
         self.iter()
-            .find(|limit| !limit.retry_after.expired() && limit.categories.contains(&category))
+            .filter(|limit| !limit.retry_after.expired() && limit.categories.contains(&category))
+            .max_by_key(|limit| limit.retry_after)
     }
 
     /// Removes expired rate limits from this instance.
@@ -251,7 +252,7 @@ impl RateLimits {
     /// If no limits match, then the returned `RateLimits` instance evalutes `is_ok`. Otherwise, it
     /// contains rate limits that match the given scoping.
     pub fn check(&self, scoping: ItemScoping<'_>) -> Self {
-        self.check_with_quotas(&[], scoping)
+        self.check_with_quotas([].iter(), scoping)
     }
 
     /// Checks whether any rate limits apply to the given scoping.
@@ -261,7 +262,11 @@ impl RateLimits {
     ///
     /// If no limits or quotas match, then the returned `RateLimits` instance evalutes `is_ok`.
     /// Otherwise, it contains rate limits that match the given scoping.
-    pub fn check_with_quotas(&self, quotas: &[Quota], scoping: ItemScoping<'_>) -> Self {
+    pub fn check_with_quotas<'a>(
+        &self,
+        quotas: impl Iterator<Item = &'a Quota>,
+        scoping: ItemScoping<'_>,
+    ) -> Self {
         let mut applied_limits = Self::new();
 
         for quota in quotas {
@@ -811,7 +816,7 @@ mod tests {
             reason_code: Some(ReasonCode::new("zero")),
         }];
 
-        let applied_limits = rate_limits.check_with_quotas(quotas, item_scoping);
+        let applied_limits = rate_limits.check_with_quotas(quotas.iter(), item_scoping);
 
         insta::assert_ron_snapshot!(applied_limits, @r###"
         RateLimits(
