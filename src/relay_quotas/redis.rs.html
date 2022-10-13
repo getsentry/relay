@@ -708,6 +708,69 @@
 <span id="706">706</span>
 <span id="707">707</span>
 <span id="708">708</span>
+<span id="709">709</span>
+<span id="710">710</span>
+<span id="711">711</span>
+<span id="712">712</span>
+<span id="713">713</span>
+<span id="714">714</span>
+<span id="715">715</span>
+<span id="716">716</span>
+<span id="717">717</span>
+<span id="718">718</span>
+<span id="719">719</span>
+<span id="720">720</span>
+<span id="721">721</span>
+<span id="722">722</span>
+<span id="723">723</span>
+<span id="724">724</span>
+<span id="725">725</span>
+<span id="726">726</span>
+<span id="727">727</span>
+<span id="728">728</span>
+<span id="729">729</span>
+<span id="730">730</span>
+<span id="731">731</span>
+<span id="732">732</span>
+<span id="733">733</span>
+<span id="734">734</span>
+<span id="735">735</span>
+<span id="736">736</span>
+<span id="737">737</span>
+<span id="738">738</span>
+<span id="739">739</span>
+<span id="740">740</span>
+<span id="741">741</span>
+<span id="742">742</span>
+<span id="743">743</span>
+<span id="744">744</span>
+<span id="745">745</span>
+<span id="746">746</span>
+<span id="747">747</span>
+<span id="748">748</span>
+<span id="749">749</span>
+<span id="750">750</span>
+<span id="751">751</span>
+<span id="752">752</span>
+<span id="753">753</span>
+<span id="754">754</span>
+<span id="755">755</span>
+<span id="756">756</span>
+<span id="757">757</span>
+<span id="758">758</span>
+<span id="759">759</span>
+<span id="760">760</span>
+<span id="761">761</span>
+<span id="762">762</span>
+<span id="763">763</span>
+<span id="764">764</span>
+<span id="765">765</span>
+<span id="766">766</span>
+<span id="767">767</span>
+<span id="768">768</span>
+<span id="769">769</span>
+<span id="770">770</span>
+<span id="771">771</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 
@@ -878,6 +941,10 @@
     <span class="doccomment">/// If no key is specified, then only organization-wide and project-wide quotas are checked. If</span>
     <span class="doccomment">/// a key is specified, then key-quotas are also checked.</span>
     <span class="doccomment">///</span>
+    <span class="doccomment">/// If the current consumed quotas are still under the limit and the current quantity would put</span>
+    <span class="doccomment">/// it over the limit, which normaly would return the _rejection_, setting `over_accept_once`</span>
+    <span class="doccomment">/// to `true` will allow accept the incoming data even if the limit is exceeded once.</span>
+    <span class="doccomment">///</span>
     <span class="doccomment">/// The passed `quantity` may be `0`. In this case, the rate limiter will check if the quota</span>
     <span class="doccomment">/// limit has been reached or exceeded without incrementing it in the success case. This can be</span>
     <span class="doccomment">/// useful to check for required quotas in a different data category.</span>
@@ -886,6 +953,7 @@
         <span class="ident">quotas</span>: <span class="kw-2">&amp;</span>[<span class="ident">Quota</span>],
         <span class="ident">item_scoping</span>: <span class="ident">ItemScoping</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
         <span class="ident">quantity</span>: <span class="ident">usize</span>,
+        <span class="ident">over_accept_once</span>: <span class="ident">bool</span>,
     ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">RateLimits</span>, <span class="ident">RateLimitingError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::now</span>();
 
@@ -913,6 +981,7 @@
                 <span class="ident">invocation</span>.<span class="ident">arg</span>(<span class="ident">quota</span>.<span class="ident">limit</span>());
                 <span class="ident">invocation</span>.<span class="ident">arg</span>(<span class="ident">quota</span>.<span class="ident">expiry</span>().<span class="ident">as_secs</span>() <span class="op">+</span> <span class="ident">GRACE</span>);
                 <span class="ident">invocation</span>.<span class="ident">arg</span>(<span class="ident">quantity</span>);
+                <span class="ident">invocation</span>.<span class="ident">arg</span>(<span class="ident">over_accept_once</span>);
 
                 <span class="ident">tracked_quotas</span>.<span class="ident">push</span>(<span class="ident">quota</span>);
             } <span class="kw">else</span> {
@@ -1015,7 +1084,7 @@
         };
 
         <span class="kw">let</span> <span class="ident">rate_limits</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">RateLimit</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">build_rate_limiter</span>()
-            .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">1</span>)
+            .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">1</span>, <span class="bool-val">false</span>)
             .<span class="ident">expect</span>(<span class="string">&quot;rate limiting failed&quot;</span>)
             .<span class="ident">into_iter</span>()
             .<span class="ident">collect</span>();
@@ -1057,7 +1126,7 @@
 
         <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">10</span> {
             <span class="kw">let</span> <span class="ident">rate_limits</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">RateLimit</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">rate_limiter</span>
-                .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">1</span>)
+                .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">1</span>, <span class="bool-val">false</span>)
                 .<span class="ident">expect</span>(<span class="string">&quot;rate limiting failed&quot;</span>)
                 .<span class="ident">into_iter</span>()
                 .<span class="ident">collect</span>();
@@ -1104,27 +1173,80 @@
 
         <span class="comment">// limit is 1, so first call not rate limited</span>
         <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">rate_limiter</span>
-            .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">1</span>)
+            .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">1</span>, <span class="bool-val">false</span>)
             .<span class="ident">unwrap</span>()
             .<span class="ident">is_limited</span>());
 
         <span class="comment">// quota is now exhausted</span>
         <span class="macro">assert!</span>(<span class="ident">rate_limiter</span>
-            .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">1</span>)
+            .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">1</span>, <span class="bool-val">false</span>)
             .<span class="ident">unwrap</span>()
             .<span class="ident">is_limited</span>());
 
         <span class="comment">// quota is exhausted, regardless of the quantity</span>
         <span class="macro">assert!</span>(<span class="ident">rate_limiter</span>
-            .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">0</span>)
+            .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">0</span>, <span class="bool-val">false</span>)
             .<span class="ident">unwrap</span>()
             .<span class="ident">is_limited</span>());
 
         <span class="comment">// quota is exhausted, regardless of the quantity</span>
         <span class="macro">assert!</span>(<span class="ident">rate_limiter</span>
-            .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">1</span>)
+            .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">1</span>, <span class="bool-val">false</span>)
             .<span class="ident">unwrap</span>()
             .<span class="ident">is_limited</span>());
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_quota_go_over</span>() {
+        <span class="kw">let</span> <span class="ident">quotas</span> <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="ident">Quota</span> {
+            <span class="ident">id</span>: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;test_quota_go_over{:?}&quot;</span>, <span class="ident">SystemTime::now</span>())),
+            <span class="ident">categories</span>: <span class="ident">DataCategories::new</span>(),
+            <span class="ident">scope</span>: <span class="ident">QuotaScope::Organization</span>,
+            <span class="ident">scope_id</span>: <span class="prelude-val">None</span>,
+            <span class="ident">limit</span>: <span class="prelude-val">Some</span>(<span class="number">2</span>),
+            <span class="ident">window</span>: <span class="prelude-val">Some</span>(<span class="number">60</span>),
+            <span class="ident">reason_code</span>: <span class="prelude-val">Some</span>(<span class="ident">ReasonCode::new</span>(<span class="string">&quot;get_lost&quot;</span>)),
+        }];
+
+        <span class="kw">let</span> <span class="ident">scoping</span> <span class="op">=</span> <span class="ident">ItemScoping</span> {
+            <span class="ident">category</span>: <span class="ident">DataCategory::Error</span>,
+            <span class="ident">scoping</span>: <span class="kw-2">&amp;</span><span class="ident">Scoping</span> {
+                <span class="ident">organization_id</span>: <span class="number">42</span>,
+                <span class="ident">project_id</span>: <span class="ident">ProjectId::new</span>(<span class="number">43</span>),
+                <span class="ident">project_key</span>: <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).<span class="ident">unwrap</span>(),
+                <span class="ident">key_id</span>: <span class="prelude-val">Some</span>(<span class="number">44</span>),
+            },
+        };
+
+        <span class="kw">let</span> <span class="ident">rate_limiter</span> <span class="op">=</span> <span class="ident">build_rate_limiter</span>();
+
+        <span class="comment">// limit is 2, so first call not rate limited</span>
+        <span class="kw">let</span> <span class="ident">is_limited</span> <span class="op">=</span> <span class="ident">rate_limiter</span>
+            .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">1</span>, <span class="bool-val">true</span>)
+            .<span class="ident">unwrap</span>()
+            .<span class="ident">is_limited</span>();
+        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">is_limited</span>);
+
+        <span class="comment">// go over limit, but first call is over-accepted</span>
+        <span class="kw">let</span> <span class="ident">is_limited</span> <span class="op">=</span> <span class="ident">rate_limiter</span>
+            .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">2</span>, <span class="bool-val">true</span>)
+            .<span class="ident">unwrap</span>()
+            .<span class="ident">is_limited</span>();
+        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">is_limited</span>);
+
+        <span class="comment">// quota is exhausted, regardless of the quantity</span>
+        <span class="kw">let</span> <span class="ident">is_limited</span> <span class="op">=</span> <span class="ident">rate_limiter</span>
+            .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">0</span>, <span class="bool-val">true</span>)
+            .<span class="ident">unwrap</span>()
+            .<span class="ident">is_limited</span>();
+        <span class="macro">assert!</span>(<span class="ident">is_limited</span>);
+
+        <span class="comment">// quota is exhausted, regardless of the quantity</span>
+        <span class="kw">let</span> <span class="ident">is_limited</span> <span class="op">=</span> <span class="ident">rate_limiter</span>
+            .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">1</span>, <span class="bool-val">true</span>)
+            .<span class="ident">unwrap</span>()
+            .<span class="ident">is_limited</span>();
+        <span class="macro">assert!</span>(<span class="ident">is_limited</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -1140,7 +1262,7 @@
         };
 
         <span class="kw">let</span> <span class="ident">rate_limits</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">RateLimit</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">build_rate_limiter</span>()
-            .<span class="ident">is_rate_limited</span>(<span class="kw-2">&amp;</span>[], <span class="ident">scoping</span>, <span class="number">1</span>)
+            .<span class="ident">is_rate_limited</span>(<span class="kw-2">&amp;</span>[], <span class="ident">scoping</span>, <span class="number">1</span>, <span class="bool-val">false</span>)
             .<span class="ident">expect</span>(<span class="string">&quot;rate limiting failed&quot;</span>)
             .<span class="ident">into_iter</span>()
             .<span class="ident">collect</span>();
@@ -1185,7 +1307,7 @@
 
         <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">1</span> {
             <span class="kw">let</span> <span class="ident">rate_limits</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">RateLimit</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">rate_limiter</span>
-                .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">1</span>)
+                .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">1</span>, <span class="bool-val">false</span>)
                 .<span class="ident">expect</span>(<span class="string">&quot;rate limiting failed&quot;</span>)
                 .<span class="ident">into_iter</span>()
                 .<span class="ident">collect</span>();
@@ -1232,7 +1354,7 @@
 
         <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">10</span> {
             <span class="kw">let</span> <span class="ident">rate_limits</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">RateLimit</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">rate_limiter</span>
-                .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">100</span>)
+                .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">100</span>, <span class="bool-val">false</span>)
                 .<span class="ident">expect</span>(<span class="string">&quot;rate limiting failed&quot;</span>)
                 .<span class="ident">into_iter</span>()
                 .<span class="ident">collect</span>();
@@ -1339,9 +1461,11 @@
             .<span class="ident">arg</span>(<span class="number">1</span>) <span class="comment">// limit</span>
             .<span class="ident">arg</span>(<span class="ident">now</span> <span class="op">+</span> <span class="number">60</span>) <span class="comment">// expiry</span>
             .<span class="ident">arg</span>(<span class="number">1</span>) <span class="comment">// quantity</span>
+            .<span class="ident">arg</span>(<span class="bool-val">false</span>) <span class="comment">// over accept once</span>
             .<span class="ident">arg</span>(<span class="number">2</span>) <span class="comment">// limit</span>
             .<span class="ident">arg</span>(<span class="ident">now</span> <span class="op">+</span> <span class="number">120</span>) <span class="comment">// expiry</span>
-            .<span class="ident">arg</span>(<span class="number">1</span>); <span class="comment">// quantity</span>
+            .<span class="ident">arg</span>(<span class="number">1</span>) <span class="comment">// quantity</span>
+            .<span class="ident">arg</span>(<span class="bool-val">false</span>); <span class="comment">// over accept once</span>
 
         <span class="comment">// The item should not be rate limited by either key.</span>
         <span class="macro">assert_eq!</span>(
@@ -1387,7 +1511,8 @@
             .<span class="ident">key</span>(<span class="kw-2">&amp;</span><span class="ident">baz</span>) <span class="comment">// refund key</span>
             .<span class="ident">arg</span>(<span class="number">1</span>) <span class="comment">// limit</span>
             .<span class="ident">arg</span>(<span class="ident">now</span> <span class="op">+</span> <span class="number">60</span>) <span class="comment">// expiry</span>
-            .<span class="ident">arg</span>(<span class="number">1</span>); <span class="comment">// quantity</span>
+            .<span class="ident">arg</span>(<span class="number">1</span>) <span class="comment">// quantity</span>
+            .<span class="ident">arg</span>(<span class="bool-val">false</span>);
 
         <span class="comment">// increment</span>
         <span class="macro">assert_eq!</span>(
@@ -1407,7 +1532,8 @@
             .<span class="ident">key</span>(<span class="kw-2">&amp;</span><span class="ident">apple</span>) <span class="comment">// refund key</span>
             .<span class="ident">arg</span>(<span class="number">1</span>) <span class="comment">// limit</span>
             .<span class="ident">arg</span>(<span class="ident">now</span> <span class="op">+</span> <span class="number">60</span>) <span class="comment">// expiry</span>
-            .<span class="ident">arg</span>(<span class="number">1</span>); <span class="comment">// quantity</span>
+            .<span class="ident">arg</span>(<span class="number">1</span>) <span class="comment">// quantity</span>
+            .<span class="ident">arg</span>(<span class="bool-val">false</span>);
 
         <span class="comment">// test that refund key is used</span>
         <span class="macro">assert_eq!</span>(
