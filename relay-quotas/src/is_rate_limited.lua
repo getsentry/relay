@@ -32,17 +32,6 @@ assert(#KEYS % 2 == 0, "there must be 2 keys per quota")
 assert(#ARGV % 4 == 0, "there must be 4 args per quota")
 assert(#KEYS / 2 == #ARGV / 4, "incorrect number of keys and arguments provided")
 
--- parse the incoming string into boolean, returns `nil` if could not parse which is also considered `false`
-local function parse_boolean(v)
-    if v == 'true' then
-        return true
-    elseif v == 'false' then
-        return false
-    else
-        return nil
-    end
-end
-
 local results = {}
 local failed = false
 local num_quotas = #KEYS / 2
@@ -52,7 +41,7 @@ for i=0, num_quotas - 1 do
 
     local limit = tonumber(ARGV[v])
     local quantity = tonumber(ARGV[v+2])
-    local over_accept_once = parse_boolean(ARGV[v+3])
+    local over_accept_once = ARGV[v+3]
     local rejected = false
     -- limit=-1 means "no limit"
     if limit >= 0 then
@@ -61,7 +50,7 @@ for i=0, num_quotas - 1 do
         -- With over_accept_once, we only reject if the previous update already reached the limit. 
         -- This way, we ensure that we increment to or past the limit at some point,
         -- such that subsequent checks with quantity=0 are actually rejected.
-        if quantity == 0 or over_accept_once then
+        if quantity == 0 or over_accept_once == 'true' then
             rejected = consumed >= limit
         else
             rejected = consumed + quantity > limit
