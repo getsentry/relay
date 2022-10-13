@@ -168,6 +168,10 @@ impl RedisRateLimiter {
     /// If no key is specified, then only organization-wide and project-wide quotas are checked. If
     /// a key is specified, then key-quotas are also checked.
     ///
+    /// If the current consumed quotas are still under the limit and the current quantity would put
+    /// it over the limit, which normaly would return the _rejection_, setting `over_accept_once`
+    /// to `true` will allow accept the incoming data even if the limit is exceeded once.
+    ///
     /// The passed `quantity` may be `0`. In this case, the rate limiter will check if the quota
     /// limit has been reached or exceeded without incrementing it in the success case. This can be
     /// useful to check for required quotas in a different data category.
@@ -176,6 +180,7 @@ impl RedisRateLimiter {
         quotas: &[Quota],
         item_scoping: ItemScoping<'_>,
         quantity: usize,
+        over_accept_once: bool,
     ) -> Result<RateLimits, RateLimitingError> {
         let timestamp = UnixTimestamp::now();
 
@@ -203,6 +208,7 @@ impl RedisRateLimiter {
                 invocation.arg(quota.limit());
                 invocation.arg(quota.expiry().as_secs() + GRACE);
                 invocation.arg(quantity);
+                invocation.arg(over_accept_once);
 
                 tracked_quotas.push(quota);
             } else {
@@ -305,7 +311,7 @@ mod tests {
         };
 
         let rate_limits: Vec<RateLimit> = build_rate_limiter()
-            .is_rate_limited(quotas, scoping, 1)
+            .is_rate_limited(quotas, scoping, 1, false)
             .expect("rate limiting failed")
             .into_iter()
             .collect();
@@ -347,7 +353,7 @@ mod tests {
 
         for i in 0..10 {
             let rate_limits: Vec<RateLimit> = rate_limiter
-                .is_rate_limited(quotas, scoping, 1)
+                .is_rate_limited(quotas, scoping, 1, false)
                 .expect("rate limiting failed")
                 .into_iter()
                 .collect();
@@ -394,27 +400,80 @@ mod tests {
 
         // limit is 1, so first call not rate limited
         assert!(!rate_limiter
-            .is_rate_limited(quotas, scoping, 1)
+            .is_rate_limited(quotas, scoping, 1, false)
             .unwrap()
             .is_limited());
 
         // quota is now exhausted
         assert!(rate_limiter
-            .is_rate_limited(quotas, scoping, 1)
+            .is_rate_limited(quotas, scoping, 1, false)
             .unwrap()
             .is_limited());
 
         // quota is exhausted, regardless of the quantity
         assert!(rate_limiter
-            .is_rate_limited(quotas, scoping, 0)
+            .is_rate_limited(quotas, scoping, 0, false)
             .unwrap()
             .is_limited());
 
         // quota is exhausted, regardless of the quantity
         assert!(rate_limiter
-            .is_rate_limited(quotas, scoping, 1)
+            .is_rate_limited(quotas, scoping, 1, false)
             .unwrap()
             .is_limited());
+    }
+
+    #[test]
+    fn test_quota_go_over() {
+        let quotas = &[Quota {
+            id: Some(format!("test_quota_go_over{:?}", SystemTime::now())),
+            categories: DataCategories::new(),
+            scope: QuotaScope::Organization,
+            scope_id: None,
+            limit: Some(2),
+            window: Some(60),
+            reason_code: Some(ReasonCode::new("get_lost")),
+        }];
+
+        let scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: &Scoping {
+                organization_id: 42,
+                project_id: ProjectId::new(43),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(44),
+            },
+        };
+
+        let rate_limiter = build_rate_limiter();
+
+        // limit is 2, so first call not rate limited
+        let is_limited = rate_limiter
+            .is_rate_limited(quotas, scoping, 1, true)
+            .unwrap()
+            .is_limited();
+        assert!(!is_limited);
+
+        // go over limit, but first call is over-accepted
+        let is_limited = rate_limiter
+            .is_rate_limited(quotas, scoping, 2, true)
+            .unwrap()
+            .is_limited();
+        assert!(!is_limited);
+
+        // quota is exhausted, regardless of the quantity
+        let is_limited = rate_limiter
+            .is_rate_limited(quotas, scoping, 0, true)
+            .unwrap()
+            .is_limited();
+        assert!(is_limited);
+
+        // quota is exhausted, regardless of the quantity
+        let is_limited = rate_limiter
+            .is_rate_limited(quotas, scoping, 1, true)
+            .unwrap()
+            .is_limited();
+        assert!(is_limited);
     }
 
     #[test]
@@ -430,7 +489,7 @@ mod tests {
         };
 
         let rate_limits: Vec<RateLimit> = build_rate_limiter()
-            .is_rate_limited(&[], scoping, 1)
+            .is_rate_limited(&[], scoping, 1, false)
             .expect("rate limiting failed")
             .into_iter()
             .collect();
@@ -475,7 +534,7 @@ mod tests {
 
         for i in 0..1 {
             let rate_limits: Vec<RateLimit> = rate_limiter
-                .is_rate_limited(quotas, scoping, 1)
+                .is_rate_limited(quotas, scoping, 1, false)
                 .expect("rate limiting failed")
                 .into_iter()
                 .collect();
@@ -522,7 +581,7 @@ mod tests {
 
         for i in 0..10 {
             let rate_limits: Vec<RateLimit> = rate_limiter
-                .is_rate_limited(quotas, scoping, 100)
+                .is_rate_limited(quotas, scoping, 100, false)
                 .expect("rate limiting failed")
                 .into_iter()
                 .collect();
@@ -629,9 +688,11 @@ mod tests {
             .arg(1) // limit
             .arg(now + 60) // expiry
             .arg(1) // quantity
+            .arg(false) // over accept once
             .arg(2) // limit
             .arg(now + 120) // expiry
-            .arg(1); // quantity
+            .arg(1) // quantity
+            .arg(false); // over accept once
 
         // The item should not be rate limited by either key.
         assert_eq!(
@@ -677,7 +738,8 @@ mod tests {
             .key(&baz) // refund key
             .arg(1) // limit
             .arg(now + 60) // expiry
-            .arg(1); // quantity
+            .arg(1) // quantity
+            .arg(false);
 
         // increment
         assert_eq!(
@@ -697,7 +759,8 @@ mod tests {
             .key(&apple) // refund key
             .arg(1) // limit
             .arg(now + 60) // expiry
-            .arg(1); // quantity
+            .arg(1) // quantity
+            .arg(false);
 
         // test that refund key is used
         assert_eq!(
