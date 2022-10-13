@@ -259,6 +259,7 @@ pub struct Enforcement {
 
 impl Enforcement {
     /// The enforcement of the metrics extraction from the transaction in the envelope.
+    #[cfg(feature = "processing")]
     pub fn extracted_transaction_metrics(&self) -> &CategoryLimit {
         &self.extracted_transaction_metrics
     }
