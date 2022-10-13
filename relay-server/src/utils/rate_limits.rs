@@ -404,18 +404,30 @@ where
                     // exactly one extraction is being denied, even if we didn't increment
                     // the counter.  This works around a quirk of CategoryLimit::is_active
                     // which only considers something limited if the count is larger than 1.
+                    // Also mark attachments as limited if the event is limited.
                     enforcement.event = CategoryLimit::new(DataCategory::Transaction, 1, longest);
+                    enforcement.attachments = CategoryLimit::new(
+                        DataCategory::Attachment,
+                        summary.attachment_quantity,
+                        longest,
+                    );
                     enforcement.extracted_transaction_metrics =
                         CategoryLimit::new(DataCategory::TransactionProcessed, 1, longest);
                     rate_limits.merge(processing_limits);
 
                     if !enforcement.event.is_active() {
-                        // Check and increment indexing quota.
+                        // Check and increment indexing quota, again record the same
+                        // enforcement for attachments.
                         let index_limits =
                             (self.check)(scoping.item(DataCategory::Transaction), 1)?;
                         let longest = index_limits.longest();
                         enforcement.event =
                             CategoryLimit::new(DataCategory::Transaction, 1, longest);
+                        enforcement.attachments = CategoryLimit::new(
+                            DataCategory::Attachment,
+                            summary.attachment_quantity,
+                            longest,
+                        );
                         rate_limits.merge(index_limits);
                     }
                 } else {
@@ -424,8 +436,14 @@ where
                     let longest = processing_limits.longest();
 
                     // Reject the entire transaction event as we do not want to index it nor
-                    // extract metrics from it.
+                    // extract metrics from it.  Since it is not being indexed, also enforce
+                    // attachments.
                     enforcement.event = CategoryLimit::new(DataCategory::Transaction, 1, longest);
+                    enforcement.attachments = CategoryLimit::new(
+                        DataCategory::Attachment,
+                        summary.attachment_quantity,
+                        longest,
+                    );
                     enforcement.extracted_transaction_metrics =
                         CategoryLimit::new(DataCategory::TransactionProcessed, 1, longest);
 
@@ -969,5 +987,33 @@ mod tests {
         assert!(limits.is_limited());
         assert!(!enforcement.extracted_transaction_metrics.is_active());
         assert!(enforcement.event.is_active());
+    }
+
+    #[test]
+    fn test_enforce_transaction_attachment_enforced() {
+        let mut envelope = envelope![Transaction, Attachment];
+        let mut mock = MockLimiter::default().deny(DataCategory::TransactionProcessed);
+        let limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
+
+        let (enforcement, _limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
+
+        assert!(enforcement.event.is_active());
+        assert!(enforcement.attachments.is_active());
+    }
+
+    #[test]
+    fn test_enforce_transaction_attachment_enforced_metrics_extracted() {
+        let mut envelope = envelope![Transaction, Attachment];
+        envelope
+            .get_item_by_mut(|item| *item.ty() == ItemType::Transaction)
+            .unwrap()
+            .set_metrics_extracted(true);
+        let mut mock = MockLimiter::default().deny(DataCategory::Transaction);
+        let limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
+
+        let (enforcement, _limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
+
+        assert!(enforcement.event.is_active());
+        assert!(enforcement.attachments.is_active());
     }
 }
