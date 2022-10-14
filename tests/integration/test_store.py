@@ -470,6 +470,113 @@ def test_processing_quotas(
         assert event["logentry"]["formatted"] == f"otherkey{i}"
 
 
+def test_processing_quota_transactions(
+    mini_sentry, relay_with_processing, transactions_consumer,
+):
+    relay = relay_with_processing({"processing": {"max_rate_limit": 100}})
+    tx_consumer = transactions_consumer()
+    project_id = 42
+    projectconfig = mini_sentry.add_full_project_config(project_id)
+    key_id = mini_sentry.get_dsn_public_key_configs(project_id)[0]["numericId"]
+    projectconfig["config"]["quotas"] = [
+        {
+            "id": "test_rate_limiting_{}".format(uuid.uuid4().hex),
+            "scope": "key",
+            "scopeId": six.text_type(key_id),
+            "categories": ["transaction"],
+            "limit": 1,
+            "window": 300,
+            "reasonCode": "get_lost",
+        },
+        {
+            "id": "test_rate_limiting_{}".format(uuid.uuid4().hex),
+            "scope": "key",
+            "scopeId": six.text_type(key_id),
+            "categories": ["transaction_processed"],
+            "limit": 20,
+            "window": 300,
+            "reasonCode": "get_lost",
+        },
+    ]
+
+    relay.send_event(project_id, transaction_event(message="1st tx"))
+    event, _ = tx_consumer.get_event()
+    assert event["logentry"]["formatted"] == "1st tx"
+
+    relay.send_event(project_id, transaction_event(message="2nd tx"))
+    event, _ = tx_consumer.get_event()
+    assert event["logentry"]["formatted"] == "2nd tx"
+
+    relay.send_event(project_id, transaction_event(message="3rd tx"))
+    event, _ = tx_consumer.get_event()
+    assert event["logentry"]["formatted"] == "3rd tx"
+
+
+def test_processing_quota_transactions_no_tx_processing(
+    mini_sentry, relay_with_processing, transactions_consumer, outcomes_consumer,
+):
+    relay = relay_with_processing({"processing": {"max_rate_limit": 100}})
+    tx_consumer = transactions_consumer()
+    outcomes_consumer = outcomes_consumer()
+    project_id = 42
+    projectconfig = mini_sentry.add_full_project_config(project_id)
+    key_id = mini_sentry.get_dsn_public_key_configs(project_id)[0]["numericId"]
+    projectconfig["config"]["quotas"] = [
+        {
+            "id": "test_rate_limiting_{}".format(uuid.uuid4().hex),
+            "scope": "key",
+            "scopeId": six.text_type(key_id),
+            "categories": ["transaction"],
+            "limit": 20,
+            "window": 300,
+            "reasonCode": "get_lost",
+        },
+        {
+            "id": "test_rate_limiting_{}".format(uuid.uuid4().hex),
+            "scope": "key",
+            "scopeId": six.text_type(key_id),
+            "categories": ["transaction_processed"],
+            "limit": 1,
+            "window": 300,
+            "reasonCode": "get_lost",
+        },
+    ]
+
+    # Not ratelimited.
+    relay.send_event(project_id, transaction_event(message="1st tx"))
+    event, _ = tx_consumer.get_event()
+    assert event["logentry"]["formatted"] == "1st tx"
+
+    # tx ratelimited but no 429.
+    relay.send_event(project_id, transaction_event(message="2nd tx"))
+    outcomes_consumer.assert_rate_limited(
+        "2nd tx", key_id=key_id, categories=["transaction_processed"]
+    )
+
+    # A 3rd time to allow 429 to be propagated to CheckEnvelope
+    with pytest.raises(HTTPError) as excinfo:
+        relay.send_event(project_id, transaction_event(message="3rd tx"))
+
+
+def transaction_event(message="a transaction"):
+    now = datetime.datetime.utcnow()
+    return {
+        "message": message,
+        "type": "transaction",
+        "timestamp": now.isoformat(),
+        "start_timestamp": (now - datetime.timedelta(seconds=2)).isoformat(),
+        "spans": [],
+        "contexts": {
+            "trace": {
+                "op": "hi",
+                "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                "span_id": "968cff94913ebb07",
+            }
+        },
+        "transaction": "hi",
+    }
+
+
 def test_events_buffered_before_auth(relay, mini_sentry):
     evt = threading.Event()
 

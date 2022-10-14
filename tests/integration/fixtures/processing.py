@@ -200,6 +200,8 @@ def category_value(category):
         return 4
     if category == "session":
         return 5
+    if category == "transaction_processed":
+        return 6
     assert False, "invalid category"
 
 
