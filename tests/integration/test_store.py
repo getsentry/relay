@@ -513,10 +513,9 @@ def test_processing_quota_transactions(
 
 
 def test_processing_quota_transactions_no_tx_processing(
-    mini_sentry, relay_with_processing, transactions_consumer, outcomes_consumer,
+    mini_sentry, relay_with_processing, outcomes_consumer,
 ):
     relay = relay_with_processing({"processing": {"max_rate_limit": 100}})
-    tx_consumer = transactions_consumer()
     outcomes_consumer = outcomes_consumer()
     project_id = 42
     projectconfig = mini_sentry.add_full_project_config(project_id)
@@ -526,36 +525,24 @@ def test_processing_quota_transactions_no_tx_processing(
             "id": "test_rate_limiting_{}".format(uuid.uuid4().hex),
             "scope": "key",
             "scopeId": six.text_type(key_id),
-            "categories": ["transaction"],
-            "limit": 20,
-            "window": 300,
-            "reasonCode": "get_lost",
-        },
-        {
-            "id": "test_rate_limiting_{}".format(uuid.uuid4().hex),
-            "scope": "key",
-            "scopeId": six.text_type(key_id),
             "categories": ["transaction_processed"],
-            "limit": 1,
+            "limit": 0,
             "window": 300,
             "reasonCode": "get_lost",
         },
     ]
 
-    # Not ratelimited.
+    # Rate limited but not yet propagated to CheckEnvelope.
     relay.send_event(project_id, transaction_event(message="1st tx"))
-    event, _ = tx_consumer.get_event()
-    assert event["logentry"]["formatted"] == "1st tx"
 
-    # tx ratelimited but no 429.
-    relay.send_event(project_id, transaction_event(message="2nd tx"))
+    # The event is enforced with the "transaction" category just like before.
     outcomes_consumer.assert_rate_limited(
-        "2nd tx", key_id=key_id, categories=["transaction_processed"]
+        "get_lost", key_id=key_id, categories=["transaction"]
     )
 
-    # A 3rd time to allow 429 to be propagated to CheckEnvelope
-    with pytest.raises(HTTPError) as excinfo:
-        relay.send_event(project_id, transaction_event(message="3rd tx"))
+    # A 2nd time to allow 429 to be propagated to CheckEnvelope
+    with pytest.raises(HTTPError):
+        relay.send_event(project_id, transaction_event(message="2rd tx"))
 
 
 def transaction_event(message="a transaction"):
