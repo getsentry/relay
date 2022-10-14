@@ -947,7 +947,7 @@ mod tests {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let mut project_state = ProjectState::allowed();
         project_state.project_id = Some(ProjectId::new(123));
-        let mut project = Project::new(project_key, config.clone());
+        let mut project = Project::new(project_key, config);
         project.state_channel = Some(channel);
         project.state = Some(Arc::new(project_state));
 
