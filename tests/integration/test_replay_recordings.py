@@ -35,6 +35,7 @@ def test_replay_recordings_processing(
     mini_sentry, relay_with_processing, replay_recordings_consumer, outcomes_consumer
 ):
     project_id = 42
+    org_id = 0
     replay_id = "515539018c9b4260a6f999572f1661ee"
 
     relay = relay_with_processing()
@@ -81,6 +82,7 @@ def test_replay_recordings_processing(
         },
         "replay_id": replay_id,
         "project_id": project_id,
+        "org_id": org_id,
         "retention_days": 90,
     }
 
