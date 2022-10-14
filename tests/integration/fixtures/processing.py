@@ -298,6 +298,15 @@ class MetricsConsumer(ConsumerBase):
 
         return json.loads(message.value())
 
+    def get_metrics(self, timeout=None, max_attempts=100):
+        for _ in range(max_attempts):
+            message = self.poll(timeout=timeout)
+            if message is None:
+                return
+            else:
+                assert message.error() is None
+                yield json.loads(message.value())
+
 
 class SessionsConsumer(ConsumerBase):
     def get_session(self):

@@ -7,7 +7,7 @@ import six
 import socket
 import threading
 import pytest
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from requests.exceptions import HTTPError
 from flask import abort, Response
@@ -270,12 +270,12 @@ def test_store_not_normalized(mini_sentry, relay):
 
 
 def make_transaction(event):
-    now = datetime.datetime.utcnow()
+    now = datetime.utcnow()
     event.update(
         {
             "type": "transaction",
             "timestamp": now.isoformat(),
-            "start_timestamp": (now - datetime.timedelta(seconds=2)).isoformat(),
+            "start_timestamp": (now - timedelta(seconds=2)).isoformat(),
             "spans": [],
             "contexts": {
                 "trace": {
@@ -542,7 +542,7 @@ def test_rate_limit_metrics_buckets(
 
     def send_buckets(buckets):
         relay.send_metrics_buckets(project_id, buckets)
-        sleep(0.1)  # give relay time to flush the buckets
+        sleep(0.2)
 
     # NOTE: Sending these buckets in multiple envelopes because the order of flushing
     # and also the order of rate limiting is not deterministic.
@@ -589,16 +589,10 @@ def test_rate_limit_metrics_buckets(
         ],
     )
 
-    # Expect 2 of 9 buckets to be dropped:
-    num_expected_buckets = 7
-
-    produced_buckets = [
-        metrics_consumer.get_metric(timeout=1) for _ in range(num_expected_buckets)
-    ]
-    metrics_consumer.assert_empty()
+    produced_buckets = list(metrics_consumer.get_metrics(timeout=2))
 
     # Sort buckets to prevent ordering flakiness:
-    produced_buckets.sort(key=lambda b: b["name"])
+    produced_buckets.sort(key=lambda b: (b["name"], b["value"]))
     for bucket in produced_buckets:
         del bucket["timestamp"]
 
