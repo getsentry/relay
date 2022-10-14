@@ -589,7 +589,7 @@ def test_rate_limit_metrics_buckets(
         ],
     )
 
-    produced_buckets = list(metrics_consumer.get_metrics(timeout=2))
+    produced_buckets = list(metrics_consumer.get_metrics(timeout=4))
 
     # Sort buckets to prevent ordering flakiness:
     produced_buckets.sort(key=lambda b: (b["name"], b["value"]))
