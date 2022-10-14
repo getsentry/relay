@@ -34,7 +34,7 @@ use crate::actors::project_upstream::UpstreamProjectSource;
 use crate::envelope::Envelope;
 use crate::service::Registry;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
-use crate::utils::{self, AnnotatedBuckets, EnvelopeContext, GarbageDisposal, Response};
+use crate::utils::{self, BucketEnforcement, EnvelopeContext, GarbageDisposal, Response};
 
 use super::outcome::{Outcome, TrackOutcome};
 
@@ -589,7 +589,7 @@ impl Handler<MergeBuckets> for ProjectCache {
 impl Handler<FlushBuckets> for ProjectCache {
     type Result = ();
 
-    fn handle(&mut self, message: FlushBuckets, context: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: FlushBuckets, _context: &mut Self::Context) -> Self::Result {
         let FlushBuckets {
             project_key,
             partition_key,
@@ -632,20 +632,32 @@ impl Handler<FlushBuckets> for ProjectCache {
             return;
         }
 
-        // Check rate limits:
-        let quotas = project_state.config.quotas.iter();
-        let item_scoping = ItemScoping {
-            category: DataCategory::TransactionProcessed,
-            scoping: &scoping,
+        // Check rate limits if necessary:
+        let buckets = match BucketEnforcement::create(buckets, scoping) {
+            Ok(mut enforcement) => {
+                let quotas = project_state.config.quotas.iter();
+                let item_scoping = ItemScoping {
+                    category: DataCategory::TransactionProcessed,
+                    scoping: &scoping,
+                };
+                let cached_rate_limits = project
+                    .rate_limits()
+                    .check_with_quotas(quotas, item_scoping);
+
+                let was_rate_limited = enforcement.enforce_limits(Ok(cached_rate_limits));
+
+                if !was_rate_limited {
+                    // If there were no cached rate limits active, let the processor check redis:
+                    // TODO
+                    // EnvelopeProcessor::from_registry().send(enforcement);
+
+                    vec![]
+                } else {
+                    enforcement.into_buckets()
+                }
+            }
+            Err(buckets) => buckets,
         };
-        let cached_rate_limits = project
-            .rate_limits()
-            .check_with_quotas(quotas, item_scoping);
-
-        let (buckets, was_rate_limited) =
-            AnnotatedBuckets::new(buckets, item_scoping).enforce_limits(Ok(cached_rate_limits));
-
-        // TODO: If no rate limits were applied, send to processor.
 
         if !buckets.is_empty() {
             EnvelopeManager::from_registry().send(SendMetrics {
