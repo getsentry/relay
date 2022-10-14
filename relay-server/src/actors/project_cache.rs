@@ -6,13 +6,6 @@ use actix_web::ResponseError;
 use failure::Fail;
 use futures01::{future, Future};
 
-#[cfg(feature = "processing")]
-use {
-    crate::actors::processor::{EnvelopeProcessor, RateLimitFlushBuckets},
-    crate::actors::project_redis::RedisProjectSource,
-    relay_common::clone,
-};
-
 use relay_common::ProjectKey;
 use relay_config::{Config, RelayMode};
 use relay_metrics::{self, AggregateMetricsError, FlushBuckets, InsertMetrics, MergeBuckets};
@@ -32,6 +25,13 @@ use crate::envelope::Envelope;
 use crate::service::Registry;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{self, BucketLimiter, EnvelopeContext, GarbageDisposal, Response};
+
+#[cfg(feature = "processing")]
+use {
+    crate::actors::processor::{EnvelopeProcessor, RateLimitFlushBuckets},
+    crate::actors::project_redis::RedisProjectSource,
+    relay_common::clone,
+};
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {

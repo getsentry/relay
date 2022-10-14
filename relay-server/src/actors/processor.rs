@@ -16,19 +16,6 @@ use once_cell::sync::OnceCell;
 use serde_json::Value as SerdeValue;
 use tokio::sync::Semaphore;
 
-use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
-use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::project::{Feature, ProjectState};
-use crate::actors::project_cache::ProjectCache;
-use crate::actors::upstream::{SendRequest, UpstreamRelay};
-use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
-use crate::metrics_extraction::sessions::{extract_session_metrics, SessionMetricsConfig};
-use crate::metrics_extraction::transactions::extract_transaction_metrics;
-use crate::service::{ServerError, REGISTRY};
-use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-use crate::utils::{
-    self, ChunkedFormDataAggregator, EnvelopeContext, ErrorBoundary, FormDataIter, SamplingResult,
-};
 use relay_auth::RelayVersion;
 use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding};
@@ -51,13 +38,29 @@ use relay_sampling::{DynamicSamplingContext, RuleId};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 
+use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
+use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::actors::project::{Feature, ProjectState};
+use crate::actors::project_cache::ProjectCache;
+use crate::actors::upstream::{SendRequest, UpstreamRelay};
+use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
+use crate::metrics_extraction::sessions::{extract_session_metrics, SessionMetricsConfig};
+use crate::metrics_extraction::transactions::extract_transaction_metrics;
+use crate::service::{ServerError, REGISTRY};
+use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
+use crate::utils::{
+    self, ChunkedFormDataAggregator, EnvelopeContext, ErrorBoundary, FormDataIter, SamplingResult,
+};
+
 #[cfg(feature = "processing")]
 use {
+    crate::actors::envelopes::SendMetrics,
     crate::actors::project_cache::UpdateRateLimits,
     crate::service::ServerErrorKind,
     crate::utils::{BucketLimiter, EnvelopeLimiter},
     failure::ResultExt,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
+    relay_quotas::ItemScoping,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
@@ -2185,16 +2188,12 @@ impl EnvelopeProcessorService {
     /// Check and apply rate limits to metrics buckets.
     #[cfg(feature = "processing")]
     fn handle_rate_limit_flush_buckets(&self, message: RateLimitFlushBuckets) {
-        use relay_quotas::ItemScoping;
-
-        use crate::actors::envelopes::SendMetrics;
-
         let RateLimitFlushBuckets {
-            bucket_limiter: mut enforcement,
+            mut bucket_limiter,
             partition_key,
         } = message;
 
-        let scoping = *enforcement.scoping();
+        let scoping = *bucket_limiter.scoping();
 
         if let Some(rate_limiter) = self.rate_limiter.as_ref() {
             let item_scoping = ItemScoping {
@@ -2205,13 +2204,13 @@ impl EnvelopeProcessorService {
             // calls with quantity=0 to be rate limited.
             let over_accept_once = true;
             let rate_limits = rate_limiter.is_rate_limited(
-                enforcement.quotas(),
+                bucket_limiter.quotas(),
                 item_scoping,
-                enforcement.transaction_count(),
+                bucket_limiter.transaction_count(),
                 over_accept_once,
             );
 
-            let was_enforced = enforcement.enforce_limits(rate_limits.as_ref().map_err(|_| ()));
+            let was_enforced = bucket_limiter.enforce_limits(rate_limits.as_ref().map_err(|_| ()));
 
             if was_enforced {
                 if let Ok(limits) = rate_limits {
@@ -2222,7 +2221,7 @@ impl EnvelopeProcessorService {
             }
         }
 
-        let buckets = enforcement.into_buckets();
+        let buckets = bucket_limiter.into_buckets();
         if !buckets.is_empty() {
             // Forward buckets to envelope manager to send them to upstream or kafka:
             EnvelopeManager::from_registry().send(SendMetrics {
