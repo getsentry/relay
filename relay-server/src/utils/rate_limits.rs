@@ -394,61 +394,35 @@ where
 
         if let Some(category) = summary.event_category {
             if category == DataCategory::Transaction {
-                if summary.transaction_metrics_extracted {
-                    // Check processing quota, but DO NOT increment.
-                    let processing_limits =
-                        (self.check)(scoping.item(DataCategory::TransactionProcessed), 0)?;
-                    let longest = processing_limits.longest();
+                // Check processing quota, but DO NOT increment.
+                let processing_limits =
+                    (self.check)(scoping.item(DataCategory::TransactionProcessed), 0)?;
+                let longest = processing_limits.longest();
 
-                    // Reject the entire transaction event as we do not want to index it nor
-                    // extract metrics from it.  Record TransactionProcessed as 1, since
-                    // exactly one extraction is being denied, even if we didn't increment
-                    // the counter.  This works around a quirk of CategoryLimit::is_active
-                    // which only considers something limited if the count is larger than 1.
-                    // Also mark attachments as limited if the event is limited.
+                // Record the enforcement for this all.  We need to record all of the
+                // event, attachments and metrics extraction.
+                enforcement.event = CategoryLimit::new(DataCategory::Transaction, 1, longest);
+                enforcement.attachments = CategoryLimit::new(
+                    DataCategory::Attachment,
+                    summary.attachment_quantity,
+                    longest,
+                );
+                enforcement.extracted_transaction_metrics =
+                    CategoryLimit::new(DataCategory::TransactionProcessed, 1, longest);
+
+                rate_limits.merge(processing_limits);
+
+                if summary.transaction_metrics_extracted && !enforcement.event.is_active() {
+                    // We had processing quota but need to check indexing quota now.
+                    let index_limits = (self.check)(scoping.item(DataCategory::Transaction), 1)?;
+                    let longest = index_limits.longest();
                     enforcement.event = CategoryLimit::new(DataCategory::Transaction, 1, longest);
                     enforcement.attachments = CategoryLimit::new(
                         DataCategory::Attachment,
                         summary.attachment_quantity,
                         longest,
                     );
-                    enforcement.extracted_transaction_metrics =
-                        CategoryLimit::new(DataCategory::TransactionProcessed, 1, longest);
-                    rate_limits.merge(processing_limits);
-
-                    if !enforcement.event.is_active() {
-                        // Check and increment indexing quota, again record the same
-                        // enforcement for attachments.
-                        let index_limits =
-                            (self.check)(scoping.item(DataCategory::Transaction), 1)?;
-                        let longest = index_limits.longest();
-                        enforcement.event =
-                            CategoryLimit::new(DataCategory::Transaction, 1, longest);
-                        enforcement.attachments = CategoryLimit::new(
-                            DataCategory::Attachment,
-                            summary.attachment_quantity,
-                            longest,
-                        );
-                        rate_limits.merge(index_limits);
-                    }
-                } else {
-                    let processing_limits =
-                        (self.check)(scoping.item(DataCategory::TransactionProcessed), 0)?;
-                    let longest = processing_limits.longest();
-
-                    // Reject the entire transaction event as we do not want to index it nor
-                    // extract metrics from it.  Since it is not being indexed, also enforce
-                    // attachments.
-                    enforcement.event = CategoryLimit::new(DataCategory::Transaction, 1, longest);
-                    enforcement.attachments = CategoryLimit::new(
-                        DataCategory::Attachment,
-                        summary.attachment_quantity,
-                        longest,
-                    );
-                    enforcement.extracted_transaction_metrics =
-                        CategoryLimit::new(DataCategory::TransactionProcessed, 1, longest);
-
-                    rate_limits.merge(processing_limits);
+                    rate_limits.merge(index_limits);
                 }
             } else {
                 let event_limits = (self.check)(scoping.item(category), 1)?;
