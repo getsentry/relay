@@ -888,7 +888,7 @@ mod tests {
 
     use relay_common::{ProjectId, ProjectKey};
 
-    use super::{Config, Project, ProjectState};
+    use super::{Config, Project, ProjectState, StateChannel};
 
     #[test]
     fn get_state_expired() {
@@ -924,5 +924,47 @@ mod tests {
                 assert!(project.valid_state().is_none());
             }
         }
+    }
+
+    #[test]
+    fn test_stale_cache() {
+        let config = Arc::new(
+            Config::from_json_value(serde_json::json!(
+                {
+                    "cache": {
+                        "project_expiry": 100,
+                        "project_grace_period": 0,
+                        "eviction_interval": 9999 // do not evict
+                    }
+                }
+            ))
+            .unwrap(),
+        );
+
+        let channel = StateChannel::new();
+
+        // Initialize project with a state.
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let mut project_state = ProjectState::allowed();
+        project_state.project_id = Some(ProjectId::new(123));
+        let mut project = Project::new(project_key, config.clone());
+        project.state_channel = Some(channel);
+        project.state = Some(Arc::new(project_state));
+
+        // The project ID must be set.
+        assert_eq!(
+            project.state.as_ref().unwrap().project_id.unwrap().value(),
+            123
+        );
+
+        // Try to update project with errored project state.
+        project.update_state(Arc::new(ProjectState::err()), false);
+
+        // Since we got invalid project state we still keep the old one meaning there
+        // still must be the project id set.
+        assert_eq!(
+            project.state.as_ref().unwrap().project_id.unwrap().value(),
+            123
+        );
     }
 }
