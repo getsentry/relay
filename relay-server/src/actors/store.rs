@@ -380,6 +380,7 @@ impl StoreService {
                         KafkaMessage::ReplayRecording(ReplayRecordingKafkaMessage {
                             replay_id: event_id.ok_or(StoreError::NoEventId)?,
                             project_id: scoping.project_id,
+                            key_id: scoping.key_id,
                             org_id: scoping.organization_id,
                             retention_days: retention,
                             replay_recording,
@@ -1018,6 +1019,8 @@ struct ReplayRecordingKafkaMessage {
     replay_id: EventId,
     /// The project id for the current event.
     project_id: ProjectId,
+    /// The key_id for the current event.
+    key_id: Option<u64>,
     /// The org id for the current event.
     org_id: u64,
     /// The recording attachment.
