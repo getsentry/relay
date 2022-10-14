@@ -26,6 +26,8 @@ pub struct BucketLimiter {
 }
 
 impl BucketLimiter {
+    /// Create a new limiter instance.
+    ///
     /// Returns Ok if `buckets` contain transaction metrics, `buckets` otherwise.
     pub fn create(
         buckets: Vec<Bucket>,

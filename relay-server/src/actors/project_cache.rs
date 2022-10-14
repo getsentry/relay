@@ -4,7 +4,6 @@ use std::time::Instant;
 use actix::prelude::*;
 use actix_web::ResponseError;
 use failure::Fail;
-// use futures::{FutureExt, TryFuture, TryFutureExt};
 use futures01::{future, Future};
 
 #[cfg(feature = "processing")]
