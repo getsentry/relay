@@ -2485,6 +2485,16 @@ expression: "relay_general::protocol::event_json_schema()"
         {
           "type": "object",
           "properties": {
+            "body_size": {
+              "description": " HTTP request body size.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
             "cookies": {
               "description": " The cookie values.\n\n Can be given unparsed as string, as dictionary, or as a list of tuples.",
               "default": null,
