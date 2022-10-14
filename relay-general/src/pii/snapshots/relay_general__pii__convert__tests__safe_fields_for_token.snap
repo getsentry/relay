@@ -9,6 +9,7 @@ expression: data
     "my-token": "[Filtered]",
     "new_token": "[Filtered]",
     "password": "[Filtered]",
+    "secret-token-here": "[Filtered]",
     "stripetoken": "baz"
   },
   "_meta": {
@@ -36,10 +37,23 @@ expression: data
               10
             ]
           ],
-          "len": 7
+          "len": 6
         }
       },
       "password": {
+        "": {
+          "rem": [
+            [
+              "@password:filter",
+              "s",
+              0,
+              10
+            ]
+          ],
+          "len": 3
+        }
+      },
+      "secret-token-here": {
         "": {
           "rem": [
             [

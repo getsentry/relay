@@ -1379,7 +1379,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
                     "access_token": "quz",
                     "stripetoken": "baz",
                     "my-token": "secret",
-                    "new_token": "hidden,"
+                    "new_token": "hidden",
+                    "secret-token-here": "ops"
                 }
             })
             .into(),
