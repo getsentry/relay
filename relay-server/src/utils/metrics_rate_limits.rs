@@ -2,14 +2,18 @@
 
 use relay_common::{DataCategory, UnixTimestamp};
 use relay_metrics::{Bucket, MetricNamespace, MetricResourceIdentifier};
-use relay_quotas::{RateLimitingError, RateLimits, Scoping};
+use relay_quotas::{ItemScoping, Quota, RateLimitingError, RateLimits, Scoping};
 
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 
 /// Holds metrics buckets with some information about their contents.
+#[derive(Debug)]
 pub struct BucketEnforcement {
     /// A list of metrics buckets.
     buckets: Vec<Bucket>,
+
+    /// The quotas set on the current project.
+    quotas: Vec<Quota>,
 
     /// Project information.
     scoping: Scoping,
@@ -23,7 +27,11 @@ pub struct BucketEnforcement {
 
 impl BucketEnforcement {
     /// Returns Ok if `buckets` contain transaction metrics, `buckets` otherwise.
-    pub fn create(buckets: Vec<Bucket>, scoping: Scoping) -> Result<Self, Vec<Bucket>> {
+    pub fn create(
+        buckets: Vec<Bucket>,
+        quotas: Vec<Quota>,
+        scoping: Scoping,
+    ) -> Result<Self, Vec<Bucket>> {
         let transaction_counts: Vec<_> = buckets
             .iter()
             .map(|bucket| {
@@ -65,6 +73,7 @@ impl BucketEnforcement {
             let transaction_buckets = transaction_counts.iter().map(Option::is_some).collect();
             Ok(Self {
                 buckets,
+                quotas,
                 scoping,
                 transaction_buckets,
                 transaction_count,
@@ -72,6 +81,18 @@ impl BucketEnforcement {
         } else {
             Err(buckets)
         }
+    }
+
+    pub fn scoping(&self) -> &Scoping {
+        &self.scoping
+    }
+
+    pub fn quotas(&self) -> &[Quota] {
+        self.quotas.as_ref()
+    }
+
+    pub fn transaction_count(&self) -> usize {
+        self.transaction_count
     }
 
     fn drop_with_outcome(&mut self, outcome: Outcome) {
@@ -102,12 +123,18 @@ impl BucketEnforcement {
 
     // TODO: docs
     // Returns true if any buckets were dropped.
-    pub fn enforce_limits(&mut self, rate_limits: Result<RateLimits, RateLimitingError>) -> bool {
+    pub fn enforce_limits(&mut self, rate_limits: Result<&RateLimits, &RateLimitingError>) -> bool {
         let mut dropped_stuff = false;
         match rate_limits {
             Ok(rate_limits) => {
+                let item_scoping = ItemScoping {
+                    category: DataCategory::TransactionProcessed,
+                    scoping: &self.scoping,
+                };
+                let applied_rate_limits = rate_limits.check_with_quotas(&self.quotas, item_scoping);
+
                 // If a rate limit is active, discard transaction buckets.
-                if let Some(limit) = rate_limits.longest_for(DataCategory::TransactionProcessed) {
+                if let Some(limit) = applied_rate_limits.longest() {
                     self.drop_with_outcome(Outcome::RateLimited(limit.reason_code.clone()));
                     dropped_stuff = true;
                 }

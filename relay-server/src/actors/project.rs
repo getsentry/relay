@@ -851,9 +851,7 @@ impl Project {
 
         let quotas = state.as_deref().map(|s| s.get_quotas()).unwrap_or(&[]);
         let envelope_limiter = EnvelopeLimiter::new(|item_scoping, _| {
-            Ok(self
-                .rate_limits
-                .check_with_quotas(quotas.iter(), item_scoping))
+            Ok(self.rate_limits.check_with_quotas(quotas, item_scoping))
         });
 
         let (enforcement, rate_limits) = envelope_limiter.enforce(&mut envelope, &scoping)?;

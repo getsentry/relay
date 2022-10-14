@@ -2,7 +2,7 @@ use std::fmt;
 use std::str::FromStr;
 use std::time::{Duration, Instant};
 
-use relay_common::{DataCategory, ProjectId, ProjectKey};
+use relay_common::{ProjectId, ProjectKey};
 
 use crate::quota::{DataCategories, ItemScoping, Quota, QuotaScope, ReasonCode, Scoping};
 use crate::REJECT_ALL_SECS;
@@ -235,13 +235,6 @@ impl RateLimits {
         self.iter().any(|limit| !limit.retry_after.expired())
     }
 
-    /// Returns the longest limit for the given data category, if any exists.
-    pub fn longest_for(&self, category: DataCategory) -> Option<&RateLimit> {
-        self.iter()
-            .filter(|limit| !limit.retry_after.expired() && limit.categories.contains(&category))
-            .max_by_key(|limit| limit.retry_after)
-    }
-
     /// Removes expired rate limits from this instance.
     pub fn clean_expired(&mut self) {
         self.limits.retain(|limit| !limit.retry_after.expired());
@@ -252,7 +245,7 @@ impl RateLimits {
     /// If no limits match, then the returned `RateLimits` instance evalutes `is_ok`. Otherwise, it
     /// contains rate limits that match the given scoping.
     pub fn check(&self, scoping: ItemScoping<'_>) -> Self {
-        self.check_with_quotas([].iter(), scoping)
+        self.check_with_quotas(&[], scoping)
     }
 
     /// Checks whether any rate limits apply to the given scoping.
@@ -262,11 +255,7 @@ impl RateLimits {
     ///
     /// If no limits or quotas match, then the returned `RateLimits` instance evalutes `is_ok`.
     /// Otherwise, it contains rate limits that match the given scoping.
-    pub fn check_with_quotas<'a>(
-        &self,
-        quotas: impl Iterator<Item = &'a Quota>,
-        scoping: ItemScoping<'_>,
-    ) -> Self {
+    pub fn check_with_quotas(&self, quotas: &[Quota], scoping: ItemScoping<'_>) -> Self {
         let mut applied_limits = Self::new();
 
         for quota in quotas {

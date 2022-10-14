@@ -8,15 +8,17 @@ use failure::Fail;
 use futures01::{future, Future};
 
 #[cfg(feature = "processing")]
-use relay_common::clone;
-use relay_common::{DataCategory, ProjectKey};
-use relay_config::{Config, RelayMode};
-use relay_metrics::{
-    self, AggregateMetricsError, Bucket, FlushBuckets, InsertMetrics, MergeBuckets,
-    MetricNamespace, MetricResourceIdentifier,
+use {
+    crate::actors::processor::{EnvelopeProcessor, RateLimitFlushBuckets},
+    crate::actors::project_redis::RedisProjectSource,
+    relay_common::clone,
 };
 
-use relay_quotas::{ItemScoping, Quota, RateLimits, Scoping};
+use relay_common::ProjectKey;
+use relay_config::{Config, RelayMode};
+use relay_metrics::{self, AggregateMetricsError, FlushBuckets, InsertMetrics, MergeBuckets};
+
+use relay_quotas::{RateLimits, Scoping};
 
 use relay_redis::RedisPool;
 use relay_statsd::metric;
@@ -24,19 +26,13 @@ use relay_statsd::metric;
 use crate::actors::envelopes::{EnvelopeManager, SendMetrics};
 use crate::actors::outcome::DiscardReason;
 use crate::actors::processor::ProcessEnvelope;
-#[cfg(feature = "processing")]
-use crate::actors::processor::{CheckRateLimits, EnvelopeProcessor};
 use crate::actors::project::{ExpiryState, Project, ProjectState};
 use crate::actors::project_local::LocalProjectSource;
-#[cfg(feature = "processing")]
-use crate::actors::project_redis::RedisProjectSource;
 use crate::actors::project_upstream::UpstreamProjectSource;
 use crate::envelope::Envelope;
 use crate::service::Registry;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{self, BucketEnforcement, EnvelopeContext, GarbageDisposal, Response};
-
-use super::outcome::{Outcome, TrackOutcome};
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {
@@ -633,24 +629,19 @@ impl Handler<FlushBuckets> for ProjectCache {
         }
 
         // Check rate limits if necessary:
-        let buckets = match BucketEnforcement::create(buckets, scoping) {
+        let quotas = project_state.config.quotas.clone();
+        let buckets = match BucketEnforcement::create(buckets, quotas, scoping) {
             Ok(mut enforcement) => {
                 let quotas = project_state.config.quotas.iter();
-                let item_scoping = ItemScoping {
-                    category: DataCategory::TransactionProcessed,
-                    scoping: &scoping,
-                };
-                let cached_rate_limits = project
-                    .rate_limits()
-                    .check_with_quotas(quotas, item_scoping);
-
-                let was_rate_limited = enforcement.enforce_limits(Ok(cached_rate_limits));
+                let cached_rate_limits = project.rate_limits().clone();
+                let was_rate_limited = enforcement.enforce_limits(Ok(&cached_rate_limits));
 
                 if !was_rate_limited {
                     // If there were no cached rate limits active, let the processor check redis:
-                    // TODO
-                    // EnvelopeProcessor::from_registry().send(enforcement);
-
+                    EnvelopeProcessor::from_registry().send(RateLimitFlushBuckets {
+                        enforcement,
+                        partition_key,
+                    });
                     vec![]
                 } else {
                     enforcement.into_buckets()

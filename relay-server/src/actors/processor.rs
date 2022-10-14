@@ -27,7 +27,8 @@ use crate::metrics_extraction::transactions::extract_transaction_metrics;
 use crate::service::{ServerError, REGISTRY};
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
-    self, ChunkedFormDataAggregator, EnvelopeContext, ErrorBoundary, FormDataIter, SamplingResult,
+    self, BucketEnforcement, ChunkedFormDataAggregator, EnvelopeContext, ErrorBoundary,
+    FormDataIter, SamplingResult,
 };
 use relay_auth::RelayVersion;
 use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
@@ -46,8 +47,6 @@ use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction
 use relay_log::LogError;
 use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
 use relay_quotas::{DataCategory, ReasonCode};
-#[cfg(feature = "processing")]
-use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_redis::RedisPool;
 use relay_sampling::{DynamicSamplingContext, RuleId};
 use relay_statsd::metric;
@@ -61,7 +60,6 @@ use {
     failure::ResultExt,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
-    relay_system::{AsyncResponse, Sender},
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
@@ -517,21 +515,13 @@ impl EncodeEnvelope {
         Self { request }
     }
 }
-/// Check rate limits and increment the quota.
+
+/// Applies rate limits to metrics buckets and forwards them to the envelope manager.
 #[cfg(feature = "processing")]
 #[derive(Debug)]
-pub struct CheckRateLimits {
-    /// Quotas to be checked.
-    pub quotas: Vec<Quota>,
-    /// Category to check against.
-    pub category: DataCategory,
-    /// Scoping information for the project.
-    pub scoping: Scoping,
-    /// By how much the quota usage is incremented.
-    pub quantity: usize,
-    /// Do we accept the first call that goes over the rate limit?
-    /// Useful to ensure that subsequent calls with quantity=0 will be rejected.
-    pub over_accept_once: bool,
+pub struct RateLimitFlushBuckets {
+    pub enforcement: BucketEnforcement,
+    pub partition_key: Option<u64>,
 }
 
 /// CPU-intensive processing tasks for envelopes.
@@ -541,10 +531,7 @@ pub enum EnvelopeProcessor {
     ProcessMetrics(Box<ProcessMetrics>),
     EncodeEnvelope(Box<EncodeEnvelope>),
     #[cfg(feature = "processing")]
-    CheckRateLimits(
-        CheckRateLimits,
-        Sender<Result<RateLimits, RateLimitingError>>,
-    ),
+    RateLimitFlushBuckets(RateLimitFlushBuckets),
 }
 
 impl EnvelopeProcessor {
@@ -580,14 +567,11 @@ impl FromMessage<EncodeEnvelope> for EnvelopeProcessor {
 }
 
 #[cfg(feature = "processing")]
-impl FromMessage<CheckRateLimits> for EnvelopeProcessor {
-    type Response = AsyncResponse<Result<RateLimits, RateLimitingError>>;
+impl FromMessage<RateLimitFlushBuckets> for EnvelopeProcessor {
+    type Response = NoResponse;
 
-    fn from_message(
-        message: CheckRateLimits,
-        sender: Sender<Result<RateLimits, RateLimitingError>>,
-    ) -> Self {
-        Self::CheckRateLimits(message, sender)
+    fn from_message(message: RateLimitFlushBuckets, _: ()) -> Self {
+        Self::RateLimitFlushBuckets(message)
     }
 }
 
@@ -2199,36 +2183,55 @@ impl EnvelopeProcessorService {
         }
     }
 
-    /// Returns redis rate limits.
+    /// Check and apply rate limits to metrics buckets.
     #[cfg(feature = "processing")]
-    fn handle_check_rate_limits(
-        &self,
-        message: CheckRateLimits,
-    ) -> Result<RateLimits, RateLimitingError> {
+    fn handle_rate_limit_flush_buckets(&self, message: RateLimitFlushBuckets) {
         use relay_quotas::ItemScoping;
 
-        let CheckRateLimits {
-            quotas,
-            category,
-            scoping,
-            quantity,
-            over_accept_once,
+        use crate::actors::envelopes::SendMetrics;
+
+        let RateLimitFlushBuckets {
+            mut enforcement,
+            partition_key,
         } = message;
 
-        let rate_limiter = match self.rate_limiter.as_ref() {
-            Some(rate_limiter) => rate_limiter,
-            None => {
-                relay_log::error!("handle_rate_limit_metrics_buckets called without rate limiter");
-                return Ok(RateLimits::new()); // empty
+        let scoping = *enforcement.scoping();
+
+        if let Some(rate_limiter) = self.rate_limiter.as_ref() {
+            let item_scoping = ItemScoping {
+                category: DataCategory::TransactionProcessed,
+                scoping: &scoping,
+            };
+            // We set over_accept_once such that the limit is actually reached, which allows subsequent
+            // calls with quantity=0 to be rate limited.
+            let over_accept_once = true;
+            let rate_limits = rate_limiter.is_rate_limited(
+                &enforcement.quotas(),
+                item_scoping,
+                enforcement.transaction_count(),
+                over_accept_once,
+            );
+
+            let was_enforced = enforcement.enforce_limits(rate_limits.as_ref());
+
+            if was_enforced {
+                if let Ok(limits) = rate_limits {
+                    // Update the rate limits in the project cache.
+                    ProjectCache::from_registry()
+                        .do_send(UpdateRateLimits::new(scoping.project_key, limits));
+                }
             }
-        };
+        }
 
-        let item_scoping = ItemScoping {
-            category,
-            scoping: &scoping,
-        };
-
-        rate_limiter.is_rate_limited(&quotas, item_scoping, quantity, over_accept_once)
+        let buckets = enforcement.into_buckets();
+        if !buckets.is_empty() {
+            // Forward buckets to envelope manager to send them to upstream or kafka:
+            EnvelopeManager::from_registry().send(SendMetrics {
+                buckets,
+                scoping,
+                partition_key,
+            });
+        }
     }
 
     fn encode_envelope_body(
@@ -2279,8 +2282,8 @@ impl EnvelopeProcessorService {
             EnvelopeProcessor::ProcessMetrics(message) => self.handle_process_metrics(*message),
             EnvelopeProcessor::EncodeEnvelope(message) => self.handle_encode_envelope(*message),
             #[cfg(feature = "processing")]
-            EnvelopeProcessor::CheckRateLimits(message, sender) => {
-                sender.send(self.handle_check_rate_limits(message));
+            EnvelopeProcessor::RateLimitFlushBuckets(message) => {
+                self.handle_rate_limit_flush_buckets(message);
             }
         }
     }
