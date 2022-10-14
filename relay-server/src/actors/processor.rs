@@ -27,8 +27,7 @@ use crate::metrics_extraction::transactions::extract_transaction_metrics;
 use crate::service::{ServerError, REGISTRY};
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
-    self, BucketEnforcement, ChunkedFormDataAggregator, EnvelopeContext, ErrorBoundary,
-    FormDataIter, SamplingResult,
+    self, ChunkedFormDataAggregator, EnvelopeContext, ErrorBoundary, FormDataIter, SamplingResult,
 };
 use relay_auth::RelayVersion;
 use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
@@ -56,7 +55,7 @@ use relay_system::{Addr, FromMessage, NoResponse, Service};
 use {
     crate::actors::project_cache::UpdateRateLimits,
     crate::service::ServerErrorKind,
-    crate::utils::EnvelopeLimiter,
+    crate::utils::{BucketLimiter, EnvelopeLimiter},
     failure::ResultExt,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
@@ -520,7 +519,7 @@ impl EncodeEnvelope {
 #[cfg(feature = "processing")]
 #[derive(Debug)]
 pub struct RateLimitFlushBuckets {
-    pub enforcement: BucketEnforcement,
+    pub bucket_limiter: BucketLimiter,
     pub partition_key: Option<u64>,
 }
 
@@ -2191,7 +2190,7 @@ impl EnvelopeProcessorService {
         use crate::actors::envelopes::SendMetrics;
 
         let RateLimitFlushBuckets {
-            mut enforcement,
+            bucket_limiter: mut enforcement,
             partition_key,
         } = message;
 
@@ -2206,13 +2205,13 @@ impl EnvelopeProcessorService {
             // calls with quantity=0 to be rate limited.
             let over_accept_once = true;
             let rate_limits = rate_limiter.is_rate_limited(
-                &enforcement.quotas(),
+                enforcement.quotas(),
                 item_scoping,
                 enforcement.transaction_count(),
                 over_accept_once,
             );
 
-            let was_enforced = enforcement.enforce_limits(rate_limits.as_ref());
+            let was_enforced = enforcement.enforce_limits(rate_limits.as_ref().map_err(|_| ()));
 
             if was_enforced {
                 if let Ok(limits) = rate_limits {

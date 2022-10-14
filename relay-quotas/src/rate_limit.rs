@@ -805,7 +805,7 @@ mod tests {
             reason_code: Some(ReasonCode::new("zero")),
         }];
 
-        let applied_limits = rate_limits.check_with_quotas(quotas.iter(), item_scoping);
+        let applied_limits = rate_limits.check_with_quotas(quotas, item_scoping);
 
         insta::assert_ron_snapshot!(applied_limits, @r###"
         RateLimits(

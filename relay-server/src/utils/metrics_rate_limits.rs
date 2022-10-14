@@ -2,13 +2,13 @@
 
 use relay_common::{DataCategory, UnixTimestamp};
 use relay_metrics::{Bucket, MetricNamespace, MetricResourceIdentifier};
-use relay_quotas::{ItemScoping, Quota, RateLimitingError, RateLimits, Scoping};
+use relay_quotas::{ItemScoping, Quota, RateLimits, Scoping};
 
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 
 /// Holds metrics buckets with some information about their contents.
 #[derive(Debug)]
-pub struct BucketEnforcement {
+pub struct BucketLimiter {
     /// A list of metrics buckets.
     buckets: Vec<Bucket>,
 
@@ -25,7 +25,7 @@ pub struct BucketEnforcement {
     transaction_count: usize,
 }
 
-impl BucketEnforcement {
+impl BucketLimiter {
     /// Returns Ok if `buckets` contain transaction metrics, `buckets` otherwise.
     pub fn create(
         buckets: Vec<Bucket>,
@@ -83,14 +83,17 @@ impl BucketEnforcement {
         }
     }
 
+    #[allow(dead_code)]
     pub fn scoping(&self) -> &Scoping {
         &self.scoping
     }
 
+    #[allow(dead_code)]
     pub fn quotas(&self) -> &[Quota] {
         self.quotas.as_ref()
     }
 
+    #[allow(dead_code)]
     pub fn transaction_count(&self) -> usize {
         self.transaction_count
     }
@@ -121,9 +124,14 @@ impl BucketEnforcement {
         }
     }
 
-    // TODO: docs
+    // Drop transaction-related buckets and create outcomes for any active rate limits.
+    //
+    // If rate limits could not be checked for some reason, pass an `Err` to this function.
+    // In this case, transaction-related metrics buckets will also be dropped, and an "internal"
+    // outcome is generated.
+    //
     // Returns true if any buckets were dropped.
-    pub fn enforce_limits(&mut self, rate_limits: Result<&RateLimits, &RateLimitingError>) -> bool {
+    pub fn enforce_limits(&mut self, rate_limits: Result<&RateLimits, ()>) -> bool {
         let mut dropped_stuff = false;
         match rate_limits {
             Ok(rate_limits) => {

@@ -18,7 +18,7 @@ use relay_common::ProjectKey;
 use relay_config::{Config, RelayMode};
 use relay_metrics::{self, AggregateMetricsError, FlushBuckets, InsertMetrics, MergeBuckets};
 
-use relay_quotas::{RateLimits, Scoping};
+use relay_quotas::RateLimits;
 
 use relay_redis::RedisPool;
 use relay_statsd::metric;
@@ -32,7 +32,7 @@ use crate::actors::project_upstream::UpstreamProjectSource;
 use crate::envelope::Envelope;
 use crate::service::Registry;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
-use crate::utils::{self, BucketEnforcement, EnvelopeContext, GarbageDisposal, Response};
+use crate::utils::{self, BucketLimiter, EnvelopeContext, GarbageDisposal, Response};
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {
@@ -630,22 +630,24 @@ impl Handler<FlushBuckets> for ProjectCache {
 
         // Check rate limits if necessary:
         let quotas = project_state.config.quotas.clone();
-        let buckets = match BucketEnforcement::create(buckets, quotas, scoping) {
-            Ok(mut enforcement) => {
-                let quotas = project_state.config.quotas.iter();
+        let buckets = match BucketLimiter::create(buckets, quotas, scoping) {
+            Ok(mut bucket_limiter) => {
                 let cached_rate_limits = project.rate_limits().clone();
-                let was_rate_limited = enforcement.enforce_limits(Ok(&cached_rate_limits));
+                #[allow(unused_variables)]
+                let was_rate_limited = bucket_limiter.enforce_limits(Ok(&cached_rate_limits));
 
-                if !was_rate_limited {
+                #[cfg(feature = "processing")]
+                if !was_rate_limited && config.processing_enabled() {
                     // If there were no cached rate limits active, let the processor check redis:
                     EnvelopeProcessor::from_registry().send(RateLimitFlushBuckets {
-                        enforcement,
+                        bucket_limiter,
                         partition_key,
                     });
-                    vec![]
-                } else {
-                    enforcement.into_buckets()
+
+                    return;
                 }
+
+                bucket_limiter.into_buckets()
             }
             Err(buckets) => buckets,
         };
