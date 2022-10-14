@@ -552,7 +552,8 @@ def _get_event_payload(event_type):
 
 
 @pytest.mark.parametrize(
-    "category,is_outcome_expected", [("session", False), ("transaction", True)]
+    "category,is_outcome_expected",
+    [("session", False), ("transaction_processed", True)],
 )
 def test_outcomes_rate_limit(
     relay_with_processing, mini_sentry, outcomes_consumer, category, is_outcome_expected
@@ -596,6 +597,8 @@ def test_outcomes_rate_limit(
         }
         relay.send_session(project_id, payload)
     else:
+        # Change category back to normal transaction to send event and expected outcome.
+        category = "transaction"
         relay.send_event(project_id, _get_event_payload(category))
 
     # give relay some to handle the request (and send any outcomes it needs to send)
