@@ -2827,6 +2827,78 @@
 <span id="2825">2825</span>
 <span id="2826">2826</span>
 <span id="2827">2827</span>
+<span id="2828">2828</span>
+<span id="2829">2829</span>
+<span id="2830">2830</span>
+<span id="2831">2831</span>
+<span id="2832">2832</span>
+<span id="2833">2833</span>
+<span id="2834">2834</span>
+<span id="2835">2835</span>
+<span id="2836">2836</span>
+<span id="2837">2837</span>
+<span id="2838">2838</span>
+<span id="2839">2839</span>
+<span id="2840">2840</span>
+<span id="2841">2841</span>
+<span id="2842">2842</span>
+<span id="2843">2843</span>
+<span id="2844">2844</span>
+<span id="2845">2845</span>
+<span id="2846">2846</span>
+<span id="2847">2847</span>
+<span id="2848">2848</span>
+<span id="2849">2849</span>
+<span id="2850">2850</span>
+<span id="2851">2851</span>
+<span id="2852">2852</span>
+<span id="2853">2853</span>
+<span id="2854">2854</span>
+<span id="2855">2855</span>
+<span id="2856">2856</span>
+<span id="2857">2857</span>
+<span id="2858">2858</span>
+<span id="2859">2859</span>
+<span id="2860">2860</span>
+<span id="2861">2861</span>
+<span id="2862">2862</span>
+<span id="2863">2863</span>
+<span id="2864">2864</span>
+<span id="2865">2865</span>
+<span id="2866">2866</span>
+<span id="2867">2867</span>
+<span id="2868">2868</span>
+<span id="2869">2869</span>
+<span id="2870">2870</span>
+<span id="2871">2871</span>
+<span id="2872">2872</span>
+<span id="2873">2873</span>
+<span id="2874">2874</span>
+<span id="2875">2875</span>
+<span id="2876">2876</span>
+<span id="2877">2877</span>
+<span id="2878">2878</span>
+<span id="2879">2879</span>
+<span id="2880">2880</span>
+<span id="2881">2881</span>
+<span id="2882">2882</span>
+<span id="2883">2883</span>
+<span id="2884">2884</span>
+<span id="2885">2885</span>
+<span id="2886">2886</span>
+<span id="2887">2887</span>
+<span id="2888">2888</span>
+<span id="2889">2889</span>
+<span id="2890">2890</span>
+<span id="2891">2891</span>
+<span id="2892">2892</span>
+<span id="2893">2893</span>
+<span id="2894">2894</span>
+<span id="2895">2895</span>
+<span id="2896">2896</span>
+<span id="2897">2897</span>
+<span id="2898">2898</span>
+<span id="2899">2899</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::cmp::max</span>;
 <span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std::convert::TryFrom</span>;
@@ -2883,11 +2955,13 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
 <span class="kw">use</span> {
+    <span class="ident"><span class="kw">crate</span>::actors::envelopes::SendMetrics</span>,
     <span class="ident"><span class="kw">crate</span>::actors::project_cache::UpdateRateLimits</span>,
     <span class="ident"><span class="kw">crate</span>::service::ServerErrorKind</span>,
-    <span class="ident"><span class="kw">crate</span>::utils::EnvelopeLimiter</span>,
+    <span class="ident"><span class="kw">crate</span>::utils</span>::{<span class="ident">BucketLimiter</span>, <span class="ident">EnvelopeLimiter</span>},
     <span class="ident">failure::ResultExt</span>,
     <span class="ident">relay_general::store</span>::{<span class="ident">GeoIpLookup</span>, <span class="ident">StoreConfig</span>, <span class="ident">StoreProcessor</span>},
+    <span class="ident">relay_quotas::ItemScoping</span>,
     <span class="ident">relay_quotas</span>::{<span class="ident">RateLimitingError</span>, <span class="ident">RedisRateLimiter</span>},
     <span class="ident">symbolic_unreal</span>::{<span class="ident">Unreal4Error</span>, <span class="ident">Unreal4ErrorKind</span>},
 };
@@ -3345,12 +3419,22 @@
     }
 }
 
+<span class="doccomment">/// Applies rate limits to metrics buckets and forwards them to the envelope manager.</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RateLimitFlushBuckets</span> {
+    <span class="kw">pub</span> <span class="ident">bucket_limiter</span>: <span class="ident">BucketLimiter</span>,
+    <span class="kw">pub</span> <span class="ident">partition_key</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+}
+
 <span class="doccomment">/// CPU-intensive processing tasks for envelopes.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">EnvelopeProcessor</span> {
     <span class="ident">ProcessEnvelope</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">ProcessEnvelope</span><span class="op">&gt;</span>),
     <span class="ident">ProcessMetrics</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">ProcessMetrics</span><span class="op">&gt;</span>),
     <span class="ident">EncodeEnvelope</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">EncodeEnvelope</span><span class="op">&gt;</span>),
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+    <span class="ident">RateLimitFlushBuckets</span>(<span class="ident">RateLimitFlushBuckets</span>),
 }
 
 <span class="kw">impl</span> <span class="ident">EnvelopeProcessor</span> {
@@ -3382,6 +3466,15 @@
 
     <span class="kw">fn</span> <span class="ident">from_message</span>(<span class="ident">message</span>: <span class="ident">EncodeEnvelope</span>, <span class="kw">_</span>: ()) -&gt; <span class="self">Self</span> {
         <span class="ident"><span class="self">Self</span>::EncodeEnvelope</span>(<span class="ident">Box::new</span>(<span class="ident">message</span>))
+    }
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+<span class="kw">impl</span> <span class="ident">FromMessage</span><span class="op">&lt;</span><span class="ident">RateLimitFlushBuckets</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">EnvelopeProcessor</span> {
+    <span class="kw">type</span> <span class="ident">Response</span> <span class="op">=</span> <span class="ident">NoResponse</span>;
+
+    <span class="kw">fn</span> <span class="ident">from_message</span>(<span class="ident">message</span>: <span class="ident">RateLimitFlushBuckets</span>, <span class="kw">_</span>: ()) -&gt; <span class="self">Self</span> {
+        <span class="ident"><span class="self">Self</span>::RateLimitFlushBuckets</span>(<span class="ident">message</span>)
     }
 }
 
@@ -4993,6 +5086,53 @@
         }
     }
 
+    <span class="doccomment">/// Check and apply rate limits to metrics buckets.</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">handle_rate_limit_flush_buckets</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">message</span>: <span class="ident">RateLimitFlushBuckets</span>) {
+        <span class="kw">let</span> <span class="ident">RateLimitFlushBuckets</span> {
+            <span class="kw-2">mut</span> <span class="ident">bucket_limiter</span>,
+            <span class="ident">partition_key</span>,
+        } <span class="op">=</span> <span class="ident">message</span>;
+
+        <span class="kw">let</span> <span class="ident">scoping</span> <span class="op">=</span> <span class="kw-2">*</span><span class="ident">bucket_limiter</span>.<span class="ident">scoping</span>();
+
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">rate_limiter</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">rate_limiter</span>.<span class="ident">as_ref</span>() {
+            <span class="kw">let</span> <span class="ident">item_scoping</span> <span class="op">=</span> <span class="ident">ItemScoping</span> {
+                <span class="ident">category</span>: <span class="ident">DataCategory::TransactionProcessed</span>,
+                <span class="ident">scoping</span>: <span class="kw-2">&amp;</span><span class="ident">scoping</span>,
+            };
+            <span class="comment">// We set over_accept_once such that the limit is actually reached, which allows subsequent</span>
+            <span class="comment">// calls with quantity=0 to be rate limited.</span>
+            <span class="kw">let</span> <span class="ident">over_accept_once</span> <span class="op">=</span> <span class="bool-val">true</span>;
+            <span class="kw">let</span> <span class="ident">rate_limits</span> <span class="op">=</span> <span class="ident">rate_limiter</span>.<span class="ident">is_rate_limited</span>(
+                <span class="ident">bucket_limiter</span>.<span class="ident">quotas</span>(),
+                <span class="ident">item_scoping</span>,
+                <span class="ident">bucket_limiter</span>.<span class="ident">transaction_count</span>(),
+                <span class="ident">over_accept_once</span>,
+            );
+
+            <span class="kw">let</span> <span class="ident">was_enforced</span> <span class="op">=</span> <span class="ident">bucket_limiter</span>.<span class="ident">enforce_limits</span>(<span class="ident">rate_limits</span>.<span class="ident">as_ref</span>().<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ()));
+
+            <span class="kw">if</span> <span class="ident">was_enforced</span> {
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">limits</span>) <span class="op">=</span> <span class="ident">rate_limits</span> {
+                    <span class="comment">// Update the rate limits in the project cache.</span>
+                    <span class="ident">ProjectCache::from_registry</span>()
+                        .<span class="ident">do_send</span>(<span class="ident">UpdateRateLimits::new</span>(<span class="ident">scoping</span>.<span class="ident">project_key</span>, <span class="ident">limits</span>));
+                }
+            }
+        }
+
+        <span class="kw">let</span> <span class="ident">buckets</span> <span class="op">=</span> <span class="ident">bucket_limiter</span>.<span class="ident">into_buckets</span>();
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">buckets</span>.<span class="ident">is_empty</span>() {
+            <span class="comment">// Forward buckets to envelope manager to send them to upstream or kafka:</span>
+            <span class="ident">EnvelopeManager::from_registry</span>().<span class="ident">send</span>(<span class="ident">SendMetrics</span> {
+                <span class="ident">buckets</span>,
+                <span class="ident">scoping</span>,
+                <span class="ident">partition_key</span>,
+            });
+        }
+    }
+
     <span class="kw">fn</span> <span class="ident">encode_envelope_body</span>(
         <span class="ident">body</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
         <span class="ident">http_encoding</span>: <span class="ident">HttpEncoding</span>,
@@ -5040,6 +5180,10 @@
             <span class="ident">EnvelopeProcessor::ProcessEnvelope</span>(<span class="ident">message</span>) =&gt; <span class="self">self</span>.<span class="ident">handle_process_envelope</span>(<span class="kw-2">*</span><span class="ident">message</span>),
             <span class="ident">EnvelopeProcessor::ProcessMetrics</span>(<span class="ident">message</span>) =&gt; <span class="self">self</span>.<span class="ident">handle_process_metrics</span>(<span class="kw-2">*</span><span class="ident">message</span>),
             <span class="ident">EnvelopeProcessor::EncodeEnvelope</span>(<span class="ident">message</span>) =&gt; <span class="self">self</span>.<span class="ident">handle_encode_envelope</span>(<span class="kw-2">*</span><span class="ident">message</span>),
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+            <span class="ident">EnvelopeProcessor::RateLimitFlushBuckets</span>(<span class="ident">message</span>) =&gt; {
+                <span class="self">self</span>.<span class="ident">handle_rate_limit_flush_buckets</span>(<span class="ident">message</span>);
+            }
         }
     }
 }
