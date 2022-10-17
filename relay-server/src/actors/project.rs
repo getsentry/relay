@@ -585,6 +585,11 @@ impl Project {
         }
     }
 
+    /// The rate limits that are active for this project.
+    pub fn rate_limits(&self) -> &RateLimits {
+        &self.rate_limits
+    }
+
     /// The last time the project state was updated
     pub fn last_updated_at(&self) -> Instant {
         self.last_updated_at
@@ -601,6 +606,7 @@ impl Project {
     ///
     /// The buckets will be keyed underneath this project key.
     pub fn merge_buckets(&mut self, buckets: Vec<Bucket>) {
+        // TODO: rate limits
         if self.metrics_allowed() {
             Registry::aggregator().send(MergeBuckets::new(self.project_key, buckets));
         }
@@ -610,6 +616,7 @@ impl Project {
     ///
     /// The metrics will be keyed underneath this project key.
     pub fn insert_metrics(&mut self, metrics: Vec<Metric>) {
+        // TODO: rate limits
         if self.metrics_allowed() {
             Registry::aggregator().send(InsertMetrics::new(self.project_key, metrics));
         }

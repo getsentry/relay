@@ -224,6 +224,17 @@ class SentryLike(object):
         )
         self.send_envelope(project_id, envelope)
 
+    def send_metrics_buckets(self, project_id, payload, timestamp=None):
+        envelope = Envelope()
+        envelope.add_item(
+            Item(
+                payload=PayloadRef(json=payload),
+                type="metric_buckets",
+                headers=None if timestamp is None else {"timestamp": timestamp},
+            )
+        )
+        self.send_envelope(project_id, envelope)
+
     def send_security_report(
         self,
         project_id,
