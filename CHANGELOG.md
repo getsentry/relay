@@ -7,6 +7,7 @@
 - Limit the number of custom measurements per event. ([#1483](https://github.com/getsentry/relay/pull/1483)))
 - Add INP web vital as a measurement. ([#1487](https://github.com/getsentry/relay/pull/1487))
 - Add .NET/Portable-PDB specific protocol fields. ([#1518](https://github.com/getsentry/relay/pull/1518))
+- PII scrubbing now treats any key containing `token` as a password. ([#1527](https://github.com/getsentry/relay/pull/1527))
 
 **Bug Fixes**:
 

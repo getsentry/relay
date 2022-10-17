@@ -1,0 +1,71 @@
+---
+source: relay-general/src/pii/convert.rs
+expression: data
+---
+{
+  "extra": {
+    "access_token": "quz",
+    "github_token": "bar",
+    "my-token": "[Filtered]",
+    "new_token": "[Filtered]",
+    "password": "[Filtered]",
+    "secret-token-here": "[Filtered]",
+    "stripetoken": "baz"
+  },
+  "_meta": {
+    "extra": {
+      "my-token": {
+        "": {
+          "rem": [
+            [
+              "@password:filter",
+              "s",
+              0,
+              10
+            ]
+          ],
+          "len": 6
+        }
+      },
+      "new_token": {
+        "": {
+          "rem": [
+            [
+              "@password:filter",
+              "s",
+              0,
+              10
+            ]
+          ],
+          "len": 6
+        }
+      },
+      "password": {
+        "": {
+          "rem": [
+            [
+              "@password:filter",
+              "s",
+              0,
+              10
+            ]
+          ],
+          "len": 3
+        }
+      },
+      "secret-token-here": {
+        "": {
+          "rem": [
+            [
+              "@password:filter",
+              "s",
+              0,
+              10
+            ]
+          ],
+          "len": 3
+        }
+      }
+    }
+  }
+}
