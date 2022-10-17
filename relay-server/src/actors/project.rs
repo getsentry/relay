@@ -952,19 +952,11 @@ mod tests {
         project.state = Some(Arc::new(project_state));
 
         // The project ID must be set.
-        assert_eq!(
-            project.state.as_ref().unwrap().project_id.unwrap().value(),
-            123
-        );
-
+        assert!(!project.state.as_ref().unwrap().invalid());
         // Try to update project with errored project state.
         project.update_state(Arc::new(ProjectState::err()), false);
-
         // Since we got invalid project state we still keep the old one meaning there
         // still must be the project id set.
-        assert_eq!(
-            project.state.as_ref().unwrap().project_id.unwrap().value(),
-            123
-        );
+        assert!(!project.state.as_ref().unwrap().invalid());
     }
 }
