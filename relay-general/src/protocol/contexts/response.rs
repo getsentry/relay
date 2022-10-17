@@ -45,9 +45,13 @@ mod tests {
     use super::*;
 
     use crate::{
-        protocol::{Context, PairList},
-        types::Annotated,
+        pii::{DataScrubbingConfig, PiiProcessor},
+        processor::{process_value, ProcessingState},
+        protocol::{Context, Event, PairList},
+        testutils::assert_annotated_snapshot,
+        types::{Annotated, FromValue},
     };
+
     #[test]
     fn test_response_context_roundtrip() {
         let json = r#"{
@@ -100,5 +104,34 @@ mod tests {
 
         assert_eq!(context, Annotated::from_json(json).unwrap());
         assert_eq!(json, context.to_json_pretty().unwrap());
+    }
+
+    #[test]
+    fn test_reponse_context_pii() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "context": {
+                    "response": {
+                        "headers": {
+                            "Authorization": "Basic 1122334455",
+                            "Set-Cookie": "id=a3fWa; Expires=Wed, 21 Oct 2015 07:28:00 GMT",
+                            "Proxy-Authorization": "11234567",
+                        },
+                        "status_code": 200
+                    }
+                }
+            })
+            .into(),
+        );
+
+        let mut ds_config = DataScrubbingConfig::default();
+        ds_config.scrub_data = true;
+        ds_config.scrub_defaults = true;
+        ds_config.scrub_ip_addresses = true;
+
+        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(data);
     }
 }
