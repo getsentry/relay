@@ -56,6 +56,7 @@
 <span id="56">56</span>
 <span id="57">57</span>
 <span id="58">58</span>
+<span id="59">59</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
 <span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{<span class="ident">Addr</span>, <span class="ident">DebugId</span>, <span class="ident">NativeImagePath</span>};
@@ -107,6 +108,7 @@
                 <span class="ident">code_id</span>: <span class="ident">Annotated::empty</span>(),
                 <span class="ident">debug_file</span>: <span class="ident">Annotated::empty</span>(),
                 <span class="ident">debug_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;32420279-25E2-34E6-8BC7-8A006A8F2425&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
+                <span class="ident">debug_checksum</span>: <span class="ident">Annotated::empty</span>(),
                 <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">4334338048</span>)),
                 <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">1720320</span>),
                 <span class="ident">image_vmaddr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">4294967296</span>)),

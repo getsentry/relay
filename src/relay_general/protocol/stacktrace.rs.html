@@ -634,6 +634,21 @@
 <span id="632">632</span>
 <span id="633">633</span>
 <span id="634">634</span>
+<span id="635">635</span>
+<span id="636">636</span>
+<span id="637">637</span>
+<span id="638">638</span>
+<span id="639">639</span>
+<span id="640">640</span>
+<span id="641">641</span>
+<span id="642">642</span>
+<span id="643">643</span>
+<span id="644">644</span>
+<span id="645">645</span>
+<span id="646">646</span>
+<span id="647">647</span>
+<span id="648">648</span>
+<span id="649">649</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::ops</span>::{<span class="ident">Deref</span>, <span class="ident">DerefMut</span>};
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">Addr</span>, <span class="ident">NativeImagePath</span>, <span class="ident">RegVal</span>};
@@ -769,8 +784,22 @@
     <span class="kw">pub</span> <span class="ident">instruction_addr</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Addr</span><span class="op">&gt;</span>,
 
     <span class="doccomment">/// Defines the addressing mode for addresses.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This can be:</span>
+    <span class="doccomment">/// - `&quot;abs&quot;` (the default): `instruction_addr` is absolute.</span>
+    <span class="doccomment">/// - `&quot;rel:$idx&quot;`: `instruction_addr` is relative to the `debug_meta.image` identified by its index in the list.</span>
+    <span class="doccomment">/// - `&quot;rel:$uuid&quot;`: `instruction_addr` is relative to the `debug_meta.image` identified by its `debug_id`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// If one of the `&quot;rel:XXX&quot;` variants is given together with `function_id`, the `instruction_addr` is relative</span>
+    <span class="doccomment">/// to the uniquely identified function in the references `debug_meta.image`.</span>
     <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">addr_mode</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// (.NET) The function id / index that uniquely identifies a function inside a module.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This is the `MetadataToken` of a .NET `MethodBase`.</span>
+    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="ident">function_id</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Addr</span><span class="op">&gt;</span>,
 
     <span class="doccomment">/// (C/C++/Native) Start address of the frame&#39;s function.</span>
     <span class="doccomment">///</span>
@@ -1077,6 +1106,7 @@
             <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0x400</span>)),
             <span class="ident">instruction_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0x404</span>)),
             <span class="ident">addr_mode</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;abs&quot;</span>.<span class="ident">into</span>()),
+            <span class="ident">function_id</span>: <span class="ident">Annotated::empty</span>(),
             <span class="ident">symbol_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0x404</span>)),
             <span class="ident">trust</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;69&quot;</span>.<span class="ident">into</span>()),
             <span class="ident">lang</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;rust&quot;</span>.<span class="ident">into</span>()),

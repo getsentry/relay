@@ -871,6 +871,48 @@
 <span id="869">869</span>
 <span id="870">870</span>
 <span id="871">871</span>
+<span id="872">872</span>
+<span id="873">873</span>
+<span id="874">874</span>
+<span id="875">875</span>
+<span id="876">876</span>
+<span id="877">877</span>
+<span id="878">878</span>
+<span id="879">879</span>
+<span id="880">880</span>
+<span id="881">881</span>
+<span id="882">882</span>
+<span id="883">883</span>
+<span id="884">884</span>
+<span id="885">885</span>
+<span id="886">886</span>
+<span id="887">887</span>
+<span id="888">888</span>
+<span id="889">889</span>
+<span id="890">890</span>
+<span id="891">891</span>
+<span id="892">892</span>
+<span id="893">893</span>
+<span id="894">894</span>
+<span id="895">895</span>
+<span id="896">896</span>
+<span id="897">897</span>
+<span id="898">898</span>
+<span id="899">899</span>
+<span id="900">900</span>
+<span id="901">901</span>
+<span id="902">902</span>
+<span id="903">903</span>
+<span id="904">904</span>
+<span id="905">905</span>
+<span id="906">906</span>
+<span id="907">907</span>
+<span id="908">908</span>
+<span id="909">909</span>
+<span id="910">910</span>
+<span id="911">911</span>
+<span id="912">912</span>
+<span id="913">913</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::ops</span>::{<span class="ident">Deref</span>, <span class="ident">DerefMut</span>};
 <span class="kw">use</span> <span class="ident">std::str::FromStr</span>;
@@ -1243,6 +1285,14 @@
     <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">debug_file</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">NativeImagePath</span><span class="op">&gt;</span>,
 
+    <span class="doccomment">/// The optional checksum of the debug companion file.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// - `pe_dotnet`: This is the hash algorithm and hex-formatted checksum of the associated PDB file.</span>
+    <span class="doccomment">///  This should have the format `$algorithm:$hash`, for example `SHA256:aabbccddeeff...`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">///   See: &lt;https://github.com/dotnet/runtime/blob/main/docs/design/specs/PE-COFF.md#pdb-checksum-debug-directory-entry-type-19&gt;</span>
+    <span class="kw">pub</span> <span class="ident">debug_checksum</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+
     <span class="doccomment">/// CPU architecture target.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Architecture of the module. If missing, this will be backfilled by Sentry.</span>
@@ -1306,6 +1356,9 @@
     <span class="ident">Elf</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">NativeDebugImage</span><span class="op">&gt;</span>),
     <span class="doccomment">/// PE (Windows) debug image.</span>
     <span class="ident">Pe</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">NativeDebugImage</span><span class="op">&gt;</span>),
+    <span class="doccomment">/// .NET PE debug image with associated Portable PDB debug companion.</span>
+    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">tag</span> <span class="op">=</span> <span class="string">&quot;pe_dotnet&quot;</span>)]</span>
+    <span class="ident">PeDotnet</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">NativeDebugImage</span><span class="op">&gt;</span>),
     <span class="doccomment">/// A reference to a proguard debug file.</span>
     <span class="ident">Proguard</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">ProguardDebugImage</span><span class="op">&gt;</span>),
     <span class="doccomment">/// WASM debug image.</span>
@@ -1464,6 +1517,7 @@
             <span class="ident">code_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;C:\\Windows\\System32\\ntdll.dll&quot;</span>.<span class="ident">into</span>()),
             <span class="ident">debug_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;971f98e5-ce60-41ff-b2d7-235bbeb34578-1&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
             <span class="ident">debug_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;wntdll.pdb&quot;</span>.<span class="ident">into</span>()),
+            <span class="ident">debug_checksum</span>: <span class="ident">Annotated::empty</span>(),
             <span class="ident">arch</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
             <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
             <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">4096</span>),
@@ -1500,6 +1554,7 @@
             <span class="ident">code_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;CoreFoundation&quot;</span>.<span class="ident">into</span>()),
             <span class="ident">debug_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;494f3aea-88fa-4296-9644-fa8ef5d139b6-1234&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
             <span class="ident">debug_file</span>: <span class="ident">Annotated::empty</span>(),
+            <span class="ident">debug_checksum</span>: <span class="ident">Annotated::empty</span>(),
             <span class="ident">arch</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
             <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
             <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">4096</span>),
@@ -1562,6 +1617,7 @@
             <span class="ident">code_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;crash&quot;</span>.<span class="ident">into</span>()),
             <span class="ident">debug_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;c0bcc3f1-9827-fe65-3058-404b2831d9e6&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
             <span class="ident">debug_file</span>: <span class="ident">Annotated::empty</span>(),
+            <span class="ident">debug_checksum</span>: <span class="ident">Annotated::empty</span>(),
             <span class="ident">arch</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
             <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
             <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">4096</span>),
@@ -1574,6 +1630,32 @@
                 );
                 <span class="ident">map</span>
             },
+        })));
+
+        <span class="macro">assert_eq!</span>(<span class="ident">image</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">image</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_debug_image_pe_dotnet_roundtrip</span>() {
+        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+  &quot;debug_id&quot;: &quot;4e2ca887-825e-46f3-968f-25b41ae1b5f3-cc3f6d9e&quot;,
+  &quot;debug_file&quot;: &quot;TimeZoneConverter.pdb&quot;,
+  &quot;debug_checksum&quot;: &quot;SHA256:87a82c4e5e82f386968f25b41ae1b5f3cc3f6d9e79cfb4464f8240400fc47dcd79&quot;,
+  &quot;type&quot;: &quot;pe_dotnet&quot;
+}&quot;#</span>;
+
+        <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">DebugImage::PeDotnet</span>(<span class="ident">Box::new</span>(<span class="ident">NativeDebugImage</span> {
+            <span class="ident">debug_id</span>: <span class="ident">Annotated::new</span>(
+                <span class="string">&quot;4e2ca887-825e-46f3-968f-25b41ae1b5f3-cc3f6d9e&quot;</span>
+                    .<span class="ident">parse</span>()
+                    .<span class="ident">unwrap</span>(),
+            ),
+            <span class="ident">debug_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;TimeZoneConverter.pdb&quot;</span>.<span class="ident">into</span>()),
+            <span class="ident">debug_checksum</span>: <span class="ident">Annotated::new</span>(
+                <span class="string">&quot;SHA256:87a82c4e5e82f386968f25b41ae1b5f3cc3f6d9e79cfb4464f8240400fc47dcd79&quot;</span>.<span class="ident">into</span>(),
+            ),
+            ..<span class="ident">Default::default</span>()
         })));
 
         <span class="macro">assert_eq!</span>(<span class="ident">image</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
@@ -1599,6 +1681,7 @@
             <span class="ident">code_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;crash&quot;</span>.<span class="ident">into</span>()),
             <span class="ident">debug_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;67e9247c-814e-392b-a027-dbde6748fcbf&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
             <span class="ident">debug_file</span>: <span class="ident">Annotated::empty</span>(),
+            <span class="ident">debug_checksum</span>: <span class="ident">Annotated::empty</span>(),
             <span class="ident">arch</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
             <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
             <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">4096</span>),
@@ -1636,6 +1719,7 @@
             <span class="ident">code_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;C:\\Windows\\System32\\ntdll.dll&quot;</span>.<span class="ident">into</span>()),
             <span class="ident">debug_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;971f98e5-ce60-41ff-b2d7-235bbeb34578-1&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
             <span class="ident">debug_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;wntdll.pdb&quot;</span>.<span class="ident">into</span>()),
+            <span class="ident">debug_checksum</span>: <span class="ident">Annotated::empty</span>(),
             <span class="ident">arch</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
             <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
             <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">4096</span>),

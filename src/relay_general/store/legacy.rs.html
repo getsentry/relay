@@ -36,6 +36,7 @@
 <span id="34">34</span>
 <span id="35">35</span>
 <span id="36">36</span>
+<span id="37">37</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::mem</span>;
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor</span>::{<span class="ident">ProcessingState</span>, <span class="ident">Processor</span>};
@@ -59,6 +60,7 @@
                 <span class="ident">debug_id</span>: <span class="ident">mem::replace</span>(<span class="kw-2">&amp;mut</span> <span class="ident">apple</span>.<span class="ident">uuid</span>, <span class="ident">Annotated::empty</span>())
                     .<span class="ident">map_value</span>(<span class="ident">DebugId::from</span>),
                 <span class="ident">debug_file</span>: <span class="ident">Annotated::empty</span>(),
+                <span class="ident">debug_checksum</span>: <span class="ident">Annotated::empty</span>(),
                 <span class="ident">arch</span>: <span class="ident">mem::replace</span>(<span class="kw-2">&amp;mut</span> <span class="ident">apple</span>.<span class="ident">arch</span>, <span class="ident">Annotated::empty</span>()),
                 <span class="ident">image_addr</span>: <span class="ident">mem::replace</span>(<span class="kw-2">&amp;mut</span> <span class="ident">apple</span>.<span class="ident">image_addr</span>, <span class="ident">Annotated::empty</span>()),
                 <span class="ident">image_size</span>: <span class="ident">mem::replace</span>(<span class="kw-2">&amp;mut</span> <span class="ident">apple</span>.<span class="ident">image_size</span>, <span class="ident">Annotated::empty</span>()),

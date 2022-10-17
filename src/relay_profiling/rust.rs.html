@@ -101,6 +101,7 @@
 <span id="101">101</span>
 <span id="102">102</span>
 <span id="103">103</span>
+<span id="104">104</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
 <span class="kw">use</span> <span class="ident">relay_general::protocol::EventId</span>;
@@ -195,6 +196,7 @@
                 <span class="ident">code_id</span>: <span class="ident">Annotated::empty</span>(),
                 <span class="ident">debug_file</span>: <span class="ident">Annotated::empty</span>(),
                 <span class="ident">debug_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;e5fd8c72-6f8f-3ad2-9c52-5ae133138e0c&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
+                <span class="ident">debug_checksum</span>: <span class="ident">Annotated::empty</span>(),
                 <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">4375101440</span>)),
                 <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">557056</span>),
                 <span class="ident">image_vmaddr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">4294967296</span>)),
