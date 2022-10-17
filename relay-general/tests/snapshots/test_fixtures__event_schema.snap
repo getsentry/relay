@@ -2624,6 +2624,7 @@ expression: "relay_general::protocol::event_json_schema()"
       ]
     },
     "ResponseContext": {
+      "description": " Response interface that contains information on a HTTP response related to the event.",
       "anyOf": [
         {
           "type": "object",
@@ -2671,14 +2672,6 @@ expression: "relay_general::protocol::event_json_schema()"
               ],
               "format": "uint64",
               "minimum": 0.0
-            },
-            "type": {
-              "description": " Type `response`.",
-              "default": null,
-              "type": [
-                "string",
-                "null"
-              ]
             }
           },
           "additionalProperties": false
