@@ -269,6 +269,6 @@ static US_SSN_REGEX: Lazy<Regex> = Lazy::new(|| {
 
 static PASSWORD_KEY_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
-        r"(?i)(password|secret|passwd|api_key|apikey|access_token|auth|credentials|mysql_pwd|stripetoken|privatekey|private_key|github_token)"
+        r"(?i)(password|secret|passwd|api_key|apikey|auth|credentials|mysql_pwd|privatekey|private_key|.*token.*)"
     ).unwrap()
 });
