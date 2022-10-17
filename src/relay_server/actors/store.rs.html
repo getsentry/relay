@@ -1157,6 +1157,15 @@
 <span id="1155">1155</span>
 <span id="1156">1156</span>
 <span id="1157">1157</span>
+<span id="1158">1158</span>
+<span id="1159">1159</span>
+<span id="1160">1160</span>
+<span id="1161">1161</span>
+<span id="1162">1162</span>
+<span id="1163">1163</span>
+<span id="1164">1164</span>
+<span id="1165">1165</span>
+<span id="1166">1166</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.</span>
 <span class="doccomment">//! The service uses kafka topics to forward data to Sentry</span>
 
@@ -1539,6 +1548,9 @@
                         <span class="ident">KafkaMessage::ReplayRecording</span>(<span class="ident">ReplayRecordingKafkaMessage</span> {
                             <span class="ident">replay_id</span>: <span class="ident">event_id</span>.<span class="ident">ok_or</span>(<span class="ident">StoreError::NoEventId</span>)<span class="question-mark">?</span>,
                             <span class="ident">project_id</span>: <span class="ident">scoping</span>.<span class="ident">project_id</span>,
+                            <span class="ident">key_id</span>: <span class="ident">scoping</span>.<span class="ident">key_id</span>,
+                            <span class="ident">org_id</span>: <span class="ident">scoping</span>.<span class="ident">organization_id</span>,
+                            <span class="ident">received</span>: <span class="ident">UnixTimestamp::from_instant</span>(<span class="ident">start_time</span>).<span class="ident">as_secs</span>(),
                             <span class="ident">retention_days</span>: <span class="ident">retention</span>,
                             <span class="ident">replay_recording</span>,
                         });
@@ -2174,8 +2186,14 @@
 <span class="kw">struct</span> <span class="ident">ReplayRecordingKafkaMessage</span> {
     <span class="doccomment">/// The replay id.</span>
     <span class="ident">replay_id</span>: <span class="ident">EventId</span>,
-    <span class="doccomment">/// The project id for the current event.</span>
+    <span class="doccomment">/// The project id for the current recording.</span>
     <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
+    <span class="doccomment">/// The key_id for the current recording.</span>
+    <span class="ident">key_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The org id for the current recording.</span>
+    <span class="ident">org_id</span>: <span class="ident">u64</span>,
+    <span class="doccomment">/// The timestamp of when the recording was Received by relay</span>
+    <span class="ident">received</span>: <span class="ident">u64</span>,
     <span class="doccomment">/// The recording attachment.</span>
     <span class="ident">replay_recording</span>: <span class="ident">ChunkedReplayRecording</span>,
     <span class="ident">retention_days</span>: <span class="ident">u16</span>,
