@@ -2201,7 +2201,7 @@ expression: "relay_general::protocol::event_json_schema()"
               ]
             },
             "debug_checksum": {
-              "description": " The optional checksum of the debug companion file.\n\n - `pe_dotnet`: This is the hash algorithm and hex-formatted checksum of the associated PDB file.\n  This should have the format `$algorithm:$hash`, for example `SHA256:aabbccddeeff...`.\n\n   See: https://github.com/dotnet/runtime/blob/main/docs/design/specs/PE-COFF.md#pdb-checksum-debug-directory-entry-type-19",
+              "description": " The optional checksum of the debug companion file.\n\n - `pe_dotnet`: This is the hash algorithm and hex-formatted checksum of the associated PDB file.\n  This should have the format `$algorithm:$hash`, for example `SHA256:aabbccddeeff...`.\n\n   See: <https://github.com/dotnet/runtime/blob/main/docs/design/specs/PE-COFF.md#pdb-checksum-debug-directory-entry-type-19>",
               "default": null,
               "type": [
                 "string",
