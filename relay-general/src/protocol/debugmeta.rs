@@ -375,7 +375,7 @@ pub struct NativeDebugImage {
     /// - `pe_dotnet`: This is the hash algorithm and hex-formatted checksum of the associated PDB file.
     ///  This should have the format `$algorithm:$hash`, for example `SHA256:aabbccddeeff...`.
     ///
-    ///   See: https://github.com/dotnet/runtime/blob/main/docs/design/specs/PE-COFF.md#pdb-checksum-debug-directory-entry-type-19
+    ///   See: <https://github.com/dotnet/runtime/blob/main/docs/design/specs/PE-COFF.md#pdb-checksum-debug-directory-entry-type-19>
     pub debug_checksum: Annotated<String>,
 
     /// CPU architecture target.
