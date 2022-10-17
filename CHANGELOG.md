@@ -6,6 +6,7 @@
 
 - Limit the number of custom measurements per event. ([#1483](https://github.com/getsentry/relay/pull/1483)))
 - Add INP web vital as a measurement. ([#1487](https://github.com/getsentry/relay/pull/1487))
+- Consider all tokens as sensitive, filter out all `*token*` from the input. ([#1527](https://github.com/getsentry/relay/pull/1527))
 
 ** Bug Fixes**:
 
