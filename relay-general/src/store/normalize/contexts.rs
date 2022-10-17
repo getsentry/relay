@@ -1,8 +1,8 @@
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-use crate::protocol::{Context, OsContext, RuntimeContext};
-use crate::types::Empty;
+use crate::protocol::{Context, OsContext, ResponseContext, RuntimeContext};
+use crate::types::{Annotated, Empty};
 
 /// Environment.OSVersion (GetVersionEx) or RuntimeInformation.OSDescription on Windows
 static OS_WINDOWS_REGEX1: Lazy<Regex> = Lazy::new(|| {
@@ -177,10 +177,33 @@ fn normalize_os_context(os: &mut OsContext) {
     }
 }
 
+fn normalize_response(response: &mut ResponseContext) {
+    let headers = match response.headers.value_mut() {
+        Some(headers) => headers,
+        None => return,
+    };
+
+    if response.cookies.value().is_some() {
+        headers.remove("Cookie");
+        return;
+    }
+
+    let cookie_header = match headers.get_header("Cookie") {
+        Some(header) => header,
+        None => return,
+    };
+
+    if let Ok(new_cookies) = crate::protocol::Cookies::parse(cookie_header) {
+        response.cookies = Annotated::from(new_cookies);
+        headers.remove("Cookie");
+    }
+}
+
 pub fn normalize_context(context: &mut Context) {
     match context {
         Context::Runtime(runtime) => normalize_runtime_context(runtime),
         Context::Os(os) => normalize_os_context(os),
+        Context::Response(response) => normalize_response(response),
         _ => (),
     }
 }
