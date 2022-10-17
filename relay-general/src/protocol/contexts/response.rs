@@ -28,7 +28,7 @@ pub struct ResponseContext {
 
     /// Additional arbitrary fields for forwards compatibility.
     /// These fields are retained (`retain = "true"`) to keep supporting the format that the Dio integration sends:
-    /// https://github.com/getsentry/sentry-dart/blob/7011abe27ac69bd160bdc6ecf3314974b8340b97/dart/lib/src/protocol/sentry_response.dart#L4-L8
+    /// <https://github.com/getsentry/sentry-dart/blob/7011abe27ac69bd160bdc6ecf3314974b8340b97/dart/lib/src/protocol/sentry_response.dart#L4-L8>
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
     pub other: Object<Value>,
 }
