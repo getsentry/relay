@@ -380,6 +380,9 @@ impl StoreService {
                         KafkaMessage::ReplayRecording(ReplayRecordingKafkaMessage {
                             replay_id: event_id.ok_or(StoreError::NoEventId)?,
                             project_id: scoping.project_id,
+                            key_id: scoping.key_id,
+                            org_id: scoping.organization_id,
+                            received: UnixTimestamp::from_instant(start_time).as_secs(),
                             retention_days: retention,
                             replay_recording,
                         });
@@ -1015,8 +1018,14 @@ struct ReplayRecordingChunkKafkaMessage {
 struct ReplayRecordingKafkaMessage {
     /// The replay id.
     replay_id: EventId,
-    /// The project id for the current event.
+    /// The project id for the current recording.
     project_id: ProjectId,
+    /// The key_id for the current recording.
+    key_id: Option<u64>,
+    /// The org id for the current recording.
+    org_id: u64,
+    /// The timestamp of when the recording was Received by relay
+    received: u64,
     /// The recording attachment.
     replay_recording: ChunkedReplayRecording,
     retention_days: u16,
