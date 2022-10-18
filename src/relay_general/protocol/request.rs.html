@@ -979,6 +979,11 @@
 <span id="977">977</span>
 <span id="978">978</span>
 <span id="979">979</span>
+<span id="980">980</span>
+<span id="981">981</span>
+<span id="982">982</span>
+<span id="983">983</span>
+<span id="984">984</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::iter</span>::{<span class="ident">FromIterator</span>, <span class="ident">IntoIterator</span>};
 
 <span class="kw">use</span> <span class="ident">cookie::Cookie</span>;
@@ -1462,6 +1467,9 @@
     <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">headers</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Headers</span><span class="op">&gt;</span>,
 
+    <span class="doccomment">/// HTTP request body size.</span>
+    <span class="kw">pub</span> <span class="ident">body_size</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+
     <span class="doccomment">/// Server environment data, such as CGI/WSGI.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// A dictionary containing environment information passed from the server. This is where</span>
@@ -1641,6 +1649,7 @@
       &quot;https://google.com/&quot;
     ]
   ],
+  &quot;body_size&quot;: 1024,
   &quot;env&quot;: {
     &quot;REMOTE_ADDR&quot;: &quot;213.47.147.207&quot;
   },
@@ -1677,6 +1686,7 @@
                 ))];
                 <span class="ident">PairList</span>(<span class="ident">headers</span>)
             })),
+            <span class="ident">body_size</span>: <span class="ident">Annotated::new</span>(<span class="number">1024</span>),
             <span class="ident">env</span>: <span class="ident">Annotated::new</span>({
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
                 <span class="ident">map</span>.<span class="ident">insert</span>(

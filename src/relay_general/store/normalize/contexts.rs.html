@@ -560,11 +560,34 @@
 <span id="558">558</span>
 <span id="559">559</span>
 <span id="560">560</span>
+<span id="561">561</span>
+<span id="562">562</span>
+<span id="563">563</span>
+<span id="564">564</span>
+<span id="565">565</span>
+<span id="566">566</span>
+<span id="567">567</span>
+<span id="568">568</span>
+<span id="569">569</span>
+<span id="570">570</span>
+<span id="571">571</span>
+<span id="572">572</span>
+<span id="573">573</span>
+<span id="574">574</span>
+<span id="575">575</span>
+<span id="576">576</span>
+<span id="577">577</span>
+<span id="578">578</span>
+<span id="579">579</span>
+<span id="580">580</span>
+<span id="581">581</span>
+<span id="582">582</span>
+<span id="583">583</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">once_cell::sync::Lazy</span>;
 <span class="kw">use</span> <span class="ident">regex::Regex</span>;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">Context</span>, <span class="ident">OsContext</span>, <span class="ident">RuntimeContext</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types::Empty</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">Context</span>, <span class="ident">OsContext</span>, <span class="ident">ResponseContext</span>, <span class="ident">RuntimeContext</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Empty</span>};
 
 <span class="doccomment">/// Environment.OSVersion (GetVersionEx) or RuntimeInformation.OSDescription on Windows</span>
 <span class="kw">static</span> <span class="ident">OS_WINDOWS_REGEX1</span>: <span class="ident">Lazy</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Lazy::new</span>(<span class="op">|</span><span class="op">|</span> {
@@ -739,10 +762,33 @@
     }
 }
 
+<span class="kw">fn</span> <span class="ident">normalize_response</span>(<span class="ident">response</span>: <span class="kw-2">&amp;mut</span> <span class="ident">ResponseContext</span>) {
+    <span class="kw">let</span> <span class="ident">headers</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">response</span>.<span class="ident">headers</span>.<span class="ident">value_mut</span>() {
+        <span class="prelude-val">Some</span>(<span class="ident">headers</span>) =&gt; <span class="ident">headers</span>,
+        <span class="prelude-val">None</span> =&gt; <span class="kw">return</span>,
+    };
+
+    <span class="kw">if</span> <span class="ident">response</span>.<span class="ident">cookies</span>.<span class="ident">value</span>().<span class="ident">is_some</span>() {
+        <span class="ident">headers</span>.<span class="ident">remove</span>(<span class="string">&quot;Set-Cookie&quot;</span>);
+        <span class="kw">return</span>;
+    }
+
+    <span class="kw">let</span> <span class="ident">cookie_header</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">headers</span>.<span class="ident">get_header</span>(<span class="string">&quot;Set-Cookie&quot;</span>) {
+        <span class="prelude-val">Some</span>(<span class="ident">header</span>) =&gt; <span class="ident">header</span>,
+        <span class="prelude-val">None</span> =&gt; <span class="kw">return</span>,
+    };
+
+    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">new_cookies</span>) <span class="op">=</span> <span class="ident"><span class="kw">crate</span>::protocol::Cookies::parse</span>(<span class="ident">cookie_header</span>) {
+        <span class="ident">response</span>.<span class="ident">cookies</span> <span class="op">=</span> <span class="ident">Annotated::from</span>(<span class="ident">new_cookies</span>);
+        <span class="ident">headers</span>.<span class="ident">remove</span>(<span class="string">&quot;Set-Cookie&quot;</span>);
+    }
+}
+
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">normalize_context</span>(<span class="ident">context</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Context</span>) {
     <span class="kw">match</span> <span class="ident">context</span> {
         <span class="ident">Context::Runtime</span>(<span class="ident">runtime</span>) =&gt; <span class="ident">normalize_runtime_context</span>(<span class="ident">runtime</span>),
         <span class="ident">Context::Os</span>(<span class="ident">os</span>) =&gt; <span class="ident">normalize_os_context</span>(<span class="ident">os</span>),
+        <span class="ident">Context::Response</span>(<span class="ident">response</span>) =&gt; <span class="ident">normalize_response</span>(<span class="ident">response</span>),
         <span class="kw">_</span> =&gt; (),
     }
 }

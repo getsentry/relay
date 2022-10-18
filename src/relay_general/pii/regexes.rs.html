@@ -545,7 +545,7 @@
 
 <span class="kw">static</span> <span class="ident">PASSWORD_KEY_REGEX</span>: <span class="ident">Lazy</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Lazy::new</span>(<span class="op">|</span><span class="op">|</span> {
     <span class="ident">Regex::new</span>(
-        <span class="string">r&quot;(?i)(password|secret|passwd|api_key|apikey|auth|credentials|mysql_pwd|privatekey|private_key|.*token.*)&quot;</span>
+        <span class="string">r&quot;(?i)(password|secret|passwd|api_key|apikey|auth|credentials|mysql_pwd|privatekey|private_key|token)&quot;</span>
     ).<span class="ident">unwrap</span>()
 });
 </code></pre></div>

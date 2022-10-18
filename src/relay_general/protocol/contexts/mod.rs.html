@@ -290,6 +290,11 @@
 <span id="288">288</span>
 <span id="289">289</span>
 <span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
 </pre><pre class="rust"><code><span class="kw">mod</span> <span class="ident">app</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">app</span>::<span class="kw-2">*</span>;
 <span class="kw">mod</span> <span class="ident">browser</span>;
@@ -304,6 +309,8 @@
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">os</span>::<span class="kw-2">*</span>;
 <span class="kw">mod</span> <span class="ident">reprocessing</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">reprocessing</span>::<span class="kw-2">*</span>;
+<span class="kw">mod</span> <span class="ident">response</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">response</span>::<span class="kw-2">*</span>;
 <span class="kw">mod</span> <span class="ident">runtime</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">runtime</span>::<span class="kw-2">*</span>;
 <span class="kw">mod</span> <span class="ident">trace</span>;
@@ -339,6 +346,8 @@
     <span class="doccomment">/// Auxilliary information for reprocessing.</span>
     <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">omit_from_schema</span>)]</span>
     <span class="ident">Reprocessing</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">ReprocessingContext</span><span class="op">&gt;</span>),
+    <span class="doccomment">/// Response information.</span>
+    <span class="ident">Response</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">ResponseContext</span><span class="op">&gt;</span>),
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.</span>
     <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">fallback_variant</span>)]</span>
     <span class="ident">Other</span>(<span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>)]</span> <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>),
@@ -359,6 +368,7 @@
             <span class="ident">Context::Gpu</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">GpuContext::default_key</span>()),
             <span class="ident">Context::Trace</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">TraceContext::default_key</span>()),
             <span class="ident">Context::Monitor</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">MonitorContext::default_key</span>()),
+            <span class="ident">Context::Response</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">ResponseContext::default_key</span>()),
             <span class="ident">Context::Other</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
         }
     }

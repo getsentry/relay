@@ -78,6 +78,7 @@
 <span id="76">76</span>
 <span id="77">77</span>
 <span id="78">78</span>
+<span id="79">79</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Implements the sentry event protocol.</span>
 
 <span class="kw">mod</span> <span class="ident">breadcrumb</span>;
@@ -119,7 +120,8 @@
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::constants::VALID_PLATFORMS</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::contexts</span>::{
     <span class="ident">AppContext</span>, <span class="ident">BrowserContext</span>, <span class="ident">Context</span>, <span class="ident">ContextInner</span>, <span class="ident">Contexts</span>, <span class="ident">DeviceContext</span>, <span class="ident">GpuContext</span>,
-    <span class="ident">OperationType</span>, <span class="ident">OsContext</span>, <span class="ident">RuntimeContext</span>, <span class="ident">SpanId</span>, <span class="ident">SpanStatus</span>, <span class="ident">TraceContext</span>, <span class="ident">TraceId</span>,
+    <span class="ident">OperationType</span>, <span class="ident">OsContext</span>, <span class="ident">ResponseContext</span>, <span class="ident">RuntimeContext</span>, <span class="ident">SpanId</span>, <span class="ident">SpanStatus</span>, <span class="ident">TraceContext</span>,
+    <span class="ident">TraceId</span>,
 };
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::debugmeta</span>::{
     <span class="ident">AppleDebugImage</span>, <span class="ident">CodeId</span>, <span class="ident">DebugId</span>, <span class="ident">DebugImage</span>, <span class="ident">DebugMeta</span>, <span class="ident">NativeDebugImage</span>, <span class="ident">NativeImagePath</span>,
