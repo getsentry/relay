@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Implement response context schema. ([#1529](https://github.com/getsentry/relay/pull/1529))
+
 ## 22.10.0
 
 **Features**:

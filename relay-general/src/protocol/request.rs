@@ -481,6 +481,9 @@ pub struct Request {
     #[metastructure(skip_serialization = "empty")]
     pub headers: Annotated<Headers>,
 
+    /// HTTP request body size.
+    pub body_size: Annotated<u64>,
+
     /// Server environment data, such as CGI/WSGI.
     ///
     /// A dictionary containing environment information passed from the server. This is where
@@ -660,6 +663,7 @@ mod tests {
       "https://google.com/"
     ]
   ],
+  "body_size": 1024,
   "env": {
     "REMOTE_ADDR": "213.47.147.207"
   },
@@ -696,6 +700,7 @@ mod tests {
                 ))];
                 PairList(headers)
             })),
+            body_size: Annotated::new(1024),
             env: Annotated::new({
                 let mut map = Object::new();
                 map.insert(

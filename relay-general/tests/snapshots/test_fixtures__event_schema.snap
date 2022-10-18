@@ -823,6 +823,9 @@ expression: "relay_general::protocol::event_json_schema()"
           "$ref": "#/definitions/MonitorContext"
         },
         {
+          "$ref": "#/definitions/ResponseContext"
+        },
+        {
           "type": "object",
           "additionalProperties": true
         }
@@ -2506,6 +2509,16 @@ expression: "relay_general::protocol::event_json_schema()"
         {
           "type": "object",
           "properties": {
+            "body_size": {
+              "description": " HTTP request body size.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
             "cookies": {
               "description": " The cookie values.\n\n Can be given unparsed as string, as dictionary, or as a list of tuples.",
               "default": null,
@@ -2628,6 +2641,61 @@ expression: "relay_general::protocol::event_json_schema()"
                 "string",
                 "null"
               ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ResponseContext": {
+      "description": " Response interface that contains information on a HTTP response related to the event.",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "body_size": {
+              "description": " HTTP response body size.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "cookies": {
+              "description": " The cookie values.\n\n Can be given unparsed as string, as dictionary, or as a list of tuples.",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Cookies"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "headers": {
+              "description": " A dictionary of submitted headers.\n\n If a header appears multiple times it, needs to be merged according to the HTTP standard\n for header merging. Header names are treated case-insensitively by Sentry.",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Headers"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "status_code": {
+              "description": " HTTP status code.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
             }
           },
           "additionalProperties": false
