@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Implement response context schema. ([#1529](https://github.com/getsentry/relay/pull/1529))
+
 ## 22.10.0
 
 **Features**:
@@ -26,7 +32,6 @@
 - Fix quota DataCategory::TransactionProcessed serialisation to match that of the CAPI. ([#1514](https://github.com/getsentry/relay/pull/1514))
 - Support checking quotas in the Redis rate limiter without incrementing them. ([#1519](https://github.com/getsentry/relay/pull/1519))
 - Update the internal service architecture for metrics aggregator service. ([#1508](https://github.com/getsentry/relay/pull/1508))
-- Implement response context schema. ([#1529](https://github.com/getsentry/relay/pull/1529))
 
 ## 22.9.0
 
