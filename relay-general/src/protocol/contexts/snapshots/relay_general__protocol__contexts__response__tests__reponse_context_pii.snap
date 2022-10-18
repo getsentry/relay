@@ -3,57 +3,86 @@ source: relay-general/src/protocol/contexts/response.rs
 expression: data
 ---
 {
-  "context": {
+  "event_id": "7b9e89cf79ee451986112e0425fa9fd4",
+  "level": "error",
+  "type": "default",
+  "logger": "",
+  "platform": "other",
+  "contexts": {
     "response": {
-      "headers": {
-        "Authorization": "[Filtered]",
-        "Proxy-Authorization": "[Filtered]",
-        "Set-Cookie": "[Filtered]"
-      },
-      "status_code": 200
+      "cookies": [
+        [
+          "token",
+          "[Filtered]"
+        ],
+        [
+          "Expires",
+          "Wed, 21 Oct 2015 07:28:00 GMT"
+        ]
+      ],
+      "headers": [
+        [
+          "Authorization",
+          "[Filtered]"
+        ],
+        [
+          "Proxy-Authorization",
+          "[Filtered]"
+        ]
+      ],
+      "status_code": 200,
+      "type": "response"
     }
   },
   "_meta": {
-    "context": {
+    "contexts": {
       "response": {
+        "cookies": {
+          "0": {
+            "1": {
+              "": {
+                "rem": [
+                  [
+                    "@password:filter",
+                    "s",
+                    0,
+                    10
+                  ]
+                ],
+                "len": 5
+              }
+            }
+          }
+        },
         "headers": {
-          "Authorization": {
-            "": {
-              "rem": [
-                [
-                  "@password:filter",
-                  "s",
-                  0,
-                  10
-                ]
-              ],
-              "len": 16
+          "0": {
+            "1": {
+              "": {
+                "rem": [
+                  [
+                    "@password:filter",
+                    "s",
+                    0,
+                    10
+                  ]
+                ],
+                "len": 16
+              }
             }
           },
-          "Proxy-Authorization": {
-            "": {
-              "rem": [
-                [
-                  "@password:filter",
-                  "s",
-                  0,
-                  10
-                ]
-              ],
-              "len": 8
-            }
-          },
-          "Set-Cookie": {
-            "": {
-              "rem": [
-                [
-                  "@password:filter",
-                  "s",
-                  0,
-                  10
-                ]
-              ],
-              "len": 47
+          "1": {
+            "1": {
+              "": {
+                "rem": [
+                  [
+                    "@password:filter",
+                    "s",
+                    0,
+                    10
+                  ]
+                ],
+                "len": 8
+              }
             }
           }
         }

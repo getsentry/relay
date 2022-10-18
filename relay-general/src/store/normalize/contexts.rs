@@ -184,18 +184,18 @@ fn normalize_response(response: &mut ResponseContext) {
     };
 
     if response.cookies.value().is_some() {
-        headers.remove("Cookie");
+        headers.remove("Set-Cookie");
         return;
     }
 
-    let cookie_header = match headers.get_header("Cookie") {
+    let cookie_header = match headers.get_header("Set-Cookie") {
         Some(header) => header,
         None => return,
     };
 
     if let Ok(new_cookies) = crate::protocol::Cookies::parse(cookie_header) {
         response.cookies = Annotated::from(new_cookies);
-        headers.remove("Cookie");
+        headers.remove("Set-Cookie");
     }
 }
 
