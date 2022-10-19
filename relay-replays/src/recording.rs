@@ -138,9 +138,7 @@ enum NodeVariant {
     T0(DocumentNode),
     T1(DocumentTypeNode),
     T2(ElementNode),
-    T3(TextNode),
-    T5(TextNode),
-    // CDATANode,  TODO: No examples :O
+    T3(TextNode), // types 3 (text), 4 (cdata), 5 (comment)
 }
 
 impl<'de> serde::Deserialize<'de> for NodeVariant {
@@ -162,13 +160,9 @@ impl<'de> serde::Deserialize<'de> for NodeVariant {
                         Ok(element) => Ok(NodeVariant::T2(element)),
                         Err(_) => Err(DError::custom("could not parse element object")),
                     },
-                    3 => match TextNode::deserialize(value) {
+                    3 | 4 | 5 => match TextNode::deserialize(value) {
                         Ok(text) => Ok(NodeVariant::T3(text)),
                         Err(_) => Err(DError::custom("could not parse text object")),
-                    },
-                    5 => match TextNode::deserialize(value) {
-                        Ok(comment) => Ok(NodeVariant::T5(comment)),
-                        Err(_) => Err(DError::custom("could not parse comment object")),
                     },
                     _ => return Err(DError::custom("invalid type value")),
                 },
