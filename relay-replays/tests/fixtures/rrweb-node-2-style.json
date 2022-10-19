@@ -1,0 +1,16 @@
+{
+    "type": 2,
+    "tagName": "style",
+    "attributes": {
+        "id": "react-tooltip"
+    },
+    "childNodes": [
+        {
+            "type": 3,
+            "textContent": "test",
+            "isStyle": true,
+            "id": 284
+        }
+    ],
+    "id": 283
+}
