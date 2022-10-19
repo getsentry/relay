@@ -1098,7 +1098,8 @@ impl EnvelopeProcessorService {
                         item.set_payload(ContentType::Json, &replay[..]);
                         true
                     }
-                    Err(_) => {
+                    Err(error) => {
+                        relay_log::warn!("failed to parse replay event: {}", LogError(&error));
                         context.track_outcome(
                             Outcome::Invalid(DiscardReason::InvalidReplayEvent),
                             DataCategory::Replay,
