@@ -1,19 +1,3 @@
-// class IncrementalSource(IntEnum):
-//     MUTATION = 0
-//     MOUSEMOVE = 1
-//     MOUSEINTERACTION = 2
-//     SCROLL = 3
-//     VIEWPORTRESIZE = 4
-//     INPUT = 5
-//     TOUCHMOVE = 6
-//     MEDIAINTERACTION = 7
-//     STYLESHEETRULE = 8
-//     CANVASMUTATION = 9
-//     FONT = 10
-//     LOG = 11
-//     DRAG = 12
-//     STYLEDECLARATION = 13
-
 use std::collections::HashMap;
 
 use serde::de::Error as DError;
@@ -41,16 +25,16 @@ pub fn mask_pii(mut events: Vec<Event>) -> Vec<Event> {
     return events;
 }
 
-fn recurse_snapshot_node(variant: &mut NodeVariant) {
-    match variant {
-        NodeVariant::T0(node_variant) => {
-            for node in &mut node_variant.child_nodes {
+fn recurse_snapshot_node(node: &mut Node) {
+    match &mut node.variant {
+        NodeVariant::T0(document) => {
+            for node in &mut document.child_nodes {
                 recurse_snapshot_node(node)
             }
         }
         NodeVariant::T2(element) => recurse_element(element),
-        NodeVariant::T3(node_variant) => {
-            node_variant.strip_pii();
+        NodeVariant::Rest(text) => {
+            text.strip_pii();
         }
         _ => {}
     }
@@ -62,12 +46,16 @@ fn recurse_element(element: &mut ElementNode) {
         "img" => {
             let attrs = &mut element.attributes;
             attrs.insert("src".to_string(), "#".to_string());
+
+            recurse_element_children(element)
         }
-        _ => {
-            for variant in &mut element.child_nodes {
-                recurse_snapshot_node(variant)
-            }
-        }
+        _ => recurse_element_children(element),
+    }
+}
+
+fn recurse_element_children(element: &mut ElementNode) {
+    for node in &mut element.child_nodes {
+        recurse_snapshot_node(node)
     }
 }
 
@@ -141,7 +129,7 @@ struct FullSnapshotEvent {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct FullSnapshotEventData {
-    node: NodeVariant,
+    node: Node,
     #[serde(rename = "initialOffset")]
     initial_offset: Value,
 }
@@ -222,13 +210,25 @@ struct PerformanceSpanPayload {
 /// values.  There are no default types for this variation. Because the "type" field's values are
 /// integers we must define custom serialization and deserailization behavior.
 
+#[derive(Debug, Deserialize, Serialize)]
+struct Node {
+    #[serde(rename = "rootId", skip_serializing_if = "Option::is_none")]
+    root_id: Option<u8>,
+    #[serde(rename = "isShadowHost", skip_serializing_if = "Option::is_none")]
+    is_shadow_host: Option<bool>,
+    #[serde(rename = "isShadow", skip_serializing_if = "Option::is_none")]
+    is_shadow: Option<bool>,
+    #[serde(flatten)]
+    variant: NodeVariant,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(untagged)]
 enum NodeVariant {
     T0(DocumentNode),
     T1(DocumentTypeNode),
     T2(ElementNode),
-    T3(TextNode), // types 3 (text), 4 (cdata), 5 (comment)
+    Rest(TextNode), // types 3 (text), 4 (cdata), 5 (comment)
 }
 
 impl<'de> serde::Deserialize<'de> for NodeVariant {
@@ -251,7 +251,7 @@ impl<'de> serde::Deserialize<'de> for NodeVariant {
                         Err(_) => Err(DError::custom("could not parse element object")),
                     },
                     3 | 4 | 5 => match TextNode::deserialize(value) {
-                        Ok(text) => Ok(NodeVariant::T3(text)),
+                        Ok(text) => Ok(NodeVariant::Rest(text)),
                         Err(_) => Err(DError::custom("could not parse text object")),
                     },
                     _ => return Err(DError::custom("invalid type value")),
@@ -269,7 +269,7 @@ struct DocumentNode {
     #[serde(rename = "type")]
     ty: u8,
     #[serde(rename = "childNodes")]
-    child_nodes: Vec<NodeVariant>,
+    child_nodes: Vec<Node>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -293,7 +293,7 @@ struct ElementNode {
     #[serde(rename = "tagName")]
     tag_name: String,
     #[serde(rename = "childNodes")]
-    child_nodes: Vec<NodeVariant>,
+    child_nodes: Vec<Node>,
     #[serde(rename = "isSVG", skip_serializing_if = "Option::is_none")]
     is_svg: Option<bool>,
     #[serde(rename = "needBlock", skip_serializing_if = "Option::is_none")]
@@ -316,6 +316,24 @@ impl TextNode {
         self.text_content = strip_pii(&self.text_content).to_string()
     }
 }
+
+/// Incremental Source Parser
+///
+/// class IncrementalSource(IntEnum):
+//     MUTATION = 0
+//     MOUSEMOVE = 1
+//     MOUSEINTERACTION = 2
+//     SCROLL = 3
+//     VIEWPORTRESIZE = 4
+//     INPUT = 5
+//     TOUCHMOVE = 6
+//     MEDIAINTERACTION = 7
+//     STYLESHEETRULE = 8
+//     CANVASMUTATION = 9
+//     FONT = 10
+//     LOG = 11
+//     DRAG = 12
+//     STYLEDECLARATION = 13
 
 #[cfg(test)]
 mod tests {
