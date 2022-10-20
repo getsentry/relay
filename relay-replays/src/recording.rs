@@ -45,7 +45,7 @@ fn recurse_snapshot_node(variant: &mut NodeVariant) {
     match variant {
         NodeVariant::T0(node_variant) => {
             for node in &mut node_variant.child_nodes {
-                recurse_snapshot_node(&mut node.variant)
+                recurse_snapshot_node(node)
             }
         }
         NodeVariant::T2(element) => recurse_element(element),
@@ -57,20 +57,17 @@ fn recurse_snapshot_node(variant: &mut NodeVariant) {
 }
 
 fn recurse_element(element: &mut ElementNode) {
-    match &mut element.variant {
-        ElementNodeVariant::Default(element) => match element.tag_name.as_str() {
-            "script" | "style" => {}
-            "img" => {
-                let attrs = &mut element.attributes;
-                attrs.insert("src".to_string(), "#".to_string());
+    match element.tag_name.as_str() {
+        "script" | "style" => {}
+        "img" => {
+            let attrs = &mut element.attributes;
+            attrs.insert("src".to_string(), "#".to_string());
+        }
+        _ => {
+            for variant in &mut element.child_nodes {
+                recurse_snapshot_node(variant)
             }
-            _ => {
-                for variant in &mut element.child_nodes {
-                    recurse_snapshot_node(variant)
-                }
-            }
-        },
-        _ => {}
+        }
     }
 }
 
@@ -182,8 +179,6 @@ enum CustomEventData {
     PerformanceSpan(PerformanceSpan),
 }
 
-// Breadcrumbs
-
 #[derive(Debug, Serialize, Deserialize)]
 struct Breadcrumb {
     tag: String,
@@ -203,8 +198,6 @@ struct BreadcrumbPayload {
     #[serde(skip_serializing_if = "Option::is_none")]
     data: Option<Value>,
 }
-
-// Performance
 
 #[derive(Debug, Serialize, Deserialize)]
 struct PerformanceSpan {
@@ -228,12 +221,6 @@ struct PerformanceSpanPayload {
 /// Nodes have an internally tagged variant on their "type" field. The type must be one of six
 /// values.  There are no default types for this variation. Because the "type" field's values are
 /// integers we must define custom serialization and deserailization behavior.
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Node {
-    #[serde(flatten)]
-    variant: NodeVariant,
-}
 
 #[derive(Debug, Serialize)]
 #[serde(untagged)]
@@ -282,7 +269,7 @@ struct DocumentNode {
     #[serde(rename = "type")]
     ty: u8,
     #[serde(rename = "childNodes")]
-    child_nodes: Vec<Node>,
+    child_nodes: Vec<NodeVariant>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -298,114 +285,34 @@ struct DocumentTypeNode {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+struct ElementNode {
+    id: u32,
+    #[serde(rename = "type")]
+    ty: u8,
+    attributes: HashMap<String, String>,
+    #[serde(rename = "tagName")]
+    tag_name: String,
+    #[serde(rename = "childNodes")]
+    child_nodes: Vec<NodeVariant>,
+    #[serde(rename = "isSVG", skip_serializing_if = "Option::is_none")]
+    is_svg: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 struct TextNode {
     id: u32,
     #[serde(rename = "type")]
     ty: u8,
     #[serde(rename = "textContent")]
     text_content: String,
+    #[serde(rename = "isStyle", skip_serializing_if = "Option::is_none")]
+    is_style: Option<bool>,
 }
 
 impl TextNode {
     fn strip_pii(&mut self) {
         self.text_content = strip_pii(&self.text_content).to_string()
     }
-}
-
-/// Element Node Type Parser.
-///
-/// The element type has a variant on it's "tagName" field.  "style" tags have special "childNodes"
-/// which do not conform to other tags.  The default variant is a catchall for every tag other
-/// than "style".
-
-#[derive(Debug, Serialize, Deserialize)]
-struct ElementNode {
-    #[serde(flatten)]
-    variant: ElementNodeVariant,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(untagged)]
-enum ElementNodeVariant {
-    Style(StyleElementNode),
-    SVG(SVGElementNode),
-    Default(DefaultElementNode),
-}
-
-impl<'de> serde::Deserialize<'de> for ElementNodeVariant {
-    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let value = Value::deserialize(d)?;
-
-        match value.get("tagName") {
-            Some(val) => match Value::as_str(val) {
-                Some(v) => match v {
-                    "style" => match StyleElementNode::deserialize(value) {
-                        Ok(node) => Ok(ElementNodeVariant::Style(node)),
-                        Err(_) => Err(DError::custom("could not parse style element.")),
-                    },
-                    "svg" | "path" => match SVGElementNode::deserialize(value) {
-                        Ok(node) => Ok(ElementNodeVariant::SVG(node)),
-                        Err(_) => Err(DError::custom("could not parse style element.")),
-                    },
-                    _ => match DefaultElementNode::deserialize(value) {
-                        Ok(node) => Ok(ElementNodeVariant::Default(node)),
-                        Err(_) => Err(DError::custom("could not parse element")),
-                    },
-                },
-                None => return Err(DError::custom("type field must be a string")),
-            },
-            None => return Err(DError::missing_field("tagName")),
-        }
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct DefaultElementNode {
-    id: u32,
-    #[serde(rename = "type")]
-    ty: u8,
-    attributes: HashMap<String, String>,
-    #[serde(rename = "tagName")]
-    tag_name: String,
-    #[serde(rename = "childNodes")]
-    child_nodes: Vec<NodeVariant>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct SVGElementNode {
-    id: u32,
-    #[serde(rename = "type")]
-    ty: u8,
-    attributes: HashMap<String, String>,
-    #[serde(rename = "tagName")]
-    tag_name: String,
-    #[serde(rename = "childNodes")]
-    child_nodes: Vec<NodeVariant>,
-    #[serde(rename = "isSVG")]
-    is_svg: bool,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct StyleElementNode {
-    id: u32,
-    #[serde(rename = "type")]
-    ty: u8,
-    attributes: HashMap<String, String>,
-    #[serde(rename = "tagName")]
-    tag_name: String,
-    #[serde(rename = "childNodes")]
-    child_nodes: Vec<StyleTextNode>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct StyleTextNode {
-    id: u32,
-    #[serde(rename = "type")]
-    ty: u8,
-    #[serde(rename = "textContent")]
-    text_content: String,
-    #[serde(rename = "isStyle")]
-    is_style: bool,
 }
 
 #[cfg(test)]
@@ -430,7 +337,7 @@ mod tests {
     fn test_rrweb_node_2_parsing() {
         let payload = include_bytes!("../tests/fixtures/rrweb-node-2.json");
 
-        let input_parsed: recording::Node = serde_json::from_slice(payload).unwrap();
+        let input_parsed: recording::NodeVariant = serde_json::from_slice(payload).unwrap();
         let input_raw: Value = serde_json::from_slice(payload).unwrap();
         assert_json_eq!(input_parsed, input_raw)
     }
@@ -439,7 +346,7 @@ mod tests {
     fn test_rrweb_node_2_style_parsing() {
         let payload = include_bytes!("../tests/fixtures/rrweb-node-2-style.json");
 
-        let input_parsed: recording::Node = serde_json::from_slice(payload).unwrap();
+        let input_parsed: recording::NodeVariant = serde_json::from_slice(payload).unwrap();
         let input_raw: Value = serde_json::from_slice(payload).unwrap();
         assert_json_eq!(input_parsed, input_raw)
     }
