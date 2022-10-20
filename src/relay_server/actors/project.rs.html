@@ -931,6 +931,44 @@
 <span id="929">929</span>
 <span id="930">930</span>
 <span id="931">931</span>
+<span id="932">932</span>
+<span id="933">933</span>
+<span id="934">934</span>
+<span id="935">935</span>
+<span id="936">936</span>
+<span id="937">937</span>
+<span id="938">938</span>
+<span id="939">939</span>
+<span id="940">940</span>
+<span id="941">941</span>
+<span id="942">942</span>
+<span id="943">943</span>
+<span id="944">944</span>
+<span id="945">945</span>
+<span id="946">946</span>
+<span id="947">947</span>
+<span id="948">948</span>
+<span id="949">949</span>
+<span id="950">950</span>
+<span id="951">951</span>
+<span id="952">952</span>
+<span id="953">953</span>
+<span id="954">954</span>
+<span id="955">955</span>
+<span id="956">956</span>
+<span id="957">957</span>
+<span id="958">958</span>
+<span id="959">959</span>
+<span id="960">960</span>
+<span id="961">961</span>
+<span id="962">962</span>
+<span id="963">963</span>
+<span id="964">964</span>
+<span id="965">965</span>
+<span id="966">966</span>
+<span id="967">967</span>
+<span id="968">968</span>
+<span id="969">969</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeSet</span>, <span class="ident">VecDeque</span>};
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 <span class="kw">use</span> <span class="ident">std::time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>};
@@ -1153,7 +1191,7 @@
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip</span>, <span class="ident">default</span> <span class="op">=</span> <span class="string">&quot;Instant::now&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">last_fetch</span>: <span class="ident">Instant</span>,
 
-    <span class="doccomment">/// True if this project state was fetched but incompatible with this Relay.</span>
+    <span class="doccomment">/// True if this project state failed fetching or was incompatible with this Relay.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip</span>, <span class="ident">default</span>)]</span>
     <span class="kw">pub</span> <span class="ident">invalid</span>: <span class="ident">bool</span>,
 }
@@ -1708,7 +1746,7 @@
     <span class="doccomment">/// take precedence.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// [`ValidateEnvelope`]: crate::actors::project_cache::ValidateEnvelope</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">update_state</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">state</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span>, <span class="ident">no_cache</span>: <span class="ident">bool</span>) {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">update_state</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">state</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span>, <span class="ident">no_cache</span>: <span class="ident">bool</span>) {
         <span class="kw">let</span> <span class="ident">channel</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">state_channel</span>.<span class="ident">take</span>() {
             <span class="prelude-val">Some</span>(<span class="ident">channel</span>) =&gt; <span class="ident">channel</span>,
             <span class="prelude-val">None</span> =&gt; <span class="kw">return</span>,
@@ -1721,8 +1759,12 @@
             <span class="kw">return</span>;
         }
 
-        <span class="self">self</span>.<span class="ident">state_channel</span> <span class="op">=</span> <span class="prelude-val">None</span>;
-        <span class="self">self</span>.<span class="ident">state</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">state</span>.<span class="ident">clone</span>());
+        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">expiry_state</span>() {
+            <span class="comment">// If the new state is invalid but the old one still usable, keep the old one.</span>
+            <span class="ident">ExpiryState::Updated</span>(<span class="ident">old</span>) <span class="op">|</span> <span class="ident">ExpiryState::Stale</span>(<span class="ident">old</span>) <span class="kw">if</span> <span class="ident">state</span>.<span class="ident">invalid</span>() =&gt; <span class="ident">state</span> <span class="op">=</span> <span class="ident">old</span>,
+            <span class="comment">// If the new state is valid or the old one is expired, always use the new one.</span>
+            <span class="kw">_</span> =&gt; <span class="self">self</span>.<span class="ident">state</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">state</span>.<span class="ident">clone</span>()),
+        }
 
         <span class="comment">// Flush all queued `ValidateEnvelope` messages</span>
         <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="ident">envelope</span>, <span class="ident">context</span>)) <span class="op">=</span> <span class="self">self</span>.<span class="ident">pending_validations</span>.<span class="ident">pop_front</span>() {
@@ -1824,7 +1866,7 @@
 
     <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">ProjectId</span>, <span class="ident">ProjectKey</span>};
 
-    <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">Config</span>, <span class="ident">Project</span>, <span class="ident">ProjectState</span>};
+    <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">Config</span>, <span class="ident">Project</span>, <span class="ident">ProjectState</span>, <span class="ident">StateChannel</span>};
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">get_state_expired</span>() {
@@ -1860,6 +1902,40 @@
                 <span class="macro">assert!</span>(<span class="ident">project</span>.<span class="ident">valid_state</span>().<span class="ident">is_none</span>());
             }
         }
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_stale_cache</span>() {
+        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">Arc::new</span>(
+            <span class="ident">Config::from_json_value</span>(<span class="macro">serde_json::json!</span>(
+                {
+                    <span class="string">&quot;cache&quot;</span>: {
+                        <span class="string">&quot;project_expiry&quot;</span>: <span class="number">100</span>,
+                        <span class="string">&quot;project_grace_period&quot;</span>: <span class="number">0</span>,
+                        <span class="string">&quot;eviction_interval&quot;</span>: <span class="number">9999</span> <span class="comment">// do not evict</span>
+                    }
+                }
+            ))
+            .<span class="ident">unwrap</span>(),
+        );
+
+        <span class="kw">let</span> <span class="ident">channel</span> <span class="op">=</span> <span class="ident">StateChannel::new</span>();
+
+        <span class="comment">// Initialize project with a state.</span>
+        <span class="kw">let</span> <span class="ident">project_key</span> <span class="op">=</span> <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">project_state</span> <span class="op">=</span> <span class="ident">ProjectState::allowed</span>();
+        <span class="ident">project_state</span>.<span class="ident">project_id</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">ProjectId::new</span>(<span class="number">123</span>));
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">project</span> <span class="op">=</span> <span class="ident">Project::new</span>(<span class="ident">project_key</span>, <span class="ident">config</span>);
+        <span class="ident">project</span>.<span class="ident">state_channel</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">channel</span>);
+        <span class="ident">project</span>.<span class="ident">state</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">Arc::new</span>(<span class="ident">project_state</span>));
+
+        <span class="comment">// The project ID must be set.</span>
+        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">project</span>.<span class="ident">state</span>.<span class="ident">as_ref</span>().<span class="ident">unwrap</span>().<span class="ident">invalid</span>());
+        <span class="comment">// Try to update project with errored project state.</span>
+        <span class="ident">project</span>.<span class="ident">update_state</span>(<span class="ident">Arc::new</span>(<span class="ident">ProjectState::err</span>()), <span class="bool-val">false</span>);
+        <span class="comment">// Since we got invalid project state we still keep the old one meaning there</span>
+        <span class="comment">// still must be the project id set.</span>
+        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">project</span>.<span class="ident">state</span>.<span class="ident">as_ref</span>().<span class="ident">unwrap</span>().<span class="ident">invalid</span>());
     }
 }
 </code></pre></div>
