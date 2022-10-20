@@ -113,7 +113,7 @@ pub enum DataCategory {
     Profile = 6,
     /// Session Replays
     Replay = 7,
-    /// [DEPRECATED] A transaction for which metrics were extracted.
+    /// DEPRECATED: A transaction for which metrics were extracted.
     /// This category is now obsolete because the `Transaction` variant will represent
     /// processed transactions from now on.
     TransactionProcessed = 8,

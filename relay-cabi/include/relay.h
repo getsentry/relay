@@ -49,7 +49,7 @@ enum RelayDataCategory {
    */
   RELAY_DATA_CATEGORY_REPLAY = 7,
   /**
-   * [DEPRECATED] A transaction for which metrics were extracted.
+   * DEPRECATED: A transaction for which metrics were extracted.
    * This category is now obsolete because the `Transaction` variant will represent
    * processed transactions from now on.
    */
