@@ -57,7 +57,7 @@ use {
     crate::actors::envelopes::SendMetrics,
     crate::actors::project_cache::UpdateRateLimits,
     crate::service::ServerErrorKind,
-    crate::utils::{BucketLimiter, EnvelopeLimiter},
+    crate::utils::{BucketLimiter, EnvelopeLimiter, DATA_CATEGORY_FOR_METRICS},
     failure::ResultExt,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::ItemScoping,
@@ -2197,7 +2197,7 @@ impl EnvelopeProcessorService {
 
         if let Some(rate_limiter) = self.rate_limiter.as_ref() {
             let item_scoping = ItemScoping {
-                category: DataCategory::TransactionProcessed,
+                category: DATA_CATEGORY_FOR_METRICS,
                 scoping: &scoping,
             };
             // We set over_accept_once such that the limit is actually reached, which allows subsequent

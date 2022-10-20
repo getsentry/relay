@@ -6,6 +6,9 @@ use relay_quotas::{ItemScoping, Quota, RateLimits, Scoping};
 
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 
+/// The data category used to apply rate limits to metrics buckets.
+pub const DATA_CATEGORY_FOR_METRICS: DataCategory = DataCategory::Transaction;
+
 /// Holds metrics buckets with some information about their contents.
 #[derive(Debug)]
 pub struct BucketLimiter {
@@ -120,7 +123,7 @@ impl BucketLimiter {
                 outcome,
                 event_id: None,
                 remote_addr: None,
-                category: DataCategory::TransactionProcessed,
+                category: DATA_CATEGORY_FOR_METRICS,
                 quantity: self.transaction_count as u32,
             });
         }
@@ -138,7 +141,7 @@ impl BucketLimiter {
         match rate_limits {
             Ok(rate_limits) => {
                 let item_scoping = ItemScoping {
-                    category: DataCategory::TransactionProcessed,
+                    category: DATA_CATEGORY_FOR_METRICS,
                     scoping: &self.scoping,
                 };
                 let applied_rate_limits = rate_limits.check_with_quotas(&self.quotas, item_scoping);
