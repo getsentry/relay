@@ -20,9 +20,13 @@ use serde::de::Error as DError;
 use serde::{Deserialize, Serialize};
 use serde_json::{Error, Value};
 
-pub fn parse_rrweb_payload(bytes: &[u8]) -> Result<Vec<Event>, Error> {
+pub fn parse(bytes: &[u8]) -> Result<Vec<Event>, Error> {
     let node: Vec<Event> = serde_json::from_slice(bytes)?;
     return Ok(node);
+}
+
+pub fn write(rrweb: Vec<Event>) -> Result<Vec<u8>, Error> {
+    return serde_json::to_vec(&rrweb);
 }
 
 /// Event Type Parser
@@ -303,7 +307,7 @@ mod tests {
     fn test_rrweb_parsing() {
         let payload = include_bytes!("../tests/fixtures/rrweb.json");
 
-        let input_parsed = recording::parse_rrweb_payload(payload).unwrap();
+        let input_parsed = recording::parse(payload).unwrap();
         let input_raw: Value = serde_json::from_slice(payload).unwrap();
         assert_json_eq!(input_parsed, input_raw)
     }
