@@ -54,11 +54,13 @@ use crate::utils::{
 
 #[cfg(feature = "processing")]
 use {
+    crate::actors::envelopes::SendMetrics,
     crate::actors::project_cache::UpdateRateLimits,
     crate::service::ServerErrorKind,
-    crate::utils::EnvelopeLimiter,
+    crate::utils::{BucketLimiter, EnvelopeLimiter},
     failure::ResultExt,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
+    relay_quotas::ItemScoping,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
@@ -516,12 +518,22 @@ impl EncodeEnvelope {
     }
 }
 
+/// Applies rate limits to metrics buckets and forwards them to the envelope manager.
+#[cfg(feature = "processing")]
+#[derive(Debug)]
+pub struct RateLimitFlushBuckets {
+    pub bucket_limiter: BucketLimiter,
+    pub partition_key: Option<u64>,
+}
+
 /// CPU-intensive processing tasks for envelopes.
 #[derive(Debug)]
 pub enum EnvelopeProcessor {
     ProcessEnvelope(Box<ProcessEnvelope>),
     ProcessMetrics(Box<ProcessMetrics>),
     EncodeEnvelope(Box<EncodeEnvelope>),
+    #[cfg(feature = "processing")]
+    RateLimitFlushBuckets(RateLimitFlushBuckets),
 }
 
 impl EnvelopeProcessor {
@@ -553,6 +565,15 @@ impl FromMessage<EncodeEnvelope> for EnvelopeProcessor {
 
     fn from_message(message: EncodeEnvelope, _: ()) -> Self {
         Self::EncodeEnvelope(Box::new(message))
+    }
+}
+
+#[cfg(feature = "processing")]
+impl FromMessage<RateLimitFlushBuckets> for EnvelopeProcessor {
+    type Response = NoResponse;
+
+    fn from_message(message: RateLimitFlushBuckets, _: ()) -> Self {
+        Self::RateLimitFlushBuckets(message)
     }
 }
 
@@ -1722,7 +1743,7 @@ impl EnvelopeProcessorService {
         // When invoking the rate limiter, capture if the event item has been rate limited to also
         // remove it from the processing state eventually.
         let mut envelope_limiter = EnvelopeLimiter::new(|item_scope, quantity| {
-            let limits = rate_limiter.is_rate_limited(quotas, item_scope, quantity)?;
+            let limits = rate_limiter.is_rate_limited(quotas, item_scope, quantity, false)?;
             remove_event |= Some(item_scope.category) == event_category && limits.is_limited();
             Ok(limits)
         });
@@ -2168,6 +2189,53 @@ impl EnvelopeProcessorService {
         }
     }
 
+    /// Check and apply rate limits to metrics buckets.
+    #[cfg(feature = "processing")]
+    fn handle_rate_limit_flush_buckets(&self, message: RateLimitFlushBuckets) {
+        let RateLimitFlushBuckets {
+            mut bucket_limiter,
+            partition_key,
+        } = message;
+
+        let scoping = *bucket_limiter.scoping();
+
+        if let Some(rate_limiter) = self.rate_limiter.as_ref() {
+            let item_scoping = ItemScoping {
+                category: DataCategory::TransactionProcessed,
+                scoping: &scoping,
+            };
+            // We set over_accept_once such that the limit is actually reached, which allows subsequent
+            // calls with quantity=0 to be rate limited.
+            let over_accept_once = true;
+            let rate_limits = rate_limiter.is_rate_limited(
+                bucket_limiter.quotas(),
+                item_scoping,
+                bucket_limiter.transaction_count(),
+                over_accept_once,
+            );
+
+            let was_enforced = bucket_limiter.enforce_limits(rate_limits.as_ref().map_err(|_| ()));
+
+            if was_enforced {
+                if let Ok(limits) = rate_limits {
+                    // Update the rate limits in the project cache.
+                    ProjectCache::from_registry()
+                        .do_send(UpdateRateLimits::new(scoping.project_key, limits));
+                }
+            }
+        }
+
+        let buckets = bucket_limiter.into_buckets();
+        if !buckets.is_empty() {
+            // Forward buckets to envelope manager to send them to upstream or kafka:
+            EnvelopeManager::from_registry().send(SendMetrics {
+                buckets,
+                scoping,
+                partition_key,
+            });
+        }
+    }
+
     fn encode_envelope_body(
         body: Vec<u8>,
         http_encoding: HttpEncoding,
@@ -2215,6 +2283,10 @@ impl EnvelopeProcessorService {
             EnvelopeProcessor::ProcessEnvelope(message) => self.handle_process_envelope(*message),
             EnvelopeProcessor::ProcessMetrics(message) => self.handle_process_metrics(*message),
             EnvelopeProcessor::EncodeEnvelope(message) => self.handle_encode_envelope(*message),
+            #[cfg(feature = "processing")]
+            EnvelopeProcessor::RateLimitFlushBuckets(message) => {
+                self.handle_rate_limit_flush_buckets(message);
+            }
         }
     }
 }

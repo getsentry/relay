@@ -370,6 +370,14 @@ pub struct NativeDebugImage {
     #[metastructure(pii = "maybe")]
     pub debug_file: Annotated<NativeImagePath>,
 
+    /// The optional checksum of the debug companion file.
+    ///
+    /// - `pe_dotnet`: This is the hash algorithm and hex-formatted checksum of the associated PDB file.
+    ///  This should have the format `$algorithm:$hash`, for example `SHA256:aabbccddeeff...`.
+    ///
+    ///   See: <https://github.com/dotnet/runtime/blob/main/docs/design/specs/PE-COFF.md#pdb-checksum-debug-directory-entry-type-19>
+    pub debug_checksum: Annotated<String>,
+
     /// CPU architecture target.
     ///
     /// Architecture of the module. If missing, this will be backfilled by Sentry.
@@ -433,6 +441,9 @@ pub enum DebugImage {
     Elf(Box<NativeDebugImage>),
     /// PE (Windows) debug image.
     Pe(Box<NativeDebugImage>),
+    /// .NET PE debug image with associated Portable PDB debug companion.
+    #[metastructure(tag = "pe_dotnet")]
+    PeDotnet(Box<NativeDebugImage>),
     /// A reference to a proguard debug file.
     Proguard(Box<ProguardDebugImage>),
     /// WASM debug image.
@@ -591,6 +602,7 @@ mod tests {
             code_file: Annotated::new("C:\\Windows\\System32\\ntdll.dll".into()),
             debug_id: Annotated::new("971f98e5-ce60-41ff-b2d7-235bbeb34578-1".parse().unwrap()),
             debug_file: Annotated::new("wntdll.pdb".into()),
+            debug_checksum: Annotated::empty(),
             arch: Annotated::new("arm64".to_string()),
             image_addr: Annotated::new(Addr(0)),
             image_size: Annotated::new(4096),
@@ -627,6 +639,7 @@ mod tests {
             code_file: Annotated::new("CoreFoundation".into()),
             debug_id: Annotated::new("494f3aea-88fa-4296-9644-fa8ef5d139b6-1234".parse().unwrap()),
             debug_file: Annotated::empty(),
+            debug_checksum: Annotated::empty(),
             arch: Annotated::new("arm64".to_string()),
             image_addr: Annotated::new(Addr(0)),
             image_size: Annotated::new(4096),
@@ -689,6 +702,7 @@ mod tests {
             code_file: Annotated::new("crash".into()),
             debug_id: Annotated::new("c0bcc3f1-9827-fe65-3058-404b2831d9e6".parse().unwrap()),
             debug_file: Annotated::empty(),
+            debug_checksum: Annotated::empty(),
             arch: Annotated::new("arm64".to_string()),
             image_addr: Annotated::new(Addr(0)),
             image_size: Annotated::new(4096),
@@ -701,6 +715,32 @@ mod tests {
                 );
                 map
             },
+        })));
+
+        assert_eq!(image, Annotated::from_json(json).unwrap());
+        assert_eq!(json, image.to_json_pretty().unwrap());
+    }
+
+    #[test]
+    fn test_debug_image_pe_dotnet_roundtrip() {
+        let json = r#"{
+  "debug_id": "4e2ca887-825e-46f3-968f-25b41ae1b5f3-cc3f6d9e",
+  "debug_file": "TimeZoneConverter.pdb",
+  "debug_checksum": "SHA256:87a82c4e5e82f386968f25b41ae1b5f3cc3f6d9e79cfb4464f8240400fc47dcd79",
+  "type": "pe_dotnet"
+}"#;
+
+        let image = Annotated::new(DebugImage::PeDotnet(Box::new(NativeDebugImage {
+            debug_id: Annotated::new(
+                "4e2ca887-825e-46f3-968f-25b41ae1b5f3-cc3f6d9e"
+                    .parse()
+                    .unwrap(),
+            ),
+            debug_file: Annotated::new("TimeZoneConverter.pdb".into()),
+            debug_checksum: Annotated::new(
+                "SHA256:87a82c4e5e82f386968f25b41ae1b5f3cc3f6d9e79cfb4464f8240400fc47dcd79".into(),
+            ),
+            ..Default::default()
         })));
 
         assert_eq!(image, Annotated::from_json(json).unwrap());
@@ -726,6 +766,7 @@ mod tests {
             code_file: Annotated::new("crash".into()),
             debug_id: Annotated::new("67e9247c-814e-392b-a027-dbde6748fcbf".parse().unwrap()),
             debug_file: Annotated::empty(),
+            debug_checksum: Annotated::empty(),
             arch: Annotated::new("arm64".to_string()),
             image_addr: Annotated::new(Addr(0)),
             image_size: Annotated::new(4096),
@@ -763,6 +804,7 @@ mod tests {
             code_file: Annotated::new("C:\\Windows\\System32\\ntdll.dll".into()),
             debug_id: Annotated::new("971f98e5-ce60-41ff-b2d7-235bbeb34578-1".parse().unwrap()),
             debug_file: Annotated::new("wntdll.pdb".into()),
+            debug_checksum: Annotated::empty(),
             arch: Annotated::new("arm64".to_string()),
             image_addr: Annotated::new(Addr(0)),
             image_size: Annotated::new(4096),

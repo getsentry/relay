@@ -8,27 +8,30 @@ use futures01::{future, Future};
 
 use relay_common::ProjectKey;
 use relay_config::{Config, RelayMode};
-use relay_metrics::{
-    self, AggregateMetricsError, Aggregator, FlushBuckets, InsertMetrics, MergeBuckets,
-};
+use relay_metrics::{self, AggregateMetricsError, FlushBuckets, InsertMetrics, MergeBuckets};
+
 use relay_quotas::RateLimits;
+
 use relay_redis::RedisPool;
 use relay_statsd::metric;
 
 use crate::actors::envelopes::{EnvelopeManager, SendMetrics};
 use crate::actors::outcome::DiscardReason;
 use crate::actors::processor::ProcessEnvelope;
-use crate::actors::project::{Project, ProjectState};
+use crate::actors::project::{ExpiryState, Project, ProjectState};
 use crate::actors::project_local::LocalProjectSource;
 use crate::actors::project_upstream::UpstreamProjectSource;
 use crate::envelope::Envelope;
+use crate::service::Registry;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
-use crate::utils::{self, EnvelopeContext, GarbageDisposal, Response};
-
-use super::project::ExpiryState;
+use crate::utils::{self, BucketLimiter, EnvelopeContext, GarbageDisposal, Response};
 
 #[cfg(feature = "processing")]
-use {crate::actors::project_redis::RedisProjectSource, relay_common::clone};
+use {
+    crate::actors::processor::{EnvelopeProcessor, RateLimitFlushBuckets},
+    crate::actors::project_redis::RedisProjectSource,
+    relay_common::clone,
+};
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {
@@ -602,8 +605,7 @@ impl Handler<FlushBuckets> for ProjectCache {
                 relay_log::trace!("project expired: merging back {} buckets", buckets.len());
                 // If the state is outdated, we need to wait for an updated state. Put them back into the
                 // aggregator.
-                Aggregator::from_registry()
-                    .do_send(relay_metrics::MergeBuckets::new(project_key, buckets));
+                Registry::aggregator().send(MergeBuckets::new(project_key, buckets));
                 return;
             }
         };
@@ -615,8 +617,7 @@ impl Handler<FlushBuckets> for ProjectCache {
                     "there is no scoping: merging back {} buckets",
                     buckets.len()
                 );
-                Aggregator::from_registry()
-                    .do_send(relay_metrics::MergeBuckets::new(project_key, buckets));
+                Registry::aggregator().send(MergeBuckets::new(project_key, buckets));
                 return;
             }
         };
@@ -626,10 +627,36 @@ impl Handler<FlushBuckets> for ProjectCache {
             return;
         }
 
-        EnvelopeManager::from_registry().send(SendMetrics {
-            buckets,
-            scoping,
-            partition_key,
-        });
+        // Check rate limits if necessary:
+        let quotas = project_state.config.quotas.clone();
+        let buckets = match BucketLimiter::create(buckets, quotas, scoping) {
+            Ok(mut bucket_limiter) => {
+                let cached_rate_limits = project.rate_limits().clone();
+                #[allow(unused_variables)]
+                let was_rate_limited = bucket_limiter.enforce_limits(Ok(&cached_rate_limits));
+
+                #[cfg(feature = "processing")]
+                if !was_rate_limited && config.processing_enabled() {
+                    // If there were no cached rate limits active, let the processor check redis:
+                    EnvelopeProcessor::from_registry().send(RateLimitFlushBuckets {
+                        bucket_limiter,
+                        partition_key,
+                    });
+
+                    return;
+                }
+
+                bucket_limiter.into_buckets()
+            }
+            Err(buckets) => buckets,
+        };
+
+        if !buckets.is_empty() {
+            EnvelopeManager::from_registry().send(SendMetrics {
+                buckets,
+                scoping,
+                partition_key,
+            });
+        }
     }
 }

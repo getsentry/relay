@@ -1,12 +1,13 @@
 import json
 import os
 import queue
-import datetime
+from time import sleep
 import uuid
 import six
 import socket
 import threading
 import pytest
+from datetime import datetime, timedelta
 
 from requests.exceptions import HTTPError
 from flask import abort, Response
@@ -269,12 +270,12 @@ def test_store_not_normalized(mini_sentry, relay):
 
 
 def make_transaction(event):
-    now = datetime.datetime.utcnow()
+    now = datetime.utcnow()
     event.update(
         {
             "type": "transaction",
             "timestamp": now.isoformat(),
-            "start_timestamp": (now - datetime.timedelta(seconds=2)).isoformat(),
+            "start_timestamp": (now - timedelta(seconds=2)).isoformat(),
             "spans": [],
             "contexts": {
                 "trace": {
@@ -470,6 +471,188 @@ def test_processing_quotas(
         assert event["logentry"]["formatted"] == f"otherkey{i}"
 
 
+@pytest.mark.parametrize("violating_bucket", [[4.0, 5.0], [4.0, 5.0, 6.0]])
+def test_rate_limit_metrics_buckets(
+    mini_sentry,
+    relay_with_processing,
+    metrics_consumer,
+    outcomes_consumer,
+    violating_bucket,
+):
+    """
+    param violating_bucket is parametrized so we cover both cases:
+        1. the quota is matched exactly
+        2. quota is exceeded by one
+    """
+    bucket_interval = 1  # second
+    relay = relay_with_processing(
+        {
+            "processing": {"max_rate_limit": 2 * 86400},
+            "aggregator": {
+                "bucket_interval": bucket_interval,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+            },
+        }
+    )
+    metrics_consumer = metrics_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    project_id = 42
+    projectconfig = mini_sentry.add_full_project_config(project_id)
+    # add another dsn key (we want 2 keys so we can set limits per key)
+    mini_sentry.add_dsn_key_to_project(project_id)
+
+    public_keys = mini_sentry.get_dsn_public_key_configs(project_id)
+    key_id = public_keys[0]["numericId"]
+
+    reason_code = uuid.uuid4().hex
+
+    projectconfig["config"]["quotas"] = [
+        {
+            "id": "test_rate_limiting_{}".format(uuid.uuid4().hex),
+            "scope": "key",
+            "scopeId": six.text_type(key_id),
+            "categories": ["transaction_processed"],
+            "limit": 5,
+            "window": 86400,
+            "reasonCode": reason_code,
+        }
+    ]
+
+    def generate_ticks():
+        # Generate a new timestamp for every bucket, so they do not get merged by the aggregator
+        tick = int(datetime.utcnow().timestamp() // bucket_interval * bucket_interval)
+        while True:
+            yield tick
+            tick += bucket_interval
+
+    tick = generate_ticks()
+
+    def make_bucket(name, type_, values):
+        return {
+            "org_id": 1,
+            "project_id": project_id,
+            "timestamp": next(tick),
+            "name": name,
+            "type": type_,
+            "value": values,
+            "width": bucket_interval,
+        }
+
+    def send_buckets(buckets):
+        relay.send_metrics_buckets(project_id, buckets)
+        sleep(0.2)
+
+    # NOTE: Sending these buckets in multiple envelopes because the order of flushing
+    # and also the order of rate limiting is not deterministic.
+    send_buckets(
+        [
+            # Send a few non-duration buckets, they will not deplete the quota
+            make_bucket("d:transactions/measurements.lcp@millisecond", "d", 10 * [1.0]),
+            # Session metrics are accepted
+            make_bucket("d:sessions/session@none", "c", 1),
+            make_bucket("d:sessions/duration@second", "d", 9 * [1]),
+        ]
+    )
+    send_buckets(
+        [
+            # Duration metric, subtract 3 from quota
+            make_bucket("d:transactions/duration@millisecond", "d", [1, 2, 3]),
+        ],
+    )
+    send_buckets(
+        [
+            # Can still send unlimited non-duration metrics
+            make_bucket("d:transactions/measurements.lcp@millisecond", "d", 10 * [2.0]),
+        ],
+    )
+    send_buckets(
+        [
+            # Duration metric, subtract from quota. This bucket is still accepted, but the rest
+            # will be exceeded.
+            make_bucket("d:transactions/duration@millisecond", "d", violating_bucket),
+        ],
+    )
+    send_buckets(
+        [
+            # FCP buckets won't make it into kakfa
+            make_bucket("d:transactions/measurements.fcp@millisecond", "d", 10 * [7.0]),
+        ],
+    )
+    send_buckets(
+        [
+            # Another three for duration, won't make it into kafka.
+            make_bucket("d:transactions/duration@millisecond", "d", [7, 8, 9]),
+            # Session metrics are still accepted.
+            make_bucket("d:sessions/session@user", "s", [1254]),
+        ],
+    )
+
+    produced_buckets = list(metrics_consumer.get_metrics(timeout=4))
+
+    # Sort buckets to prevent ordering flakiness:
+    produced_buckets.sort(key=lambda b: (b["name"], b["value"]))
+    for bucket in produced_buckets:
+        del bucket["timestamp"]
+
+    assert produced_buckets == [
+        {
+            "name": "d:sessions/duration@second",
+            "org_id": 1,
+            "project_id": 42,
+            "type": "d",
+            "value": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+        },
+        {
+            "name": "d:sessions/session@none",
+            "org_id": 1,
+            "project_id": 42,
+            "type": "c",
+            "value": 1.0,
+        },
+        {
+            "name": "d:sessions/session@user",
+            "org_id": 1,
+            "project_id": 42,
+            "type": "s",
+            "value": [1254],
+        },
+        {
+            "name": "d:transactions/duration@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "type": "d",
+            "value": [1.0, 2.0, 3.0],
+        },
+        {
+            "name": "d:transactions/duration@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "type": "d",
+            "value": violating_bucket,
+        },
+        {
+            "name": "d:transactions/measurements.lcp@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "type": "d",
+            "value": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+        },
+        {
+            "name": "d:transactions/measurements.lcp@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "type": "d",
+            "value": [2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0],
+        },
+    ]
+
+    outcomes_consumer.assert_rate_limited(
+        reason_code, key_id=key_id, categories=["transaction_processed"], quantity=3,
+    )
+
+
 def test_processing_quota_transactions(
     mini_sentry, relay_with_processing, transactions_consumer,
 ):
@@ -546,12 +729,12 @@ def test_processing_quota_transactions_no_tx_processing(
 
 
 def transaction_event(message="a transaction"):
-    now = datetime.datetime.utcnow()
+    now = datetime.utcnow()
     return {
         "message": message,
         "type": "transaction",
         "timestamp": now.isoformat(),
-        "start_timestamp": (now - datetime.timedelta(seconds=2)).isoformat(),
+        "start_timestamp": (now - timedelta(seconds=2)).isoformat(),
         "spans": [],
         "contexts": {
             "trace": {
