@@ -179,6 +179,14 @@ impl DataCategory {
         // outcomes (internally so!)
         (self as i8).try_into().ok()
     }
+
+    /// TODO(ja): Doc
+    pub fn index_category(self) -> Option<Self> {
+        match self {
+            Self::Transaction => Some(Self::TransactionIndexed),
+            _ => None,
+        }
+    }
 }
 
 impl fmt::Display for DataCategory {

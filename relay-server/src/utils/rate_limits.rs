@@ -132,6 +132,9 @@ pub struct EnvelopeSummary {
 
     /// Indicates that the envelope contains regular attachments that do not create event payloads.
     pub has_plain_attachments: bool,
+
+    /// Whether the envelope contains a transaction event which already had the metrics extracted.
+    pub transaction_metrics_extracted: bool,
 }
 
 impl EnvelopeSummary {
@@ -150,6 +153,10 @@ impl EnvelopeSummary {
             } else if item.ty() == &ItemType::Attachment {
                 // Plain attachments do not create events.
                 summary.has_plain_attachments = true;
+            }
+
+            if *item.ty() == ItemType::Transaction && item.metrics_extracted() {
+                summary.transaction_metrics_extracted = true;
             }
 
             // If the item has been rate limited before, the quota has been consumed and outcomes
@@ -246,9 +253,18 @@ pub struct Enforcement {
     profiles: CategoryLimit,
     /// The combined replay item rate limit.
     replays: CategoryLimit,
+    /// Metrics extraction from a transaction is rate limited.
+    event_metrics: CategoryLimit,
 }
 
 impl Enforcement {
+    /// The enforcement of the metrics extraction from the transaction in the envelope.
+    #[cfg(feature = "processing")]
+    pub fn event_metrics(&self) -> bool {
+        // TODO: Rename this
+        self.event_metrics.is_active()
+    }
+
     /// Invokes [`TrackOutcome`] on all enforcements reported by the [`EnvelopeLimiter`].
     ///
     /// Relay generally does not emit outcomes for sessions, so those are skipped.
@@ -378,9 +394,26 @@ where
         let mut enforcement = Enforcement::default();
 
         if let Some(category) = summary.event_category {
-            let event_limits = (self.check)(scoping.item(category), 1)?;
-            let longest = event_limits.longest();
-            enforcement.event = CategoryLimit::new(category, 1, longest);
+            let mut longest;
+            let mut event_limits;
+
+            if let Some(index_category) = category.index_category() {
+                // TODO(ja): Doc
+                event_limits = (self.check)(scoping.item(category), 0)?;
+                longest = event_limits.longest();
+                enforcement.event_metrics = CategoryLimit::new(category, 1, longest);
+
+                if summary.transaction_metrics_extracted && longest.is_none() {
+                    event_limits = (self.check)(scoping.item(index_category), 1)?;
+                    longest = event_limits.longest();
+                }
+
+                enforcement.event = CategoryLimit::new(index_category, 1, longest);
+            } else {
+                event_limits = (self.check)(scoping.item(category), 1)?;
+                longest = event_limits.longest();
+                enforcement.event = CategoryLimit::new(category, 1, longest); // TODO(ja): This counts even if we're a metrics transaction. Check if we can just get rid of the metrics enforcement path now? NB: probably not if we're ingesting just a metric...
+            }
 
             // Record the same reason for attachments, if there are any.
             enforcement.attachments = CategoryLimit::new(
@@ -611,6 +644,13 @@ mod tests {
         }}
     }
 
+    fn set_extracted(envelope: &mut Envelope, ty: ItemType) {
+        envelope
+            .get_item_by_mut(|item| *item.ty() == ty)
+            .unwrap()
+            .set_metrics_extracted(true);
+    }
+
     fn scoping() -> Scoping {
         Scoping {
             organization_id: 42,
@@ -829,7 +869,7 @@ mod tests {
 
         assert!(limits.is_limited());
         assert!(envelope.is_empty()); // obviously
-        mock.assert_call(DataCategory::Transaction, Some(1));
+        mock.assert_call(DataCategory::Transaction, Some(0));
         mock.assert_call(DataCategory::Attachment, None);
         mock.assert_call(DataCategory::Session, None);
     }
@@ -849,5 +889,97 @@ mod tests {
         mock.assert_call(DataCategory::Error, Some(1));
         mock.assert_call(DataCategory::Attachment, None);
         mock.assert_call(DataCategory::Session, None);
+    }
+
+    #[test]
+    fn test_enforce_transaction_no_metrics_extracted() {
+        let mut envelope = envelope![Transaction];
+
+        let mut mock = MockLimiter::default().deny(DataCategory::Transaction);
+        let limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
+        let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
+
+        assert!(limits.is_limited());
+        assert!(enforcement.event_metrics.is_active());
+        assert!(enforcement.event.is_active());
+        mock.assert_call(DataCategory::Transaction, Some(0));
+    }
+
+    #[test]
+    fn test_enforce_transaction_metrics_extracted() {
+        let mut envelope = envelope![Transaction];
+        set_extracted(&mut envelope, ItemType::Transaction);
+
+        let mut mock = MockLimiter::default().deny(DataCategory::Transaction);
+        let limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
+        let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
+
+        assert!(limits.is_limited());
+        assert!(enforcement.event_metrics.is_active());
+        assert!(enforcement.event.is_active());
+    }
+
+    #[test]
+    fn test_enforce_transaction_no_indexing_quota() {
+        let mut envelope = envelope![Transaction];
+
+        let mut mock = MockLimiter::default().deny(DataCategory::TransactionIndexed);
+        let limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
+        let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
+
+        // NOTE: Since metrics have not been extracted on this item, we do not check the indexing
+        // quota. Basic processing quota is not denied, so the item must pass rate limiting.
+
+        assert!(!limits.is_limited());
+        assert!(!enforcement.event_metrics.is_active());
+        assert!(!enforcement.event.is_active());
+        mock.assert_call(DataCategory::Transaction, Some(0));
+    }
+
+    #[test]
+    fn test_enforce_transaction_metrics_extracted_no_indexing_quota() {
+        let mut envelope = envelope![Transaction];
+        set_extracted(&mut envelope, ItemType::Transaction);
+
+        let mut mock = MockLimiter::default().deny(DataCategory::TransactionIndexed);
+        let limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
+        let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
+
+        assert!(limits.is_limited());
+        assert!(!enforcement.event_metrics.is_active());
+        assert!(enforcement.event.is_active());
+        mock.assert_call(DataCategory::Transaction, Some(0));
+        mock.assert_call(DataCategory::TransactionIndexed, Some(1));
+    }
+
+    #[test]
+    fn test_enforce_transaction_attachment_enforced() {
+        let mut envelope = envelope![Transaction, Attachment];
+        let mut mock = MockLimiter::default().deny(DataCategory::Transaction);
+        let limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
+
+        let (enforcement, _limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
+
+        assert!(enforcement.event.is_active());
+        assert!(enforcement.attachments.is_active());
+        mock.assert_call(DataCategory::Transaction, Some(0));
+        mock.assert_call(DataCategory::Attachment, None);
+    }
+
+    #[test]
+    fn test_enforce_transaction_attachment_enforced_metrics_extracted() {
+        let mut envelope = envelope![Transaction, Attachment];
+        set_extracted(&mut envelope, ItemType::Transaction);
+
+        let mut mock = MockLimiter::default().deny(DataCategory::TransactionIndexed);
+        let limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
+
+        let (enforcement, _limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
+
+        assert!(enforcement.event.is_active());
+        assert!(enforcement.attachments.is_active());
+        mock.assert_call(DataCategory::Transaction, Some(0));
+        mock.assert_call(DataCategory::TransactionIndexed, Some(1));
+        mock.assert_call(DataCategory::Attachment, None);
     }
 }

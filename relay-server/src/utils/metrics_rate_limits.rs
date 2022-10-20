@@ -51,13 +51,13 @@ impl BucketLimiter {
                 }
 
                 if mri.name == "duration" {
-                    // The "duration" metric is extracted exactly once for every processed transaction,
-                    // so we can use it to count the number of transactions.
+                    // The "duration" metric is extracted exactly once for every processed
+                    // transaction, so we can use it to count the number of transactions.
                     let count = bucket.value.len();
                     Some(count)
                 } else {
-                    // For any other metric in the transaction namespace, we check the limit with quantity=0
-                    // so transactions are not double counted against the quota.
+                    // For any other metric in the transaction namespace, we check the limit with
+                    // quantity=0 so transactions are not double counted against the quota.
                     Some(0)
                 }
             })
@@ -112,7 +112,7 @@ impl BucketLimiter {
             })
             .collect();
 
-        // Track outcome for the processed transactions we dropped here:
+        // Track outcome for the transaction metrics we dropped here:
         if self.transaction_count > 0 {
             TrackOutcome::from_registry().send(TrackOutcome {
                 timestamp: UnixTimestamp::now().as_datetime(), // as good as any timestamp
@@ -120,7 +120,7 @@ impl BucketLimiter {
                 outcome,
                 event_id: None,
                 remote_addr: None,
-                category: DataCategory::TransactionProcessed,
+                category: DataCategory::Transaction,
                 quantity: self.transaction_count as u32,
             });
         }
@@ -138,7 +138,7 @@ impl BucketLimiter {
         match rate_limits {
             Ok(rate_limits) => {
                 let item_scoping = ItemScoping {
-                    category: DataCategory::TransactionProcessed,
+                    category: DataCategory::Transaction,
                     scoping: &self.scoping,
                 };
                 let applied_rate_limits = rate_limits.check_with_quotas(&self.quotas, item_scoping);

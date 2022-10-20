@@ -1761,6 +1761,10 @@ impl EnvelopeProcessorService {
                 .map_err(ProcessingError::QuotasFailed)?
         });
 
+        if enforcement.event_metrics() {
+            state.extracted_metrics.clear();
+        }
+
         if limits.is_limited() {
             ProjectCache::from_registry()
                 .do_send(UpdateRateLimits::new(scoping.project_key, limits));
@@ -2197,9 +2201,10 @@ impl EnvelopeProcessorService {
 
         if let Some(rate_limiter) = self.rate_limiter.as_ref() {
             let item_scoping = ItemScoping {
-                category: DataCategory::TransactionProcessed,
+                category: DataCategory::Transaction,
                 scoping: &scoping,
             };
+
             // We set over_accept_once such that the limit is actually reached, which allows subsequent
             // calls with quantity=0 to be rate limited.
             let over_accept_once = true;
