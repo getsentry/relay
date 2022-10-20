@@ -29,6 +29,55 @@ pub fn write(rrweb: Vec<Event>) -> Result<Vec<u8>, Error> {
     return serde_json::to_vec(&rrweb);
 }
 
+pub fn mask_pii(mut events: Vec<Event>) -> Vec<Event> {
+    for event in &mut events {
+        match &mut event.variant {
+            EventVariant::T2(variant) => recurse_snapshot_node(&mut variant.data.node),
+            EventVariant::T3(variant) => {}
+            EventVariant::T5(variant) => {}
+            _ => {}
+        }
+    }
+    return events;
+}
+
+fn recurse_snapshot_node(variant: &mut NodeVariant) {
+    match variant {
+        NodeVariant::T0(node_variant) => {
+            for node in &mut node_variant.child_nodes {
+                recurse_snapshot_node(&mut node.variant)
+            }
+        }
+        NodeVariant::T2(element) => recurse_element(element),
+        NodeVariant::T3(node_variant) => {
+            node_variant.strip_pii();
+        }
+        _ => {}
+    }
+}
+
+fn recurse_element(element: &mut ElementNode) {
+    match &mut element.variant {
+        ElementNodeVariant::Default(element) => match element.tag_name.as_str() {
+            "script" | "style" => {}
+            "img" => {
+                let attrs = &mut element.attributes;
+                attrs.insert("src".to_string(), "#".to_string());
+            }
+            _ => {
+                for variant in &mut element.child_nodes {
+                    recurse_snapshot_node(variant)
+                }
+            }
+        },
+        _ => {}
+    }
+}
+
+fn strip_pii(value: &str) -> &str {
+    return value;
+}
+
 /// Event Type Parser
 ///
 /// Events have an internally tagged variant on their "type" field. The type must be one of seven
@@ -121,6 +170,56 @@ struct CustomEvent {
     #[serde(rename = "type")]
     ty: u8,
     timestamp: f64,
+    data: CustomEventData,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+enum CustomEventData {
+    #[serde(rename = "breadcrumb")]
+    Breadcrumb(Breadcrumb),
+    #[serde(rename = "performanceSpan")]
+    PerformanceSpan(PerformanceSpan),
+}
+
+// Breadcrumbs
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Breadcrumb {
+    tag: String,
+    payload: BreadcrumbPayload,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct BreadcrumbPayload {
+    #[serde(rename = "type")]
+    ty: String,
+    timestamp: f64,
+    category: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    level: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data: Option<Value>,
+}
+
+// Performance
+
+#[derive(Debug, Serialize, Deserialize)]
+struct PerformanceSpan {
+    tag: String,
+    payload: PerformanceSpanPayload,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct PerformanceSpanPayload {
+    op: String,
+    description: String, // TODO: needs to be pii stripped (uri params)
+    #[serde(rename = "startTimestamp")]
+    start_timestamp: f64,
+    #[serde(rename = "endTimestamp")]
+    end_timestamp: f64,
     data: Value,
 }
 
@@ -207,6 +306,12 @@ struct TextNode {
     text_content: String,
 }
 
+impl TextNode {
+    fn strip_pii(&mut self) {
+        self.text_content = strip_pii(&self.text_content).to_string()
+    }
+}
+
 /// Element Node Type Parser.
 ///
 /// The element type has a variant on it's "tagName" field.  "style" tags have special "childNodes"
@@ -215,10 +320,6 @@ struct TextNode {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ElementNode {
-    id: u32,
-    #[serde(rename = "type")]
-    ty: u8,
-    attributes: HashMap<String, String>,
     #[serde(flatten)]
     variant: ElementNodeVariant,
 }
@@ -260,6 +361,10 @@ impl<'de> serde::Deserialize<'de> for ElementNodeVariant {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct DefaultElementNode {
+    id: u32,
+    #[serde(rename = "type")]
+    ty: u8,
+    attributes: HashMap<String, String>,
     #[serde(rename = "tagName")]
     tag_name: String,
     #[serde(rename = "childNodes")]
@@ -268,6 +373,10 @@ struct DefaultElementNode {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct SVGElementNode {
+    id: u32,
+    #[serde(rename = "type")]
+    ty: u8,
+    attributes: HashMap<String, String>,
     #[serde(rename = "tagName")]
     tag_name: String,
     #[serde(rename = "childNodes")]
@@ -278,6 +387,10 @@ struct SVGElementNode {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct StyleElementNode {
+    id: u32,
+    #[serde(rename = "type")]
+    ty: u8,
+    attributes: HashMap<String, String>,
     #[serde(rename = "tagName")]
     tag_name: String,
     #[serde(rename = "childNodes")]
