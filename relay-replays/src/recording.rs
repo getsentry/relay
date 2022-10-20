@@ -4,12 +4,12 @@ use serde::de::Error as DError;
 use serde::{Deserialize, Serialize};
 use serde_json::{Error, Value};
 
-pub fn parse(bytes: &[u8]) -> Result<Vec<Event>, Error> {
+pub fn loads(bytes: &[u8]) -> Result<Vec<Event>, Error> {
     let node: Vec<Event> = serde_json::from_slice(bytes)?;
     return Ok(node);
 }
 
-pub fn write(rrweb: Vec<Event>) -> Result<Vec<u8>, Error> {
+pub fn dumps(rrweb: Vec<Event>) -> Result<Vec<u8>, Error> {
     return serde_json::to_vec(&rrweb);
 }
 
@@ -18,7 +18,8 @@ pub fn mask_pii(mut events: Vec<Event>) -> Vec<Event> {
         match &mut event.variant {
             EventVariant::T2(variant) => recurse_snapshot_node(&mut variant.data.node),
             EventVariant::T3(variant) => recurse_incremental_source(&mut variant.data),
-            EventVariant::T5(variant) => {}
+            // Parse this for console messages and possibly request args?
+            // EventVariant::T5(variant) => {}
             _ => {}
         }
     }
@@ -27,8 +28,14 @@ pub fn mask_pii(mut events: Vec<Event>) -> Vec<Event> {
 
 fn recurse_incremental_source(variant: &mut IncrementalSourceDataVariant) {
     match variant {
-        IncrementalSourceDataVariant::Mutation(mutation) => {}
-        IncrementalSourceDataVariant::Input(input) => {}
+        IncrementalSourceDataVariant::Mutation(mutation) => {
+            for addition in &mut mutation.adds {
+                recurse_snapshot_node(&mut addition.node)
+            }
+        }
+        IncrementalSourceDataVariant::Input(input) => {
+            input.text = strip_pii(&input.text).to_string()
+        }
         _ => {}
     }
 }
@@ -437,7 +444,7 @@ mod tests {
     fn test_rrweb_snapshot_parsing() {
         let payload = include_bytes!("../tests/fixtures/rrweb.json");
 
-        let input_parsed = recording::parse(payload).unwrap();
+        let input_parsed = recording::loads(payload).unwrap();
         let input_raw: Value = serde_json::from_slice(payload).unwrap();
         assert_json_eq!(input_parsed, input_raw)
     }
@@ -446,7 +453,7 @@ mod tests {
     fn test_rrweb_incremental_source_parsing() {
         let payload = include_bytes!("../tests/fixtures/rrweb-diff.json");
 
-        let input_parsed = recording::parse(payload).unwrap();
+        let input_parsed = recording::loads(payload).unwrap();
         let input_raw: Value = serde_json::from_slice(payload).unwrap();
         assert_json_eq!(input_parsed, input_raw)
     }
