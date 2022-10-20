@@ -67,7 +67,15 @@ fn strip_pii(value: &str) -> &str {
 ///
 /// Events have an internally tagged variant on their "type" field. The type must be one of seven
 /// values. There are no default types for this variation. Because the "type" field's values are
-/// integers we must define custom serialization and deserailization behavior.
+/// integers we must define custom deserailization behavior.
+///
+/// -> DOMCONTENTLOADED = 0
+/// -> LOAD = 1
+/// -> FULLSNAPSHOT = 2
+/// -> INCREMENTALSNAPSHOT = 3
+/// -> META = 4
+/// -> CUSTOM = 5
+/// -> PLUGIN = 6
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Event {
@@ -208,12 +216,19 @@ struct PerformanceSpanPayload {
 ///
 /// Nodes have an internally tagged variant on their "type" field. The type must be one of six
 /// values.  There are no default types for this variation. Because the "type" field's values are
-/// integers we must define custom serialization and deserailization behavior.
+/// integers we must define custom deserailization behavior.
+///
+/// -> DOCUMENT = 0
+/// -> DOCUMENTTYPE = 1
+/// -> ELEMENT = 2
+/// -> TEXT = 3
+/// -> CDATA = 4
+/// -> COMMENT = 5
 
 #[derive(Debug, Deserialize, Serialize)]
 struct Node {
     #[serde(rename = "rootId", skip_serializing_if = "Option::is_none")]
-    root_id: Option<u8>,
+    root_id: Option<u32>,
     #[serde(rename = "isShadowHost", skip_serializing_if = "Option::is_none")]
     is_shadow_host: Option<bool>,
     #[serde(rename = "isShadow", skip_serializing_if = "Option::is_none")]
@@ -319,21 +334,92 @@ impl TextNode {
 
 /// Incremental Source Parser
 ///
-/// class IncrementalSource(IntEnum):
-//     MUTATION = 0
-//     MOUSEMOVE = 1
-//     MOUSEINTERACTION = 2
-//     SCROLL = 3
-//     VIEWPORTRESIZE = 4
-//     INPUT = 5
-//     TOUCHMOVE = 6
-//     MEDIAINTERACTION = 7
-//     STYLESHEETRULE = 8
-//     CANVASMUTATION = 9
-//     FONT = 10
-//     LOG = 11
-//     DRAG = 12
-//     STYLEDECLARATION = 13
+/// Sources have an internally tagged variant on their "source" field. The type must be one of
+/// fourteen values.  Because the "type" field's values are integers we must define custom
+/// deserailization behavior.
+///
+/// -> MUTATION = 0
+/// -> MOUSEMOVE = 1
+/// -> MOUSEINTERACTION = 2
+/// -> SCROLL = 3
+/// -> VIEWPORTRESIZE = 4
+/// -> INPUT = 5
+/// -> TOUCHMOVE = 6
+/// -> MEDIAINTERACTION = 7
+/// -> STYLESHEETRULE = 8
+/// -> CANVASMUTATION = 9
+/// -> FONT = 10
+/// -> LOG = 11
+/// -> DRAG = 12
+/// -> STYLEDECLARATION = 13
+
+#[derive(Debug, Serialize, Deserialize)]
+struct IncrementalSource {
+    #[serde(rename = "type")]
+    ty: u8,
+    timestamp: u64,
+    data: IncrementalSourceDataVariant,
+}
+
+// Deserialize select payloads and everything else we can leave generic (hopefully)?
+
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
+enum IncrementalSourceDataVariant {
+    Mutation(MutationIncrementalSourceData),
+    Input(InputIncrementalSourceData),
+    Default(Value),
+}
+
+impl<'de> serde::Deserialize<'de> for IncrementalSourceDataVariant {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let value = Value::deserialize(d)?;
+
+        match value.get("type") {
+            Some(val) => match Value::as_u64(val) {
+                Some(v) => match v {
+                    0 => match MutationIncrementalSourceData::deserialize(value) {
+                        Ok(document) => Ok(IncrementalSourceDataVariant::Mutation(document)),
+                        Err(_) => Err(DError::custom("could not parse mutation object.")),
+                    },
+                    5 => match InputIncrementalSourceData::deserialize(value) {
+                        Ok(document_type) => Ok(IncrementalSourceDataVariant::Input(document_type)),
+                        Err(_) => Err(DError::custom("could not parse input object")),
+                    },
+                    _ => Ok(IncrementalSourceDataVariant::Default(value)),
+                },
+                None => return Err(DError::custom("type field must be an integer")),
+            },
+            None => return Err(DError::missing_field("type")),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct InputIncrementalSourceData {
+    source: u8,
+    id: u32,
+    text: String,
+    #[serde(rename = "isChecked")]
+    is_checked: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct MutationIncrementalSourceData {
+    texts: Vec<Value>,
+    attributes: Vec<Value>,
+    removes: Vec<Value>,
+    adds: Vec<MutationAdditionIncrementalSourceData>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct MutationAdditionIncrementalSourceData {
+    #[serde(rename = "parentId")]
+    parent_id: u32,
+    #[serde(rename = "nextId")]
+    next_id: Option<u32>,
+    node: Node,
+}
 
 #[cfg(test)]
 mod tests {
