@@ -296,6 +296,8 @@ struct ElementNode {
     child_nodes: Vec<NodeVariant>,
     #[serde(rename = "isSVG", skip_serializing_if = "Option::is_none")]
     is_svg: Option<bool>,
+    #[serde(rename = "needBlock", skip_serializing_if = "Option::is_none")]
+    need_block: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
