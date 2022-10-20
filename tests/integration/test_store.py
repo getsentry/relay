@@ -513,7 +513,7 @@ def test_rate_limit_metrics_buckets(
             "id": "test_rate_limiting_{}".format(uuid.uuid4().hex),
             "scope": "key",
             "scopeId": six.text_type(key_id),
-            "categories": ["transaction_processed"],
+            "categories": ["transaction"],
             "limit": 5,
             "window": 86400,
             "reasonCode": reason_code,
@@ -649,7 +649,7 @@ def test_rate_limit_metrics_buckets(
     ]
 
     outcomes_consumer.assert_rate_limited(
-        reason_code, key_id=key_id, categories=["transaction_processed"], quantity=3,
+        reason_code, key_id=key_id, categories=["transaction"], quantity=3,
     )
 
 
