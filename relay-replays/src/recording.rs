@@ -17,12 +17,20 @@ pub fn mask_pii(mut events: Vec<Event>) -> Vec<Event> {
     for event in &mut events {
         match &mut event.variant {
             EventVariant::T2(variant) => recurse_snapshot_node(&mut variant.data.node),
-            EventVariant::T3(variant) => {}
+            EventVariant::T3(variant) => recurse_incremental_source(&mut variant.data),
             EventVariant::T5(variant) => {}
             _ => {}
         }
     }
     return events;
+}
+
+fn recurse_incremental_source(variant: &mut IncrementalSourceDataVariant) {
+    match variant {
+        IncrementalSourceDataVariant::Mutation(mutation) => {}
+        IncrementalSourceDataVariant::Input(input) => {}
+        _ => {}
+    }
 }
 
 fn recurse_snapshot_node(node: &mut Node) {
@@ -116,7 +124,7 @@ impl<'de> serde::Deserialize<'de> for EventVariant {
                     },
                     5 => match CustomEvent::deserialize(value) {
                         Ok(event) => Ok(EventVariant::T5(event)),
-                        Err(_) => Err(DError::custom("could not parse custom event")),
+                        Err(e) => Err(DError::custom(e.to_string())),
                     },
                     _ => return Err(DError::custom("invalid type value")),
                 },
@@ -147,7 +155,7 @@ struct IncrementalSnapshotEvent {
     #[serde(rename = "type")]
     ty: u8,
     timestamp: u64,
-    data: Value,
+    data: IncrementalSourceDataVariant,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -163,12 +171,12 @@ struct CustomEvent {
     #[serde(rename = "type")]
     ty: u8,
     timestamp: f64,
-    data: CustomEventData,
+    data: CustomEventDataVariant,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
-enum CustomEventData {
+enum CustomEventDataVariant {
     #[serde(rename = "breadcrumb")]
     Breadcrumb(Breadcrumb),
     #[serde(rename = "performanceSpan")]
@@ -209,7 +217,8 @@ struct PerformanceSpanPayload {
     start_timestamp: f64,
     #[serde(rename = "endTimestamp")]
     end_timestamp: f64,
-    data: Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data: Option<Value>,
 }
 
 /// Node Type Parser
@@ -233,6 +242,8 @@ struct Node {
     is_shadow_host: Option<bool>,
     #[serde(rename = "isShadow", skip_serializing_if = "Option::is_none")]
     is_shadow: Option<bool>,
+    #[serde(rename = "compatMode", skip_serializing_if = "Option::is_none")]
+    compat_mode: Option<String>,
     #[serde(flatten)]
     variant: NodeVariant,
 }
@@ -353,16 +364,6 @@ impl TextNode {
 /// -> DRAG = 12
 /// -> STYLEDECLARATION = 13
 
-#[derive(Debug, Serialize, Deserialize)]
-struct IncrementalSource {
-    #[serde(rename = "type")]
-    ty: u8,
-    timestamp: u64,
-    data: IncrementalSourceDataVariant,
-}
-
-// Deserialize select payloads and everything else we can leave generic (hopefully)?
-
 #[derive(Debug, Serialize)]
 #[serde(untagged)]
 enum IncrementalSourceDataVariant {
@@ -375,7 +376,7 @@ impl<'de> serde::Deserialize<'de> for IncrementalSourceDataVariant {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let value = Value::deserialize(d)?;
 
-        match value.get("type") {
+        match value.get("source") {
             Some(val) => match Value::as_u64(val) {
                 Some(v) => match v {
                     0 => match MutationIncrementalSourceData::deserialize(value) {
@@ -406,10 +407,13 @@ struct InputIncrementalSourceData {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct MutationIncrementalSourceData {
+    source: u8,
     texts: Vec<Value>,
     attributes: Vec<Value>,
     removes: Vec<Value>,
     adds: Vec<MutationAdditionIncrementalSourceData>,
+    #[serde(rename = "isAttachIframe", skip_serializing_if = "Option::is_none")]
+    is_attach_iframe: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -430,8 +434,17 @@ mod tests {
     // RRWeb Payload Coverage
 
     #[test]
-    fn test_rrweb_parsing() {
+    fn test_rrweb_snapshot_parsing() {
         let payload = include_bytes!("../tests/fixtures/rrweb.json");
+
+        let input_parsed = recording::parse(payload).unwrap();
+        let input_raw: Value = serde_json::from_slice(payload).unwrap();
+        assert_json_eq!(input_parsed, input_raw)
+    }
+
+    #[test]
+    fn test_rrweb_incremental_source_parsing() {
+        let payload = include_bytes!("../tests/fixtures/rrweb-diff.json");
 
         let input_parsed = recording::parse(payload).unwrap();
         let input_raw: Value = serde_json::from_slice(payload).unwrap();
