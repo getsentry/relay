@@ -135,7 +135,7 @@ impl RedisPool {
         let pool = Pool::builder()
             .max_size(opts.max_connections)
             .test_on_check_out(false)
-            .build(redis::cluster::ClusterClient::open(servers).map_err(RedisError::Redis)?)
+            .build(redis::cluster::ClusterClient::new(servers).map_err(RedisError::Redis)?)
             .map_err(RedisError::Pool)?;
 
         let inner = RedisPoolInner::Cluster(pool);
