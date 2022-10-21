@@ -34,7 +34,9 @@ use crate::metrics_extraction::transactions::TransactionMetricsConfig;
 use crate::metrics_extraction::TaggingRule;
 use crate::service::Registry;
 use crate::statsd::RelayCounters;
-use crate::utils::{self, EnvelopeContext, EnvelopeLimiter, ErrorBoundary, Response};
+use crate::utils::{
+    self, BucketLimiter, EnvelopeContext, EnvelopeLimiter, ErrorBoundary, Response,
+};
 
 /// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -602,13 +604,31 @@ impl Project {
         self.last_updated_at = Instant::now();
     }
 
+    fn rate_limit_buckets(&self, buckets: Vec<Bucket>) -> Vec<Bucket> {
+        match (&self.state, self.scoping()) {
+            (Some(state), Some(scoping)) => {
+                // TODO: don't clone quotas
+                match BucketLimiter::create(buckets, state.config.quotas.clone(), scoping) {
+                    Ok(mut bucket_limiter) => {
+                        bucket_limiter.enforce_limits(Ok(&self.rate_limits));
+                        bucket_limiter.into_buckets()
+                    }
+                    Err(buckets) => buckets,
+                }
+            }
+            _ => buckets,
+        }
+    }
+
     /// Inserts given [buckets](Bucket) into the metrics aggregator.
     ///
     /// The buckets will be keyed underneath this project key.
     pub fn merge_buckets(&mut self, buckets: Vec<Bucket>) {
-        // TODO: rate limits
         if self.metrics_allowed() {
-            Registry::aggregator().send(MergeBuckets::new(self.project_key, buckets));
+            let buckets = self.rate_limit_buckets(buckets);
+            if !buckets.is_empty() {
+                Registry::aggregator().send(MergeBuckets::new(self.project_key, buckets));
+            }
         }
     }
 
