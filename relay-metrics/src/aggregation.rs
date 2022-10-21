@@ -23,7 +23,7 @@ use relay_system::{
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
 use crate::{
     protocol, CounterType, DistributionType, GaugeType, Metric, MetricNamespace,
-    MetricResourceIdentifier, MetricType, MetricValue, SetType,
+    MetricResourceIdentifier, MetricType, MetricValue, MetricsContainer, SetType,
 };
 
 /// Interval for the flush cycle of the [`AggregatorService`].
@@ -643,21 +643,6 @@ fn tags_cost(tags: &BTreeMap<String, String>) -> usize {
 #[derive(Debug, Fail)]
 #[fail(display = "failed to parse metric bucket")]
 pub struct ParseBucketError(#[cause] serde_json::Error);
-
-/// Common interface for `Metric` and `Bucket`
-pub trait MetricsContainer {
-    /// Returns the full metric name (MRI) of this container.
-    fn name(&self) -> &str;
-
-    /// Returns the number of raw data points in this container.
-    /// See [`BucketValue::len`].
-    fn len(&self) -> usize;
-
-    /// Returns `true` if this container contains no values.
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-}
 
 /// An aggregation of metric values by the [`Aggregator`].
 ///

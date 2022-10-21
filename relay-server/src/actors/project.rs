@@ -604,18 +604,18 @@ impl Project {
         self.last_updated_at = Instant::now();
     }
 
-    fn rate_limit_metrics<T: MetricsContainer>(&self, buckets: Vec<T>) -> Vec<T> {
+    fn rate_limit_metrics<T: MetricsContainer>(&self, metrics: Vec<T>) -> Vec<T> {
         match (&self.state, self.scoping()) {
             (Some(state), Some(scoping)) => {
-                match MetricsLimiter::create(buckets, &state.config.quotas, scoping) {
-                    Ok(mut bucket_limiter) => {
-                        bucket_limiter.enforce_limits(Ok(&self.rate_limits));
-                        bucket_limiter.into_metrics()
+                match MetricsLimiter::create(metrics, &state.config.quotas, scoping) {
+                    Ok(mut limiter) => {
+                        limiter.enforce_limits(Ok(&self.rate_limits));
+                        limiter.into_metrics()
                     }
-                    Err(buckets) => buckets,
+                    Err(metrics) => metrics,
                 }
             }
-            _ => buckets,
+            _ => metrics,
         }
     }
 
@@ -635,7 +635,7 @@ impl Project {
     ///
     /// The metrics will be keyed underneath this project key.
     pub fn insert_metrics(&mut self, metrics: Vec<Metric>) {
-        // TODO: rate limits
+        let metrics = self.rate_limit_metrics(metrics);
         if self.metrics_allowed() {
             Registry::aggregator().send(InsertMetrics::new(self.project_key, metrics));
         }

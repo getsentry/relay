@@ -586,6 +586,31 @@ impl Metric {
     }
 }
 
+/// Common interface for `Metric` and `Bucket`.
+pub trait MetricsContainer {
+    /// Returns the full metric name (MRI) of this container.
+    fn name(&self) -> &str;
+
+    /// Returns the number of raw data points in this container.
+    /// See [`BucketValue::len`].
+    fn len(&self) -> usize;
+
+    /// Returns `true` if this container contains no values.
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+impl MetricsContainer for Metric {
+    fn name(&self) -> &str {
+        self.name.as_str()
+    }
+
+    fn len(&self) -> usize {
+        1
+    }
+}
+
 /// Iterator over parsed metrics returned from [`Metric::parse_all`].
 #[derive(Clone, Debug)]
 pub struct ParseMetrics<'a> {
