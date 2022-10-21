@@ -654,10 +654,22 @@ def test_rate_limit_metrics_buckets(
 
 
 def test_processing_quota_transaction_indexing(
-    mini_sentry, relay_with_processing, transactions_consumer,
+    mini_sentry, relay_with_processing, metrics_consumer, transactions_consumer,
 ):
-    relay = relay_with_processing({"processing": {"max_rate_limit": 100}})
+    relay = relay_with_processing(
+        {
+            "processing": {"max_rate_limit": 100},
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+            },
+        }
+    )
+
+    metrics_consumer = metrics_consumer()
     tx_consumer = transactions_consumer()
+
     project_id = 42
     projectconfig = mini_sentry.add_full_project_config(project_id)
     key_id = mini_sentry.get_dsn_public_key_configs(project_id)[0]["numericId"]
@@ -676,23 +688,29 @@ def test_processing_quota_transaction_indexing(
             "scope": "key",
             "scopeId": six.text_type(key_id),
             "categories": ["transaction"],
-            "limit": 20,
+            "limit": 2,
             "window": 300,
             "reasonCode": "get_lost",
         },
     ]
+    projectconfig["config"]["transactionMetrics"] = {
+        "version": 1,
+    }
 
     relay.send_event(project_id, make_transaction({"message": "1st tx"}))
     event, _ = tx_consumer.get_event()
     assert event["logentry"]["formatted"] == "1st tx"
+    buckets = list(metrics_consumer.get_metrics())
+    assert len(buckets) > 0
 
     relay.send_event(project_id, make_transaction({"message": "2nd tx"}))
-    event, _ = tx_consumer.get_event()
-    assert event["logentry"]["formatted"] == "2nd tx"
+    tx_consumer.assert_empty()
+    buckets = list(metrics_consumer.get_metrics())
+    assert len(buckets) > 0
 
-    relay.send_event(project_id, make_transaction({"message": "3rd tx"}))
-    event, _ = tx_consumer.get_event()
-    assert event["logentry"]["formatted"] == "3rd tx"
+    relay.send_event(project_id, make_transaction({"message": "2nd tx"}))
+    tx_consumer.assert_empty()
+    metrics_consumer.assert_empty()
 
 
 def test_events_buffered_before_auth(relay, mini_sentry):

@@ -1737,21 +1737,19 @@ impl EnvelopeProcessorService {
             return Ok(());
         }
 
-        let mut remove_event = false;
         let event_category = state.event_category();
 
         // When invoking the rate limiter, capture if the event item has been rate limited to also
         // remove it from the processing state eventually.
-        let mut envelope_limiter = EnvelopeLimiter::new(|item_scope, quantity| {
-            let limits = rate_limiter.is_rate_limited(quotas, item_scope, quantity, false)?;
-            remove_event |= Some(item_scope.category) == event_category && limits.is_limited();
-            Ok(limits)
-        });
+        let mut envelope_limiter =
+            EnvelopeLimiter::new(Some(&project_state.config), |item_scope, quantity| {
+                rate_limiter.is_rate_limited(quotas, item_scope, quantity, false)
+            });
 
         // Tell the envelope limiter about the event, since it has been removed from the Envelope at
         // this stage in processing.
         if let Some(category) = event_category {
-            envelope_limiter.assume_event(category);
+            envelope_limiter.assume_event(category, state.transaction_metrics_extracted);
         }
 
         let scoping = state.envelope_context.scoping();
@@ -1761,7 +1759,7 @@ impl EnvelopeProcessorService {
                 .map_err(ProcessingError::QuotasFailed)?
         });
 
-        if enforcement.event_metrics() {
+        if enforcement.event_metrics_active() {
             state.extracted_metrics.clear();
         }
 
@@ -1770,12 +1768,12 @@ impl EnvelopeProcessorService {
                 .do_send(UpdateRateLimits::new(scoping.project_key, limits));
         }
 
-        enforcement.track_outcomes(&state.envelope, &state.envelope_context.scoping());
-
-        if remove_event {
+        if enforcement.event_active() {
             state.remove_event();
             debug_assert!(state.envelope.is_empty());
         }
+
+        enforcement.track_outcomes(&state.envelope, &state.envelope_context.scoping());
 
         Ok(())
     }
