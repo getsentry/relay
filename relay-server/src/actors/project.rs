@@ -17,7 +17,7 @@ use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 use relay_general::store::{BreakdownsConfig, MeasurementsConfig};
 use relay_general::types::SpanAttribute;
-use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
+use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric, MetricsContainer};
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::SamplingConfig;
 use relay_statsd::metric;
@@ -35,7 +35,7 @@ use crate::metrics_extraction::TaggingRule;
 use crate::service::Registry;
 use crate::statsd::RelayCounters;
 use crate::utils::{
-    self, BucketLimiter, EnvelopeContext, EnvelopeLimiter, ErrorBoundary, Response,
+    self, EnvelopeContext, EnvelopeLimiter, ErrorBoundary, MetricsLimiter, Response,
 };
 
 /// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
@@ -604,13 +604,13 @@ impl Project {
         self.last_updated_at = Instant::now();
     }
 
-    fn rate_limit_buckets(&self, buckets: Vec<Bucket>) -> Vec<Bucket> {
+    fn rate_limit_metrics<T: MetricsContainer>(&self, buckets: Vec<T>) -> Vec<T> {
         match (&self.state, self.scoping()) {
             (Some(state), Some(scoping)) => {
-                match BucketLimiter::create(buckets, &state.config.quotas, scoping) {
+                match MetricsLimiter::create(buckets, &state.config.quotas, scoping) {
                     Ok(mut bucket_limiter) => {
                         bucket_limiter.enforce_limits(Ok(&self.rate_limits));
-                        bucket_limiter.into_buckets()
+                        bucket_limiter.into_metrics()
                     }
                     Err(buckets) => buckets,
                 }
@@ -624,7 +624,7 @@ impl Project {
     /// The buckets will be keyed underneath this project key.
     pub fn merge_buckets(&mut self, buckets: Vec<Bucket>) {
         if self.metrics_allowed() {
-            let buckets = self.rate_limit_buckets(buckets);
+            let buckets = self.rate_limit_metrics(buckets);
             if !buckets.is_empty() {
                 Registry::aggregator().send(MergeBuckets::new(self.project_key, buckets));
             }

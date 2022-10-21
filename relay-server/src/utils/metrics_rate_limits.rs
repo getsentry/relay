@@ -1,16 +1,16 @@
 //! Quota and rate limiting helpers for metrics buckets.
 
 use relay_common::{DataCategory, UnixTimestamp};
-use relay_metrics::{Bucket, MetricNamespace, MetricResourceIdentifier};
+use relay_metrics::{MetricNamespace, MetricResourceIdentifier, MetricsContainer};
 use relay_quotas::{ItemScoping, Quota, RateLimits, Scoping};
 
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 
 /// Holds metrics buckets with some information about their contents.
 #[derive(Debug)]
-pub struct BucketLimiter<Q: AsRef<Vec<Quota>> = Vec<Quota>> {
-    /// A list of metrics buckets.
-    buckets: Vec<Bucket>,
+pub struct MetricsLimiter<M: MetricsContainer, Q: AsRef<Vec<Quota>> = Vec<Quota>> {
+    /// A list of metrics or buckets.
+    metrics: Vec<M>,
 
     /// The quotas set on the current project.
     quotas: Q,
@@ -25,18 +25,18 @@ pub struct BucketLimiter<Q: AsRef<Vec<Quota>> = Vec<Quota>> {
     transaction_count: usize,
 }
 
-impl<Q: AsRef<Vec<Quota>>> BucketLimiter<Q> {
+impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
     /// Create a new limiter instance.
     ///
     /// Returns Ok if `buckets` contain transaction metrics, `buckets` otherwise.
-    pub fn create(buckets: Vec<Bucket>, quotas: Q, scoping: Scoping) -> Result<Self, Vec<Bucket>> {
+    pub fn create(buckets: Vec<M>, quotas: Q, scoping: Scoping) -> Result<Self, Vec<M>> {
         let transaction_counts: Vec<_> = buckets
             .iter()
-            .map(|bucket| {
-                let mri = match MetricResourceIdentifier::parse(bucket.name.as_str()) {
+            .map(|metric| {
+                let mri = match MetricResourceIdentifier::parse(metric.name()) {
                     Ok(mri) => mri,
                     Err(_) => {
-                        relay_log::error!("Invalid MRI: {}", bucket.name);
+                        relay_log::error!("Invalid MRI: {}", metric.name());
                         return None;
                     }
                 };
@@ -49,7 +49,7 @@ impl<Q: AsRef<Vec<Quota>>> BucketLimiter<Q> {
                 if mri.name == "duration" {
                     // The "duration" metric is extracted exactly once for every processed transaction,
                     // so we can use it to count the number of transactions.
-                    let count = bucket.value.len();
+                    let count = metric.len();
                     Some(count)
                 } else {
                     // For any other metric in the transaction namespace, we check the limit with quantity=0
@@ -70,7 +70,7 @@ impl<Q: AsRef<Vec<Quota>>> BucketLimiter<Q> {
         if let Some(transaction_count) = transaction_count {
             let transaction_buckets = transaction_counts.iter().map(Option::is_some).collect();
             Ok(Self {
-                buckets,
+                metrics: buckets,
                 quotas,
                 scoping,
                 transaction_buckets,
@@ -98,9 +98,9 @@ impl<Q: AsRef<Vec<Quota>>> BucketLimiter<Q> {
 
     fn drop_with_outcome(&mut self, outcome: Outcome) {
         // Drop transaction buckets:
-        let buckets = std::mem::take(&mut self.buckets);
+        let buckets = std::mem::take(&mut self.metrics);
 
-        self.buckets = buckets
+        self.metrics = buckets
             .into_iter()
             .zip(self.transaction_buckets.iter())
             .filter_map(|(bucket, is_transaction_bucket)| {
@@ -157,7 +157,7 @@ impl<Q: AsRef<Vec<Quota>>> BucketLimiter<Q> {
     }
 
     /// Consume this struct and return its buckets.
-    pub fn into_buckets(self) -> Vec<Bucket> {
-        self.buckets
+    pub fn into_metrics(self) -> Vec<M> {
+        self.metrics
     }
 }

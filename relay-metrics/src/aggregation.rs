@@ -644,6 +644,21 @@ fn tags_cost(tags: &BTreeMap<String, String>) -> usize {
 #[fail(display = "failed to parse metric bucket")]
 pub struct ParseBucketError(#[cause] serde_json::Error);
 
+/// Common interface for `Metric` and `Bucket`
+pub trait MetricsContainer {
+    /// Returns the full metric name (MRI) of this container.
+    fn name(&self) -> &str;
+
+    /// Returns the number of raw data points in this container.
+    /// See [`BucketValue::len`].
+    fn len(&self) -> usize;
+
+    /// Returns `true` if this container contains no values.
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
 /// An aggregation of metric values by the [`Aggregator`].
 ///
 /// As opposed to single metric values, bucket aggregations can carry multiple values. See
@@ -840,6 +855,16 @@ impl Bucket {
     /// values.
     fn estimated_size(&self) -> usize {
         self.estimated_own_size() + self.value.len() * AVG_VALUE_SIZE
+    }
+}
+
+impl MetricsContainer for Bucket {
+    fn name(&self) -> &str {
+        self.name.as_str()
+    }
+
+    fn len(&self) -> usize {
+        self.value.len()
     }
 }
 

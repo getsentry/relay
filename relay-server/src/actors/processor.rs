@@ -57,7 +57,7 @@ use {
     crate::actors::envelopes::SendMetrics,
     crate::actors::project_cache::UpdateRateLimits,
     crate::service::ServerErrorKind,
-    crate::utils::{BucketLimiter, EnvelopeLimiter},
+    crate::utils::{EnvelopeLimiter, MetricsLimiter},
     failure::ResultExt,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::ItemScoping,
@@ -522,7 +522,7 @@ impl EncodeEnvelope {
 #[cfg(feature = "processing")]
 #[derive(Debug)]
 pub struct RateLimitFlushBuckets {
-    pub bucket_limiter: BucketLimiter,
+    pub bucket_limiter: MetricsLimiter<Bucket>,
     pub partition_key: Option<u64>,
 }
 
@@ -2222,7 +2222,7 @@ impl EnvelopeProcessorService {
             }
         }
 
-        let buckets = bucket_limiter.into_buckets();
+        let buckets = bucket_limiter.into_metrics();
         if !buckets.is_empty() {
             // Forward buckets to envelope manager to send them to upstream or kafka:
             EnvelopeManager::from_registry().send(SendMetrics {

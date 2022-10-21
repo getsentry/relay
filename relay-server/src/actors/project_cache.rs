@@ -24,7 +24,7 @@ use crate::actors::project_upstream::UpstreamProjectSource;
 use crate::envelope::Envelope;
 use crate::service::Registry;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
-use crate::utils::{self, BucketLimiter, EnvelopeContext, GarbageDisposal, Response};
+use crate::utils::{self, EnvelopeContext, GarbageDisposal, MetricsLimiter, Response};
 
 #[cfg(feature = "processing")]
 use {
@@ -629,7 +629,7 @@ impl Handler<FlushBuckets> for ProjectCache {
 
         // Check rate limits if necessary:
         let quotas = project_state.config.quotas.clone();
-        let buckets = match BucketLimiter::create(buckets, quotas, scoping) {
+        let buckets = match MetricsLimiter::create(buckets, quotas, scoping) {
             Ok(mut bucket_limiter) => {
                 let cached_rate_limits = project.rate_limits().clone();
                 #[allow(unused_variables)]
@@ -646,7 +646,7 @@ impl Handler<FlushBuckets> for ProjectCache {
                     return;
                 }
 
-                bucket_limiter.into_buckets()
+                bucket_limiter.into_metrics()
             }
             Err(buckets) => buckets,
         };
