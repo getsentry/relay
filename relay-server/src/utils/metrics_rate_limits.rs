@@ -8,12 +8,12 @@ use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 
 /// Holds metrics buckets with some information about their contents.
 #[derive(Debug)]
-pub struct BucketLimiter {
+pub struct BucketLimiter<Q: AsRef<Vec<Quota>> = Vec<Quota>> {
     /// A list of metrics buckets.
     buckets: Vec<Bucket>,
 
     /// The quotas set on the current project.
-    quotas: Vec<Quota>,
+    quotas: Q,
 
     /// Project information.
     scoping: Scoping,
@@ -25,15 +25,11 @@ pub struct BucketLimiter {
     transaction_count: usize,
 }
 
-impl BucketLimiter {
+impl<Q: AsRef<Vec<Quota>>> BucketLimiter<Q> {
     /// Create a new limiter instance.
     ///
     /// Returns Ok if `buckets` contain transaction metrics, `buckets` otherwise.
-    pub fn create(
-        buckets: Vec<Bucket>,
-        quotas: Vec<Quota>,
-        scoping: Scoping,
-    ) -> Result<Self, Vec<Bucket>> {
+    pub fn create(buckets: Vec<Bucket>, quotas: Q, scoping: Scoping) -> Result<Self, Vec<Bucket>> {
         let transaction_counts: Vec<_> = buckets
             .iter()
             .map(|bucket| {
@@ -141,7 +137,8 @@ impl BucketLimiter {
                     category: DataCategory::TransactionProcessed,
                     scoping: &self.scoping,
                 };
-                let applied_rate_limits = rate_limits.check_with_quotas(&self.quotas, item_scoping);
+                let applied_rate_limits =
+                    rate_limits.check_with_quotas(self.quotas.as_ref(), item_scoping);
 
                 // If a rate limit is active, discard transaction buckets.
                 if let Some(limit) = applied_rate_limits.longest() {

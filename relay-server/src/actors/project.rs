@@ -607,8 +607,7 @@ impl Project {
     fn rate_limit_buckets(&self, buckets: Vec<Bucket>) -> Vec<Bucket> {
         match (&self.state, self.scoping()) {
             (Some(state), Some(scoping)) => {
-                // TODO: don't clone quotas
-                match BucketLimiter::create(buckets, state.config.quotas.clone(), scoping) {
+                match BucketLimiter::create(buckets, &state.config.quotas, scoping) {
                     Ok(mut bucket_limiter) => {
                         bucket_limiter.enforce_limits(Ok(&self.rate_limits));
                         bucket_limiter.into_buckets()
