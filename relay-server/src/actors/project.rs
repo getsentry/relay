@@ -877,8 +877,9 @@ impl Project {
 
         self.rate_limits.clean_expired();
 
+        let config = state.as_deref().map(|s| &s.config);
         let quotas = state.as_deref().map(|s| s.get_quotas()).unwrap_or(&[]);
-        let envelope_limiter = EnvelopeLimiter::new(|item_scoping, _| {
+        let envelope_limiter = EnvelopeLimiter::new(config, |item_scoping, _| {
             Ok(self.rate_limits.check_with_quotas(quotas, item_scoping))
         });
 
@@ -1027,7 +1028,7 @@ mod tests {
         let project = create_project(Some(json!({
             "quotas": [{
                "id": "foo",
-               "categories": ["transaction_processed"], // TODO: change to "transaction"
+               "categories": ["transaction"],
                "window": 3600,
                "limit": 0,
                "reasonCode": "foo",
@@ -1062,7 +1063,7 @@ mod tests {
         let project = create_project(Some(json!({
             "quotas": [{
                "id": "foo",
-               "categories": ["transaction_processed"], // TODO: change to "transaction"
+               "categories": ["transaction"],
                "window": 3600,
                "limit": 0,
                "reasonCode": "foo",

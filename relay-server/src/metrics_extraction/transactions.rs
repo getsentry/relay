@@ -87,6 +87,16 @@ pub struct TransactionMetricsConfig {
 }
 
 impl TransactionMetricsConfig {
+    /// Creates an enabled configuration with empty defaults.
+    #[cfg(test)]
+    pub fn new() -> Self {
+        Self {
+            version: 1,
+            ..Self::default()
+        }
+    }
+
+    /// Returns `true` if metrics extraction is enabled and compatible with this Relay.
     pub fn is_enabled(&self) -> bool {
         self.version > 0 && self.version <= EXTRACT_MAX_VERSION
     }
