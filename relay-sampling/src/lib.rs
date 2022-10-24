@@ -1875,6 +1875,7 @@ mod tests {
                     sample_rate: 0.1,
                     ty: RuleType::Trace,
                     id: RuleId(1),
+                    time_range: None,
                 },
                 // no user segments
                 SamplingRule {
@@ -1885,6 +1886,7 @@ mod tests {
                     sample_rate: 0.2,
                     ty: RuleType::Trace,
                     id: RuleId(2),
+                    time_range: None,
                 },
                 // no releases
                 SamplingRule {
@@ -1895,6 +1897,7 @@ mod tests {
                     sample_rate: 0.3,
                     ty: RuleType::Trace,
                     id: RuleId(3),
+                    time_range: None,
                 },
                 // no environments
                 SamplingRule {
@@ -1905,6 +1908,7 @@ mod tests {
                     sample_rate: 0.4,
                     ty: RuleType::Trace,
                     id: RuleId(4),
+                    time_range: None,
                 },
                 // no user segments releases or environments
                 SamplingRule {
@@ -1912,6 +1916,7 @@ mod tests {
                     sample_rate: 0.5,
                     ty: RuleType::Trace,
                     id: RuleId(5),
+                    time_range: None,
                 },
             ],
             next_id: None,
