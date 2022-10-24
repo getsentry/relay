@@ -1968,7 +1968,7 @@ mod tests {
 
     #[test]
     /// test that the first rule that matches is selected
-    fn test_rule_precedence() {
+    fn test_nondecaying_rule_precedence() {
         let rules = SamplingConfig {
             rules: vec![
                 //everything specified
@@ -2137,6 +2137,116 @@ mod tests {
             RuleId(5),
             "did not match the expected fourth rule"
         );
+    }
+
+    #[test]
+    fn test_decaying_rule_precedence() {
+        let rules = SamplingConfig {
+            rules: vec![
+                // Expired
+                SamplingRule {
+                    condition: eq("trace.release", &["1.1.1"], true),
+                    sample_rate: 0.2,
+                    ty: RuleType::Trace,
+                    id: RuleId(1),
+                    time_range: Some(TimeRange {
+                        start: DateTime::parse_from_rfc3339("1970-10-10T10:10:10.101010Z")
+                            .unwrap()
+                            .with_timezone(&Utc),
+                        end: DateTime::parse_from_rfc3339("1970-10-30T10:10:10.101010Z")
+                            .unwrap()
+                            .with_timezone(&Utc),
+                    }),
+                },
+                // Idle
+                SamplingRule {
+                    condition: eq("trace.release", &["1.1.1"], true),
+                    sample_rate: 0.2,
+                    ty: RuleType::Trace,
+                    id: RuleId(2),
+                    time_range: Some(TimeRange {
+                        start: DateTime::parse_from_rfc3339("3000-10-10T10:10:10.101010Z")
+                            .unwrap()
+                            .with_timezone(&Utc),
+                        end: DateTime::parse_from_rfc3339("3000-10-15T10:10:10.101010Z")
+                            .unwrap()
+                            .with_timezone(&Utc),
+                    }),
+                },
+                // Start after finishing
+                SamplingRule {
+                    condition: eq("trace.release", &["1.1.1"], true),
+                    sample_rate: 0.2,
+                    ty: RuleType::Trace,
+                    id: RuleId(3),
+                    time_range: Some(TimeRange {
+                        start: DateTime::parse_from_rfc3339("3000-10-10T10:10:10.101010Z")
+                            .unwrap()
+                            .with_timezone(&Utc),
+                        end: DateTime::parse_from_rfc3339("1970-10-30T10:10:10.101010Z")
+                            .unwrap()
+                            .with_timezone(&Utc),
+                    }),
+                },
+                // Rule is ok
+                SamplingRule {
+                    condition: eq("trace.release", &["1.1.1"], true),
+                    sample_rate: 0.2,
+                    ty: RuleType::Trace,
+                    id: RuleId(4),
+                    time_range: Some(TimeRange {
+                        start: DateTime::parse_from_rfc3339("1970-10-30T10:10:10.101010Z")
+                            .unwrap()
+                            .with_timezone(&Utc),
+                        end: DateTime::parse_from_rfc3339("3000-10-10T10:10:10.101010Z")
+                            .unwrap()
+                            .with_timezone(&Utc),
+                    }),
+                },
+                // Fallback to non-decaying rule
+                SamplingRule {
+                    // Environment matching all contexts, so that everyone can fallback
+                    condition: eq("trace.environment", &["testing"], true),
+                    sample_rate: 0.2,
+                    ty: RuleType::Trace,
+                    id: RuleId(5),
+                    time_range: None,
+                },
+            ],
+            next_id: None,
+        };
+
+        let new_release = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
+            environment: Some("testing".to_string()),
+            transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
+        };
+        let result = rules.get_matching_trace_rule(&new_release, None);
+        assert_eq!(result.unwrap().id, RuleId(4), "Did not match expected rule");
+
+        let old_release = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.0".to_string()),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
+            environment: Some("testing".to_string()),
+            transaction: Some("transaction2".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
+        };
+        let result = rules.get_matching_trace_rule(&old_release, None);
+        assert_eq!(result.unwrap().id, RuleId(5), "Did not match expected rule");
     }
 
     #[test]
