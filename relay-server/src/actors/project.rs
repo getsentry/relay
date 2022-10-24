@@ -635,9 +635,11 @@ impl Project {
     ///
     /// The metrics will be keyed underneath this project key.
     pub fn insert_metrics(&mut self, metrics: Vec<Metric>) {
-        let metrics = self.rate_limit_metrics(metrics);
         if self.metrics_allowed() {
-            Registry::aggregator().send(InsertMetrics::new(self.project_key, metrics));
+            let metrics = self.rate_limit_metrics(metrics);
+            if !metrics.is_empty() {
+                Registry::aggregator().send(InsertMetrics::new(self.project_key, metrics));
+            }
         }
     }
 
