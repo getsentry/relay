@@ -1794,7 +1794,7 @@ mod tests {
 
     #[test]
     ///Test SamplingRule deserialization
-    fn test_sampling_rule_deserialization() {
+    fn test_nondecaying_sampling_rule_deserialization() {
         let serialized_rule = r#"{
             "condition":{
                 "op":"and",
@@ -1812,6 +1812,40 @@ mod tests {
         let rule = rule.unwrap();
         assert!(approx_eq(rule.sample_rate, 0.7f64));
         assert_eq!(rule.ty, RuleType::Trace);
+    }
+
+    #[test]
+    fn test_decaying_sampling_rule_deserialization() {
+        let serialized_rule = r#"{
+            "condition":{
+                "op":"and",
+                "inner": [
+                    { "op" : "glob", "name": "releases", "value":["1.1.1", "1.1.2"]}
+                ]
+            },
+            "sampleRate": 0.7,
+            "type": "trace",
+            "id": 1,
+            "timeRange": {
+                "start": "2022-10-10T10:10:10.101010Z",
+                "end": "2022-10-20T20:20:20.202020Z"
+            }
+        }"#;
+        let rule: Result<SamplingRule, _> = serde_json::from_str(serialized_rule);
+        let rule = rule.unwrap();
+        let time_range = rule.time_range.unwrap();
+        assert_eq!(
+            time_range.start,
+            DateTime::parse_from_rfc3339("2022-10-10T10:10:10.101010Z")
+                .unwrap()
+                .with_timezone(&Utc)
+        );
+        assert_eq!(
+            time_range.end,
+            DateTime::parse_from_rfc3339("2022-10-20T20:20:20.202020Z")
+                .unwrap()
+                .with_timezone(&Utc)
+        );
     }
 
     #[test]
