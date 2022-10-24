@@ -51,6 +51,8 @@ for i=0, num_quotas - 1 do
         -- With over_accept_once, we only reject if the previous update already reached the limit. 
         -- This way, we ensure that we increment to or past the limit at some point,
         -- such that subsequent checks with quantity=0 are actually rejected.
+        --
+        -- NOTE: redis-rs crate since version 0.18.0 (2020-12-03) passes '1' in case of true and '0' when false.
         if quantity == 0 or over_accept_once == '1' then
             rejected = consumed >= limit
         else
