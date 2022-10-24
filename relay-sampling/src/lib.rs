@@ -706,7 +706,13 @@ impl SamplingConfig {
         ip_addr: Option<IpAddr>,
     ) -> Option<&'a SamplingRule> {
         self.rules.iter().find(|rule| {
-            rule.ty == RuleType::Trace && rule.condition.matches(sampling_context, ip_addr)
+            if rule.ty != RuleType::Trace {
+                return false;
+            }
+            if rule.is_decaying_rule() && !rule.is_active() {
+                return false;
+            }
+            rule.condition.matches(sampling_context, ip_addr)
         })
     }
 
