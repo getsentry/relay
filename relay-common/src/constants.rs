@@ -114,12 +114,14 @@ pub enum DataCategory {
     /// Session Replays
     Replay = 7,
     /// DEPRECATED: A transaction for which metrics were extracted.
+    ///
     /// This category is now obsolete because the `Transaction` variant will represent
     /// processed transactions from now on.
     TransactionProcessed = 8,
     /// Indexed transaction events.
-    /// This is the category for transaction payloads that were stored, that is, they were not
-    /// filtered out by Dynamic Sampling.
+    ///
+    /// This is the category for transaction payloads that were accepted and stored in full. In
+    /// contrast, `transaction` only guarantees that metrics have been accepted for the transaction.
     TransactionIndexed = 9,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run

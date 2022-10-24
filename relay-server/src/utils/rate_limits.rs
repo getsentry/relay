@@ -260,7 +260,8 @@ pub struct Enforcement {
 }
 
 impl Enforcement {
-    /// Returns true if the event should be rate limited.
+    /// Returns `true` if the event should be rate limited.
+    #[cfg(feature = "processing")]
     pub fn event_active(&self) -> bool {
         self.event.is_active()
     }
@@ -268,7 +269,6 @@ impl Enforcement {
     /// Returns `true` if metrics extracted from the event should be rate limited.
     #[cfg(feature = "processing")]
     pub fn event_metrics_active(&self) -> bool {
-        // TODO: Rename this
         self.event_metrics.is_active()
     }
 
@@ -984,7 +984,8 @@ mod tests {
         let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
         // NOTE: Since metrics have not been extracted on this item, we do not check the indexing
-        // quota. Basic processing quota is not denied, so the item must pass rate limiting.
+        // quota. Basic processing quota is not denied, so the item must pass rate limiting. The
+        // indexing quota will be checked again after metrics extraction.
 
         assert!(!limits.is_limited());
         assert!(!enforcement.event_metrics.is_active());
@@ -1026,7 +1027,7 @@ mod tests {
     }
 
     #[test]
-    fn test_enforce_transaction_attachment_enforced_metrics_extracted() {
+    fn test_enforce_transaction_attachment_enforced_metrics_extracted_indexing_quota() {
         let mut envelope = envelope![Transaction, Attachment];
         set_extracted(&mut envelope, ItemType::Transaction);
         let config = config_with_tx_metrics();

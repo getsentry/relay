@@ -406,7 +406,7 @@ def test_processing_quotas(
 
     projectconfig["config"]["quotas"] = [
         {
-            "id": "test_rate_limiting_{}".format(uuid.uuid4().hex),
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
             "scope": "key",
             "scopeId": six.text_type(key_id),
             "categories": [category],
@@ -510,7 +510,7 @@ def test_rate_limit_metrics_buckets(
 
     projectconfig["config"]["quotas"] = [
         {
-            "id": "test_rate_limiting_{}".format(uuid.uuid4().hex),
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
             "scope": "key",
             "scopeId": six.text_type(key_id),
             "categories": ["transaction"],
@@ -675,7 +675,7 @@ def test_processing_quota_transaction_indexing(
     key_id = mini_sentry.get_dsn_public_key_configs(project_id)[0]["numericId"]
     projectconfig["config"]["quotas"] = [
         {
-            "id": "test_rate_limiting_{}".format(uuid.uuid4().hex),
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
             "scope": "key",
             "scopeId": six.text_type(key_id),
             "categories": ["transaction_indexed"],
@@ -684,7 +684,7 @@ def test_processing_quota_transaction_indexing(
             "reasonCode": "get_lost",
         },
         {
-            "id": "test_rate_limiting_{}".format(uuid.uuid4().hex),
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
             "scope": "key",
             "scopeId": six.text_type(key_id),
             "categories": ["transaction"],
