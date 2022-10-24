@@ -322,6 +322,16 @@ pub struct TimeRange {
     pub end_time: DateTime<Utc>,
 }
 
+impl TimeRange {
+    fn has_started(&self) -> bool {
+        self.start_time >= Utc::now()
+    }
+
+    fn has_finished(&self) -> bool {
+        self.end_time <= Utc::now()
+    }
+}
+
 /// A sampling rule as it is deserialized from the project configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
