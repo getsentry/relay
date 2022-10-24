@@ -129,6 +129,14 @@ pub enum Version {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+struct Measurement {
+    // nanoseconds elapsed since the start of the profile (wall clock)
+    elapsed_since_start_ns: i64,
+    unit: String,
+    value: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 struct SampleProfile {
     version: Version,
 
@@ -151,6 +159,9 @@ struct SampleProfile {
 
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     transactions: Vec<TransactionMetadata>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    measurements: Option<HashMap<String, Measurement>>,
 }
 
 impl SampleProfile {
@@ -322,6 +333,7 @@ mod tests {
             },
             transactions: Vec::new(),
             release: "1.0 (9999)".to_string(),
+            measurements: None,
         }
     }
 
