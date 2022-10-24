@@ -912,7 +912,9 @@ impl Drop for Project {
 mod tests {
     use std::sync::Arc;
 
-    use relay_common::{ProjectId, ProjectKey};
+    use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
+    use relay_metrics::{Bucket, BucketValue, Metric, MetricValue};
+    use serde_json::json;
 
     use super::{Config, Project, ProjectState, StateChannel};
 
@@ -920,7 +922,7 @@ mod tests {
     fn get_state_expired() {
         for expiry in [9999, 0] {
             let config = Arc::new(
-                Config::from_json_value(serde_json::json!(
+                Config::from_json_value(json!(
                     {
                         "cache": {
                             "project_expiry": expiry,
@@ -955,7 +957,7 @@ mod tests {
     #[test]
     fn test_stale_cache() {
         let config = Arc::new(
-            Config::from_json_value(serde_json::json!(
+            Config::from_json_value(json!(
                 {
                     "cache": {
                         "project_expiry": 100,
@@ -984,5 +986,86 @@ mod tests {
         // Since we got invalid project state we still keep the old one meaning there
         // still must be the project id set.
         assert!(!project.state.as_ref().unwrap().invalid());
+    }
+
+    fn create_project(config: Option<serde_json::Value>) -> Project {
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let mut project = Project::new(project_key, Arc::new(Config::default()));
+        let mut project_state = ProjectState::allowed();
+        project_state.project_id = Some(ProjectId::new(42));
+        if let Some(config) = config {
+            project_state.config = serde_json::from_value(config).unwrap();
+        }
+        project.state = Some(Arc::new(project_state));
+        project
+    }
+
+    fn create_transaction_metric() -> Metric {
+        Metric {
+            name: "d:transactions/foo".to_string(),
+            value: MetricValue::Counter(1.0),
+            timestamp: UnixTimestamp::now(),
+            tags: Default::default(),
+        }
+    }
+
+    #[test]
+    fn test_rate_limit_incoming_metrics() {
+        let project = create_project(None);
+        let metrics = project.rate_limit_metrics(vec![create_transaction_metric()]);
+
+        assert!(metrics.len() == 1);
+    }
+
+    #[test]
+    fn test_rate_limit_incoming_metrics_no_quota() {
+        let project = create_project(Some(json!({
+            "quotas": [{
+               "id": "foo",
+               "categories": ["transaction_processed"], // TODO: change to "transaction"
+               "window": 3600,
+               "limit": 0,
+               "reasonCode": "foo",
+           }]
+        })));
+
+        let metrics = project.rate_limit_metrics(vec![create_transaction_metric()]);
+
+        assert!(metrics.is_empty());
+    }
+
+    fn create_transaction_bucket() -> Bucket {
+        Bucket {
+            name: "d:transactions/foo".to_string(),
+            value: BucketValue::Counter(1.0),
+            timestamp: UnixTimestamp::now(),
+            tags: Default::default(),
+            width: 10,
+        }
+    }
+
+    #[test]
+    fn test_rate_limit_incoming_buckets() {
+        let project = create_project(None);
+        let metrics = project.rate_limit_metrics(vec![create_transaction_bucket()]);
+
+        assert!(metrics.len() == 1);
+    }
+
+    #[test]
+    fn test_rate_limit_incoming_buckets_no_quota() {
+        let project = create_project(Some(json!({
+            "quotas": [{
+               "id": "foo",
+               "categories": ["transaction_processed"], // TODO: change to "transaction"
+               "window": 3600,
+               "limit": 0,
+               "reasonCode": "foo",
+           }]
+        })));
+
+        let metrics = project.rate_limit_metrics(vec![create_transaction_bucket()]);
+
+        assert!(metrics.is_empty());
     }
 }
