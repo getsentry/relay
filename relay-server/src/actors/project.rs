@@ -604,6 +604,9 @@ impl Project {
         self.last_updated_at = Instant::now();
     }
 
+    /// Applies cached rate limits to the given metrics or metrics buckets.
+    ///
+    /// This only applies the rate limits currently stored on the project.
     fn rate_limit_metrics<T: MetricsContainer>(&self, metrics: Vec<T>) -> Vec<T> {
         match (&self.state, self.scoping()) {
             (Some(state), Some(scoping)) => {

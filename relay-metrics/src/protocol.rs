@@ -592,7 +592,7 @@ pub trait MetricsContainer {
     fn name(&self) -> &str;
 
     /// Returns the number of raw data points in this container.
-    /// See [`BucketValue::len`].
+    /// See [`crate::aggregation::BucketValue::len()`].
     fn len(&self) -> usize;
 
     /// Returns `true` if this container contains no values.
