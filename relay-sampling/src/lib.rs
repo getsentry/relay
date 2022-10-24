@@ -349,6 +349,51 @@ impl SamplingRule {
     fn supported(&self) -> bool {
         self.condition.supported()
     }
+
+    /// Returns whether the sampling rule is a decaying rule.
+    ///
+    /// A decaying rule is a sampling rule that only applies in a closed time range.
+    fn is_decaying_rule(&self) -> bool {
+        match self.time_range {
+            None => false,
+            Some(_) => true,
+        }
+    }
+
+    /// Returns whether the sampling rule is active.
+    ///
+    /// Non-decaying rules are always active. Decaying rules are active if they are
+    /// neither idle nor expired.
+    fn is_active(&self) -> bool {
+        if !self.is_decaying_rule() {
+            return true;
+        }
+        if !self.is_idle() && !self.is_expired() {
+            return true;
+        }
+        false
+    }
+
+    /// Returns whether the sampling rule is an idle decaying rule.
+    ///
+    /// An idle decaying rule is a decaying rule that is not operative yet, but it will
+    /// in the future.
+    fn is_idle(&self) -> bool {
+        match self.time_range.as_ref() {
+            None => false,
+            Some(time_range) => !time_range.has_started(),
+        }
+    }
+
+    /// Returns whether the sampling rule is an expired decaying rule.
+    ///
+    /// An expired decaying rule is a decaying rule that is no longer operative.
+    fn is_expired(&self) -> bool {
+        match self.time_range.as_ref() {
+            None => false,
+            Some(time_range) => !time_range.has_finished(),
+        }
+    }
 }
 
 /// Trait implemented by providers of fields (Events and Trace Contexts).
