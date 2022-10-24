@@ -5,6 +5,7 @@
 )]
 #![allow(clippy::derive_partial_eq_without_eq)]
 
+use chrono::{DateTime, Utc};
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::{self, Display, Formatter};
@@ -315,6 +316,12 @@ impl Display for RuleId {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TimeRange {
+    pub start_time: DateTime<Utc>,
+    pub end_time: DateTime<Utc>,
+}
+
 /// A sampling rule as it is deserialized from the project configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -324,6 +331,8 @@ pub struct SamplingRule {
     #[serde(rename = "type")]
     pub ty: RuleType,
     pub id: RuleId,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub time_range: Option<TimeRange>,
 }
 
 impl SamplingRule {
