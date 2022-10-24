@@ -731,9 +731,15 @@ impl SamplingConfig {
             RuleType::Error
         };
 
-        self.rules
-            .iter()
-            .find(|rule| rule.ty == ty && rule.condition.matches(event, ip_addr))
+        self.rules.iter().find(|rule| {
+            if rule.ty != ty {
+                return false;
+            }
+            if rule.is_decaying_rule() && !rule.is_active() {
+                return false;
+            }
+            rule.condition.matches(event, ip_addr)
+        })
     }
 }
 
