@@ -50,14 +50,16 @@ enum RelayDataCategory {
   RELAY_DATA_CATEGORY_REPLAY = 7,
   /**
    * DEPRECATED: A transaction for which metrics were extracted.
+   *
    * This category is now obsolete because the `Transaction` variant will represent
    * processed transactions from now on.
    */
   RELAY_DATA_CATEGORY_TRANSACTION_PROCESSED = 8,
   /**
    * Indexed transaction events.
-   * This is the category for transaction payloads that were stored, that is, they were not
-   * filtered out by Dynamic Sampling.
+   *
+   * This is the category for transaction payloads that were accepted and stored in full. In
+   * contrast, `transaction` only guarantees that metrics have been accepted for the transaction.
    */
   RELAY_DATA_CATEGORY_TRANSACTION_INDEXED = 9,
   /**

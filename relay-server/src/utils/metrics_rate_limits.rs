@@ -51,8 +51,8 @@ impl BucketLimiter {
                 }
 
                 if mri.name == "duration" {
-                    // The "duration" metric is extracted exactly once for every processed
-                    // transaction, so we can use it to count the number of transactions.
+                    // The "duration" metric is extracted exactly once for every transaction, so we
+                    // can use it to count the number of transactions.
                     let count = bucket.value.len();
                     Some(count)
                 } else {
