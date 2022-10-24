@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use relay_general::protocol::{Addr, EventId};
 
 use crate::error::ProfileError;
+use crate::measurements::Measurement;
 use crate::native_debug_image::NativeDebugImage;
 use crate::transaction_metadata::TransactionMetadata;
 use crate::utils::deserialize_number_from_string;
@@ -126,14 +127,6 @@ pub enum Version {
     Unknown,
     #[serde(rename = "1")]
     V1,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct Measurement {
-    // nanoseconds elapsed since the start of the profile (wall clock)
-    elapsed_since_start_ns: i64,
-    unit: String,
-    value: f64,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
