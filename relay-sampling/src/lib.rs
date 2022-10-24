@@ -324,11 +324,11 @@ pub struct TimeRange {
 
 impl TimeRange {
     fn has_started(&self) -> bool {
-        self.start >= Utc::now()
+        self.start <= Utc::now()
     }
 
     fn has_finished(&self) -> bool {
-        self.end <= Utc::now()
+        self.end < Utc::now()
     }
 }
 
@@ -396,7 +396,7 @@ impl SamplingRule {
     fn is_expired(&self) -> bool {
         match self.time_range.as_ref() {
             None => false,
-            Some(time_range) => !time_range.has_finished(),
+            Some(time_range) => time_range.has_finished(),
         }
     }
 }
