@@ -23,7 +23,7 @@ use relay_system::{
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
 use crate::{
     protocol, CounterType, DistributionType, GaugeType, Metric, MetricNamespace,
-    MetricResourceIdentifier, MetricType, MetricValue, SetType,
+    MetricResourceIdentifier, MetricType, MetricValue, MetricsContainer, SetType,
 };
 
 /// Interval for the flush cycle of the [`AggregatorService`].
@@ -840,6 +840,16 @@ impl Bucket {
     /// values.
     fn estimated_size(&self) -> usize {
         self.estimated_own_size() + self.value.len() * AVG_VALUE_SIZE
+    }
+}
+
+impl MetricsContainer for Bucket {
+    fn name(&self) -> &str {
+        self.name.as_str()
+    }
+
+    fn len(&self) -> usize {
+        self.value.len()
     }
 }
 

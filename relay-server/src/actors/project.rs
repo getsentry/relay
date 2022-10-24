@@ -17,7 +17,7 @@ use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 use relay_general::store::{BreakdownsConfig, MeasurementsConfig};
 use relay_general::types::SpanAttribute;
-use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
+use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric, MetricsContainer};
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::SamplingConfig;
 use relay_statsd::metric;
@@ -34,7 +34,9 @@ use crate::metrics_extraction::transactions::TransactionMetricsConfig;
 use crate::metrics_extraction::TaggingRule;
 use crate::service::Registry;
 use crate::statsd::RelayCounters;
-use crate::utils::{self, EnvelopeContext, EnvelopeLimiter, ErrorBoundary, Response};
+use crate::utils::{
+    self, EnvelopeContext, EnvelopeLimiter, ErrorBoundary, MetricsLimiter, Response,
+};
 
 /// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -602,13 +604,33 @@ impl Project {
         self.last_updated_at = Instant::now();
     }
 
+    /// Applies cached rate limits to the given metrics or metrics buckets.
+    ///
+    /// This only applies the rate limits currently stored on the project.
+    fn rate_limit_metrics<T: MetricsContainer>(&self, metrics: Vec<T>) -> Vec<T> {
+        match (&self.state, self.scoping()) {
+            (Some(state), Some(scoping)) => {
+                match MetricsLimiter::create(metrics, &state.config.quotas, scoping) {
+                    Ok(mut limiter) => {
+                        limiter.enforce_limits(Ok(&self.rate_limits));
+                        limiter.into_metrics()
+                    }
+                    Err(metrics) => metrics,
+                }
+            }
+            _ => metrics,
+        }
+    }
+
     /// Inserts given [buckets](Bucket) into the metrics aggregator.
     ///
     /// The buckets will be keyed underneath this project key.
     pub fn merge_buckets(&mut self, buckets: Vec<Bucket>) {
-        // TODO: rate limits
         if self.metrics_allowed() {
-            Registry::aggregator().send(MergeBuckets::new(self.project_key, buckets));
+            let buckets = self.rate_limit_metrics(buckets);
+            if !buckets.is_empty() {
+                Registry::aggregator().send(MergeBuckets::new(self.project_key, buckets));
+            }
         }
     }
 
@@ -616,9 +638,11 @@ impl Project {
     ///
     /// The metrics will be keyed underneath this project key.
     pub fn insert_metrics(&mut self, metrics: Vec<Metric>) {
-        // TODO: rate limits
         if self.metrics_allowed() {
-            Registry::aggregator().send(InsertMetrics::new(self.project_key, metrics));
+            let metrics = self.rate_limit_metrics(metrics);
+            if !metrics.is_empty() {
+                Registry::aggregator().send(InsertMetrics::new(self.project_key, metrics));
+            }
         }
     }
 
@@ -894,7 +918,9 @@ impl Drop for Project {
 mod tests {
     use std::sync::Arc;
 
-    use relay_common::{ProjectId, ProjectKey};
+    use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
+    use relay_metrics::{Bucket, BucketValue, Metric, MetricValue};
+    use serde_json::json;
 
     use super::{Config, Project, ProjectState, StateChannel};
 
@@ -902,7 +928,7 @@ mod tests {
     fn get_state_expired() {
         for expiry in [9999, 0] {
             let config = Arc::new(
-                Config::from_json_value(serde_json::json!(
+                Config::from_json_value(json!(
                     {
                         "cache": {
                             "project_expiry": expiry,
@@ -937,7 +963,7 @@ mod tests {
     #[test]
     fn test_stale_cache() {
         let config = Arc::new(
-            Config::from_json_value(serde_json::json!(
+            Config::from_json_value(json!(
                 {
                     "cache": {
                         "project_expiry": 100,
@@ -966,5 +992,86 @@ mod tests {
         // Since we got invalid project state we still keep the old one meaning there
         // still must be the project id set.
         assert!(!project.state.as_ref().unwrap().invalid());
+    }
+
+    fn create_project(config: Option<serde_json::Value>) -> Project {
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let mut project = Project::new(project_key, Arc::new(Config::default()));
+        let mut project_state = ProjectState::allowed();
+        project_state.project_id = Some(ProjectId::new(42));
+        if let Some(config) = config {
+            project_state.config = serde_json::from_value(config).unwrap();
+        }
+        project.state = Some(Arc::new(project_state));
+        project
+    }
+
+    fn create_transaction_metric() -> Metric {
+        Metric {
+            name: "d:transactions/foo".to_string(),
+            value: MetricValue::Counter(1.0),
+            timestamp: UnixTimestamp::now(),
+            tags: Default::default(),
+        }
+    }
+
+    #[test]
+    fn test_rate_limit_incoming_metrics() {
+        let project = create_project(None);
+        let metrics = project.rate_limit_metrics(vec![create_transaction_metric()]);
+
+        assert!(metrics.len() == 1);
+    }
+
+    #[test]
+    fn test_rate_limit_incoming_metrics_no_quota() {
+        let project = create_project(Some(json!({
+            "quotas": [{
+               "id": "foo",
+               "categories": ["transaction"],
+               "window": 3600,
+               "limit": 0,
+               "reasonCode": "foo",
+           }]
+        })));
+
+        let metrics = project.rate_limit_metrics(vec![create_transaction_metric()]);
+
+        assert!(metrics.is_empty());
+    }
+
+    fn create_transaction_bucket() -> Bucket {
+        Bucket {
+            name: "d:transactions/foo".to_string(),
+            value: BucketValue::Counter(1.0),
+            timestamp: UnixTimestamp::now(),
+            tags: Default::default(),
+            width: 10,
+        }
+    }
+
+    #[test]
+    fn test_rate_limit_incoming_buckets() {
+        let project = create_project(None);
+        let metrics = project.rate_limit_metrics(vec![create_transaction_bucket()]);
+
+        assert!(metrics.len() == 1);
+    }
+
+    #[test]
+    fn test_rate_limit_incoming_buckets_no_quota() {
+        let project = create_project(Some(json!({
+            "quotas": [{
+               "id": "foo",
+               "categories": ["transaction"],
+               "window": 3600,
+               "limit": 0,
+               "reasonCode": "foo",
+           }]
+        })));
+
+        let metrics = project.rate_limit_metrics(vec![create_transaction_bucket()]);
+
+        assert!(metrics.is_empty());
     }
 }
