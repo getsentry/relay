@@ -318,17 +318,17 @@ impl Display for RuleId {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimeRange {
-    pub start_time: DateTime<Utc>,
-    pub end_time: DateTime<Utc>,
+    start: DateTime<Utc>,
+    end: DateTime<Utc>,
 }
 
 impl TimeRange {
     fn has_started(&self) -> bool {
-        self.start_time >= Utc::now()
+        self.start >= Utc::now()
     }
 
     fn has_finished(&self) -> bool {
-        self.end_time <= Utc::now()
+        self.end <= Utc::now()
     }
 }
 
