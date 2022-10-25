@@ -6,6 +6,7 @@
 - Add user-agent parsing to replays processor. ([#1420](https://github.com/getsentry/relay/pull/1420))
 - `convert_datascrubbing_config` will now return an error string when conversion fails on big regexes. ([#1474](https://github.com/getsentry/relay/pull/1474))
 - `relay_pii_strip_event` now treats any key containing `token` as a password. ([#1527](https://github.com/getsentry/relay/pull/1527))
+- Add data category for indexed transactions. This will come to represent stored transactions, while the existing category will represent transaction metrics. ([#1535](https://github.com/getsentry/relay/pull/1535))
 
 ## 0.8.13
 
