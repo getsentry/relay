@@ -62,7 +62,7 @@ struct ReplayInput {
     ty: String,
     replay_id: String,
     event_id: String,
-    segment_id: u8,
+    segment_id: u16,
     timestamp: f64,
     replay_start_timestamp: Option<f64>,
     contexts: Option<Contexts>,
