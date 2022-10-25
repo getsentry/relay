@@ -675,18 +675,17 @@ pub fn light_normalize_event(
     event: &mut Annotated<Event>,
     config: &LightNormalizationConfig,
 ) -> ProcessingResult {
+    if config.is_renormalize {
+        return Ok(());
+    }
+
     event.apply(|event, meta| {
-        if !config.is_renormalize {
-            // Validate and normalize transaction
-            // (internally noops for non-transaction events).
-            // TODO: Parts of this processor should probably be a filter so we
-            // can revert some changes to ProcessingAction
-            transactions::TransactionsProcessor.process_event(
-                event,
-                meta,
-                ProcessingState::root(),
-            )?;
-        }
+        // Validate and normalize transaction
+        // (internally noops for non-transaction events).
+        // TODO: Parts of this processor should probably be a filter so we
+        // can revert some changes to ProcessingAction
+        transactions::TransactionsProcessor.process_event(event, meta, ProcessingState::root())?;
+
         // Check for required and non-empty values
         schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())?;
 
@@ -983,6 +982,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 #[cfg(test)]
 mod tests {
     use chrono::TimeZone;
+    use insta::assert_debug_snapshot;
     use serde_json::json;
     use similar_asserts::assert_eq;
 
@@ -2286,5 +2286,41 @@ mod tests {
 
             assert!(res.is_err(), "{:?}", span);
         }
+    }
+
+    #[test]
+    fn test_light_normalization_respects_is_renormalize() {
+        let mut event = Annotated::<Event>::from_json(
+            r###"
+            {
+                "type": "default",
+                "tags": [["environment", "some_environment"]]
+            }
+            "###,
+        )
+        .unwrap();
+
+        let result = light_normalize_event(
+            &mut event,
+            &LightNormalizationConfig {
+                is_renormalize: true,
+                ..Default::default()
+            },
+        );
+
+        assert!(result.is_ok());
+
+        assert_debug_snapshot!(event.value().unwrap().tags, @r###"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "environment",
+                        "some_environment",
+                    ),
+                ],
+            ),
+        )
+        "###);
     }
 }
