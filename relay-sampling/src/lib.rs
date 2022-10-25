@@ -2123,81 +2123,8 @@ mod tests {
     }
 
     #[test]
-    fn test_decaying_rule_precedence() {
-        let rules = SamplingConfig {
-            rules: vec![
-                // Expired
-                SamplingRule {
-                    condition: eq("trace.release", &["1.1.1"], true),
-                    sample_rate: 0.2,
-                    ty: RuleType::Trace,
-                    id: RuleId(1),
-                    time_range: Some(TimeRange {
-                        start: DateTime::parse_from_rfc3339("1970-10-10T10:10:10.101010Z")
-                            .unwrap()
-                            .with_timezone(&Utc),
-                        end: DateTime::parse_from_rfc3339("1970-10-30T10:10:10.101010Z")
-                            .unwrap()
-                            .with_timezone(&Utc),
-                    }),
-                },
-                // Idle
-                SamplingRule {
-                    condition: eq("trace.release", &["1.1.1"], true),
-                    sample_rate: 0.2,
-                    ty: RuleType::Trace,
-                    id: RuleId(2),
-                    time_range: Some(TimeRange {
-                        start: DateTime::parse_from_rfc3339("3000-10-10T10:10:10.101010Z")
-                            .unwrap()
-                            .with_timezone(&Utc),
-                        end: DateTime::parse_from_rfc3339("3000-10-15T10:10:10.101010Z")
-                            .unwrap()
-                            .with_timezone(&Utc),
-                    }),
-                },
-                // Start after finishing
-                SamplingRule {
-                    condition: eq("trace.release", &["1.1.1"], true),
-                    sample_rate: 0.2,
-                    ty: RuleType::Trace,
-                    id: RuleId(3),
-                    time_range: Some(TimeRange {
-                        start: DateTime::parse_from_rfc3339("3000-10-10T10:10:10.101010Z")
-                            .unwrap()
-                            .with_timezone(&Utc),
-                        end: DateTime::parse_from_rfc3339("1970-10-30T10:10:10.101010Z")
-                            .unwrap()
-                            .with_timezone(&Utc),
-                    }),
-                },
-                // Rule is ok
-                SamplingRule {
-                    condition: eq("trace.release", &["1.1.1"], true),
-                    sample_rate: 0.2,
-                    ty: RuleType::Trace,
-                    id: RuleId(4),
-                    time_range: Some(TimeRange {
-                        start: DateTime::parse_from_rfc3339("1970-10-30T10:10:10.101010Z")
-                            .unwrap()
-                            .with_timezone(&Utc),
-                        end: DateTime::parse_from_rfc3339("3000-10-10T10:10:10.101010Z")
-                            .unwrap()
-                            .with_timezone(&Utc),
-                    }),
-                },
-                // Fallback to non-decaying rule
-                SamplingRule {
-                    // Environment matching all contexts, so that everyone can fallback
-                    condition: eq("trace.environment", &["testing"], true),
-                    sample_rate: 0.2,
-                    ty: RuleType::Trace,
-                    id: RuleId(5),
-                    time_range: None,
-                },
-            ],
-            next_id: None,
-        };
+    fn test_decaying_trace_rule_precedence() {
+        let rules = decaying_sampling_config(&RuleType::Trace);
 
         let new_release = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
@@ -2229,6 +2156,118 @@ mod tests {
             other: BTreeMap::new(),
         };
         let result = rules.get_matching_trace_rule(&old_release, None);
+        assert_eq!(result.unwrap().id, RuleId(5), "Did not match expected rule");
+    }
+
+    fn decaying_sampling_config(rule_type: &RuleType) -> SamplingConfig {
+        let rule_prefix = match rule_type {
+            RuleType::Trace => "trace",
+            RuleType::Transaction => "event",
+            // For the Error variant, the prefix is also `event`. However, it's not
+            // supported in the code, so intentionally not implementing any logic for
+            // that. This whole helper method should be revisited when the Error variant
+            // is supported.
+            RuleType::Error => unimplemented!(),
+        };
+        let release_condition = format!("{}.release", rule_prefix);
+        let env_condition = format!("{}.environment", rule_prefix);
+
+        SamplingConfig {
+            rules: vec![
+                // Expired
+                SamplingRule {
+                    condition: eq(&release_condition, &["1.1.1"], true),
+                    sample_rate: 0.2,
+                    ty: *rule_type,
+                    id: RuleId(1),
+                    time_range: Some(TimeRange {
+                        start: DateTime::parse_from_rfc3339("1970-10-10T10:10:10.101010Z")
+                            .unwrap()
+                            .with_timezone(&Utc),
+                        end: DateTime::parse_from_rfc3339("1970-10-30T10:10:10.101010Z")
+                            .unwrap()
+                            .with_timezone(&Utc),
+                    }),
+                },
+                // Idle
+                SamplingRule {
+                    condition: eq(&release_condition, &["1.1.1"], true),
+                    sample_rate: 0.2,
+                    ty: *rule_type,
+                    id: RuleId(2),
+                    time_range: Some(TimeRange {
+                        start: DateTime::parse_from_rfc3339("3000-10-10T10:10:10.101010Z")
+                            .unwrap()
+                            .with_timezone(&Utc),
+                        end: DateTime::parse_from_rfc3339("3000-10-15T10:10:10.101010Z")
+                            .unwrap()
+                            .with_timezone(&Utc),
+                    }),
+                },
+                // Start after finishing
+                SamplingRule {
+                    condition: eq(&release_condition, &["1.1.1"], true),
+                    sample_rate: 0.2,
+                    ty: *rule_type,
+                    id: RuleId(3),
+                    time_range: Some(TimeRange {
+                        start: DateTime::parse_from_rfc3339("3000-10-10T10:10:10.101010Z")
+                            .unwrap()
+                            .with_timezone(&Utc),
+                        end: DateTime::parse_from_rfc3339("1970-10-30T10:10:10.101010Z")
+                            .unwrap()
+                            .with_timezone(&Utc),
+                    }),
+                },
+                // Rule is ok
+                SamplingRule {
+                    condition: eq(&release_condition, &["1.1.1"], true),
+                    sample_rate: 0.2,
+                    ty: *rule_type,
+                    id: RuleId(4),
+                    time_range: Some(TimeRange {
+                        start: DateTime::parse_from_rfc3339("1970-10-30T10:10:10.101010Z")
+                            .unwrap()
+                            .with_timezone(&Utc),
+                        end: DateTime::parse_from_rfc3339("3000-10-10T10:10:10.101010Z")
+                            .unwrap()
+                            .with_timezone(&Utc),
+                    }),
+                },
+                // Fallback to non-decaying rule
+                SamplingRule {
+                    // Environment matching all contexts, so that everyone can fallback
+                    condition: eq(&env_condition, &["testing"], true),
+                    sample_rate: 0.2,
+                    ty: *rule_type,
+                    id: RuleId(5),
+                    time_range: None,
+                },
+            ],
+            next_id: None,
+        }
+    }
+
+    #[test]
+    fn test_decaying_transaction_rule_precedence() {
+        let rules = decaying_sampling_config(&RuleType::Transaction);
+
+        let new_release = Event {
+            ty: Annotated::new(EventType::Transaction),
+            release: Annotated::new("1.1.1".to_string().into()),
+            environment: Annotated::new("testing".to_string()),
+            ..Default::default()
+        };
+        let result = rules.get_matching_event_rule(&new_release, None);
+        assert_eq!(result.unwrap().id, RuleId(4), "Did not match expected rule");
+
+        let old_release = Event {
+            ty: Annotated::new(EventType::Transaction),
+            release: Annotated::new("1.1.0".to_string().into()),
+            environment: Annotated::new("testing".to_string()),
+            ..Default::default()
+        };
+        let result = rules.get_matching_event_rule(&old_release, None);
         assert_eq!(result.unwrap().id, RuleId(5), "Did not match expected rule");
     }
 
