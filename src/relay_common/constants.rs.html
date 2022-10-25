@@ -664,6 +664,16 @@
 <span id="662">662</span>
 <span id="663">663</span>
 <span id="664">664</span>
+<span id="665">665</span>
+<span id="666">666</span>
+<span id="667">667</span>
+<span id="668">668</span>
+<span id="669">669</span>
+<span id="670">670</span>
+<span id="671">671</span>
+<span id="672">672</span>
+<span id="673">673</span>
+<span id="674">674</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Constants shared with the C-ABI and Sentry.</span>
 
 <span class="kw">use</span> <span class="ident">std::convert::TryInto</span>;
@@ -779,8 +789,16 @@
     <span class="ident">Profile</span> <span class="op">=</span> <span class="number">6</span>,
     <span class="doccomment">/// Session Replays</span>
     <span class="ident">Replay</span> <span class="op">=</span> <span class="number">7</span>,
-    <span class="doccomment">/// A transaction that was processed but not stored.</span>
+    <span class="doccomment">/// DEPRECATED: A transaction for which metrics were extracted.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This category is now obsolete because the `Transaction` variant will represent</span>
+    <span class="doccomment">/// processed transactions from now on.</span>
     <span class="ident">TransactionProcessed</span> <span class="op">=</span> <span class="number">8</span>,
+    <span class="doccomment">/// Indexed transaction events.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This is the category for transaction payloads that were accepted and stored in full. In</span>
+    <span class="doccomment">/// contrast, `transaction` only guarantees that metrics have been accepted for the transaction.</span>
+    <span class="ident">TransactionIndexed</span> <span class="op">=</span> <span class="number">9</span>,
     <span class="comment">//</span>
     <span class="comment">// IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run</span>
     <span class="comment">// `make header` to regenerate the C-binding. This allows using the data category from Python.</span>
@@ -805,6 +823,7 @@
             <span class="string">&quot;profile&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Profile</span>,
             <span class="string">&quot;replay&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Replay</span>,
             <span class="string">&quot;transaction_processed&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::TransactionProcessed</span>,
+            <span class="string">&quot;transaction_indexed&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::TransactionIndexed</span>,
             <span class="kw">_</span> =&gt; <span class="ident"><span class="self">Self</span>::Unknown</span>,
         }
     }
@@ -822,6 +841,7 @@
             <span class="ident"><span class="self">Self</span>::Profile</span> =&gt; <span class="string">&quot;profile&quot;</span>,
             <span class="ident"><span class="self">Self</span>::Replay</span> =&gt; <span class="string">&quot;replay&quot;</span>,
             <span class="ident"><span class="self">Self</span>::TransactionProcessed</span> =&gt; <span class="string">&quot;transaction_processed&quot;</span>,
+            <span class="ident"><span class="self">Self</span>::TransactionIndexed</span> =&gt; <span class="string">&quot;transaction_indexed&quot;</span>,
             <span class="ident"><span class="self">Self</span>::Unknown</span> =&gt; <span class="string">&quot;unknown&quot;</span>,
         }
     }
