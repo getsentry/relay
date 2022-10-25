@@ -1,5 +1,8 @@
 use std::collections::HashMap;
 
+use relay_general::pii::PiiConfig;
+use relay_general::pii::PiiProcessor;
+
 use serde::de::Error as DError;
 use serde::{Deserialize, Serialize};
 use serde_json::{Error, Value};
@@ -13,69 +16,102 @@ pub fn dumps(rrweb: Vec<Event>) -> Result<Vec<u8>, Error> {
     return serde_json::to_vec(&rrweb);
 }
 
-pub fn mask_pii(mut events: Vec<Event>) -> Vec<Event> {
-    for event in &mut events {
-        match &mut event.variant {
-            EventVariant::T2(variant) => recurse_snapshot_node(&mut variant.data.node),
-            EventVariant::T3(variant) => recurse_incremental_source(&mut variant.data),
-            // Parse this for console messages and possibly request args?
-            // EventVariant::T5(variant) => {}
+pub fn run(bytes: &[u8]) -> Result<Vec<u8>, Error> {
+    // Processor configuration.
+    let pii_config = PiiConfig::from_json("").unwrap();
+    let pii_processor = PiiProcessor::new(pii_config.compiled());
+    let processor = RecordingProcessor::new(pii_processor);
+
+    // Load and mask.
+    let mut events = loads(bytes)?;
+    processor.mask_pii(&mut events);
+    dumps(events)
+}
+
+pub struct RecordingProcessor<'a> {
+    pii_processor: PiiProcessor<'a>,
+    strip_videos: bool,
+    strip_images: bool,
+    strip_params: bool,
+}
+
+impl RecordingProcessor<'_> {
+    pub fn new(pii_processor: PiiProcessor) -> RecordingProcessor {
+        RecordingProcessor {
+            pii_processor: pii_processor,
+            strip_videos: true,
+            strip_images: true,
+            strip_params: true,
+        }
+    }
+
+    pub fn mask_pii(&self, events: &mut Vec<Event>) {
+        for event in events {
+            match &mut event.variant {
+                EventVariant::T2(variant) => self.recurse_snapshot_node(&mut variant.data.node),
+                EventVariant::T3(variant) => self.recurse_incremental_source(&mut variant.data),
+                // Parse this for console messages and possibly request args?
+                // EventVariant::T5(variant) => {}
+                _ => {}
+            }
+        }
+    }
+
+    fn recurse_incremental_source(&self, variant: &mut IncrementalSourceDataVariant) {
+        match variant {
+            IncrementalSourceDataVariant::Mutation(mutation) => {
+                for addition in &mut mutation.adds {
+                    self.recurse_snapshot_node(&mut addition.node)
+                }
+            }
+            IncrementalSourceDataVariant::Input(input) => {
+                input.text = self.strip_pii(&mut input.text)
+            }
             _ => {}
         }
     }
-    return events;
-}
 
-fn recurse_incremental_source(variant: &mut IncrementalSourceDataVariant) {
-    match variant {
-        IncrementalSourceDataVariant::Mutation(mutation) => {
-            for addition in &mut mutation.adds {
-                recurse_snapshot_node(&mut addition.node)
+    fn recurse_snapshot_node(&self, node: &mut Node) {
+        match &mut node.variant {
+            NodeVariant::T0(document) => {
+                for node in &mut document.child_nodes {
+                    self.recurse_snapshot_node(node)
+                }
             }
-        }
-        IncrementalSourceDataVariant::Input(input) => {
-            input.text = strip_pii(&input.text).to_string()
-        }
-        _ => {}
-    }
-}
-
-fn recurse_snapshot_node(node: &mut Node) {
-    match &mut node.variant {
-        NodeVariant::T0(document) => {
-            for node in &mut document.child_nodes {
-                recurse_snapshot_node(node)
+            NodeVariant::T2(element) => self.recurse_element(element),
+            NodeVariant::Rest(text) => {
+                text.text_content = self.strip_pii(&mut text.text_content);
             }
+            _ => {}
         }
-        NodeVariant::T2(element) => recurse_element(element),
-        NodeVariant::Rest(text) => {
-            text.strip_pii();
+    }
+
+    fn recurse_element(&self, element: &mut ElementNode) {
+        match element.tag_name.as_str() {
+            "script" | "style" => {}
+            "img" => {
+                let attrs = &mut element.attributes;
+                attrs.insert("src".to_string(), "#".to_string());
+                self.recurse_element_children(element)
+            }
+            _ => self.recurse_element_children(element),
         }
-        _ => {}
     }
-}
 
-fn recurse_element(element: &mut ElementNode) {
-    match element.tag_name.as_str() {
-        "script" | "style" => {}
-        "img" => {
-            let attrs = &mut element.attributes;
-            attrs.insert("src".to_string(), "#".to_string());
-
-            recurse_element_children(element)
+    fn recurse_element_children(&self, element: &mut ElementNode) {
+        for node in &mut element.child_nodes {
+            self.recurse_snapshot_node(node)
         }
-        _ => recurse_element_children(element),
     }
-}
 
-fn recurse_element_children(element: &mut ElementNode) {
-    for node in &mut element.child_nodes {
-        recurse_snapshot_node(node)
+    fn strip_pii(&self, value: &mut String) -> String {
+        // XXX: what is meta and state?
+        // why is the return type result<unit, action>?
+        // what do i do with a processing action?
+        //
+        // let result = self.pii_processor.process_string(value, meta, state);
+        return value.to_string();
     }
-}
-
-fn strip_pii(value: &str) -> &str {
-    return value;
 }
 
 /// Event Type Parser
@@ -342,12 +378,6 @@ struct TextNode {
     text_content: String,
     #[serde(rename = "isStyle", skip_serializing_if = "Option::is_none")]
     is_style: Option<bool>,
-}
-
-impl TextNode {
-    fn strip_pii(&mut self) {
-        self.text_content = strip_pii(&self.text_content).to_string()
-    }
 }
 
 /// Incremental Source Parser
