@@ -5,6 +5,7 @@ on:
     branches:
       - master
       - release/**
+      - release-library/**
 
   pull_request:
 
@@ -298,6 +299,9 @@ jobs:
     name: Sentry-Relay Integration Tests
     runs-on: ubuntu-latest
     timeout-minutes: 25
+
+    # Skip redundant checks for library releases
+    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     steps:
       - name: Checkout Relay
