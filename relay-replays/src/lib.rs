@@ -25,7 +25,6 @@
 //!     },
 //! }
 //! ```
-use std::collections::HashMap;
 use std::fmt::Write;
 use std::net::IpAddr;
 
@@ -70,7 +69,7 @@ struct ReplayInput {
     platform: Option<String>,
     environment: Option<String>,
     release: Option<String>,
-    tags: Option<HashMap<String, String>>,
+    tags: Option<Value>,
     sdk: Option<VersionedMeta>,
     #[serde(default)]
     urls: Vec<String>,
@@ -147,8 +146,8 @@ struct VersionedMeta {
 #[derive(Debug, Default, Deserialize, Serialize)]
 struct User {
     id: Option<Value>,
-    username: Option<String>,
-    email: Option<String>,
+    username: Option<Value>,
+    email: Option<Value>,
     ip_address: Option<String>,
 }
 
