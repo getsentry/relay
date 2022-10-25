@@ -23,9 +23,6 @@
 <span id="21">21</span>
 <span id="22">22</span>
 <span id="23">23</span>
-<span id="24">24</span>
-<span id="25">25</span>
-<span id="26">26</span>
 </pre><pre class="rust"><code><span class="doccomment">//! PII stripping processor.</span>
 
 <span class="kw">mod</span> <span class="ident">attachments</span>;
@@ -41,16 +38,13 @@
 <span class="kw">mod</span> <span class="ident">regexes</span>;
 <span class="kw">mod</span> <span class="ident">utils</span>;
 
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::attachments</span>::{<span class="ident">PiiAttachmentsProcessor</span>, <span class="ident">ScrubEncodings</span>};
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::compiledconfig::CompiledPiiConfig</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::config</span>::{
-    <span class="ident">AliasRule</span>, <span class="ident">MultipleRule</span>, <span class="ident">Pattern</span>, <span class="ident">PatternRule</span>, <span class="ident">PiiConfig</span>, <span class="ident">PiiConfigError</span>, <span class="ident">RedactPairRule</span>,
-    <span class="ident">RuleSpec</span>, <span class="ident">RuleType</span>, <span class="ident">Vars</span>,
-};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::attachments</span>::<span class="kw-2">*</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::compiledconfig</span>::<span class="kw-2">*</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::config</span>::<span class="kw-2">*</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::generate_selectors::selector_suggestions_from_value</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::legacy::DataScrubbingConfig</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::minidumps::ScrubMinidumpError</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::processor::PiiProcessor</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::redactions</span>::{<span class="ident">Redaction</span>, <span class="ident">ReplaceRedaction</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::legacy</span>::<span class="kw-2">*</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::minidumps</span>::<span class="kw-2">*</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::processor</span>::<span class="kw-2">*</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::redactions</span>::<span class="kw-2">*</span>;
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>

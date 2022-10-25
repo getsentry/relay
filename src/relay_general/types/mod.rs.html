@@ -19,8 +19,6 @@
 <span id="17">17</span>
 <span id="18">18</span>
 <span id="19">19</span>
-<span id="20">20</span>
-<span id="21">21</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Basic types for the meta protocol.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! This only provides the types (or aliases) that are used for the meta</span>
@@ -34,13 +32,11 @@
 <span class="kw">mod</span> <span class="ident">traits</span>;
 <span class="kw">mod</span> <span class="ident">value</span>;
 
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::annotated</span>::{
-    <span class="ident">Annotated</span>, <span class="ident">MetaMap</span>, <span class="ident">MetaTree</span>, <span class="ident">ProcessingAction</span>, <span class="ident">ProcessingResult</span>, <span class="ident">SerializableAnnotated</span>,
-};
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::impls::SerializePayload</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::meta</span>::{<span class="ident">Error</span>, <span class="ident">ErrorKind</span>, <span class="ident">Meta</span>, <span class="ident">Range</span>, <span class="ident">Remark</span>, <span class="ident">RemarkType</span>};
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::span_attributes::SpanAttribute</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::traits</span>::{<span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">SkipSerialization</span>};
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::value</span>::{<span class="ident">to_value</span>, <span class="ident">Array</span>, <span class="ident">Map</span>, <span class="ident">Object</span>, <span class="ident">Value</span>, <span class="ident">ValueDescription</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::annotated</span>::<span class="kw-2">*</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::impls</span>::<span class="kw-2">*</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::meta</span>::<span class="kw-2">*</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::span_attributes</span>::<span class="kw-2">*</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::traits</span>::<span class="kw-2">*</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::value</span>::<span class="kw-2">*</span>;
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>

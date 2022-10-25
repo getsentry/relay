@@ -125,14 +125,6 @@
 <span id="123">123</span>
 <span id="124">124</span>
 <span id="125">125</span>
-<span id="126">126</span>
-<span id="127">127</span>
-<span id="128">128</span>
-<span id="129">129</span>
-<span id="130">130</span>
-<span id="131">131</span>
-<span id="132">132</span>
-<span id="133">133</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Utility code for sentry&#39;s internal store.</span>
 <span class="kw">use</span> <span class="ident">std::collections::BTreeSet</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
@@ -155,19 +147,11 @@
 <span class="kw">mod</span> <span class="ident">transactions</span>;
 <span class="kw">mod</span> <span class="ident">trimming</span>;
 
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::clock_drift::ClockDriftProcessor</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::geo</span>::{<span class="ident">GeoIpError</span>, <span class="ident">GeoIpLookup</span>};
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">normalize::breakdowns</span>::{
-    <span class="ident">get_breakdown_measurements</span>, <span class="ident">BreakdownConfig</span>, <span class="ident">BreakdownsConfig</span>, <span class="ident">SpanOperationsConfig</span>,
-};
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">normalize</span>::{
-    <span class="ident">compute_measurements</span>, <span class="ident">is_valid_platform</span>, <span class="ident">light_normalize_event</span>, <span class="ident">normalize_dist</span>,
-    <span class="ident">LightNormalizationConfig</span>, <span class="ident">MeasurementsConfig</span>,
-};
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">transactions</span>::{
-    <span class="ident">get_measurement</span>, <span class="ident">get_transaction_op</span>, <span class="ident">is_high_cardinality_sdk</span>, <span class="ident">validate_timestamps</span>,
-    <span class="ident">validate_transaction</span>,
-};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::clock_drift</span>::<span class="kw-2">*</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::geo</span>::<span class="kw-2">*</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">normalize::breakdowns</span>::<span class="kw-2">*</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">normalize</span>::<span class="kw-2">*</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">transactions</span>::<span class="kw-2">*</span>;
 
 <span class="doccomment">/// The config for store.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>)]</span>

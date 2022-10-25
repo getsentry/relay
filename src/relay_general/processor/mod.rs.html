@@ -16,9 +16,6 @@
 <span id="14">14</span>
 <span id="15">15</span>
 <span id="16">16</span>
-<span id="17">17</span>
-<span id="18">18</span>
-<span id="19">19</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Provides support for processing structures.</span>
 
 <span class="kw">mod</span> <span class="ident">attrs</span>;
@@ -29,14 +26,11 @@
 <span class="kw">mod</span> <span class="ident">size</span>;
 <span class="kw">mod</span> <span class="ident">traits</span>;
 
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::attrs</span>::{
-    <span class="ident">BagSize</span>, <span class="ident">CharacterSet</span>, <span class="ident">FieldAttrs</span>, <span class="ident">MaxChars</span>, <span class="ident">Path</span>, <span class="ident">Pii</span>, <span class="ident">ProcessingState</span>, <span class="ident">UnknownValueTypeError</span>,
-    <span class="ident">ValueType</span>,
-};
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::chunks</span>::{<span class="ident">join_chunks</span>, <span class="ident">process_chunked_value</span>, <span class="ident">split_chunks</span>, <span class="ident">Chunk</span>};
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::funcs::process_value</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::selector</span>::{<span class="ident">SelectorPathItem</span>, <span class="ident">SelectorSpec</span>};
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::size</span>::{<span class="ident">estimate_size</span>, <span class="ident">estimate_size_flat</span>};
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::traits</span>::{<span class="ident">ProcessValue</span>, <span class="ident">Processor</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::attrs</span>::<span class="kw-2">*</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::chunks</span>::<span class="kw-2">*</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::funcs</span>::<span class="kw-2">*</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::selector</span>::<span class="kw-2">*</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::size</span>::<span class="kw-2">*</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::traits</span>::<span class="kw-2">*</span>;
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>

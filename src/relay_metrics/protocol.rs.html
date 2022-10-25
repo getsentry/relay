@@ -877,7 +877,6 @@
 <span id="875">875</span>
 <span id="876">876</span>
 <span id="877">877</span>
-<span id="878">878</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::iter::FusedIterator</span>;
@@ -885,11 +884,10 @@
 <span class="kw">use</span> <span class="ident">hash32</span>::{<span class="ident">FnvHasher</span>, <span class="ident">Hasher</span>};
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">relay_common::UnixTimestamp</span>;
-
 <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">inline</span>)]</span>
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">relay_common</span>::{
     <span class="ident">CustomUnit</span>, <span class="ident">DurationUnit</span>, <span class="ident">FractionUnit</span>, <span class="ident">InformationUnit</span>, <span class="ident">MetricUnit</span>, <span class="ident">ParseMetricUnitError</span>,
+    <span class="ident">UnixTimestamp</span>,
 };
 
 <span class="doccomment">/// Type used for Counter metric</span>
