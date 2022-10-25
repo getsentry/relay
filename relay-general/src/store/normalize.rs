@@ -689,6 +689,12 @@ pub fn light_normalize_event(
         // Check for required and non-empty values
         schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())?;
 
+        // Process security reports first to ensure all props.
+        normalize_security_report(event, config.client_ip, config.user_agent);
+
+        // Insert IP addrs before recursing, since geo lookup depends on it.
+        normalize_ip_addresses(event, config.client_ip);
+
         // Validate the basic attributes we extract metrics from
         event.release.apply(|release, meta| {
             if protocol::validate_release(release).is_ok() {
@@ -976,6 +982,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 #[cfg(test)]
 mod tests {
     use chrono::TimeZone;
+    use insta::assert_debug_snapshot;
     use serde_json::json;
     use similar_asserts::assert_eq;
 
@@ -2279,5 +2286,41 @@ mod tests {
 
             assert!(res.is_err(), "{:?}", span);
         }
+    }
+
+    #[test]
+    fn test_light_normalization_respects_is_renormalize() {
+        let mut event = Annotated::<Event>::from_json(
+            r###"
+            {
+                "type": "default",
+                "tags": [["environment", "some_environment"]]
+            }
+            "###,
+        )
+        .unwrap();
+
+        let result = light_normalize_event(
+            &mut event,
+            &LightNormalizationConfig {
+                is_renormalize: true,
+                ..Default::default()
+            },
+        );
+
+        assert!(result.is_ok());
+
+        assert_debug_snapshot!(event.value().unwrap().tags, @r###"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "environment",
+                        "some_environment",
+                    ),
+                ],
+            ),
+        )
+        "###);
     }
 }
