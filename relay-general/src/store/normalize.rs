@@ -675,26 +675,19 @@ pub fn light_normalize_event(
     event: &mut Annotated<Event>,
     config: &LightNormalizationConfig,
 ) -> ProcessingResult {
+    if config.is_renormalize {
+        return Ok(());
+    }
+
     event.apply(|event, meta| {
-        if !config.is_renormalize {
-            // Validate and normalize transaction
-            // (internally noops for non-transaction events).
-            // TODO: Parts of this processor should probably be a filter so we
-            // can revert some changes to ProcessingAction
-            transactions::TransactionsProcessor.process_event(
-                event,
-                meta,
-                ProcessingState::root(),
-            )?;
-        }
+        // Validate and normalize transaction
+        // (internally noops for non-transaction events).
+        // TODO: Parts of this processor should probably be a filter so we
+        // can revert some changes to ProcessingAction
+        transactions::TransactionsProcessor.process_event(event, meta, ProcessingState::root())?;
+
         // Check for required and non-empty values
         schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())?;
-
-        // Process security reports first to ensure all props.
-        normalize_security_report(event, config.client_ip, config.user_agent);
-
-        // Insert IP addrs before recursing, since geo lookup depends on it.
-        normalize_ip_addresses(event, config.client_ip);
 
         // Validate the basic attributes we extract metrics from
         event.release.apply(|release, meta| {
