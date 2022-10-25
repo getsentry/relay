@@ -316,6 +316,11 @@ impl Display for RuleId {
     }
 }
 
+/// A range of time.
+///
+/// The time range should be applicable between the start and end times, both inclusive
+/// (i.e. [start, end]). There aren't any explicit checks to ensure the end time is equal
+/// to or greater than the start time; the time range isn't valid in such cases.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimeRange {
     start: DateTime<Utc>,
@@ -323,6 +328,11 @@ pub struct TimeRange {
 }
 
 impl TimeRange {
+    /// Returns whether the time range is active.
+    ///
+    /// The time range is active if the time this function starts execution is between
+    /// the start and end times of the range, both inclusive (i.e. [start, end]). If the
+    /// start time is grater than the end time, the range is not valid.
     fn is_active(&self) -> bool {
         let now = Utc::now();
         self.start <= now && now <= self.end
