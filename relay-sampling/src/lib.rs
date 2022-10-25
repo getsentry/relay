@@ -362,25 +362,15 @@ impl SamplingRule {
         self.condition.supported()
     }
 
-    /// Returns whether the sampling rule is a decaying rule.
-    ///
-    /// A decaying rule is a sampling rule that only applies in a closed time range.
-    fn is_decaying_rule(&self) -> bool {
-        self.time_range.is_some()
-    }
-
     /// Returns whether the sampling rule is active.
     ///
     /// Non-decaying rules are always active. Decaying rules are active if they are
     /// neither idle nor expired.
     fn is_active(&self) -> bool {
-        if !self.is_decaying_rule() {
-            return true;
+        match self.time_range.as_ref() {
+            None => true,
+            Some(tr) => tr.is_active(),
         }
-        if let Some(time_range) = self.time_range.as_ref() {
-            return time_range.is_active();
-        }
-        false
     }
 }
 
@@ -697,7 +687,7 @@ impl SamplingConfig {
             if rule.ty != RuleType::Trace {
                 return false;
             }
-            if rule.is_decaying_rule() && !rule.is_active() {
+            if !rule.is_active() {
                 return false;
             }
             rule.condition.matches(sampling_context, ip_addr)
@@ -723,7 +713,7 @@ impl SamplingConfig {
             if rule.ty != ty {
                 return false;
             }
-            if rule.is_decaying_rule() && !rule.is_active() {
+            if !rule.is_active() {
                 return false;
             }
             rule.condition.matches(event, ip_addr)
