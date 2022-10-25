@@ -15,6 +15,7 @@
   "python.formatting.provider": "black",
 
   // Rust Analyzer
+  "rust-analyzer.cargo.features": "all",
   "rust-analyzer.checkOnSave.command": "clippy",
   "rust-analyzer.imports.granularity.group": "module",
   "rust-analyzer.imports.prefix": "crate",
