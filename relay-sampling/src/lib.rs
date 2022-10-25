@@ -323,12 +323,9 @@ pub struct TimeRange {
 }
 
 impl TimeRange {
-    fn has_started(&self) -> bool {
-        self.start <= Utc::now()
-    }
-
-    fn has_finished(&self) -> bool {
-        self.end < Utc::now()
+    fn is_active(&self) -> bool {
+        let now = Utc::now();
+        self.start <= now && now <= self.end
     }
 }
 
@@ -373,31 +370,10 @@ impl SamplingRule {
         if !self.is_decaying_rule() {
             return true;
         }
-        if !self.is_idle() && !self.is_expired() {
-            return true;
+        if let Some(time_range) = self.time_range.as_ref() {
+            return time_range.is_active();
         }
         false
-    }
-
-    /// Returns whether the sampling rule is an idle decaying rule.
-    ///
-    /// An idle decaying rule is a decaying rule that is not operative yet, but it will
-    /// in the future.
-    fn is_idle(&self) -> bool {
-        match self.time_range.as_ref() {
-            None => false,
-            Some(time_range) => !time_range.has_started(),
-        }
-    }
-
-    /// Returns whether the sampling rule is an expired decaying rule.
-    ///
-    /// An expired decaying rule is a decaying rule that is no longer operative.
-    fn is_expired(&self) -> bool {
-        match self.time_range.as_ref() {
-            None => false,
-            Some(time_range) => time_range.has_finished(),
-        }
     }
 }
 
