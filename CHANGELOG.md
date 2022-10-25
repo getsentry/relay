@@ -2,12 +2,21 @@
 
 ## Unreleased
 
+**Internal**:
+
+- Implement response context schema. ([#1529](https://github.com/getsentry/relay/pull/1529))
+
+## 22.10.0
+
 **Features**:
 
 - Limit the number of custom measurements per event. ([#1483](https://github.com/getsentry/relay/pull/1483)))
 - Add INP web vital as a measurement. ([#1487](https://github.com/getsentry/relay/pull/1487))
+- Add .NET/Portable-PDB specific protocol fields. ([#1518](https://github.com/getsentry/relay/pull/1518))
+- Enforce rate limits on metrics buckets using the transactions_processed quota. ([#1515](https://github.com/getsentry/relay/pull/1515))
+- PII scrubbing now treats any key containing `token` as a password. ([#1527](https://github.com/getsentry/relay/pull/1527))
 
-** Bug Fixes**:
+**Bug Fixes**:
 
 - Make sure that non-processing Relays drop all invalid transactions. ([#1513](https://github.com/getsentry/relay/pull/1513))
 
@@ -23,6 +32,7 @@
 - Fix quota DataCategory::TransactionProcessed serialisation to match that of the CAPI. ([#1514](https://github.com/getsentry/relay/pull/1514))
 - Support checking quotas in the Redis rate limiter without incrementing them. ([#1519](https://github.com/getsentry/relay/pull/1519))
 - Update the internal service architecture for metrics aggregator service. ([#1508](https://github.com/getsentry/relay/pull/1508))
+- Add data category for indexed transactions. This will come to represent stored transactions, while the existing category will represent transaction metrics. ([#1535](https://github.com/getsentry/relay/pull/1535))
 
 ## 22.9.0
 
@@ -38,7 +48,6 @@
 - Fix error message filtering when formatting the message of logentry. ([#1442](https://github.com/getsentry/relay/pull/1442))
 - Loosen type requirements for the `user.id` field in Replays. ([#1443](https://github.com/getsentry/relay/pull/1443))
 - Fix panic in datascrubbing when number of sensitive fields was too large. ([#1474](https://github.com/getsentry/relay/pull/1474))
-
 
 **Internal**:
 

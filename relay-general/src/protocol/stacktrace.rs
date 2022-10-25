@@ -133,8 +133,22 @@ pub struct Frame {
     pub instruction_addr: Annotated<Addr>,
 
     /// Defines the addressing mode for addresses.
+    ///
+    /// This can be:
+    /// - `"abs"` (the default): `instruction_addr` is absolute.
+    /// - `"rel:$idx"`: `instruction_addr` is relative to the `debug_meta.image` identified by its index in the list.
+    /// - `"rel:$uuid"`: `instruction_addr` is relative to the `debug_meta.image` identified by its `debug_id`.
+    ///
+    /// If one of the `"rel:XXX"` variants is given together with `function_id`, the `instruction_addr` is relative
+    /// to the uniquely identified function in the references `debug_meta.image`.
     #[metastructure(skip_serialization = "empty")]
     pub addr_mode: Annotated<String>,
+
+    /// (.NET) The function id / index that uniquely identifies a function inside a module.
+    ///
+    /// This is the `MetadataToken` of a .NET `MethodBase`.
+    #[metastructure(skip_serialization = "empty")]
+    pub function_id: Annotated<Addr>,
 
     /// (C/C++/Native) Start address of the frame's function.
     ///
@@ -441,6 +455,7 @@ mod tests {
             image_addr: Annotated::new(Addr(0x400)),
             instruction_addr: Annotated::new(Addr(0x404)),
             addr_mode: Annotated::new("abs".into()),
+            function_id: Annotated::empty(),
             symbol_addr: Annotated::new(Addr(0x404)),
             trust: Annotated::new("69".into()),
             lang: Annotated::new("rust".into()),

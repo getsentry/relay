@@ -1,5 +1,6 @@
 ---
 source: relay-general/tests/test_fixtures.rs
+assertion_line: 109
 expression: "relay_general::protocol::event_json_schema()"
 ---
 {
@@ -822,6 +823,9 @@ expression: "relay_general::protocol::event_json_schema()"
           "$ref": "#/definitions/MonitorContext"
         },
         {
+          "$ref": "#/definitions/ResponseContext"
+        },
+        {
           "type": "object",
           "additionalProperties": true
         }
@@ -903,6 +907,9 @@ expression: "relay_general::protocol::event_json_schema()"
       "anyOf": [
         {
           "$ref": "#/definitions/AppleDebugImage"
+        },
+        {
+          "$ref": "#/definitions/NativeDebugImage"
         },
         {
           "$ref": "#/definitions/NativeDebugImage"
@@ -1450,7 +1457,7 @@ expression: "relay_general::protocol::event_json_schema()"
               ]
             },
             "addr_mode": {
-              "description": " Defines the addressing mode for addresses.",
+              "description": " Defines the addressing mode for addresses.\n\n This can be:\n - `\"abs\"` (the default): `instruction_addr` is absolute.\n - `\"rel:$idx\"`: `instruction_addr` is relative to the `debug_meta.image` identified by its index in the list.\n - `\"rel:$uuid\"`: `instruction_addr` is relative to the `debug_meta.image` identified by its `debug_id`.\n\n If one of the `\"rel:XXX\"` variants is given together with `function_id`, the `instruction_addr` is relative\n to the uniquely identified function in the references `debug_meta.image`.",
               "default": null,
               "type": [
                 "string",
@@ -1493,6 +1500,18 @@ expression: "relay_general::protocol::event_json_schema()"
               "type": [
                 "string",
                 "null"
+              ]
+            },
+            "function_id": {
+              "description": " (.NET) The function id / index that uniquely identifies a function inside a module.\n\n This is the `MetadataToken` of a .NET `MethodBase`.",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Addr"
+                },
+                {
+                  "type": "null"
+                }
               ]
             },
             "image_addr": {
@@ -2184,6 +2203,14 @@ expression: "relay_general::protocol::event_json_schema()"
                 }
               ]
             },
+            "debug_checksum": {
+              "description": " The optional checksum of the debug companion file.\n\n - `pe_dotnet`: This is the hash algorithm and hex-formatted checksum of the associated PDB file.\n  This should have the format `$algorithm:$hash`, for example `SHA256:aabbccddeeff...`.\n\n   See: <https://github.com/dotnet/runtime/blob/main/docs/design/specs/PE-COFF.md#pdb-checksum-debug-directory-entry-type-19>",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "debug_file": {
               "description": " Path and name of the debug companion file.\n\n - `elf`: Name or absolute path to the file containing stripped debug information for this image. This value might be _required_ to retrieve debug files from certain symbol servers.\n\n - `pe`: Name of the PDB file containing debug information for this image. This value is often required to retrieve debug files from specific symbol servers.\n\n - `macho`: Name or absolute path to the dSYM file containing debug information for this image. This value might be required to retrieve debug files from certain symbol servers.",
               "default": null,
@@ -2482,6 +2509,16 @@ expression: "relay_general::protocol::event_json_schema()"
         {
           "type": "object",
           "properties": {
+            "body_size": {
+              "description": " HTTP request body size.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
             "cookies": {
               "description": " The cookie values.\n\n Can be given unparsed as string, as dictionary, or as a list of tuples.",
               "default": null,
@@ -2604,6 +2641,61 @@ expression: "relay_general::protocol::event_json_schema()"
                 "string",
                 "null"
               ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ResponseContext": {
+      "description": " Response interface that contains information on a HTTP response related to the event.",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "body_size": {
+              "description": " HTTP response body size.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "cookies": {
+              "description": " The cookie values.\n\n Can be given unparsed as string, as dictionary, or as a list of tuples.",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Cookies"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "headers": {
+              "description": " A dictionary of submitted headers.\n\n If a header appears multiple times it, needs to be merged according to the HTTP standard\n for header merging. Header names are treated case-insensitively by Sentry.",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Headers"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "status_code": {
+              "description": " HTTP status code.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
             }
           },
           "additionalProperties": false

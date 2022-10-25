@@ -12,6 +12,8 @@ mod os;
 pub use os::*;
 mod reprocessing;
 pub use reprocessing::*;
+mod response;
+pub use response::*;
 mod runtime;
 pub use runtime::*;
 mod trace;
@@ -47,6 +49,8 @@ pub enum Context {
     /// Auxilliary information for reprocessing.
     #[metastructure(omit_from_schema)]
     Reprocessing(Box<ReprocessingContext>),
+    /// Response information.
+    Response(Box<ResponseContext>),
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(fallback_variant)]
     Other(#[metastructure(pii = "true")] Object<Value>),
@@ -67,6 +71,7 @@ impl Context {
             Context::Gpu(_) => Some(GpuContext::default_key()),
             Context::Trace(_) => Some(TraceContext::default_key()),
             Context::Monitor(_) => Some(MonitorContext::default_key()),
+            Context::Response(_) => Some(ResponseContext::default_key()),
             Context::Other(_) => None,
         }
     }

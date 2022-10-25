@@ -1,5 +1,5 @@
+from datetime import datetime, timezone
 import pytest
-import time
 import uuid
 
 from requests.exceptions import HTTPError
@@ -35,8 +35,8 @@ def test_replay_recordings_processing(
     mini_sentry, relay_with_processing, replay_recordings_consumer, outcomes_consumer
 ):
     project_id = 42
+    org_id = 0
     replay_id = "515539018c9b4260a6f999572f1661ee"
-
     relay = relay_with_processing()
     mini_sentry.add_basic_project_config(
         project_id, extra={"config": {"features": ["organizations:session-replay"]}}
@@ -72,16 +72,18 @@ def test_replay_recordings_processing(
 
     replay_recording = replay_recordings_consumer.get_individual_replay()
 
-    assert replay_recording == {
-        "type": "replay_recording",
-        "replay_recording": {
-            "chunks": replay_recording_num_chunks[id1],
-            "id": id1,
-            "size": len(replay_recording_contents[id1]),
-        },
-        "replay_id": replay_id,
-        "project_id": project_id,
-        "retention_days": 90,
+    assert replay_recording["type"] == "replay_recording"
+    assert replay_recording["replay_recording"] == {
+        "chunks": replay_recording_num_chunks[id1],
+        "id": id1,
+        "size": len(replay_recording_contents[id1]),
     }
+    assert replay_recording["replay_id"] == replay_id
+    assert replay_recording["project_id"] == project_id
+    assert replay_recording["org_id"] == org_id
+    assert replay_recording["key_id"] == 123
+    assert replay_recording["retention_days"] == 90
+    assert replay_recording["received"]
+    assert type(replay_recording["received"]) == int
 
     outcomes_consumer.assert_empty()
