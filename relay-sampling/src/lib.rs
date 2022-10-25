@@ -341,8 +341,8 @@ pub struct SamplingRule {
     /// The time range the rule should be applicable in.
     ///
     /// If no time range is provided, relay will always apply the rule. If a range is
-    /// provided the rule becomes a decayng rule, and relay will only apply it inside
-    /// the time ranges.
+    /// provided the rule becomes a decaying rule, and relay will only apply it inside
+    /// the time range.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub time_range: Option<TimeRange>,
 }
