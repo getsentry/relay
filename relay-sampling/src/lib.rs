@@ -366,10 +366,7 @@ impl SamplingRule {
     ///
     /// A decaying rule is a sampling rule that only applies in a closed time range.
     fn is_decaying_rule(&self) -> bool {
-        match self.time_range {
-            None => false,
-            Some(_) => true,
-        }
+        self.time_range.is_some()
     }
 
     /// Returns whether the sampling rule is active.
