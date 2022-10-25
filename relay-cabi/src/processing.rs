@@ -109,10 +109,17 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
 ) -> RelayStr {
     let processor = normalizer as *mut StoreProcessor;
     let mut event = Annotated::<Event>::from_json((*event).as_str())?;
+    let config = (*processor).config();
     let light_normalization_config = LightNormalizationConfig {
-        normalize_user_agent: (*processor).config().normalize_user_agent,
-        is_renormalize: (*processor).config().is_renormalize.unwrap_or(false),
-        ..Default::default()
+        client_ip: config.client_ip.as_ref(),
+        user_agent: config.user_agent.as_deref(),
+        received_at: config.received_at,
+        max_secs_in_past: config.max_secs_in_past,
+        max_secs_in_future: config.max_secs_in_future,
+        measurements_config: None, // only supported in relay
+        breakdowns_config: None,   // only supported in relay
+        normalize_user_agent: config.normalize_user_agent,
+        is_renormalize: config.is_renormalize.unwrap_or(false),
     };
     light_normalize_event(&mut event, &light_normalization_config)?;
     process_value(&mut event, &mut *processor, ProcessingState::root())?;

@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.8.15
+
+- Restore correct behavior when `is_renormalize` is specified on `normalize_event`. ([#1548](https://github.com/getsentry/relay/pull/1548))
+
+## 0.8.14
+
+**Warning:** This release contains a regression. Please update to a more recent version.
 
 - Add `transaction_info` to event payloads, including the transaction's source and internal original transaction name. ([#1330](https://github.com/getsentry/relay/pull/1330))
 - Add user-agent parsing to replays processor. ([#1420](https://github.com/getsentry/relay/pull/1420))

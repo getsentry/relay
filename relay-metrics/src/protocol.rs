@@ -5,11 +5,10 @@ use std::iter::FusedIterator;
 use hash32::{FnvHasher, Hasher};
 use serde::{Deserialize, Serialize};
 
-pub use relay_common::UnixTimestamp;
-
 #[doc(inline)]
 pub use relay_common::{
     CustomUnit, DurationUnit, FractionUnit, InformationUnit, MetricUnit, ParseMetricUnitError,
+    UnixTimestamp,
 };
 
 /// Type used for Counter metric
