@@ -848,8 +848,7 @@ def test_re_auth(relay, mini_sentry):
     assert counter[0] > 1
 
 
-@pytest.mark.parametrize("run", range(10))
-def test_re_auth_failure(relay, mini_sentry, run):
+def test_re_auth_failure(relay, mini_sentry):
     """
     Test that after a re-authentication failure, relay stops sending messages until is reauthenticated.
 
