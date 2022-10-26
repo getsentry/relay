@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use relay_general::pii::PiiConfig;
 use relay_general::pii::PiiProcessor;
+use relay_general::processor::ProcessingState;
 
 use serde::de::Error as DError;
 use serde::{Deserialize, Serialize};
@@ -106,10 +107,13 @@ impl RecordingProcessor<'_> {
 
     fn strip_pii(&self, value: &mut String) -> String {
         // XXX: what is meta and state?
-        // why is the return type result<unit, action>?
         // what do i do with a processing action?
+        // process_string is private.  process_value requires annotated.
         //
-        // let result = self.pii_processor.process_string(value, meta, state);
+        // let result = self
+        //     .pii_processor
+        //     .process_string(value, meta, ProcessingState::root());
+
         return value.to_string();
     }
 }
