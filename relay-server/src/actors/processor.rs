@@ -32,7 +32,7 @@ use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig};
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
 use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
-use relay_quotas::{DataCategory, RateLimits, ReasonCode};
+use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
 use relay_sampling::{DynamicSamplingContext, RuleId};
 use relay_statsd::metric;
@@ -54,11 +54,13 @@ use crate::utils::{
 
 #[cfg(feature = "processing")]
 use {
+    crate::actors::envelopes::SendMetrics,
     crate::actors::project_cache::UpdateRateLimits,
     crate::service::ServerErrorKind,
-    crate::utils::EnvelopeLimiter,
+    crate::utils::{BucketLimiter, EnvelopeLimiter},
     failure::ResultExt,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
+    relay_quotas::ItemScoping,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
@@ -227,14 +229,6 @@ struct ProcessEnvelopeState {
     /// This element is obtained from the event or transaction item and re-serialized into the
     /// resulting item.
     sample_rates: Option<Value>,
-
-    /// Rate limits returned in processing mode.
-    ///
-    /// The rate limiter is invoked in processing mode, after which the resulting limits are stored
-    /// in this field. Note that there can be rate limits even if the envelope still carries items.
-    ///
-    /// These are always empty in non-processing mode, since the rate limiter is not invoked.
-    rate_limits: RateLimits,
 
     /// Metrics extracted from items in the envelope.
     ///
@@ -463,9 +457,6 @@ pub struct ProcessEnvelopeResponse {
     /// removed from the envelope. Otherwise, if the envelope is empty or the entire envelope needs
     /// to be dropped, this is `None`.
     pub envelope: Option<(Envelope, EnvelopeContext)>,
-
-    /// All rate limits that have been applied on the envelope.
-    pub rate_limits: RateLimits,
 }
 
 /// Applies processing to all contents of the given envelope.
@@ -527,12 +518,22 @@ impl EncodeEnvelope {
     }
 }
 
+/// Applies rate limits to metrics buckets and forwards them to the envelope manager.
+#[cfg(feature = "processing")]
+#[derive(Debug)]
+pub struct RateLimitFlushBuckets {
+    pub bucket_limiter: BucketLimiter,
+    pub partition_key: Option<u64>,
+}
+
 /// CPU-intensive processing tasks for envelopes.
 #[derive(Debug)]
 pub enum EnvelopeProcessor {
     ProcessEnvelope(Box<ProcessEnvelope>),
     ProcessMetrics(Box<ProcessMetrics>),
     EncodeEnvelope(Box<EncodeEnvelope>),
+    #[cfg(feature = "processing")]
+    RateLimitFlushBuckets(RateLimitFlushBuckets),
 }
 
 impl EnvelopeProcessor {
@@ -564,6 +565,15 @@ impl FromMessage<EncodeEnvelope> for EnvelopeProcessor {
 
     fn from_message(message: EncodeEnvelope, _: ()) -> Self {
         Self::EncodeEnvelope(Box::new(message))
+    }
+}
+
+#[cfg(feature = "processing")]
+impl FromMessage<RateLimitFlushBuckets> for EnvelopeProcessor {
+    type Response = NoResponse;
+
+    fn from_message(message: RateLimitFlushBuckets, _: ()) -> Self {
+        Self::RateLimitFlushBuckets(message)
     }
 }
 
@@ -1088,7 +1098,8 @@ impl EnvelopeProcessorService {
                         item.set_payload(ContentType::Json, &replay[..]);
                         true
                     }
-                    Err(_) => {
+                    Err(error) => {
+                        relay_log::warn!("failed to parse replay event: {}", LogError(&error));
                         context.track_outcome(
                             Outcome::Invalid(DiscardReason::InvalidReplayEvent),
                             DataCategory::Replay,
@@ -1152,7 +1163,6 @@ impl EnvelopeProcessorService {
             transaction_metrics_extracted: false,
             metrics: Metrics::default(),
             sample_rates: None,
-            rate_limits: RateLimits::new(),
             extracted_metrics: Vec::new(),
             project_state,
             sampling_project_state,
@@ -1734,7 +1744,7 @@ impl EnvelopeProcessorService {
         // When invoking the rate limiter, capture if the event item has been rate limited to also
         // remove it from the processing state eventually.
         let mut envelope_limiter = EnvelopeLimiter::new(|item_scope, quantity| {
-            let limits = rate_limiter.is_rate_limited(quotas, item_scope, quantity)?;
+            let limits = rate_limiter.is_rate_limited(quotas, item_scope, quantity, false)?;
             remove_event |= Some(item_scope.category) == event_category && limits.is_limited();
             Ok(limits)
         });
@@ -1754,10 +1764,9 @@ impl EnvelopeProcessorService {
 
         if limits.is_limited() {
             ProjectCache::from_registry()
-                .do_send(UpdateRateLimits::new(scoping.project_key, limits.clone()));
+                .do_send(UpdateRateLimits::new(scoping.project_key, limits));
         }
 
-        state.rate_limits = limits;
         enforcement.track_outcomes(&state.envelope, &state.envelope_context.scoping());
 
         if remove_event {
@@ -2068,7 +2077,6 @@ impl EnvelopeProcessorService {
 
                         Ok(ProcessEnvelopeResponse {
                             envelope: envelope_response,
-                            rate_limits: state.rate_limits,
                         })
                     }
                     Err(err) => {
@@ -2178,6 +2186,53 @@ impl EnvelopeProcessorService {
         }
     }
 
+    /// Check and apply rate limits to metrics buckets.
+    #[cfg(feature = "processing")]
+    fn handle_rate_limit_flush_buckets(&self, message: RateLimitFlushBuckets) {
+        let RateLimitFlushBuckets {
+            mut bucket_limiter,
+            partition_key,
+        } = message;
+
+        let scoping = *bucket_limiter.scoping();
+
+        if let Some(rate_limiter) = self.rate_limiter.as_ref() {
+            let item_scoping = ItemScoping {
+                category: DataCategory::TransactionProcessed,
+                scoping: &scoping,
+            };
+            // We set over_accept_once such that the limit is actually reached, which allows subsequent
+            // calls with quantity=0 to be rate limited.
+            let over_accept_once = true;
+            let rate_limits = rate_limiter.is_rate_limited(
+                bucket_limiter.quotas(),
+                item_scoping,
+                bucket_limiter.transaction_count(),
+                over_accept_once,
+            );
+
+            let was_enforced = bucket_limiter.enforce_limits(rate_limits.as_ref().map_err(|_| ()));
+
+            if was_enforced {
+                if let Ok(limits) = rate_limits {
+                    // Update the rate limits in the project cache.
+                    ProjectCache::from_registry()
+                        .do_send(UpdateRateLimits::new(scoping.project_key, limits));
+                }
+            }
+        }
+
+        let buckets = bucket_limiter.into_buckets();
+        if !buckets.is_empty() {
+            // Forward buckets to envelope manager to send them to upstream or kafka:
+            EnvelopeManager::from_registry().send(SendMetrics {
+                buckets,
+                scoping,
+                partition_key,
+            });
+        }
+    }
+
     fn encode_envelope_body(
         body: Vec<u8>,
         http_encoding: HttpEncoding,
@@ -2225,6 +2280,10 @@ impl EnvelopeProcessorService {
             EnvelopeProcessor::ProcessEnvelope(message) => self.handle_process_envelope(*message),
             EnvelopeProcessor::ProcessMetrics(message) => self.handle_process_metrics(*message),
             EnvelopeProcessor::EncodeEnvelope(message) => self.handle_encode_envelope(*message),
+            #[cfg(feature = "processing")]
+            EnvelopeProcessor::RateLimitFlushBuckets(message) => {
+                self.handle_rate_limit_flush_buckets(message);
+            }
         }
     }
 }

@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Test utilities for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "22.9.0"
+version = "22.10.0"
 edition = "2021"
 license-file = "../LICENSE"
 publish = false
@@ -14,4 +14,6 @@ actix = "0.7.9"
 actix-web = { version = "0.7.19", default-features = false}
 futures01 = { version = "0.1.28", package = "futures" }
 relay-log = { path = "../relay-log", features = ["test"] }
+relay-system = { path = "../relay-system" }
+tokio = "1.0"
 tokio-timer = "0.2.13"

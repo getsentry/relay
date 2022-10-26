@@ -92,6 +92,7 @@ mod tests {
                 code_id: Annotated::empty(),
                 debug_file: Annotated::empty(),
                 debug_id: Annotated::new("e5fd8c72-6f8f-3ad2-9c52-5ae133138e0c".parse().unwrap()),
+                debug_checksum: Annotated::empty(),
                 image_addr: Annotated::new(Addr(4375101440)),
                 image_size: Annotated::new(557056),
                 image_vmaddr: Annotated::new(Addr(4294967296)),

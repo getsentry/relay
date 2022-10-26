@@ -94,7 +94,7 @@ impl fmt::Display for EventType {
 
 /// Classifies the type of data that is being ingested.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 #[repr(i8)]
 pub enum DataCategory {
     /// Reserved and unused.
@@ -113,8 +113,16 @@ pub enum DataCategory {
     Profile = 6,
     /// Session Replays
     Replay = 7,
-    /// A transaction that was processed but not stored.
+    /// DEPRECATED: A transaction for which metrics were extracted.
+    ///
+    /// This category is now obsolete because the `Transaction` variant will represent
+    /// processed transactions from now on.
     TransactionProcessed = 8,
+    /// Indexed transaction events.
+    ///
+    /// This is the category for transaction payloads that were accepted and stored in full. In
+    /// contrast, `transaction` only guarantees that metrics have been accepted for the transaction.
+    TransactionIndexed = 9,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -128,6 +136,7 @@ pub enum DataCategory {
 impl DataCategory {
     /// Returns the data category corresponding to the given name.
     pub fn from_name(string: &str) -> Self {
+        // TODO: This should probably use serde.
         match string {
             "default" => Self::Default,
             "error" => Self::Error,
@@ -138,12 +147,14 @@ impl DataCategory {
             "profile" => Self::Profile,
             "replay" => Self::Replay,
             "transaction_processed" => Self::TransactionProcessed,
+            "transaction_indexed" => Self::TransactionIndexed,
             _ => Self::Unknown,
         }
     }
 
     /// Returns the canonical name of this data category.
     pub fn name(self) -> &'static str {
+        // TODO: This should probably use serde.
         match self {
             Self::Default => "default",
             Self::Error => "error",
@@ -154,6 +165,7 @@ impl DataCategory {
             Self::Profile => "profile",
             Self::Replay => "replay",
             Self::TransactionProcessed => "transaction_processed",
+            Self::TransactionIndexed => "transaction_indexed",
             Self::Unknown => "unknown",
         }
     }

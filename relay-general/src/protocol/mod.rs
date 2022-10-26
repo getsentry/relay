@@ -32,47 +32,32 @@ mod user_report;
 
 pub use sentry_release_parser::{validate_environment, validate_release};
 
-pub use self::breadcrumb::Breadcrumb;
-pub use self::breakdowns::Breakdowns;
-pub use self::client_report::{ClientReport, DiscardedEvent};
-pub use self::clientsdk::{ClientSdkInfo, ClientSdkPackage};
-pub use self::constants::VALID_PLATFORMS;
-pub use self::contexts::{
-    AppContext, BrowserContext, Context, ContextInner, Contexts, DeviceContext, GpuContext,
-    OperationType, OsContext, RuntimeContext, SpanId, SpanStatus, TraceContext, TraceId,
-};
-pub use self::debugmeta::{
-    AppleDebugImage, CodeId, DebugId, DebugImage, DebugMeta, NativeDebugImage, NativeImagePath,
-    SystemSdkInfo,
-};
-pub use self::event::{
-    Event, EventId, EventProcessingError, EventType, ExtraValue, GroupingConfig,
-    ParseEventTypeError,
-};
-pub use self::exception::Exception;
-pub use self::fingerprint::Fingerprint;
-pub use self::logentry::{LogEntry, Message};
-pub use self::measurements::{Measurement, Measurements};
-pub use self::mechanism::{CError, MachException, Mechanism, MechanismMeta, PosixSignal};
-pub use self::metrics::{Metrics, SampleRate};
-pub use self::relay_info::RelayInfo;
-pub use self::request::{Cookies, HeaderName, HeaderValue, Headers, Query, Request};
+pub use self::breadcrumb::*;
+pub use self::breakdowns::*;
+pub use self::client_report::*;
+pub use self::clientsdk::*;
+pub use self::constants::*;
+pub use self::contexts::*;
+pub use self::debugmeta::*;
+pub use self::event::*;
+pub use self::exception::*;
+pub use self::fingerprint::*;
+pub use self::logentry::*;
+pub use self::measurements::*;
+pub use self::mechanism::*;
+pub use self::metrics::*;
+pub use self::relay_info::*;
+pub use self::request::*;
 #[cfg(feature = "jsonschema")]
 pub use self::schema::event_json_schema;
-pub use self::security_report::{Csp, ExpectCt, ExpectStaple, Hpkp, SecurityReportType};
-pub use self::session::{
-    ParseSessionStatusError, SessionAggregateItem, SessionAggregates, SessionAttributes,
-    SessionErrored, SessionLike, SessionStatus, SessionUpdate,
-};
-pub use self::span::Span;
-pub use self::stacktrace::{Frame, FrameData, FrameVars, RawStacktrace, Stacktrace};
-pub use self::tags::{TagEntry, Tags};
-pub use self::templateinfo::TemplateInfo;
-pub use self::thread::{Thread, ThreadId};
-pub use self::transaction::{TransactionInfo, TransactionSource};
-pub use self::types::{
-    datetime_to_timestamp, Addr, AsPair, InvalidRegVal, IpAddr, JsonLenientString, LenientString,
-    Level, PairList, ParseLevelError, RegVal, Timestamp, Values,
-};
-pub use self::user::{Geo, User};
-pub use self::user_report::UserReport;
+pub use self::security_report::*;
+pub use self::session::*;
+pub use self::span::*;
+pub use self::stacktrace::*;
+pub use self::tags::*;
+pub use self::templateinfo::*;
+pub use self::thread::*;
+pub use self::transaction::*;
+pub use self::types::*;
+pub use self::user::*;
+pub use self::user_report::*;
