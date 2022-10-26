@@ -61,7 +61,7 @@ struct AndroidProfile {
     profile: AndroidTraceLog,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    measurements: Option<HashMap<String, Measurement>>,
+    measurements: Option<HashMap<String, Vec<Measurement>>>,
 }
 
 impl AndroidProfile {
