@@ -890,6 +890,9 @@ def test_re_auth_failure(relay, mini_sentry):
     auth_count_2 = counter[0]
     assert auth_count_1 < auth_count_2
 
+    # Give Relay some time to process the auth response and mark itself as not ready
+    sleep(0.1)
+
     # send a message, it should not come through while the authentication has failed
     relay.send_event(project_id, {"message": "123"})
     # sentry should have received nothing
@@ -905,6 +908,9 @@ def test_re_auth_failure(relay, mini_sentry):
     # check that we have had some auth that succeeded
     auth_count_3 = counter[0]
     assert auth_count_2 < auth_count_3
+
+    # Give Relay some time to process the auth response and mark itself as ready
+    sleep(0.1)
 
     # now we should be re-authenticated and we should have the event
 

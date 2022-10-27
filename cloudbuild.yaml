@@ -37,6 +37,7 @@ steps:
       ]
 
     # Build everything
+
   - name: "gcr.io/cloud-builders/docker"
     args:
       [
@@ -56,19 +57,19 @@ steps:
   - name: "gcr.io/cloud-builders/docker"
     args: ["push", "us.gcr.io/$PROJECT_ID/relay:$COMMIT_SHA"]
 
-  # On-premise Integration tests
+  # Self-hosted Integration tests
   - name: "gcr.io/$PROJECT_ID/docker-compose"
     entrypoint: "bash"
     env:
       - "RELAY_IMAGE=us.gcr.io/$PROJECT_ID/relay:$COMMIT_SHA"
       - "SENTRY_TEST_HOST=http://nginx"
       - "CI=1"
+      - "REPORT_SELF_HOSTED_ISSUES=0"
     args:
       - "-e"
       - "-c"
       - |
         mkdir self-hosted && cd self-hosted
-        echo "no" > .reporterrors
         curl -L "https://github.com/getsentry/self-hosted/archive/master.tar.gz" | tar xzf - --strip-components=1
         # The following trick is from https://stackoverflow.com/a/52400857/90297 with great gratuity
         echo '{"version": "3.4", "networks":{"default":{"external":{"name":"cloudbuild"}}}}' > docker-compose.override.yml
