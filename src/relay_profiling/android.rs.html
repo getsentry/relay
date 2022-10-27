@@ -380,6 +380,10 @@
 <span id="380">380</span>
 <span id="381">381</span>
 <span id="382">382</span>
+<span id="383">383</span>
+<span id="384">384</span>
+<span id="385">385</span>
+<span id="386">386</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">HashMap</span>, <span class="ident">HashSet</span>};
 <span class="kw">use</span> <span class="ident">std::time::Duration</span>;
 
@@ -389,6 +393,7 @@
 
 <span class="kw">use</span> <span class="ident">relay_general::protocol::EventId</span>;
 
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::measurements::Measurement</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::transaction_metadata::TransactionMetadata</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{<span class="ident">deserialize_number_from_string</span>, <span class="ident">is_zero</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::ProfileError</span>;
@@ -440,6 +445,9 @@
 
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span> <span class="op">=</span> <span class="string">&quot;AndroidProfile::default&quot;</span>)]</span>
     <span class="ident">profile</span>: <span class="ident">AndroidTraceLog</span>,
+
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
+    <span class="ident">measurements</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">Measurement</span><span class="op">&gt;</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">AndroidProfile</span> {
