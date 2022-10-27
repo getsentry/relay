@@ -330,6 +330,7 @@ pub struct TimeRange {
 }
 
 impl TimeRange {
+    /// Returns true if neither the start nor end time limits are set.
     pub fn is_empty(&self) -> bool {
         self.start.is_none() && self.end.is_none()
     }
