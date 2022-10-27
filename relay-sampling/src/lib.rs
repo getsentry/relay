@@ -319,24 +319,31 @@ impl Display for RuleId {
 
 /// A range of time.
 ///
-/// The time range should be applicable between the start and end times, both inclusive
-/// (i.e. [start, end]). There aren't any explicit checks to ensure the end time is equal
-/// to or greater than the start time; the time range isn't valid in such cases.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// The time range should be applicable between the start time, inclusive, and
+/// end time, exclusive.  There aren't any explicit checks to ensure the end
+/// time is equal to or greater than the start time; the time range isn't valid
+/// in such cases.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct TimeRange {
-    start: DateTime<Utc>,
-    end: DateTime<Utc>,
+    start: Option<DateTime<Utc>>,
+    end: Option<DateTime<Utc>>,
 }
 
 impl TimeRange {
-    /// Returns whether the time range is active.
+    pub fn is_empty(&self) -> bool {
+        self.start.is_none() && self.end.is_none()
+    }
+
+    /// Returns whether the provided time matches the time range.
     ///
-    /// The time range is active if the time this function starts execution is between
-    /// the start and end times of the range, both inclusive (i.e. [start, end]). If the
-    /// start time is grater than the end time, the range is not valid.
-    fn is_active(&self) -> bool {
-        let now = Utc::now();
-        self.start <= now && now <= self.end
+    /// For a time to match a time range, the following conditions must match:
+    /// - The start time must be smaller than or equal to the given time, if provided.
+    /// - The end time must be greater than the given time, if provided.
+    ///
+    /// If one of the limits isn't provided, the range is considered open in
+    /// that limit. A time range open on both sides matches with any given time.
+    pub fn contains(&self, time: DateTime<Utc>) -> bool {
+        self.start.map_or(true, |s| s <= time) && self.end.map_or(true, |e| time < e)
     }
 }
 
@@ -351,11 +358,10 @@ pub struct SamplingRule {
     pub id: RuleId,
     /// The time range the rule should be applicable in.
     ///
-    /// If no time range is provided, relay will always apply the rule. If a range is
-    /// provided the rule becomes a decaying rule, and relay will only apply it inside
-    /// the time range.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub time_range: Option<TimeRange>,
+    /// The time range is open on both ends by default. If a time range is
+    /// closed on at least one end, the rule is considered a decaying rule.
+    #[serde(default, skip_serializing_if = "TimeRange::is_empty")]
+    pub time_range: TimeRange,
 }
 
 impl SamplingRule {
@@ -368,10 +374,7 @@ impl SamplingRule {
     /// Non-decaying rules are always active. Decaying rules are active if they are
     /// neither idle nor expired.
     fn is_active(&self) -> bool {
-        match self.time_range.as_ref() {
-            None => true,
-            Some(tr) => tr.is_active(),
-        }
+        self.time_range.contains(Utc::now())
     }
 }
 
@@ -893,6 +896,8 @@ pub fn pseudo_random_from_uuid(id: Uuid) -> f64 {
 mod tests {
     use std::net::{IpAddr as NetIpAddr, Ipv4Addr};
     use std::str::FromStr;
+
+    use chrono::{TimeZone, Utc};
 
     use relay_general::protocol::{
         Contexts, Csp, DeviceContext, Exception, Headers, IpAddr, JsonLenientString, LenientString,
@@ -1806,25 +1811,19 @@ mod tests {
             "type": "trace",
             "id": 1,
             "timeRange": {
-                "start": "2022-10-10T10:10:10.101010Z",
-                "end": "2022-10-20T20:20:20.202020Z"
+                "start": "2022-10-10T00:00:00.000000Z",
+                "end": "2022-10-20T00:00:00.000000Z"
             }
         }"#;
         let rule: Result<SamplingRule, _> = serde_json::from_str(serialized_rule);
         let rule = rule.unwrap();
-        let time_range = rule.time_range.unwrap();
+        let time_range = rule.time_range;
+
         assert_eq!(
             time_range.start,
-            DateTime::parse_from_rfc3339("2022-10-10T10:10:10.101010Z")
-                .unwrap()
-                .with_timezone(&Utc)
+            Some(Utc.ymd(2022, 10, 10).and_hms(0, 0, 0))
         );
-        assert_eq!(
-            time_range.end,
-            DateTime::parse_from_rfc3339("2022-10-20T20:20:20.202020Z")
-                .unwrap()
-                .with_timezone(&Utc)
-        );
+        assert_eq!(time_range.end, Some(Utc.ymd(2022, 10, 20).and_hms(0, 0, 0)));
     }
 
     #[test]
@@ -1955,7 +1954,7 @@ mod tests {
                     sample_rate: 0.1,
                     ty: RuleType::Trace,
                     id: RuleId(1),
-                    time_range: None,
+                    time_range: Default::default(),
                 },
                 // no user segments
                 SamplingRule {
@@ -1966,7 +1965,7 @@ mod tests {
                     sample_rate: 0.2,
                     ty: RuleType::Trace,
                     id: RuleId(2),
-                    time_range: None,
+                    time_range: Default::default(),
                 },
                 // no releases
                 SamplingRule {
@@ -1977,7 +1976,7 @@ mod tests {
                     sample_rate: 0.3,
                     ty: RuleType::Trace,
                     id: RuleId(3),
-                    time_range: None,
+                    time_range: Default::default(),
                 },
                 // no environments
                 SamplingRule {
@@ -1988,7 +1987,7 @@ mod tests {
                     sample_rate: 0.4,
                     ty: RuleType::Trace,
                     id: RuleId(4),
-                    time_range: None,
+                    time_range: Default::default(),
                 },
                 // no user segments releases or environments
                 SamplingRule {
@@ -1996,7 +1995,7 @@ mod tests {
                     sample_rate: 0.5,
                     ty: RuleType::Trace,
                     id: RuleId(5),
-                    time_range: None,
+                    time_range: Default::default(),
                 },
             ],
             next_id: None,
@@ -2171,14 +2170,10 @@ mod tests {
                     sample_rate: 0.2,
                     ty: *rule_type,
                     id: RuleId(1),
-                    time_range: Some(TimeRange {
-                        start: DateTime::parse_from_rfc3339("1970-10-10T10:10:10.101010Z")
-                            .unwrap()
-                            .with_timezone(&Utc),
-                        end: DateTime::parse_from_rfc3339("1970-10-30T10:10:10.101010Z")
-                            .unwrap()
-                            .with_timezone(&Utc),
-                    }),
+                    time_range: TimeRange {
+                        start: Some(Utc.ymd(1970, 10, 10).and_hms(0, 0, 0)),
+                        end: Some(Utc.ymd(1970, 10, 30).and_hms(0, 0, 0)),
+                    },
                 },
                 // Idle
                 SamplingRule {
@@ -2186,14 +2181,10 @@ mod tests {
                     sample_rate: 0.2,
                     ty: *rule_type,
                     id: RuleId(2),
-                    time_range: Some(TimeRange {
-                        start: DateTime::parse_from_rfc3339("3000-10-10T10:10:10.101010Z")
-                            .unwrap()
-                            .with_timezone(&Utc),
-                        end: DateTime::parse_from_rfc3339("3000-10-15T10:10:10.101010Z")
-                            .unwrap()
-                            .with_timezone(&Utc),
-                    }),
+                    time_range: TimeRange {
+                        start: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
+                        end: Some(Utc.ymd(3000, 10, 15).and_hms(0, 0, 0)),
+                    },
                 },
                 // Start after finishing
                 SamplingRule {
@@ -2201,14 +2192,10 @@ mod tests {
                     sample_rate: 0.2,
                     ty: *rule_type,
                     id: RuleId(3),
-                    time_range: Some(TimeRange {
-                        start: DateTime::parse_from_rfc3339("3000-10-10T10:10:10.101010Z")
-                            .unwrap()
-                            .with_timezone(&Utc),
-                        end: DateTime::parse_from_rfc3339("1970-10-30T10:10:10.101010Z")
-                            .unwrap()
-                            .with_timezone(&Utc),
-                    }),
+                    time_range: TimeRange {
+                        start: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
+                        end: Some(Utc.ymd(1970, 10, 30).and_hms(0, 0, 0)),
+                    },
                 },
                 // Rule is ok
                 SamplingRule {
@@ -2216,14 +2203,10 @@ mod tests {
                     sample_rate: 0.2,
                     ty: *rule_type,
                     id: RuleId(4),
-                    time_range: Some(TimeRange {
-                        start: DateTime::parse_from_rfc3339("1970-10-30T10:10:10.101010Z")
-                            .unwrap()
-                            .with_timezone(&Utc),
-                        end: DateTime::parse_from_rfc3339("3000-10-10T10:10:10.101010Z")
-                            .unwrap()
-                            .with_timezone(&Utc),
-                    }),
+                    time_range: TimeRange {
+                        start: Some(Utc.ymd(1970, 10, 30).and_hms(0, 0, 0)),
+                        end: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
+                    },
                 },
                 // Fallback to non-decaying rule
                 SamplingRule {
@@ -2232,7 +2215,7 @@ mod tests {
                     sample_rate: 0.2,
                     ty: *rule_type,
                     id: RuleId(5),
-                    time_range: None,
+                    time_range: Default::default(),
                 },
             ],
             next_id: None,
@@ -2260,6 +2243,80 @@ mod tests {
         };
         let result = rules.get_matching_event_rule(&old_release, None);
         assert_eq!(result.unwrap().id, RuleId(5), "Did not match expected rule");
+    }
+
+    #[test]
+    fn test_open_decaying_rules() {
+        let transaction = Event {
+            ty: Annotated::new(EventType::Transaction),
+            release: Annotated::new("1.1.1".to_string().into()),
+            ..Default::default()
+        };
+        let trace = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
+            environment: Some("testing".to_string()),
+            transaction: Some("transaction2".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
+        };
+
+        let ranges = vec![
+            TimeRange {
+                start: Some(Utc.ymd(1970, 10, 10).and_hms(0, 0, 0)),
+                end: None,
+            },
+            TimeRange {
+                start: None,
+                end: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
+            },
+            TimeRange {
+                start: None,
+                end: None,
+            },
+        ];
+
+        for range in ranges {
+            let config = SamplingConfig {
+                rules: vec![SamplingRule {
+                    condition: eq("trace.release", &["1.1.1"], true),
+                    sample_rate: 0.2,
+                    ty: RuleType::Trace,
+                    id: RuleId(1),
+                    time_range: range.clone(),
+                }],
+                next_id: None,
+            };
+            assert_eq!(
+                config.get_matching_trace_rule(&trace, None).unwrap().id,
+                RuleId(1),
+                "Trace rule did not match",
+            );
+
+            let config = SamplingConfig {
+                rules: vec![SamplingRule {
+                    condition: eq("event.release", &["1.1.1"], true),
+                    sample_rate: 0.2,
+                    ty: RuleType::Transaction,
+                    id: RuleId(1),
+                    time_range: range.clone(),
+                }],
+                next_id: None,
+            };
+            assert_eq!(
+                config
+                    .get_matching_event_rule(&transaction, None)
+                    .unwrap()
+                    .id,
+                RuleId(1),
+                "Transaction rule did not match",
+            );
+        }
     }
 
     #[test]
