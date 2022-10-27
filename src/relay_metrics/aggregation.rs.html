@@ -3167,6 +3167,16 @@
 <span id="3165">3165</span>
 <span id="3166">3166</span>
 <span id="3167">3167</span>
+<span id="3168">3168</span>
+<span id="3169">3169</span>
+<span id="3170">3170</span>
+<span id="3171">3171</span>
+<span id="3172">3172</span>
+<span id="3173">3173</span>
+<span id="3174">3174</span>
+<span id="3175">3175</span>
+<span id="3176">3176</span>
+<span id="3177">3177</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::cmp::max</span>;
 <span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">btree_map</span>, <span class="ident">hash_map::Entry</span>, <span class="ident">BTreeMap</span>, <span class="ident">BTreeSet</span>, <span class="ident">HashMap</span>};
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
@@ -3192,7 +3202,7 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd</span>::{<span class="ident">MetricCounters</span>, <span class="ident">MetricGauges</span>, <span class="ident">MetricHistograms</span>, <span class="ident">MetricSets</span>, <span class="ident">MetricTimers</span>};
 <span class="kw">use</span> <span class="kw">crate</span>::{
     <span class="ident">protocol</span>, <span class="ident">CounterType</span>, <span class="ident">DistributionType</span>, <span class="ident">GaugeType</span>, <span class="ident">Metric</span>, <span class="ident">MetricNamespace</span>,
-    <span class="ident">MetricResourceIdentifier</span>, <span class="ident">MetricType</span>, <span class="ident">MetricValue</span>, <span class="ident">SetType</span>,
+    <span class="ident">MetricResourceIdentifier</span>, <span class="ident">MetricType</span>, <span class="ident">MetricValue</span>, <span class="ident">MetricsContainer</span>, <span class="ident">SetType</span>,
 };
 
 <span class="doccomment">/// Interval for the flush cycle of the [`AggregatorService`].</span>
@@ -4009,6 +4019,16 @@
     <span class="doccomment">/// values.</span>
     <span class="kw">fn</span> <span class="ident">estimated_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">estimated_own_size</span>() <span class="op">+</span> <span class="self">self</span>.<span class="ident">value</span>.<span class="ident">len</span>() <span class="op">*</span> <span class="ident">AVG_VALUE_SIZE</span>
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">MetricsContainer</span> <span class="kw">for</span> <span class="ident">Bucket</span> {
+    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">str</span> {
+        <span class="self">self</span>.<span class="ident">name</span>.<span class="ident">as_str</span>()
+    }
+
+    <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
+        <span class="self">self</span>.<span class="ident">value</span>.<span class="ident">len</span>()
     }
 }
 

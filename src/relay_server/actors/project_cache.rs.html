@@ -688,7 +688,7 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope::Envelope</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service::Registry</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayGauges</span>, <span class="ident">RelayHistograms</span>, <span class="ident">RelayTimers</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{<span class="self">self</span>, <span class="ident">BucketLimiter</span>, <span class="ident">EnvelopeContext</span>, <span class="ident">GarbageDisposal</span>, <span class="ident">Response</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{<span class="self">self</span>, <span class="ident">EnvelopeContext</span>, <span class="ident">GarbageDisposal</span>, <span class="ident">MetricsLimiter</span>, <span class="ident">Response</span>};
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
 <span class="kw">use</span> {
@@ -1293,7 +1293,7 @@
 
         <span class="comment">// Check rate limits if necessary:</span>
         <span class="kw">let</span> <span class="ident">quotas</span> <span class="op">=</span> <span class="ident">project_state</span>.<span class="ident">config</span>.<span class="ident">quotas</span>.<span class="ident">clone</span>();
-        <span class="kw">let</span> <span class="ident">buckets</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">BucketLimiter::create</span>(<span class="ident">buckets</span>, <span class="ident">quotas</span>, <span class="ident">scoping</span>) {
+        <span class="kw">let</span> <span class="ident">buckets</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">MetricsLimiter::create</span>(<span class="ident">buckets</span>, <span class="ident">quotas</span>, <span class="ident">scoping</span>) {
             <span class="prelude-val">Ok</span>(<span class="kw-2">mut</span> <span class="ident">bucket_limiter</span>) =&gt; {
                 <span class="kw">let</span> <span class="ident">cached_rate_limits</span> <span class="op">=</span> <span class="ident">project</span>.<span class="ident">rate_limits</span>().<span class="ident">clone</span>();
                 <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unused_variables</span>)]</span>
@@ -1310,7 +1310,7 @@
                     <span class="kw">return</span>;
                 }
 
-                <span class="ident">bucket_limiter</span>.<span class="ident">into_buckets</span>()
+                <span class="ident">bucket_limiter</span>.<span class="ident">into_metrics</span>()
             }
             <span class="prelude-val">Err</span>(<span class="ident">buckets</span>) =&gt; <span class="ident">buckets</span>,
         };

@@ -1850,6 +1850,16 @@
 <span id="1848">1848</span>
 <span id="1849">1849</span>
 <span id="1850">1850</span>
+<span id="1851">1851</span>
+<span id="1852">1852</span>
+<span id="1853">1853</span>
+<span id="1854">1854</span>
+<span id="1855">1855</span>
+<span id="1856">1856</span>
+<span id="1857">1857</span>
+<span id="1858">1858</span>
+<span id="1859">1859</span>
+<span id="1860">1860</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::conditional_tagging::run_conditional_tagging</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::utils</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::TaggingRule</span>;
@@ -1939,6 +1949,16 @@
 }
 
 <span class="kw">impl</span> <span class="ident">TransactionMetricsConfig</span> {
+    <span class="doccomment">/// Creates an enabled configuration with empty defaults.</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() -&gt; <span class="self">Self</span> {
+        <span class="self">Self</span> {
+            <span class="ident">version</span>: <span class="number">1</span>,
+            ..<span class="ident"><span class="self">Self</span>::default</span>()
+        }
+    }
+
+    <span class="doccomment">/// Returns `true` if metrics extraction is enabled and compatible with this Relay.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_enabled</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">version</span> <span class="op">&gt;</span> <span class="number">0</span> <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">version</span> <span class="op">&lt;</span><span class="op">=</span> <span class="ident">EXTRACT_MAX_VERSION</span>
     }
