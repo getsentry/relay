@@ -1,32 +1,70 @@
 use std::collections::HashMap;
+use std::io::{self, BufRead, Error as IOError, ErrorKind as IOErrorKind, Read, Write};
 
 use relay_general::pii::PiiConfig;
 use relay_general::pii::PiiProcessor;
 use relay_general::processor::ProcessingState;
 
+use flate2::read::ZlibDecoder;
+use flate2::write::ZlibEncoder;
+use flate2::Compression;
 use serde::de::Error as DError;
 use serde::{Deserialize, Serialize};
 use serde_json::{Error, Value};
 
-pub fn loads(bytes: &[u8]) -> Result<Vec<Event>, Error> {
-    let node: Vec<Event> = serde_json::from_slice(bytes)?;
-    return Ok(node);
+fn loads(zipped_input: Vec<u8>) -> Result<Vec<Event>, Error> {
+    println!("{:?}", zipped_input);
+
+    let mut decoder = ZlibDecoder::new(zipped_input.as_slice());
+    let mut buffer = String::new();
+    decoder.read_to_string(&mut buffer).expect("blew up");
+
+    let node: Vec<Event> = serde_json::from_str(&buffer).expect("failed to load");
+    Ok(node)
 }
 
-pub fn dumps(rrweb: Vec<Event>) -> Result<Vec<u8>, Error> {
-    return serde_json::to_vec(&rrweb);
+fn dumps(rrweb: Vec<Event>) -> Result<Vec<u8>, Error> {
+    let buffer = serde_json::to_vec(&rrweb)?;
+
+    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+    encoder.write_all(&buffer);
+
+    Ok(encoder.finish().unwrap())
 }
 
-pub fn run(bytes: &[u8]) -> Result<Vec<u8>, Error> {
-    // Processor configuration.
-    let pii_config = PiiConfig::from_json("").unwrap();
-    let pii_processor = PiiProcessor::new(pii_config.compiled());
-    let processor = RecordingProcessor::new(pii_processor);
+pub fn run(bytes: &[u8]) -> Result<Vec<u8>, String> {
+    // PII Processor configuration.
+    // let pii_config = PiiConfig::from_json("").unwrap();
+    // let pii_processor = PiiProcessor::new(pii_config.compiled());
+    // let processor = RecordingProcessor::new(pii_processor);
 
-    // Load and mask.
-    let mut events = loads(bytes)?;
-    processor.mask_pii(&mut events);
-    dumps(events)
+    // First line is a headers object.  Second line is the rrweb recording data.
+    let cursor = io::Cursor::new(bytes);
+    let mut split_iter = cursor
+        .split(b'\n')
+        .map(|r| r.map_err(|e| e.to_string()).unwrap());
+    let header = split_iter
+        .next()
+        .ok_or("no headers found. was data provided?")?;
+    let body = split_iter
+        .next()
+        .ok_or("no data found. are the headers missing?")?;
+
+    // Remove the PII from the
+    let mut events = loads(body).map_err(|e| e.to_string())?;
+    // processor.mask_pii(&mut events);
+    let out_bytes = dumps(events).map_err(|e| e.to_string())?;
+
+    // Header reconstruction.
+    Ok([header, out_bytes].concat())
+}
+
+fn get_next_or_err(iter: &mut io::Lines<io::Cursor<&[u8]>>) -> Result<String, IOError> {
+    let item = iter.next();
+    match item {
+        Some(result) => result,
+        None => Err(IOError::new(IOErrorKind::UnexpectedEof, "oh no!")),
+    }
 }
 
 pub struct RecordingProcessor<'a> {
@@ -173,11 +211,11 @@ impl<'de> serde::Deserialize<'de> for EventVariant {
                         Ok(event) => Ok(EventVariant::T5(event)),
                         Err(e) => Err(DError::custom(e.to_string())),
                     },
-                    _ => return Err(DError::custom("invalid type value")),
+                    _ => Err(DError::custom("invalid type value")),
                 },
-                None => return Err(DError::custom("type field must be an integer")),
+                None => Err(DError::custom("type field must be an integer")),
             },
-            None => return Err(DError::missing_field("type")),
+            None => Err(DError::missing_field("type")),
         }
     }
 }
@@ -327,11 +365,11 @@ impl<'de> serde::Deserialize<'de> for NodeVariant {
                         Ok(text) => Ok(NodeVariant::Rest(text)),
                         Err(_) => Err(DError::custom("could not parse text object")),
                     },
-                    _ => return Err(DError::custom("invalid type value")),
+                    _ => Err(DError::custom("invalid type value")),
                 },
-                None => return Err(DError::custom("type field must be an integer")),
+                None => Err(DError::custom("type field must be an integer")),
             },
-            None => return Err(DError::missing_field("type")),
+            None => Err(DError::missing_field("type")),
         }
     }
 }
@@ -430,9 +468,9 @@ impl<'de> serde::Deserialize<'de> for IncrementalSourceDataVariant {
                     },
                     _ => Ok(IncrementalSourceDataVariant::Default(value)),
                 },
-                None => return Err(DError::custom("type field must be an integer")),
+                None => Err(DError::custom("type field must be an integer")),
             },
-            None => return Err(DError::missing_field("type")),
+            None => Err(DError::missing_field("type")),
         }
     }
 }
@@ -469,16 +507,32 @@ struct MutationAdditionIncrementalSourceData {
 #[cfg(test)]
 mod tests {
     use crate::recording;
+    use crate::recording::Event;
     use assert_json_diff::assert_json_eq;
-    use serde_json::Value;
+    use serde_json::{Error, Value};
+
+    fn loads(bytes: &[u8]) -> Result<Vec<Event>, Error> {
+        let node: Vec<Event> = serde_json::from_slice(bytes)?;
+        return Ok(node);
+    }
+
+    fn dumps(rrweb: Vec<Event>) -> Result<Vec<u8>, Error> {
+        return serde_json::to_vec(&rrweb);
+    }
 
     // RRWeb Payload Coverage
+
+    #[test]
+    fn test_run() {
+        let payload = include_bytes!("../tests/fixtures/rrweb-binary.txt");
+        recording::run(payload).unwrap();
+    }
 
     #[test]
     fn test_rrweb_snapshot_parsing() {
         let payload = include_bytes!("../tests/fixtures/rrweb.json");
 
-        let input_parsed = recording::loads(payload).unwrap();
+        let input_parsed = loads(payload).unwrap();
         let input_raw: Value = serde_json::from_slice(payload).unwrap();
         assert_json_eq!(input_parsed, input_raw)
     }
@@ -487,7 +541,7 @@ mod tests {
     fn test_rrweb_incremental_source_parsing() {
         let payload = include_bytes!("../tests/fixtures/rrweb-diff.json");
 
-        let input_parsed = recording::loads(payload).unwrap();
+        let input_parsed = loads(payload).unwrap();
         let input_raw: Value = serde_json::from_slice(payload).unwrap();
         assert_json_eq!(input_parsed, input_raw)
     }
