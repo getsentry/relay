@@ -5,6 +5,7 @@
 **Internal**:
 
 - Implement response context schema. ([#1529](https://github.com/getsentry/relay/pull/1529))
+- Support dedicated quotas for storing transaction payloads ("indexed transactions") via the `transaction_indexed` data category if metrics extraction is enabled. ([#1537](https://github.com/getsentry/relay/pull/1537))
 
 ## 22.10.0
 
