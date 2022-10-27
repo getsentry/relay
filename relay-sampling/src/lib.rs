@@ -5,11 +5,12 @@
 )]
 #![allow(clippy::derive_partial_eq_without_eq)]
 
-use chrono::{DateTime, Utc};
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::{self, Display, Formatter};
 use std::net::IpAddr;
+
+use chrono::{DateTime, Utc};
 
 use rand::{distributions::Uniform, Rng};
 use rand_pcg::Pcg32;
