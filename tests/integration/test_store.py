@@ -406,7 +406,7 @@ def test_processing_quotas(
 
     projectconfig["config"]["quotas"] = [
         {
-            "id": "test_rate_limiting_{}".format(uuid.uuid4().hex),
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
             "scope": "key",
             "scopeId": six.text_type(key_id),
             "categories": [category],
@@ -510,10 +510,10 @@ def test_rate_limit_metrics_buckets(
 
     projectconfig["config"]["quotas"] = [
         {
-            "id": "test_rate_limiting_{}".format(uuid.uuid4().hex),
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
             "scope": "key",
             "scopeId": six.text_type(key_id),
-            "categories": ["transaction_processed"],
+            "categories": ["transaction"],
             "limit": 5,
             "window": 86400,
             "reasonCode": reason_code,
@@ -649,8 +649,68 @@ def test_rate_limit_metrics_buckets(
     ]
 
     outcomes_consumer.assert_rate_limited(
-        reason_code, key_id=key_id, categories=["transaction_processed"], quantity=3,
+        reason_code, key_id=key_id, categories=["transaction"], quantity=3,
     )
+
+
+def test_processing_quota_transaction_indexing(
+    mini_sentry, relay_with_processing, metrics_consumer, transactions_consumer,
+):
+    relay = relay_with_processing(
+        {
+            "processing": {"max_rate_limit": 100},
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+            },
+        }
+    )
+
+    metrics_consumer = metrics_consumer()
+    tx_consumer = transactions_consumer()
+
+    project_id = 42
+    projectconfig = mini_sentry.add_full_project_config(project_id)
+    key_id = mini_sentry.get_dsn_public_key_configs(project_id)[0]["numericId"]
+    projectconfig["config"]["quotas"] = [
+        {
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
+            "scope": "key",
+            "scopeId": six.text_type(key_id),
+            "categories": ["transaction_indexed"],
+            "limit": 1,
+            "window": 300,
+            "reasonCode": "get_lost",
+        },
+        {
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
+            "scope": "key",
+            "scopeId": six.text_type(key_id),
+            "categories": ["transaction"],
+            "limit": 2,
+            "window": 300,
+            "reasonCode": "get_lost",
+        },
+    ]
+    projectconfig["config"]["transactionMetrics"] = {
+        "version": 1,
+    }
+
+    relay.send_event(project_id, make_transaction({"message": "1st tx"}))
+    event, _ = tx_consumer.get_event()
+    assert event["logentry"]["formatted"] == "1st tx"
+    buckets = list(metrics_consumer.get_metrics())
+    assert len(buckets) > 0
+
+    relay.send_event(project_id, make_transaction({"message": "2nd tx"}))
+    tx_consumer.assert_empty()
+    buckets = list(metrics_consumer.get_metrics())
+    assert len(buckets) > 0
+
+    relay.send_event(project_id, make_transaction({"message": "2nd tx"}))
+    tx_consumer.assert_empty()
+    metrics_consumer.assert_empty()
 
 
 def test_events_buffered_before_auth(relay, mini_sentry):
