@@ -653,6 +653,7 @@ def test_rate_limit_metrics_buckets(
     )
 
 
+@pytest.mark.skip(reason="Flaky test")
 def test_processing_quota_transaction_indexing(
     mini_sentry, relay_with_processing, metrics_consumer, transactions_consumer,
 ):
