@@ -2288,7 +2288,7 @@ mod tests {
                     sample_rate: 0.2,
                     ty: RuleType::Trace,
                     id: RuleId(1),
-                    time_range: range.clone(),
+                    time_range: range,
                 }],
                 next_id: None,
             };
@@ -2304,7 +2304,7 @@ mod tests {
                     sample_rate: 0.2,
                     ty: RuleType::Transaction,
                     id: RuleId(1),
-                    time_range: range.clone(),
+                    time_range: range,
                 }],
                 next_id: None,
             };
