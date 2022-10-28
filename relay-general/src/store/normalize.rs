@@ -90,19 +90,24 @@ pub fn is_valid_platform(platform: &str) -> bool {
     VALID_PLATFORMS.contains(&platform)
 }
 
-pub fn normalize_dist(dist: &mut Option<String>) {
-    let mut erase = false;
+pub fn normalize_dist(distribution: &mut Annotated<String>) {
+    let dist = distribution.value_mut();
     if let Some(val) = dist {
         if val.is_empty() {
-            erase = true;
+            *dist = None;
+        } else {
+            let trimmed = val.trim();
+            // Validate the length of the distribution name and make sure to attach the error in
+            // case of the issues.
+            if bytecount::num_chars(trimmed.as_bytes()) > MaxChars::Distribution.limit() {
+                *distribution = Annotated::from_error(
+                    Error::new(ErrorKind::ValueTooLong),
+                    Some(Value::String(val.to_owned())),
+                )
+            } else if trimmed != val {
+                *val = trimmed.to_string()
+            }
         }
-        let trimmed = val.trim();
-        if trimmed != val {
-            *val = trimmed.to_string()
-        }
-    }
-    if erase {
-        *dist = None;
     }
 }
 
@@ -546,7 +551,7 @@ fn normalize_timestamps(
 
 /// Ensures that the `release` and `dist` fields match up.
 fn normalize_release_dist(event: &mut Event) {
-    normalize_dist(event.dist.value_mut());
+    normalize_dist(&mut event.dist);
 }
 
 fn is_security_report(event: &Event) -> bool {
@@ -1714,6 +1719,32 @@ mod tests {
     }
 
     #[test]
+    fn test_too_long_distribution() {
+        let json = r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "fingerprint": [
+    "{{ default }}"
+  ],
+  "platform": "other",
+  "dist": "52df9022835246eeb317dbd739ccd059-52df9022835246eeb317dbd739ccd059-52df9022835246eeb317dbd739ccd059"
+}"#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        let mut processor = NormalizeProcessor::default();
+        let config = LightNormalizationConfig::default();
+        light_normalize_event(&mut event, &config).unwrap();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        let dist = &event.value().unwrap().dist;
+        let result = &Annotated::<String>::from_error(
+            Error::new(ErrorKind::ValueTooLong),
+            Some(Value::String("52df9022835246eeb317dbd739ccd059-52df9022835246eeb317dbd739ccd059-52df9022835246eeb317dbd739ccd059".to_string()))
+        );
+        assert_eq!(dist, result);
+    }
+
+    #[test]
     fn test_regression_backfills_abs_path_even_when_moving_stacktrace() {
         let mut event = Annotated::new(Event {
             exceptions: Annotated::new(Values::new(vec![Annotated::new(Exception {
@@ -1964,30 +1995,30 @@ mod tests {
 
     #[test]
     fn test_normalize_dist_none() {
-        let mut dist = None;
+        let mut dist = Annotated::default();
         normalize_dist(&mut dist);
-        assert_eq!(dist, None);
+        assert_eq!(dist.value(), None);
     }
 
     #[test]
     fn test_normalize_dist_empty() {
-        let mut dist = Some("".to_owned());
+        let mut dist = Annotated::new("".to_string());
         normalize_dist(&mut dist);
-        assert_eq!(dist, None);
+        assert_eq!(dist.value(), None);
     }
 
     #[test]
     fn test_normalize_dist_trim() {
-        let mut dist = Some(" foo  ".to_owned());
+        let mut dist = Annotated::new(" foo  ".to_string());
         normalize_dist(&mut dist);
-        assert_eq!(dist.unwrap(), "foo");
+        assert_eq!(dist.value(), Some(&"foo".to_string()));
     }
 
     #[test]
     fn test_normalize_dist_whitespace() {
-        let mut dist = Some(" ".to_owned());
+        let mut dist = Annotated::new(" ".to_owned());
         normalize_dist(&mut dist);
-        assert_eq!(dist.unwrap(), ""); // Not sure if this is what we want
+        assert_eq!(dist.value(), Some(&"".to_string())); // Not sure if this is what we want
     }
 
     #[test]
