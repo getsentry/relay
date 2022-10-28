@@ -2,7 +2,6 @@ use std::collections::{BTreeSet, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use actix::prelude::*;
 use chrono::{DateTime, Utc};
 use futures01::{future::Shared, sync::oneshot, Future};
 use serde::{Deserialize, Serialize};
@@ -22,8 +21,9 @@ use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::SamplingConfig;
 use relay_statsd::metric;
 
+use crate::actors::envelopes::{EnvelopeManager, SendMetrics};
 use crate::actors::outcome::{DiscardReason, Outcome};
-use crate::actors::processor::{EnvelopeProcessor, ProcessEnvelope};
+use crate::actors::processor::{EnvelopeProcessor, ProcessEnvelope, RateLimitFlushBuckets};
 use crate::actors::project_cache::{
     AddSamplingState, CheckedEnvelope, ProjectCache, ProjectError, UpdateProjectState,
 };
@@ -750,7 +750,7 @@ impl Project {
 
                 if let Some(sampling_key) = utils::get_sampling_key(&process.envelope) {
                     ProjectCache::from_registry()
-                        .do_send(AddSamplingState::new(sampling_key, process));
+                        .send(AddSamplingState::new(sampling_key, process));
                 } else {
                     EnvelopeProcessor::from_registry().send(process);
                 }
@@ -840,7 +840,7 @@ impl Project {
 
     fn fetch_state(&mut self, no_cache: bool) {
         debug_assert!(self.state_channel.is_some());
-        ProjectCache::from_registry().do_send(UpdateProjectState::new(self.project_key, no_cache));
+        ProjectCache::from_registry().send(UpdateProjectState::new(self.project_key, no_cache));
     }
 
     /// Creates `Scoping` for this project if the state is loaded.
@@ -903,6 +903,75 @@ impl Project {
             envelope,
             rate_limits,
         })
+    }
+
+    pub fn flush_buckets(&self, partition_key: Option<u64>, buckets: Vec<Bucket>) {
+        let config = self.config.clone();
+        let expiry_state = self.expiry_state();
+
+        // Schedule an update to the project state if it is outdated, regardless of whether the
+        // metrics can be forwarded or not. We never wait for this update.
+        self.get_or_fetch_state(false);
+
+        let project_state = match expiry_state {
+            ExpiryState::Updated(state) | ExpiryState::Stale(state) => state,
+            ExpiryState::Expired => {
+                relay_log::trace!("project expired: merging back {} buckets", buckets.len());
+                // If the state is outdated, we need to wait for an updated state. Put them back into the
+                // aggregator.
+                Registry::aggregator().send(MergeBuckets::new(self.project_key, buckets));
+                return;
+            }
+        };
+
+        let scoping = match self.scoping() {
+            Some(scoping) => scoping,
+            _ => {
+                relay_log::trace!(
+                    "there is no scoping: merging back {} buckets",
+                    buckets.len()
+                );
+                Registry::aggregator().send(MergeBuckets::new(self.project_key, buckets));
+                return;
+            }
+        };
+
+        // Only send if the project state is valid, otherwise drop this bucket.
+        if project_state.check_disabled(config.as_ref()).is_err() {
+            return;
+        }
+
+        // Check rate limits if necessary:
+        let quotas = project_state.config.quotas.clone();
+        let buckets = match MetricsLimiter::create(buckets, quotas, scoping) {
+            Ok(mut bucket_limiter) => {
+                let cached_rate_limits = self.rate_limits().clone();
+                #[allow(unused_variables)]
+                let was_rate_limited = bucket_limiter.enforce_limits(Ok(&cached_rate_limits));
+
+                #[cfg(feature = "processing")]
+                if !was_rate_limited && config.processing_enabled() {
+                    // If there were no cached rate limits active, let the processor check redis:
+                    EnvelopeProcessor::from_registry().send(RateLimitFlushBuckets {
+                        bucket_limiter,
+                        partition_key,
+                    });
+
+                    return;
+                }
+
+                bucket_limiter.into_metrics()
+            }
+            Err(buckets) => buckets,
+        };
+
+        if !buckets.is_empty() {
+            EnvelopeManager::from_registry().send(SendMetrics {
+                buckets,
+                scoping,
+                partition_key,
+            });
+        }
     }
 }
 

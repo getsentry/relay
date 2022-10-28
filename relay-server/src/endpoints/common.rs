@@ -9,6 +9,7 @@ use actix_web::http::{header, StatusCode};
 use actix_web::middleware::cors::{Cors, CorsBuilder};
 use actix_web::{error::PayloadError, HttpRequest, HttpResponse, ResponseError};
 use failure::Fail;
+use futures::{FutureExt, TryFutureExt};
 use futures01::prelude::*;
 use serde::Deserialize;
 
@@ -304,7 +305,7 @@ fn queue_envelope(
 
         // Update the old context after successful forking.
         envelope_context.update(&envelope);
-        ProjectCache::from_registry().do_send(ValidateEnvelope::new(event_envelope, event_context));
+        ProjectCache::from_registry().send(ValidateEnvelope::new(event_envelope, event_context));
     }
 
     if envelope.is_empty() {
@@ -313,7 +314,7 @@ fn queue_envelope(
         envelope_context.accept();
     } else {
         relay_log::trace!("queueing envelope");
-        ProjectCache::from_registry().do_send(ValidateEnvelope::new(envelope, envelope_context));
+        ProjectCache::from_registry().send(ValidateEnvelope::new(envelope, envelope_context));
     }
 
     Ok(())
@@ -381,6 +382,8 @@ where
         .and_then(move |(envelope, envelope_context)| {
             ProjectCache::from_registry()
                 .send(CheckEnvelope::new(envelope, envelope_context))
+                .boxed_local()
+                .compat()
                 .map_err(|_| BadStoreRequest::ScheduleFailed)
         })
         .and_then(move |response| {

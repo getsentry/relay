@@ -106,6 +106,7 @@ impl ProjectStateChannel {
     }
 }
 
+#[derive(Debug)]
 pub struct UpstreamProjectSource {
     backoff: RetryBackoff,
     config: Arc<Config>,
