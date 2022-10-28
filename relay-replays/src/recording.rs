@@ -1,9 +1,10 @@
 use std::collections::HashMap;
-use std::io::{self, BufRead, Error as IOError, ErrorKind as IOErrorKind, Read, Write};
+use std::io::{self, BufRead, Read, Write};
 
 use relay_general::pii::PiiConfig;
 use relay_general::pii::PiiProcessor;
-use relay_general::processor::ProcessingState;
+use relay_general::processor::{ProcessingState, Processor};
+use relay_general::types::Meta;
 
 use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
@@ -12,9 +13,36 @@ use serde::de::Error as DError;
 use serde::{Deserialize, Serialize};
 use serde_json::{Error, Value};
 
-fn loads(zipped_input: Vec<u8>) -> Result<Vec<Event>, Error> {
-    println!("{:?}", zipped_input);
+pub fn process_recording(bytes: &[u8]) -> Result<Vec<u8>, String> {
+    // Split recording headers and body.
+    let cursor = io::Cursor::new(bytes);
+    let mut split_iter = cursor
+        .split(b'\n')
+        .map(|r| r.map_err(|e| e.to_string()).unwrap());
+    let header = split_iter
+        .next()
+        .ok_or("no headers found. was data provided?")?;
+    let body = split_iter
+        .next()
+        .ok_or("no data found. are the headers missing?")?;
 
+    // Parse the recording body.
+    let mut events = loads(body).map_err(|e| e.to_string())?;
+
+    // PII Processor configuration.
+    let pii_config = PiiConfig::from_json("").unwrap();
+    let pii_processor = PiiProcessor::new(pii_config.compiled());
+    let mut processor = RecordingProcessor::new(pii_processor);
+
+    // Remove PII.
+    processor.mask_pii(&mut events);
+
+    // Serialize out.
+    let out_bytes = dumps(events).map_err(|e| e.to_string())?;
+    Ok([header, vec![b'\n'], out_bytes].concat())
+}
+
+fn loads(zipped_input: Vec<u8>) -> Result<Vec<Event>, Error> {
     let mut decoder = ZlibDecoder::new(zipped_input.as_slice());
     let mut buffer = String::new();
     decoder.read_to_string(&mut buffer).expect("blew up");
@@ -30,41 +58,6 @@ fn dumps(rrweb: Vec<Event>) -> Result<Vec<u8>, Error> {
     encoder.write_all(&buffer);
 
     Ok(encoder.finish().unwrap())
-}
-
-pub fn run(bytes: &[u8]) -> Result<Vec<u8>, String> {
-    // PII Processor configuration.
-    // let pii_config = PiiConfig::from_json("").unwrap();
-    // let pii_processor = PiiProcessor::new(pii_config.compiled());
-    // let processor = RecordingProcessor::new(pii_processor);
-
-    // First line is a headers object.  Second line is the rrweb recording data.
-    let cursor = io::Cursor::new(bytes);
-    let mut split_iter = cursor
-        .split(b'\n')
-        .map(|r| r.map_err(|e| e.to_string()).unwrap());
-    let header = split_iter
-        .next()
-        .ok_or("no headers found. was data provided?")?;
-    let body = split_iter
-        .next()
-        .ok_or("no data found. are the headers missing?")?;
-
-    // Remove the PII from the
-    let mut events = loads(body).map_err(|e| e.to_string())?;
-    // processor.mask_pii(&mut events);
-    let out_bytes = dumps(events).map_err(|e| e.to_string())?;
-
-    // Header reconstruction.
-    Ok([header, out_bytes].concat())
-}
-
-fn get_next_or_err(iter: &mut io::Lines<io::Cursor<&[u8]>>) -> Result<String, IOError> {
-    let item = iter.next();
-    match item {
-        Some(result) => result,
-        None => Err(IOError::new(IOErrorKind::UnexpectedEof, "oh no!")),
-    }
 }
 
 pub struct RecordingProcessor<'a> {
@@ -84,7 +77,7 @@ impl RecordingProcessor<'_> {
         }
     }
 
-    pub fn mask_pii(&self, events: &mut Vec<Event>) {
+    pub fn mask_pii(&mut self, events: &mut Vec<Event>) {
         for event in events {
             match &mut event.variant {
                 EventVariant::T2(variant) => self.recurse_snapshot_node(&mut variant.data.node),
@@ -96,7 +89,7 @@ impl RecordingProcessor<'_> {
         }
     }
 
-    fn recurse_incremental_source(&self, variant: &mut IncrementalSourceDataVariant) {
+    fn recurse_incremental_source(&mut self, variant: &mut IncrementalSourceDataVariant) {
         match variant {
             IncrementalSourceDataVariant::Mutation(mutation) => {
                 for addition in &mut mutation.adds {
@@ -110,7 +103,7 @@ impl RecordingProcessor<'_> {
         }
     }
 
-    fn recurse_snapshot_node(&self, node: &mut Node) {
+    fn recurse_snapshot_node(&mut self, node: &mut Node) {
         match &mut node.variant {
             NodeVariant::T0(document) => {
                 for node in &mut document.child_nodes {
@@ -125,7 +118,7 @@ impl RecordingProcessor<'_> {
         }
     }
 
-    fn recurse_element(&self, element: &mut ElementNode) {
+    fn recurse_element(&mut self, element: &mut ElementNode) {
         match element.tag_name.as_str() {
             "script" | "style" => {}
             "img" => {
@@ -137,22 +130,18 @@ impl RecordingProcessor<'_> {
         }
     }
 
-    fn recurse_element_children(&self, element: &mut ElementNode) {
+    fn recurse_element_children(&mut self, element: &mut ElementNode) {
         for node in &mut element.child_nodes {
             self.recurse_snapshot_node(node)
         }
     }
 
-    fn strip_pii(&self, value: &mut String) -> String {
-        // XXX: what is meta and state?
+    fn strip_pii(&mut self, value: &mut String) -> String {
         // what do i do with a processing action?
-        // process_string is private.  process_value requires annotated.
-        //
-        // let result = self
-        //     .pii_processor
-        //     .process_string(value, meta, ProcessingState::root());
+        self.pii_processor
+            .process_string(value, &mut Meta::default(), ProcessingState::root());
 
-        return value.to_string();
+        value.to_string()
     }
 }
 
@@ -525,7 +514,7 @@ mod tests {
     #[test]
     fn test_run() {
         let payload = include_bytes!("../tests/fixtures/rrweb-binary.txt");
-        recording::run(payload).unwrap();
+        recording::process_recording(payload).unwrap();
     }
 
     #[test]
