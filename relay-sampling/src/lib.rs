@@ -10,6 +10,8 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt::{self, Display, Formatter};
 use std::net::IpAddr;
 
+use chrono::{DateTime, Utc};
+
 use rand::{distributions::Uniform, Rng};
 use rand_pcg::Pcg32;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -315,6 +317,37 @@ impl Display for RuleId {
     }
 }
 
+/// A range of time.
+///
+/// The time range should be applicable between the start time, inclusive, and
+/// end time, exclusive.  There aren't any explicit checks to ensure the end
+/// time is equal to or greater than the start time; the time range isn't valid
+/// in such cases.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct TimeRange {
+    start: Option<DateTime<Utc>>,
+    end: Option<DateTime<Utc>>,
+}
+
+impl TimeRange {
+    /// Returns true if neither the start nor end time limits are set.
+    pub fn is_empty(&self) -> bool {
+        self.start.is_none() && self.end.is_none()
+    }
+
+    /// Returns whether the provided time matches the time range.
+    ///
+    /// For a time to match a time range, the following conditions must match:
+    /// - The start time must be smaller than or equal to the given time, if provided.
+    /// - The end time must be greater than the given time, if provided.
+    ///
+    /// If one of the limits isn't provided, the range is considered open in
+    /// that limit. A time range open on both sides matches with any given time.
+    pub fn contains(&self, time: DateTime<Utc>) -> bool {
+        self.start.map_or(true, |s| s <= time) && self.end.map_or(true, |e| time < e)
+    }
+}
+
 /// A sampling rule as it is deserialized from the project configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -324,11 +357,25 @@ pub struct SamplingRule {
     #[serde(rename = "type")]
     pub ty: RuleType,
     pub id: RuleId,
+    /// The time range the rule should be applicable in.
+    ///
+    /// The time range is open on both ends by default. If a time range is
+    /// closed on at least one end, the rule is considered a decaying rule.
+    #[serde(default, skip_serializing_if = "TimeRange::is_empty")]
+    pub time_range: TimeRange,
 }
 
 impl SamplingRule {
     fn supported(&self) -> bool {
         self.condition.supported()
+    }
+
+    /// Returns whether the sampling rule is active.
+    ///
+    /// Non-decaying rules are always active. Decaying rules are active if they are
+    /// neither idle nor expired.
+    fn is_active(&self) -> bool {
+        self.time_range.contains(Utc::now())
     }
 }
 
@@ -642,7 +689,13 @@ impl SamplingConfig {
         ip_addr: Option<IpAddr>,
     ) -> Option<&'a SamplingRule> {
         self.rules.iter().find(|rule| {
-            rule.ty == RuleType::Trace && rule.condition.matches(sampling_context, ip_addr)
+            if rule.ty != RuleType::Trace {
+                return false;
+            }
+            if !rule.is_active() {
+                return false;
+            }
+            rule.condition.matches(sampling_context, ip_addr)
         })
     }
 
@@ -661,9 +714,15 @@ impl SamplingConfig {
             RuleType::Error
         };
 
-        self.rules
-            .iter()
-            .find(|rule| rule.ty == ty && rule.condition.matches(event, ip_addr))
+        self.rules.iter().find(|rule| {
+            if rule.ty != ty {
+                return false;
+            }
+            if !rule.is_active() {
+                return false;
+            }
+            rule.condition.matches(event, ip_addr)
+        })
     }
 }
 
@@ -838,6 +897,8 @@ pub fn pseudo_random_from_uuid(id: Uuid) -> f64 {
 mod tests {
     use std::net::{IpAddr as NetIpAddr, Ipv4Addr};
     use std::str::FromStr;
+
+    use chrono::{TimeZone, Utc};
 
     use relay_general::protocol::{
         Contexts, Csp, DeviceContext, Exception, Headers, IpAddr, JsonLenientString, LenientString,
@@ -1718,7 +1779,7 @@ mod tests {
 
     #[test]
     ///Test SamplingRule deserialization
-    fn test_sampling_rule_deserialization() {
+    fn test_nondecaying_sampling_rule_deserialization() {
         let serialized_rule = r#"{
             "condition":{
                 "op":"and",
@@ -1736,6 +1797,34 @@ mod tests {
         let rule = rule.unwrap();
         assert!(approx_eq(rule.sample_rate, 0.7f64));
         assert_eq!(rule.ty, RuleType::Trace);
+    }
+
+    #[test]
+    fn test_decaying_sampling_rule_deserialization() {
+        let serialized_rule = r#"{
+            "condition":{
+                "op":"and",
+                "inner": [
+                    { "op" : "glob", "name": "releases", "value":["1.1.1", "1.1.2"]}
+                ]
+            },
+            "sampleRate": 0.7,
+            "type": "trace",
+            "id": 1,
+            "timeRange": {
+                "start": "2022-10-10T00:00:00.000000Z",
+                "end": "2022-10-20T00:00:00.000000Z"
+            }
+        }"#;
+        let rule: Result<SamplingRule, _> = serde_json::from_str(serialized_rule);
+        let rule = rule.unwrap();
+        let time_range = rule.time_range;
+
+        assert_eq!(
+            time_range.start,
+            Some(Utc.ymd(2022, 10, 10).and_hms(0, 0, 0))
+        );
+        assert_eq!(time_range.end, Some(Utc.ymd(2022, 10, 20).and_hms(0, 0, 0)));
     }
 
     #[test]
@@ -1853,7 +1942,7 @@ mod tests {
 
     #[test]
     /// test that the first rule that matches is selected
-    fn test_rule_precedence() {
+    fn test_nondecaying_rule_precedence() {
         let rules = SamplingConfig {
             rules: vec![
                 //everything specified
@@ -1866,6 +1955,7 @@ mod tests {
                     sample_rate: 0.1,
                     ty: RuleType::Trace,
                     id: RuleId(1),
+                    time_range: Default::default(),
                 },
                 // no user segments
                 SamplingRule {
@@ -1876,6 +1966,7 @@ mod tests {
                     sample_rate: 0.2,
                     ty: RuleType::Trace,
                     id: RuleId(2),
+                    time_range: Default::default(),
                 },
                 // no releases
                 SamplingRule {
@@ -1886,6 +1977,7 @@ mod tests {
                     sample_rate: 0.3,
                     ty: RuleType::Trace,
                     id: RuleId(3),
+                    time_range: Default::default(),
                 },
                 // no environments
                 SamplingRule {
@@ -1896,6 +1988,7 @@ mod tests {
                     sample_rate: 0.4,
                     ty: RuleType::Trace,
                     id: RuleId(4),
+                    time_range: Default::default(),
                 },
                 // no user segments releases or environments
                 SamplingRule {
@@ -1903,6 +1996,7 @@ mod tests {
                     sample_rate: 0.5,
                     ty: RuleType::Trace,
                     id: RuleId(5),
+                    time_range: Default::default(),
                 },
             ],
             next_id: None,
@@ -2017,6 +2111,213 @@ mod tests {
             RuleId(5),
             "did not match the expected fourth rule"
         );
+    }
+
+    #[test]
+    fn test_decaying_trace_rule_precedence() {
+        let rules = decaying_sampling_config(&RuleType::Trace);
+
+        let new_release = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
+            environment: Some("testing".to_string()),
+            transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
+        };
+        let result = rules.get_matching_trace_rule(&new_release, None);
+        assert_eq!(result.unwrap().id, RuleId(4), "Did not match expected rule");
+
+        let old_release = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.0".to_string()),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
+            environment: Some("testing".to_string()),
+            transaction: Some("transaction2".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
+        };
+        let result = rules.get_matching_trace_rule(&old_release, None);
+        assert_eq!(result.unwrap().id, RuleId(5), "Did not match expected rule");
+    }
+
+    fn decaying_sampling_config(rule_type: &RuleType) -> SamplingConfig {
+        let rule_prefix = match rule_type {
+            RuleType::Trace => "trace",
+            RuleType::Transaction => "event",
+            // For the Error variant, the prefix is also `event`. However, it's not
+            // supported in the code, so intentionally not implementing any logic for
+            // that. This whole helper method should be revisited when the Error variant
+            // is supported.
+            RuleType::Error => unimplemented!(),
+        };
+        let release_condition = format!("{}.release", rule_prefix);
+        let env_condition = format!("{}.environment", rule_prefix);
+
+        SamplingConfig {
+            rules: vec![
+                // Expired
+                SamplingRule {
+                    condition: eq(&release_condition, &["1.1.1"], true),
+                    sample_rate: 0.2,
+                    ty: *rule_type,
+                    id: RuleId(1),
+                    time_range: TimeRange {
+                        start: Some(Utc.ymd(1970, 10, 10).and_hms(0, 0, 0)),
+                        end: Some(Utc.ymd(1970, 10, 30).and_hms(0, 0, 0)),
+                    },
+                },
+                // Idle
+                SamplingRule {
+                    condition: eq(&release_condition, &["1.1.1"], true),
+                    sample_rate: 0.2,
+                    ty: *rule_type,
+                    id: RuleId(2),
+                    time_range: TimeRange {
+                        start: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
+                        end: Some(Utc.ymd(3000, 10, 15).and_hms(0, 0, 0)),
+                    },
+                },
+                // Start after finishing
+                SamplingRule {
+                    condition: eq(&release_condition, &["1.1.1"], true),
+                    sample_rate: 0.2,
+                    ty: *rule_type,
+                    id: RuleId(3),
+                    time_range: TimeRange {
+                        start: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
+                        end: Some(Utc.ymd(1970, 10, 30).and_hms(0, 0, 0)),
+                    },
+                },
+                // Rule is ok
+                SamplingRule {
+                    condition: eq(&release_condition, &["1.1.1"], true),
+                    sample_rate: 0.2,
+                    ty: *rule_type,
+                    id: RuleId(4),
+                    time_range: TimeRange {
+                        start: Some(Utc.ymd(1970, 10, 30).and_hms(0, 0, 0)),
+                        end: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
+                    },
+                },
+                // Fallback to non-decaying rule
+                SamplingRule {
+                    // Environment matching all contexts, so that everyone can fallback
+                    condition: eq(&env_condition, &["testing"], true),
+                    sample_rate: 0.2,
+                    ty: *rule_type,
+                    id: RuleId(5),
+                    time_range: Default::default(),
+                },
+            ],
+            next_id: None,
+        }
+    }
+
+    #[test]
+    fn test_decaying_transaction_rule_precedence() {
+        let rules = decaying_sampling_config(&RuleType::Transaction);
+
+        let new_release = Event {
+            ty: Annotated::new(EventType::Transaction),
+            release: Annotated::new("1.1.1".to_string().into()),
+            environment: Annotated::new("testing".to_string()),
+            ..Default::default()
+        };
+        let result = rules.get_matching_event_rule(&new_release, None);
+        assert_eq!(result.unwrap().id, RuleId(4), "Did not match expected rule");
+
+        let old_release = Event {
+            ty: Annotated::new(EventType::Transaction),
+            release: Annotated::new("1.1.0".to_string().into()),
+            environment: Annotated::new("testing".to_string()),
+            ..Default::default()
+        };
+        let result = rules.get_matching_event_rule(&old_release, None);
+        assert_eq!(result.unwrap().id, RuleId(5), "Did not match expected rule");
+    }
+
+    #[test]
+    fn test_open_decaying_rules() {
+        let transaction = Event {
+            ty: Annotated::new(EventType::Transaction),
+            release: Annotated::new("1.1.1".to_string().into()),
+            ..Default::default()
+        };
+        let trace = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
+            environment: Some("testing".to_string()),
+            transaction: Some("transaction2".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
+        };
+
+        let ranges = vec![
+            TimeRange {
+                start: Some(Utc.ymd(1970, 10, 10).and_hms(0, 0, 0)),
+                end: None,
+            },
+            TimeRange {
+                start: None,
+                end: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
+            },
+            TimeRange {
+                start: None,
+                end: None,
+            },
+        ];
+
+        for range in ranges {
+            let config = SamplingConfig {
+                rules: vec![SamplingRule {
+                    condition: eq("trace.release", &["1.1.1"], true),
+                    sample_rate: 0.2,
+                    ty: RuleType::Trace,
+                    id: RuleId(1),
+                    time_range: range,
+                }],
+                next_id: None,
+            };
+            assert_eq!(
+                config.get_matching_trace_rule(&trace, None).unwrap().id,
+                RuleId(1),
+                "Trace rule did not match",
+            );
+
+            let config = SamplingConfig {
+                rules: vec![SamplingRule {
+                    condition: eq("event.release", &["1.1.1"], true),
+                    sample_rate: 0.2,
+                    ty: RuleType::Transaction,
+                    id: RuleId(1),
+                    time_range: range,
+                }],
+                next_id: None,
+            };
+            assert_eq!(
+                config
+                    .get_matching_event_rule(&transaction, None)
+                    .unwrap()
+                    .id,
+                RuleId(1),
+                "Transaction rule did not match",
+            );
+        }
     }
 
     #[test]
