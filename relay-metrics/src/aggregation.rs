@@ -1278,9 +1278,6 @@ struct CappedBucketIter<T: Iterator<Item = Bucket>> {
     buckets: T,
     next_bucket: Option<Bucket>,
     max_flush_bytes: usize,
-    /// Contains leftover data not returned by the iterator after it has ended.
-    /// This should only be `Some` when `max_flush_bytes` is set to a very small value.
-    unused_data: Option<Bucket>,
 }
 
 impl<T: Iterator<Item = Bucket>> CappedBucketIter<T> {
@@ -1291,7 +1288,6 @@ impl<T: Iterator<Item = Bucket>> CappedBucketIter<T> {
             buckets,
             next_bucket,
             max_flush_bytes,
-            unused_data: None,
         }
     }
 }
@@ -1327,7 +1323,10 @@ impl<T: Iterator<Item = Bucket>> Iterator for CappedBucketIter<T> {
         }
 
         if current_batch.is_empty() {
-            self.unused_data = self.next_bucket.take();
+            // There is still leftover data not returned by the iterator after it has ended.
+            if self.next_bucket.take().is_some() {
+                relay_log::error!("CappedBucketIter swallowed bucket");
+            }
             None
         } else {
             Some(current_batch)
@@ -1877,11 +1876,6 @@ impl AggregatorService {
     {
         let capped_batches =
             CappedBucketIter::new(buckets.into_iter(), self.config.max_flush_bytes);
-
-        if capped_batches.unused_data.is_some() {
-            relay_log::error!("CappedBucketIter swallowed bucket");
-        }
-
         let num_batches = capped_batches
             .map(|batch| {
                 relay_statsd::metric!(
@@ -3168,9 +3162,6 @@ mod tests {
         );
         let total_elements: usize = batches.into_iter().flatten().map(|x| x.value.len()).sum();
         assert_eq!(total_elements, expected_elements);
-        if expected_elements == 0 {
-            assert!(iter.unused_data.is_some());
-        }
     }
 
     #[test]
