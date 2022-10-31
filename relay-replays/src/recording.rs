@@ -83,7 +83,7 @@ impl RecordingProcessor<'_> {
                 EventVariant::T2(variant) => self.recurse_snapshot_node(&mut variant.data.node),
                 EventVariant::T3(variant) => self.recurse_incremental_source(&mut variant.data),
                 // Parse this for console messages and possibly request args?
-                // EventVariant::T5(variant) => {}
+                EventVariant::T5(variant) => self.recurse_custom_event(variant),
                 _ => {}
             }
         }
@@ -115,6 +115,17 @@ impl RecordingProcessor<'_> {
                 text.text_content = self.strip_pii(&mut text.text_content);
             }
             _ => {}
+        }
+    }
+
+    fn recurse_custom_event(&mut self, event: &mut CustomEvent) {
+        match &mut event.data {
+            CustomEventDataVariant::Breadcrumb(breadcrumb) => match &mut breadcrumb.payload.message
+            {
+                Some(message) => breadcrumb.payload.message = Some(self.strip_pii(message)),
+                None => {}
+            },
+            CustomEventDataVariant::PerformanceSpan(performance_span) => {}
         }
     }
 
