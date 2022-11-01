@@ -92,18 +92,18 @@ impl From<std::io::Error> for RecordingParseError {
 
 // Recording Processor
 
-pub struct RecordingProcessor<'a> {
+struct RecordingProcessor<'a> {
     pii_processor: PiiProcessor<'a>,
 }
 
 impl RecordingProcessor<'_> {
-    pub fn new(pii_processor: PiiProcessor) -> RecordingProcessor {
+    fn new(pii_processor: PiiProcessor) -> RecordingProcessor {
         RecordingProcessor {
             pii_processor: pii_processor,
         }
     }
 
-    pub fn mask_pii(&mut self, events: &mut Vec<Event>) {
+    fn mask_pii(&mut self, events: &mut Vec<Event>) {
         for event in events {
             match event {
                 Event::T2(variant) => self.recurse_snapshot_node(&mut variant.data.node),
