@@ -168,13 +168,10 @@ enum Event {
     T3(IncrementalSnapshotEvent),
     T4(MetaEvent),
     T5(CustomEvent),
-
-    // XXX: We're not parsing PII from these events.
-    //
+    Default(Value),
     // 0: DOMContentLoadedEvent,
     // 1: LoadEvent,
-    // 6: PluginEvent,  No examples :O
-    Default(Value),
+    // 6: PluginEvent,
 }
 
 impl<'de> serde::Deserialize<'de> for Event {
