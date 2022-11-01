@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt::Display;
 use std::io::{self, BufRead, Read, Write};
 
 use relay_general::pii::PiiConfig;
@@ -40,23 +41,56 @@ pub fn process_recording(bytes: &[u8]) -> Result<Vec<u8>, String> {
     Ok([header, vec![b'\n'], out_bytes].concat())
 }
 
-fn loads(zipped_input: Vec<u8>) -> Result<Vec<Event>, Error> {
+fn loads(zipped_input: Vec<u8>) -> Result<Vec<Event>, RecordingParseError> {
     let mut decoder = ZlibDecoder::new(zipped_input.as_slice());
     let mut buffer = String::new();
-    decoder.read_to_string(&mut buffer).expect("blew up");
+    decoder.read_to_string(&mut buffer)?;
 
-    let node: Vec<Event> = serde_json::from_str(&buffer).expect("failed to load");
-    Ok(node)
+    let events: Vec<Event> = serde_json::from_str(&buffer)?;
+    Ok(events)
 }
 
-fn dumps(rrweb: Vec<Event>) -> Result<Vec<u8>, Error> {
+fn dumps(rrweb: Vec<Event>) -> Result<Vec<u8>, RecordingParseError> {
     let buffer = serde_json::to_vec(&rrweb)?;
 
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-    encoder.write_all(&buffer);
-
-    Ok(encoder.finish().unwrap())
+    encoder.write_all(&buffer)?;
+    let result = encoder.finish()?;
+    Ok(result)
 }
+
+// Error
+
+#[derive(Debug)]
+enum RecordingParseError {
+    SerdeError(Error),
+    IoError(std::io::Error),
+}
+
+impl Display for RecordingParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RecordingParseError::SerdeError(serde_error) => write!(f, "{}", serde_error),
+            RecordingParseError::IoError(io_error) => write!(f, "{}", io_error),
+        }
+    }
+}
+
+impl std::error::Error for RecordingParseError {}
+
+impl From<Error> for RecordingParseError {
+    fn from(err: Error) -> Self {
+        RecordingParseError::SerdeError(err)
+    }
+}
+
+impl From<std::io::Error> for RecordingParseError {
+    fn from(err: std::io::Error) -> Self {
+        RecordingParseError::IoError(err)
+    }
+}
+
+// Recording Processor
 
 pub struct RecordingProcessor<'a> {
     pii_processor: PiiProcessor<'a>,
@@ -499,18 +533,13 @@ mod tests {
     use serde_json::{Error, Value};
 
     fn loads(bytes: &[u8]) -> Result<Vec<Event>, Error> {
-        let node: Vec<Event> = serde_json::from_slice(bytes)?;
-        return Ok(node);
-    }
-
-    fn dumps(rrweb: Vec<Event>) -> Result<Vec<u8>, Error> {
-        return serde_json::to_vec(&rrweb);
+        serde_json::from_slice(bytes)
     }
 
     // RRWeb Payload Coverage
 
     #[test]
-    fn test_run() {
+    fn test_process_recording() {
         let payload = include_bytes!("../tests/fixtures/rrweb-binary.txt");
         recording::process_recording(payload).unwrap();
     }
