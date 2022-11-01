@@ -62,18 +62,12 @@ fn dumps(rrweb: Vec<Event>) -> Result<Vec<u8>, Error> {
 
 pub struct RecordingProcessor<'a> {
     pii_processor: PiiProcessor<'a>,
-    strip_videos: bool,
-    strip_images: bool,
-    strip_params: bool,
 }
 
 impl RecordingProcessor<'_> {
     pub fn new(pii_processor: PiiProcessor) -> RecordingProcessor {
         RecordingProcessor {
             pii_processor: pii_processor,
-            strip_videos: true,
-            strip_images: true,
-            strip_params: true,
         }
     }
 
@@ -82,7 +76,6 @@ impl RecordingProcessor<'_> {
             match &mut event.variant {
                 EventVariant::T2(variant) => self.recurse_snapshot_node(&mut variant.data.node),
                 EventVariant::T3(variant) => self.recurse_incremental_source(&mut variant.data),
-                // Parse this for console messages and possibly request args?
                 EventVariant::T5(variant) => self.recurse_custom_event(variant),
                 _ => {}
             }
@@ -132,7 +125,7 @@ impl RecordingProcessor<'_> {
     fn recurse_element(&mut self, element: &mut ElementNode) {
         match element.tag_name.as_str() {
             "script" | "style" => {}
-            "img" => {
+            "img" | "source" => {
                 let attrs = &mut element.attributes;
                 attrs.insert("src".to_string(), "#".to_string());
                 self.recurse_element_children(element)
