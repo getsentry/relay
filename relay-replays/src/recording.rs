@@ -29,12 +29,10 @@ pub fn process_recording(bytes: &[u8]) -> Result<Vec<u8>, String> {
     // Parse the recording body.
     let mut events = loads(body).map_err(|e| e.to_string())?;
 
-    // PII Processor configuration.
+    // Mask PII.
     let pii_config = PiiConfig::from_json("").unwrap();
     let pii_processor = PiiProcessor::new(pii_config.compiled());
     let mut processor = RecordingProcessor::new(pii_processor);
-
-    // Remove PII.
     processor.mask_pii(&mut events);
 
     // Serialize out.
@@ -73,10 +71,10 @@ impl RecordingProcessor<'_> {
 
     pub fn mask_pii(&mut self, events: &mut Vec<Event>) {
         for event in events {
-            match &mut event.variant {
-                EventVariant::T2(variant) => self.recurse_snapshot_node(&mut variant.data.node),
-                EventVariant::T3(variant) => self.recurse_incremental_source(&mut variant.data),
-                EventVariant::T5(variant) => self.recurse_custom_event(variant),
+            match event {
+                Event::T2(variant) => self.recurse_snapshot_node(&mut variant.data.node),
+                Event::T3(variant) => self.recurse_incremental_source(&mut variant.data),
+                Event::T5(variant) => self.recurse_custom_event(variant),
                 _ => {}
             }
         }
@@ -163,25 +161,23 @@ impl RecordingProcessor<'_> {
 /// -> CUSTOM = 5
 /// -> PLUGIN = 6
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Event {
-    #[serde(flatten)]
-    variant: EventVariant,
-}
-
 #[derive(Debug, Serialize)]
 #[serde(untagged)]
-enum EventVariant {
-    // DOMContentLoadedEvent,
-    // LoadEvent,
+enum Event {
     T2(FullSnapshotEvent),
     T3(IncrementalSnapshotEvent),
     T4(MetaEvent),
     T5(CustomEvent),
-    // PluginEvent,  No examples :O
+
+    // XXX: We're not parsing PII from these events.
+    //
+    // 0: DOMContentLoadedEvent,
+    // 1: LoadEvent,
+    // 6: PluginEvent,  No examples :O
+    Default(Value),
 }
 
-impl<'de> serde::Deserialize<'de> for EventVariant {
+impl<'de> serde::Deserialize<'de> for Event {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let value = Value::deserialize(d)?;
 
@@ -189,21 +185,22 @@ impl<'de> serde::Deserialize<'de> for EventVariant {
             Some(val) => match Value::as_u64(val) {
                 Some(v) => match v {
                     2 => match FullSnapshotEvent::deserialize(value) {
-                        Ok(event) => Ok(EventVariant::T2(event)),
+                        Ok(event) => Ok(Event::T2(event)),
                         Err(_) => Err(DError::custom("could not parse snapshot event")),
                     },
                     3 => match IncrementalSnapshotEvent::deserialize(value) {
-                        Ok(event) => Ok(EventVariant::T3(event)),
+                        Ok(event) => Ok(Event::T3(event)),
                         Err(_) => Err(DError::custom("could not parse incremental snapshot event")),
                     },
                     4 => match MetaEvent::deserialize(value) {
-                        Ok(event) => Ok(EventVariant::T4(event)),
+                        Ok(event) => Ok(Event::T4(event)),
                         Err(_) => Err(DError::custom("could not parse meta event")),
                     },
                     5 => match CustomEvent::deserialize(value) {
-                        Ok(event) => Ok(EventVariant::T5(event)),
+                        Ok(event) => Ok(Event::T5(event)),
                         Err(e) => Err(DError::custom(e.to_string())),
                     },
+                    0 | 1 | 6 => Ok(Event::Default(value)),
                     _ => Err(DError::custom("invalid type value")),
                 },
                 None => Err(DError::custom("type field must be an integer")),
