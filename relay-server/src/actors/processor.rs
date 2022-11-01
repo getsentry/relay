@@ -1109,7 +1109,24 @@ impl EnvelopeProcessorService {
                     }
                 }
             }
-            ItemType::ReplayRecording => replays_enabled,
+            ItemType::ReplayRecording => {
+                if replays_enabled {
+                    let parsed_recording =
+                        relay_replays::recording::process_recording(&item.payload());
+                    match parsed_recording {
+                        Ok(recording) => {
+                            item.set_payload(ContentType::OctetStream, recording.as_slice());
+                        }
+                        Err(e) => {
+                            relay_log::warn!("failed to parse replay event: {}", e);
+                        }
+                    }
+                }
+
+                // XXX: For now replays that could not be parsed are still accepted while we
+                // determine the impact of the recording parser.
+                replays_enabled
+            }
             _ => true,
         });
     }

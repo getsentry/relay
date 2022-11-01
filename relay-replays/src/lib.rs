@@ -29,7 +29,7 @@ use std::collections::HashMap;
 use std::fmt::Write;
 use std::net::IpAddr;
 
-mod recording;
+pub mod recording;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Error, Value};

@@ -98,9 +98,7 @@ struct RecordingProcessor<'a> {
 
 impl RecordingProcessor<'_> {
     fn new(pii_processor: PiiProcessor) -> RecordingProcessor {
-        RecordingProcessor {
-            pii_processor: pii_processor,
-        }
+        RecordingProcessor { pii_processor }
     }
 
     fn mask_pii(&mut self, events: &mut Vec<Event>) {
@@ -150,7 +148,7 @@ impl RecordingProcessor<'_> {
                 Some(message) => breadcrumb.payload.message = Some(self.strip_pii(message)),
                 None => {}
             },
-            CustomEventDataVariant::PerformanceSpan(performance_span) => {}
+            CustomEventDataVariant::PerformanceSpan(_) => {}
         }
     }
 
