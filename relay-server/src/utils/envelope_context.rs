@@ -83,8 +83,12 @@ impl EnvelopeContext {
         self
     }
 
-    /// TODO(ja): What about this?
-    pub fn tmp_set_metrics_extracted(&mut self) -> &mut Self {
+    /// Record that event metrics have been extracted.
+    ///
+    /// This is usually done automatically as part of `EnvelopeContext::new` or `update`. However,
+    /// if the context needs to be updated in-flight without recomputing the entire summary, this
+    /// method can record that metric extraction for the event item has occurred.
+    pub fn set_event_metrics_extracted(&mut self) -> &mut Self {
         self.summary.event_metrics_extracted = true;
         self
     }
