@@ -133,7 +133,7 @@ impl EnvelopeContext {
         let category = self.summary.event_category?;
 
         match category.index_category() {
-            Some(category) if self.summary.event_metrics_extracted => Some(category),
+            Some(index_category) if self.summary.event_metrics_extracted => Some(index_category),
             _ => Some(category),
         }
     }
