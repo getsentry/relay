@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add PII scrubber for replay recordings. ([#1545](https://github.com/getsentry/relay/pull/1545))
+
 **Internal**:
 
 - Implement response context schema. ([#1529](https://github.com/getsentry/relay/pull/1529))
