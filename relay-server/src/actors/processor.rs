@@ -1816,6 +1816,7 @@ impl EnvelopeProcessorService {
                 }
             );
             state.transaction_metrics_extracted = true;
+            state.envelope_context.set_event_metrics_extracted();
 
             if let Some(context) = state.envelope.sampling_context() {
                 track_sampling_metrics(&state.project_state, context, event);
