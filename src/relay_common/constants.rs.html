@@ -674,6 +674,16 @@
 <span id="672">672</span>
 <span id="673">673</span>
 <span id="674">674</span>
+<span id="675">675</span>
+<span id="676">676</span>
+<span id="677">677</span>
+<span id="678">678</span>
+<span id="679">679</span>
+<span id="680">680</span>
+<span id="681">681</span>
+<span id="682">682</span>
+<span id="683">683</span>
+<span id="684">684</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Constants shared with the C-ABI and Sentry.</span>
 
 <span class="kw">use</span> <span class="ident">std::convert::TryInto</span>;
@@ -856,6 +866,16 @@
         <span class="comment">// negative values (Internal and Unknown) cannot be sent as</span>
         <span class="comment">// outcomes (internally so!)</span>
         (<span class="self">self</span> <span class="kw">as</span> <span class="ident">i8</span>).<span class="ident">try_into</span>().<span class="ident">ok</span>()
+    }
+
+    <span class="doccomment">/// Returns a dedicated category for indexing if this data can be converted to metrics.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This returns `None` for most data categories.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">index_category</span>(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="self">self</span> {
+            <span class="ident"><span class="self">Self</span>::Transaction</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident"><span class="self">Self</span>::TransactionIndexed</span>),
+            <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
+        }
     }
 }
 

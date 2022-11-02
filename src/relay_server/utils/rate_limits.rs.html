@@ -1052,7 +1052,6 @@
 <span id="1050">1050</span>
 <span id="1051">1051</span>
 <span id="1052">1052</span>
-<span id="1053">1053</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>::{<span class="self">self</span>, <span class="ident">Write</span>};
 
 <span class="kw">use</span> <span class="ident">relay_quotas</span>::{
@@ -1454,8 +1453,9 @@
 
     <span class="doccomment">/// Returns a dedicated data category for indexing if metrics are to be extracted.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// This returns `None` for most data categories. Only if metrics extraction is enabled for</span>
-    <span class="doccomment">/// transactions, we treat them differently:</span>
+    <span class="doccomment">/// This is similar to [`DataCategory::index_category`], with an additional check if metrics</span>
+    <span class="doccomment">/// extraction is enabled for this category. At this point, this is only true for transactions:</span>
+    <span class="doccomment">///</span>
     <span class="doccomment">///  - `DataCategory::Transaction` counts the transaction metrics. If quotas with this category</span>
     <span class="doccomment">///    are exhausted, both the event and metrics are dropped.</span>
     <span class="doccomment">///  - `DataCategory::TransactionIndexed` counts ingested and stored events. If quotas with this</span>
@@ -1466,9 +1466,7 @@
         }
 
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">config</span><span class="question-mark">?</span>.<span class="ident">transaction_metrics</span> {
-            <span class="prelude-val">Some</span>(<span class="ident">ErrorBoundary::Ok</span>(<span class="kw-2">ref</span> <span class="ident">c</span>)) <span class="kw">if</span> <span class="ident">c</span>.<span class="ident">is_enabled</span>() =&gt; {
-                <span class="prelude-val">Some</span>(<span class="ident">DataCategory::TransactionIndexed</span>)
-            }
+            <span class="prelude-val">Some</span>(<span class="ident">ErrorBoundary::Ok</span>(<span class="kw-2">ref</span> <span class="ident">c</span>)) <span class="kw">if</span> <span class="ident">c</span>.<span class="ident">is_enabled</span>() =&gt; <span class="ident">category</span>.<span class="ident">index_category</span>(),
             <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
         }
     }
