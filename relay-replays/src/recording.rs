@@ -190,11 +190,18 @@ impl RecordingProcessor<'_> {
     }
 
     fn strip_pii(&mut self, value: &mut String) -> String {
-        // what do i do with a processing action?
-        self.pii_processor
-            .process_string(value, &mut Meta::default(), ProcessingState::root());
-
-        value.to_string()
+        match self.pii_processor.process_string(
+            value,
+            &mut Meta::default(),
+            ProcessingState::root(),
+        ) {
+            Ok(_) => value.to_string(),
+            // TODO: This branch should not be applicable to us.  We're not stripping PII from an
+            // Option and we're not providing types other than String.  We could unwrap instead of
+            // matching on Err if we're really confident.  We could also propagate an error up the
+            // call stack to be safe.  For now we fail silently...
+            Err(_) => value.to_string(),
+        }
     }
 }
 
