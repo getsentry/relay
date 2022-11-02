@@ -181,6 +181,16 @@ impl DataCategory {
         // outcomes (internally so!)
         (self as i8).try_into().ok()
     }
+
+    /// Returns a dedicated category for indexing if this data can be converted to metrics.
+    ///
+    /// This returns `None` for most data categories.
+    pub fn index_category(self) -> Option<Self> {
+        match self {
+            Self::Transaction => Some(Self::TransactionIndexed),
+            _ => None,
+        }
+    }
 }
 
 impl fmt::Display for DataCategory {
