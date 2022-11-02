@@ -31,23 +31,13 @@ pub fn process_recording(
         .next()
         .ok_or("no data found. are the headers missing?")?;
 
-    // Parse the recording body.
+    // Deserialization.
     let mut events = loads(body).map_err(|e| e.to_string())?;
 
-    // Mask PII.
-    if let Some(config) = pii_config1 {
-        let pii_processor = PiiProcessor::new(config.compiled());
-        let mut processor = RecordingProcessor::new(pii_processor);
-        processor.mask_pii(&mut events);
-    }
+    // Processing.
+    strip_pii(&mut events, pii_config1, pii_config2);
 
-    if let Some(config) = pii_config2 {
-        let pii_processor = PiiProcessor::new(config.compiled());
-        let mut processor = RecordingProcessor::new(pii_processor);
-        processor.mask_pii(&mut events);
-    }
-
-    // Serialize out.
+    // Serialization.
     let out_bytes = dumps(events).map_err(|e| e.to_string())?;
     Ok([header, vec![b'\n'], out_bytes].concat())
 }
@@ -68,6 +58,24 @@ fn dumps(rrweb: Vec<Event>) -> Result<Vec<u8>, RecordingParseError> {
     encoder.write_all(&buffer)?;
     let result = encoder.finish()?;
     Ok(result)
+}
+
+fn strip_pii(
+    events: &mut Vec<Event>,
+    pii_config1: Option<&PiiConfig>,
+    pii_config2: Option<&PiiConfig>,
+) {
+    if let Some(config) = pii_config1 {
+        let pii_processor = PiiProcessor::new(config.compiled());
+        let mut processor = RecordingProcessor::new(pii_processor);
+        processor.mask_pii(events);
+    }
+
+    if let Some(config) = pii_config2 {
+        let pii_processor = PiiProcessor::new(config.compiled());
+        let mut processor = RecordingProcessor::new(pii_processor);
+        processor.mask_pii(events);
+    }
 }
 
 // Error
@@ -539,6 +547,7 @@ mod tests {
     use crate::recording;
     use crate::recording::Event;
     use assert_json_diff::assert_json_eq;
+    use relay_general::pii::PiiConfig;
     use serde_json::{Error, Value};
 
     fn loads(bytes: &[u8]) -> Result<Vec<Event>, Error> {
@@ -551,6 +560,30 @@ mod tests {
     fn test_process_recording_no_config() {
         let payload = include_bytes!("../tests/fixtures/rrweb-binary.txt");
         recording::process_recording(payload, None, None).unwrap();
+    }
+
+    #[test]
+    fn test_process_recording_has_config() {
+        // TODO: Use a better config.
+        let raw_config = PiiConfig::from_json(
+            r##"
+            {
+                "rules": {
+                    "remove_bad_headers": {
+                        "type": "redact_pair",
+                        "keyPattern": "(?i)cookie|secret[-_]?key"
+                    }
+                },
+                "applications": {
+                    "$string": ["@ip"],
+                    "$object.**": ["remove_bad_headers"]
+                }
+            }
+            "##,
+        );
+
+        let payload = include_bytes!("../tests/fixtures/rrweb-binary.txt");
+        recording::process_recording(payload, raw_config.ok().as_ref(), None).unwrap();
     }
 
     #[test]
