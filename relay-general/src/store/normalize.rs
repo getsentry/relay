@@ -90,25 +90,20 @@ pub fn is_valid_platform(platform: &str) -> bool {
     VALID_PLATFORMS.contains(&platform)
 }
 
-pub fn normalize_dist(distribution: &mut Annotated<String>) {
-    let dist = distribution.value_mut();
-    if let Some(val) = dist {
-        if val.is_empty() {
-            *dist = None;
-        } else {
-            let trimmed = val.trim();
-            // Validate the length of the distribution name and make sure to attach the error in
-            // case of the issues.
-            if bytecount::num_chars(trimmed.as_bytes()) > MaxChars::Distribution.limit() {
-                *distribution = Annotated::from_error(
-                    Error::new(ErrorKind::ValueTooLong),
-                    Some(Value::String(val.to_owned())),
-                )
-            } else if trimmed != val {
-                *val = trimmed.to_string()
-            }
+pub fn normalize_dist(distribution: &mut Annotated<String>) -> ProcessingResult {
+    distribution.apply(|dist, meta| {
+        if dist.is_empty() {
+            return Err(ProcessingAction::DeleteValueHard);
         }
-    }
+        let trimmed = dist.trim();
+        if bytecount::num_chars(trimmed.as_bytes()) > MaxChars::Distribution.limit() {
+            meta.add_error(Error::new(ErrorKind::ValueTooLong));
+            return Err(ProcessingAction::DeleteValueSoft);
+        } else if trimmed != dist {
+            *dist = trimmed.to_string();
+        }
+        Ok(())
+    })
 }
 
 /// Compute additional measurements derived from existing ones.
@@ -550,8 +545,8 @@ fn normalize_timestamps(
 }
 
 /// Ensures that the `release` and `dist` fields match up.
-fn normalize_release_dist(event: &mut Event) {
-    normalize_dist(&mut event.dist);
+fn normalize_release_dist(event: &mut Event) -> ProcessingResult {
+    normalize_dist(&mut event.dist)
 }
 
 fn is_security_report(event: &Event) -> bool {
@@ -720,7 +715,7 @@ pub fn light_normalize_event(
 
         // Default required attributes, even if they have errors
         normalize_logentry(&mut event.logentry, meta)?;
-        normalize_release_dist(event); // dist is a tag extracted along with other metrics from transactions
+        normalize_release_dist(event)?; // dist is a tag extracted along with other metrics from transactions
         normalize_timestamps(
             event,
             meta,
@@ -1996,28 +1991,28 @@ mod tests {
     #[test]
     fn test_normalize_dist_none() {
         let mut dist = Annotated::default();
-        normalize_dist(&mut dist);
+        normalize_dist(&mut dist).unwrap();
         assert_eq!(dist.value(), None);
     }
 
     #[test]
     fn test_normalize_dist_empty() {
         let mut dist = Annotated::new("".to_string());
-        normalize_dist(&mut dist);
+        normalize_dist(&mut dist).unwrap();
         assert_eq!(dist.value(), None);
     }
 
     #[test]
     fn test_normalize_dist_trim() {
         let mut dist = Annotated::new(" foo  ".to_string());
-        normalize_dist(&mut dist);
+        normalize_dist(&mut dist).unwrap();
         assert_eq!(dist.value(), Some(&"foo".to_string()));
     }
 
     #[test]
     fn test_normalize_dist_whitespace() {
         let mut dist = Annotated::new(" ".to_owned());
-        normalize_dist(&mut dist);
+        normalize_dist(&mut dist).unwrap();
         assert_eq!(dist.value(), Some(&"".to_string())); // Not sure if this is what we want
     }
 
