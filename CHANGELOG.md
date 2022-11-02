@@ -6,6 +6,10 @@
 
 - Support decaying rules. Decaying rules are regular sampling rules, but they are only applicable in a specific time range. ([#1544](https://github.com/getsentry/relay/pull/1544))
 
+**Bug Fixes**:
+
+- Validate the distrubution name in the event. ([#1556](https://github.com/getsentry/relay/pull/1556))
+
 **Internal**:
 
 - Implement response context schema. ([#1529](https://github.com/getsentry/relay/pull/1529))
