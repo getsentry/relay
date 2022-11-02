@@ -92,11 +92,10 @@ pub fn is_valid_platform(platform: &str) -> bool {
 
 pub fn normalize_dist(distribution: &mut Annotated<String>) -> ProcessingResult {
     distribution.apply(|dist, meta| {
-        if dist.is_empty() {
-            return Err(ProcessingAction::DeleteValueHard);
-        }
         let trimmed = dist.trim();
-        if bytecount::num_chars(trimmed.as_bytes()) > MaxChars::Distribution.limit() {
+        if trimmed.is_empty() {
+            return Err(ProcessingAction::DeleteValueHard);
+        } else if bytecount::num_chars(trimmed.as_bytes()) > MaxChars::Distribution.limit() {
             meta.add_error(Error::new(ErrorKind::ValueTooLong));
             return Err(ProcessingAction::DeleteValueSoft);
         } else if trimmed != dist {
@@ -2013,7 +2012,7 @@ mod tests {
     fn test_normalize_dist_whitespace() {
         let mut dist = Annotated::new(" ".to_owned());
         normalize_dist(&mut dist).unwrap();
-        assert_eq!(dist.value(), Some(&"".to_string())); // Not sure if this is what we want
+        assert_eq!(dist.value(), None);
     }
 
     #[test]
