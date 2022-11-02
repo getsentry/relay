@@ -65,6 +65,10 @@ fn strip_pii(
     pii_config1: Option<&PiiConfig>,
     pii_config2: Option<&PiiConfig>,
 ) {
+    // TODO: Both configs can be passed to the recording processor and run sequentially during
+    // iteration.  This would avoid iterating over the data structure twice.  Need some help with
+    // lifetimes here.  It is beyond my scope of understanding.
+
     if let Some(config) = pii_config1 {
         let pii_processor = PiiProcessor::new(config.compiled());
         let mut processor = RecordingProcessor::new(pii_processor);
