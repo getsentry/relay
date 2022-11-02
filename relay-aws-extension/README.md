@@ -26,7 +26,7 @@ export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=x86_64-unknown-linux-gnu-gcc
 rustup target add x86_64-unknown-linux-gnu
 
 # Install objcopy (used in `Makefile`)
-# Make sure change `2.37` to the specific version you installed (use: brew info binutils)
+# Make sure to change `2.37` to the specific version you installed (use: brew info binutils)
 brew install binutils
 ln -s /opt/homebrew/Cellar/binutils/2.37/bin/gobjcopy /usr/local/bin/objcopy
 
