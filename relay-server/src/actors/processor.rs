@@ -1079,11 +1079,21 @@ impl EnvelopeProcessorService {
     }
 
     /// Remove replays if the feature flag is not enabled
-    fn process_replays(&self, state: &mut ProcessEnvelopeState) {
+    fn process_replays(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let replays_enabled = state.project_state.has_feature(Feature::Replays);
         let context = &state.envelope_context;
         let envelope = &mut state.envelope;
         let client_addr = envelope.meta().client_addr();
+
+        // TODO: single function combines pii configs into one.
+        let pii_config1 = state.project_state.config().pii_config.as_ref();
+        let pii_config2 = state
+            .project_state
+            .config()
+            .datascrubbing_settings
+            .pii_config()
+            .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?
+            .as_ref();
 
         state.envelope.retain_items(|item| match item.ty() {
             ItemType::ReplayEvent => {
@@ -1111,8 +1121,11 @@ impl EnvelopeProcessorService {
             }
             ItemType::ReplayRecording => {
                 if replays_enabled {
-                    let parsed_recording =
-                        relay_replays::recording::process_recording(&item.payload());
+                    let parsed_recording = relay_replays::recording::process_recording(
+                        &item.payload(),
+                        pii_config1,
+                        pii_config2,
+                    );
                     match parsed_recording {
                         Ok(recording) => {
                             item.set_payload(ContentType::OctetStream, recording.as_slice());
@@ -1129,6 +1142,7 @@ impl EnvelopeProcessorService {
             }
             _ => true,
         });
+        Ok(())
     }
 
     /// Creates and initializes the processing state.
@@ -2007,7 +2021,7 @@ impl EnvelopeProcessorService {
         self.process_client_reports(state);
         self.process_user_reports(state);
         self.process_profiles(state);
-        self.process_replays(state);
+        self.process_replays(state)?;
 
         if state.creates_event() {
             // Some envelopes only create events in processing relays; for example, unreal events.

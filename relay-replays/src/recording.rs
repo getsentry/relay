@@ -14,7 +14,11 @@ use serde::de::Error as DError;
 use serde::{Deserialize, Serialize};
 use serde_json::{Error, Value};
 
-pub fn process_recording(bytes: &[u8]) -> Result<Vec<u8>, String> {
+pub fn process_recording(
+    bytes: &[u8],
+    pii_config1: Option<&PiiConfig>,
+    pii_config2: Option<&PiiConfig>,
+) -> Result<Vec<u8>, String> {
     // Split recording headers and body.
     let cursor = io::Cursor::new(bytes);
     let mut split_iter = cursor
@@ -31,10 +35,17 @@ pub fn process_recording(bytes: &[u8]) -> Result<Vec<u8>, String> {
     let mut events = loads(body).map_err(|e| e.to_string())?;
 
     // Mask PII.
-    let pii_config = PiiConfig::from_json("").unwrap();
-    let pii_processor = PiiProcessor::new(pii_config.compiled());
-    let mut processor = RecordingProcessor::new(pii_processor);
-    processor.mask_pii(&mut events);
+    if let Some(config) = pii_config1 {
+        let pii_processor = PiiProcessor::new(config.compiled());
+        let mut processor = RecordingProcessor::new(pii_processor);
+        processor.mask_pii(&mut events);
+    }
+
+    if let Some(config) = pii_config2 {
+        let pii_processor = PiiProcessor::new(config.compiled());
+        let mut processor = RecordingProcessor::new(pii_processor);
+        processor.mask_pii(&mut events);
+    }
 
     // Serialize out.
     let out_bytes = dumps(events).map_err(|e| e.to_string())?;
@@ -537,9 +548,9 @@ mod tests {
     // RRWeb Payload Coverage
 
     #[test]
-    fn test_process_recording() {
+    fn test_process_recording_no_config() {
         let payload = include_bytes!("../tests/fixtures/rrweb-binary.txt");
-        recording::process_recording(payload).unwrap();
+        recording::process_recording(payload, None, None).unwrap();
     }
 
     #[test]
