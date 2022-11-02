@@ -1760,10 +1760,6 @@ impl EnvelopeProcessorService {
                 .map_err(ProcessingError::QuotasFailed)?
         });
 
-        if enforcement.event_metrics_active() {
-            state.extracted_metrics.clear();
-        }
-
         if limits.is_limited() {
             ProjectCache::from_registry()
                 .do_send(UpdateRateLimits::new(scoping.project_key, limits));
@@ -1820,6 +1816,7 @@ impl EnvelopeProcessorService {
                 }
             );
             state.transaction_metrics_extracted = true;
+            state.envelope_context.set_event_metrics_extracted();
 
             if let Some(context) = state.envelope.sampling_context() {
                 track_sampling_metrics(&state.project_state, context, event);

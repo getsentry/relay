@@ -266,18 +266,20 @@ impl Enforcement {
         self.event.is_active()
     }
 
-    /// Returns `true` if metrics extracted from the event should be rate limited.
-    #[cfg(feature = "processing")]
-    pub fn event_metrics_active(&self) -> bool {
-        self.event_metrics.is_active()
-    }
-
     /// Invokes [`TrackOutcome`] on all enforcements reported by the [`EnvelopeLimiter`].
     ///
     /// Relay generally does not emit outcomes for sessions, so those are skipped.
     pub fn track_outcomes(self, envelope: &Envelope, scoping: &Scoping) {
-        // Do not report outcomes for sessions.
-        for limit in [self.event, self.attachments, self.profiles, self.replays] {
+        let Self {
+            event,
+            attachments,
+            sessions: _, // Do not report outcomes for sessions.
+            profiles,
+            replays,
+            event_metrics,
+        } = self;
+
+        for limit in [event, attachments, profiles, replays, event_metrics] {
             if limit.is_active() {
                 let timestamp = relay_common::instant_to_date_time(envelope.meta().start_time());
                 TrackOutcome::from_registry().send(TrackOutcome {
@@ -397,8 +399,9 @@ where
 
     /// Returns a dedicated data category for indexing if metrics are to be extracted.
     ///
-    /// This returns `None` for most data categories. Only if metrics extraction is enabled for
-    /// transactions, we treat them differently:
+    /// This is similar to [`DataCategory::index_category`], with an additional check if metrics
+    /// extraction is enabled for this category. At this point, this is only true for transactions:
+    ///
     ///  - `DataCategory::Transaction` counts the transaction metrics. If quotas with this category
     ///    are exhausted, both the event and metrics are dropped.
     ///  - `DataCategory::TransactionIndexed` counts ingested and stored events. If quotas with this
@@ -409,9 +412,7 @@ where
         }
 
         match self.config?.transaction_metrics {
-            Some(ErrorBoundary::Ok(ref c)) if c.is_enabled() => {
-                Some(DataCategory::TransactionIndexed)
-            }
+            Some(ErrorBoundary::Ok(ref c)) if c.is_enabled() => category.index_category(),
             _ => None,
         }
     }
@@ -433,7 +434,12 @@ where
                 // quota. Quota will be consumed by metrics in the metrics aggregator instead.
                 event_limits = (self.check)(scoping.item(category), 0)?;
                 longest = event_limits.longest();
-                enforcement.event_metrics = CategoryLimit::new(category, 1, longest);
+
+                // Only enforce and record an outcome if metrics haven't been extracted yet.
+                // Otherwise, the outcome is logged at a different place.
+                if !summary.event_metrics_extracted {
+                    enforcement.event_metrics = CategoryLimit::new(category, 1, longest);
+                }
 
                 // If the main category is rate limited, we drop both the event and metrics. If
                 // there's no rate limit, check for specific indexing quota and drop just the event.
@@ -970,7 +976,7 @@ mod tests {
         let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
         assert!(limits.is_limited());
-        assert!(enforcement.event_metrics.is_active());
+        assert!(!enforcement.event_metrics.is_active());
         assert!(enforcement.event.is_active());
     }
 

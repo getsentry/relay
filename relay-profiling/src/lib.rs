@@ -98,6 +98,7 @@ use serde::{Deserialize, Serialize};
 mod android;
 mod cocoa;
 mod error;
+mod measurements;
 mod native_debug_image;
 mod python;
 mod rust;
