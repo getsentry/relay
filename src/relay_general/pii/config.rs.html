@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/pii/config.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>config.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/pii/config.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>config.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_general/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -240,245 +240,245 @@
 <span id="238">238</span>
 <span id="239">239</span>
 <span id="240">240</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeMap</span>, <span class="ident">BTreeSet</span>};
-<span class="kw">use</span> <span class="ident">std::fmt</span>;
-<span class="kw">use</span> <span class="ident">std::ops::Deref</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
+<span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::ops::Deref;
 
-<span class="kw">use</span> <span class="ident">failure::Fail</span>;
-<span class="kw">use</span> <span class="ident">once_cell::sync::OnceCell</span>;
-<span class="kw">use</span> <span class="ident">regex</span>::{<span class="ident">Regex</span>, <span class="ident">RegexBuilder</span>};
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">de::Error</span>, <span class="ident">Deserialize</span>, <span class="ident">Deserializer</span>, <span class="ident">Serialize</span>, <span class="ident">Serializer</span>};
+<span class="kw">use </span>failure::Fail;
+<span class="kw">use </span>once_cell::sync::OnceCell;
+<span class="kw">use </span>regex::{Regex, RegexBuilder};
+<span class="kw">use </span>serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::pii</span>::{<span class="ident">CompiledPiiConfig</span>, <span class="ident">Redaction</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor::SelectorSpec</span>;
+<span class="kw">use </span><span class="kw">crate</span>::pii::{CompiledPiiConfig, Redaction};
+<span class="kw">use </span><span class="kw">crate</span>::processor::SelectorSpec;
 
-<span class="kw">const</span> <span class="ident">COMPILED_PATTERN_MAX_SIZE</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">262_144</span>;
+<span class="kw">const </span>COMPILED_PATTERN_MAX_SIZE: usize = <span class="number">262_144</span>;
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Fail</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">PiiConfigError</span> {
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;could not parse regex&quot;</span>)]</span>
-    <span class="ident">RegexError</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">regex::Error</span>),
+<span class="attribute">#[derive(Clone, Debug, Fail)]
+</span><span class="kw">pub enum </span>PiiConfigError {
+    <span class="attribute">#[fail(display = <span class="string">&quot;could not parse regex&quot;</span>)]
+    </span>RegexError(<span class="attribute">#[cause] </span>regex::Error),
 }
 
-<span class="doccomment">/// A regex pattern for text replacement.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Pattern</span>(<span class="kw">pub</span> <span class="ident">Regex</span>);
+<span class="doccomment">/// A regex pattern for text replacement.
+</span><span class="attribute">#[derive(Clone)]
+</span><span class="kw">pub struct </span>Pattern(<span class="kw">pub </span>Regex);
 
-<span class="kw">impl</span> <span class="ident">Deref</span> <span class="kw">for</span> <span class="ident">Pattern</span> {
-    <span class="kw">type</span> <span class="ident">Target</span> <span class="op">=</span> <span class="ident">Regex</span>;
+<span class="kw">impl </span>Deref <span class="kw">for </span>Pattern {
+    <span class="kw">type </span>Target = Regex;
 
-    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident"><span class="self">Self</span>::Target</span> {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>
+    <span class="kw">fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Target {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0
+    </span>}
+}
+
+<span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str&gt; <span class="kw">for </span>Pattern {
+    <span class="kw">fn </span>from(pattern: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str) -&gt; Pattern {
+        Pattern(Regex::new(pattern).unwrap())
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Pattern</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">pattern</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>) -&gt; <span class="ident">Pattern</span> {
-        <span class="ident">Pattern</span>(<span class="ident">Regex::new</span>(<span class="ident">pattern</span>).<span class="ident">unwrap</span>())
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Pattern {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        fmt::Debug::fmt(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, f)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">Pattern</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="ident">fmt::Debug::fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, <span class="ident">f</span>)
+<span class="kw">impl </span>Serialize <span class="kw">for </span>Pattern {
+    <span class="kw">fn </span>serialize&lt;S: Serializer&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt; {
+        serializer.serialize_str(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>.to_string())
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">Pattern</span> {
-    <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span>: <span class="ident">Serializer</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span> {
-        <span class="ident">serializer</span>.<span class="ident">serialize_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>.<span class="ident">to_string</span>())
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>Pattern {
+    <span class="kw">fn </span>deserialize&lt;D: Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt; {
+        <span class="kw">let </span>raw = String::deserialize(deserializer)<span class="question-mark">?</span>;
+        <span class="kw">let </span>pattern = RegexBuilder::new(<span class="kw-2">&amp;</span>raw)
+            .size_limit(COMPILED_PATTERN_MAX_SIZE)
+            .build()
+            .map_err(Error::custom)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(Pattern(pattern))
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Pattern</span> {
-    <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span>: <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D::Error</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">raw</span> <span class="op">=</span> <span class="ident">String::deserialize</span>(<span class="ident">deserializer</span>)<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">pattern</span> <span class="op">=</span> <span class="ident">RegexBuilder::new</span>(<span class="kw-2">&amp;</span><span class="ident">raw</span>)
-            .<span class="ident">size_limit</span>(<span class="ident">COMPILED_PATTERN_MAX_SIZE</span>)
-            .<span class="ident">build</span>()
-            .<span class="ident">map_err</span>(<span class="ident">Error::custom</span>)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(<span class="ident">Pattern</span>(<span class="ident">pattern</span>))
+<span class="kw">impl </span>PartialEq <span class="kw">for </span>Pattern {
+    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span>Pattern) -&gt; bool {
+        <span class="comment">// unclear if we could derive Eq as well, but better not. We don&#39;t need it.
+        </span><span class="self">self</span>.<span class="number">0</span>.as_str() == other.<span class="number">0</span>.as_str()
     }
 }
 
-<span class="kw">impl</span> <span class="ident">PartialEq</span> <span class="kw">for</span> <span class="ident">Pattern</span> {
-    <span class="kw">fn</span> <span class="ident">eq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="ident">Pattern</span>) -&gt; <span class="ident">bool</span> {
-        <span class="comment">// unclear if we could derive Eq as well, but better not. We don&#39;t need it.</span>
-        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">as_str</span>() <span class="op">==</span> <span class="ident">other</span>.<span class="number">0</span>.<span class="ident">as_str</span>()
+<span class="attribute">#[allow(clippy::unnecessary_wraps)]
+</span><span class="kw">fn </span>replace_groups_default() -&gt; <span class="prelude-ty">Option</span>&lt;BTreeSet&lt;u8&gt;&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>set = BTreeSet::new();
+    set.insert(<span class="number">0</span>);
+    <span class="prelude-val">Some</span>(set)
+}
+
+<span class="doccomment">/// A rule that matches a regex pattern.
+</span><span class="attribute">#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+</span><span class="kw">pub struct </span>PatternRule {
+    <span class="doccomment">/// The regular expression to apply.
+    </span><span class="kw">pub </span>pattern: Pattern,
+    <span class="doccomment">/// The match group indices to replace.
+    </span><span class="attribute">#[serde(default = <span class="string">&quot;replace_groups_default&quot;</span>)]
+    </span><span class="kw">pub </span>replace_groups: <span class="prelude-ty">Option</span>&lt;BTreeSet&lt;u8&gt;&gt;,
+}
+
+<span class="doccomment">/// A rule that dispatches to multiple other rules.
+</span><span class="attribute">#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
+#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+</span><span class="kw">pub struct </span>MultipleRule {
+    <span class="doccomment">/// A reference to other rules to apply
+    </span><span class="kw">pub </span>rules: Vec&lt;String&gt;,
+    <span class="doccomment">/// When set to true, the outer rule is reported.
+    </span><span class="attribute">#[serde(default)]
+    </span><span class="kw">pub </span>hide_inner: bool,
+}
+
+<span class="doccomment">/// An alias for another rule.
+</span><span class="attribute">#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
+#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+</span><span class="kw">pub struct </span>AliasRule {
+    <span class="doccomment">/// A reference to another rule to apply.
+    </span><span class="kw">pub </span>rule: String,
+    <span class="doccomment">/// When set to true, the outer rule is reported.
+    </span><span class="attribute">#[serde(default)]
+    </span><span class="kw">pub </span>hide_inner: bool,
+}
+
+<span class="doccomment">/// A pair redaction rule.
+</span><span class="attribute">#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+</span><span class="kw">pub struct </span>RedactPairRule {
+    <span class="doccomment">/// A pattern to match for keys.
+    </span><span class="kw">pub </span>key_pattern: Pattern,
+}
+
+<span class="doccomment">/// Supported stripping rules.
+</span><span class="attribute">#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
+#[serde(tag = <span class="string">&quot;type&quot;</span>, rename_all = <span class="string">&quot;snake_case&quot;</span>)]
+</span><span class="kw">pub enum </span>RuleType {
+    <span class="doccomment">/// Matches any value.
+    </span>Anything,
+    <span class="doccomment">/// Applies a regular expression.
+    </span>Pattern(PatternRule),
+    <span class="doccomment">/// Matchse an IMEI or IMEISV
+    </span>Imei,
+    <span class="doccomment">/// Matches a mac address
+    </span>Mac,
+    <span class="doccomment">/// Matches a UUID
+    </span>Uuid,
+    <span class="doccomment">/// Matches an email
+    </span>Email,
+    <span class="doccomment">/// Matches any IP address
+    </span>Ip,
+    <span class="doccomment">/// Matches a creditcard number
+    </span>Creditcard,
+    <span class="doccomment">/// Sanitizes a path from user data
+    </span>Userpath,
+    <span class="doccomment">/// A PEM encoded key
+    </span>Pemkey,
+    <span class="doccomment">/// Auth info from URLs
+    </span>UrlAuth,
+    <span class="doccomment">/// US SSN.
+    </span>UsSsn,
+    <span class="doccomment">/// Keys that look like passwords
+    </span>Password,
+    <span class="doccomment">/// When a regex matches a key, a value is removed
+    </span><span class="attribute">#[serde(alias = <span class="string">&quot;redactPair&quot;</span>)]
+    </span>RedactPair(RedactPairRule),
+    <span class="doccomment">/// Applies multiple rules.
+    </span>Multiple(MultipleRule),
+    <span class="doccomment">/// Applies another rule.  Works like a single multiple.
+    </span>Alias(AliasRule),
+}
+
+<span class="doccomment">/// A single rule configuration.
+</span><span class="attribute">#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+</span><span class="kw">pub struct </span>RuleSpec {
+    <span class="attribute">#[serde(flatten)]
+    </span><span class="kw">pub </span>ty: RuleType,
+    <span class="attribute">#[serde(default)]
+    </span><span class="kw">pub </span>redaction: Redaction,
+}
+
+<span class="doccomment">/// Configuration for rule parameters.
+</span><span class="attribute">#[derive(Serialize, Deserialize, Debug, Default, Clone, Eq, PartialEq)]
+#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+</span><span class="kw">pub struct </span>Vars {
+    <span class="doccomment">/// The default secret key for hashing operations.
+    </span><span class="attribute">#[serde(default)]
+    </span><span class="kw">pub </span>hash_key: <span class="prelude-ty">Option</span>&lt;String&gt;,
+}
+
+<span class="doccomment">/// A set of named rule configurations.
+</span><span class="attribute">#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+</span><span class="kw">pub struct </span>PiiConfig {
+    <span class="doccomment">/// A map of custom PII rules.
+    </span><span class="attribute">#[serde(default)]
+    </span><span class="kw">pub </span>rules: BTreeMap&lt;String, RuleSpec&gt;,
+
+    <span class="doccomment">/// Parameters for PII rules.
+    </span><span class="attribute">#[serde(default)]
+    </span><span class="kw">pub </span>vars: Vars,
+
+    <span class="doccomment">/// Mapping of selectors to rules.
+    </span><span class="attribute">#[serde(default)]
+    </span><span class="kw">pub </span>applications: BTreeMap&lt;SelectorSpec, Vec&lt;String&gt;&gt;,
+
+    <span class="doccomment">/// PII config derived from datascrubbing settings.
+    ///
+    /// Cached because the conversion process is expensive.
+    </span><span class="attribute">#[serde(skip)]
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) compiled: OnceCell&lt;CompiledPiiConfig&gt;,
+}
+
+<span class="kw">impl </span>PartialEq <span class="kw">for </span>PiiConfig {
+    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span>PiiConfig) -&gt; bool {
+        <span class="comment">// This is written in this way such that people will not forget to update this PartialEq
+        // impl when they add more fields.
+        </span><span class="kw">let </span>PiiConfig {
+            rules,
+            vars,
+            applications,
+            compiled: _compiled,
+        } = <span class="kw-2">&amp;</span><span class="self">self</span>;
+
+        rules == <span class="kw-2">&amp;</span>other.rules &amp;&amp; vars == <span class="kw-2">&amp;</span>other.vars &amp;&amp; applications == <span class="kw-2">&amp;</span>other.applications
     }
 }
 
-<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::unnecessary_wraps</span>)]</span>
-<span class="kw">fn</span> <span class="ident">replace_groups_default</span>() -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BTreeSet</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">set</span> <span class="op">=</span> <span class="ident">BTreeSet::new</span>();
-    <span class="ident">set</span>.<span class="ident">insert</span>(<span class="number">0</span>);
-    <span class="prelude-val">Some</span>(<span class="ident">set</span>)
-}
-
-<span class="doccomment">/// A rule that matches a regex pattern.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">PartialEq</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">PatternRule</span> {
-    <span class="doccomment">/// The regular expression to apply.</span>
-    <span class="kw">pub</span> <span class="ident">pattern</span>: <span class="ident">Pattern</span>,
-    <span class="doccomment">/// The match group indices to replace.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span> <span class="op">=</span> <span class="string">&quot;replace_groups_default&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">replace_groups</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BTreeSet</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-}
-
-<span class="doccomment">/// A rule that dispatches to multiple other rules.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MultipleRule</span> {
-    <span class="doccomment">/// A reference to other rules to apply</span>
-    <span class="kw">pub</span> <span class="ident">rules</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// When set to true, the outer rule is reported.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">hide_inner</span>: <span class="ident">bool</span>,
-}
-
-<span class="doccomment">/// An alias for another rule.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AliasRule</span> {
-    <span class="doccomment">/// A reference to another rule to apply.</span>
-    <span class="kw">pub</span> <span class="ident">rule</span>: <span class="ident">String</span>,
-    <span class="doccomment">/// When set to true, the outer rule is reported.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">hide_inner</span>: <span class="ident">bool</span>,
-}
-
-<span class="doccomment">/// A pair redaction rule.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">PartialEq</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RedactPairRule</span> {
-    <span class="doccomment">/// A pattern to match for keys.</span>
-    <span class="kw">pub</span> <span class="ident">key_pattern</span>: <span class="ident">Pattern</span>,
-}
-
-<span class="doccomment">/// Supported stripping rules.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>, <span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">PartialEq</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">tag</span> <span class="op">=</span> <span class="string">&quot;type&quot;</span>, <span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;snake_case&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">RuleType</span> {
-    <span class="doccomment">/// Matches any value.</span>
-    <span class="ident">Anything</span>,
-    <span class="doccomment">/// Applies a regular expression.</span>
-    <span class="ident">Pattern</span>(<span class="ident">PatternRule</span>),
-    <span class="doccomment">/// Matchse an IMEI or IMEISV</span>
-    <span class="ident">Imei</span>,
-    <span class="doccomment">/// Matches a mac address</span>
-    <span class="ident">Mac</span>,
-    <span class="doccomment">/// Matches a UUID</span>
-    <span class="ident">Uuid</span>,
-    <span class="doccomment">/// Matches an email</span>
-    <span class="ident">Email</span>,
-    <span class="doccomment">/// Matches any IP address</span>
-    <span class="ident">Ip</span>,
-    <span class="doccomment">/// Matches a creditcard number</span>
-    <span class="ident">Creditcard</span>,
-    <span class="doccomment">/// Sanitizes a path from user data</span>
-    <span class="ident">Userpath</span>,
-    <span class="doccomment">/// A PEM encoded key</span>
-    <span class="ident">Pemkey</span>,
-    <span class="doccomment">/// Auth info from URLs</span>
-    <span class="ident">UrlAuth</span>,
-    <span class="doccomment">/// US SSN.</span>
-    <span class="ident">UsSsn</span>,
-    <span class="doccomment">/// Keys that look like passwords</span>
-    <span class="ident">Password</span>,
-    <span class="doccomment">/// When a regex matches a key, a value is removed</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">alias</span> <span class="op">=</span> <span class="string">&quot;redactPair&quot;</span>)]</span>
-    <span class="ident">RedactPair</span>(<span class="ident">RedactPairRule</span>),
-    <span class="doccomment">/// Applies multiple rules.</span>
-    <span class="ident">Multiple</span>(<span class="ident">MultipleRule</span>),
-    <span class="doccomment">/// Applies another rule.  Works like a single multiple.</span>
-    <span class="ident">Alias</span>(<span class="ident">AliasRule</span>),
-}
-
-<span class="doccomment">/// A single rule configuration.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">PartialEq</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RuleSpec</span> {
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">flatten</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">ty</span>: <span class="ident">RuleType</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">redaction</span>: <span class="ident">Redaction</span>,
-}
-
-<span class="doccomment">/// Configuration for rule parameters.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">Clone</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Vars</span> {
-    <span class="doccomment">/// The default secret key for hashing operations.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">hash_key</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-}
-
-<span class="doccomment">/// A set of named rule configurations.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">PiiConfig</span> {
-    <span class="doccomment">/// A map of custom PII rules.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">rules</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">RuleSpec</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Parameters for PII rules.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">vars</span>: <span class="ident">Vars</span>,
-
-    <span class="doccomment">/// Mapping of selectors to rules.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">applications</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">SelectorSpec</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// PII config derived from datascrubbing settings.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Cached because the conversion process is expensive.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip</span>)]</span>
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="ident">compiled</span>: <span class="ident">OnceCell</span><span class="op">&lt;</span><span class="ident">CompiledPiiConfig</span><span class="op">&gt;</span>,
-}
-
-<span class="kw">impl</span> <span class="ident">PartialEq</span> <span class="kw">for</span> <span class="ident">PiiConfig</span> {
-    <span class="kw">fn</span> <span class="ident">eq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="ident">PiiConfig</span>) -&gt; <span class="ident">bool</span> {
-        <span class="comment">// This is written in this way such that people will not forget to update this PartialEq</span>
-        <span class="comment">// impl when they add more fields.</span>
-        <span class="kw">let</span> <span class="ident">PiiConfig</span> {
-            <span class="ident">rules</span>,
-            <span class="ident">vars</span>,
-            <span class="ident">applications</span>,
-            <span class="ident">compiled</span>: <span class="ident">_compiled</span>,
-        } <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>;
-
-        <span class="ident">rules</span> <span class="op">==</span> <span class="kw-2">&amp;</span><span class="ident">other</span>.<span class="ident">rules</span> <span class="op">&amp;&amp;</span> <span class="ident">vars</span> <span class="op">==</span> <span class="kw-2">&amp;</span><span class="ident">other</span>.<span class="ident">vars</span> <span class="op">&amp;&amp;</span> <span class="ident">applications</span> <span class="op">==</span> <span class="kw-2">&amp;</span><span class="ident">other</span>.<span class="ident">applications</span>
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">PiiConfig</span> {
-    <span class="doccomment">/// Loads a PII config from a JSON string.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_json</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">PiiConfig</span>, <span class="ident">serde_json::Error</span><span class="op">&gt;</span> {
-        <span class="ident">serde_json::from_str</span>(<span class="ident">s</span>)
+<span class="kw">impl </span>PiiConfig {
+    <span class="doccomment">/// Loads a PII config from a JSON string.
+    </span><span class="kw">pub fn </span>from_json(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;PiiConfig, serde_json::Error&gt; {
+        serde_json::from_str(s)
     }
 
-    <span class="doccomment">/// Serializes an annotated value into a JSON string.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_json</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">serde_json::Error</span><span class="op">&gt;</span> {
-        <span class="ident">serde_json::to_string</span>(<span class="kw-2">&amp;</span><span class="self">self</span>)
+    <span class="doccomment">/// Serializes an annotated value into a JSON string.
+    </span><span class="kw">pub fn </span>to_json(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;String, serde_json::Error&gt; {
+        serde_json::to_string(<span class="kw-2">&amp;</span><span class="self">self</span>)
     }
 
-    <span class="doccomment">/// Serializes an annotated value into a pretty JSON string.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_json_pretty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">serde_json::Error</span><span class="op">&gt;</span> {
-        <span class="ident">serde_json::to_string_pretty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>)
+    <span class="doccomment">/// Serializes an annotated value into a pretty JSON string.
+    </span><span class="kw">pub fn </span>to_json_pretty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;String, serde_json::Error&gt; {
+        serde_json::to_string_pretty(<span class="kw-2">&amp;</span><span class="self">self</span>)
     }
 
-    <span class="doccomment">/// Get a representation of this `PiiConfig` that is more (CPU-)efficient for processing.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This can be computationally expensive when called for the first time. The result is cached</span>
-    <span class="doccomment">/// internally and reused on the second call.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">compiled</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">CompiledPiiConfig</span> {
-        <span class="self">self</span>.<span class="ident">compiled</span>.<span class="ident">get_or_init</span>(<span class="op">|</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">compiled_uncached</span>())
+    <span class="doccomment">/// Get a representation of this `PiiConfig` that is more (CPU-)efficient for processing.
+    ///
+    /// This can be computationally expensive when called for the first time. The result is cached
+    /// internally and reused on the second call.
+    </span><span class="kw">pub fn </span>compiled(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>CompiledPiiConfig {
+        <span class="self">self</span>.compiled.get_or_init(|| <span class="self">self</span>.compiled_uncached())
     }
 
-    <span class="doccomment">/// Like [`compiled`](Self::compiled) but without internal caching.</span>
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">compiled_uncached</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">CompiledPiiConfig</span> {
-        <span class="ident">CompiledPiiConfig::new</span>(<span class="self">self</span>)
+    <span class="doccomment">/// Like [`compiled`](Self::compiled) but without internal caching.
+    </span><span class="attribute">#[inline]
+    </span><span class="kw">pub fn </span>compiled_uncached(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; CompiledPiiConfig {
+        CompiledPiiConfig::new(<span class="self">self</span>)
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

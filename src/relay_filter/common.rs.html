@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-filter/src/common.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>common.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_filter/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_filter/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-filter/src/common.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>common.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_filter/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_filter/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_filter/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -270,275 +270,275 @@
 <span id="268">268</span>
 <span id="269">269</span>
 <span id="270">270</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">convert::TryFrom</span>, <span class="ident">fmt</span>};
+</pre><pre class="rust"><code><span class="kw">use </span>std::{convert::TryFrom, fmt};
 
-<span class="kw">use</span> <span class="ident">globset::GlobBuilder</span>;
-<span class="kw">use</span> <span class="ident">once_cell::sync::OnceCell</span>;
-<span class="kw">use</span> <span class="ident">regex::bytes</span>::{<span class="ident">Regex</span>, <span class="ident">RegexBuilder</span>};
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Deserializer</span>, <span class="ident">Serialize</span>, <span class="ident">Serializer</span>};
+<span class="kw">use </span>globset::GlobBuilder;
+<span class="kw">use </span>once_cell::sync::OnceCell;
+<span class="kw">use </span>regex::bytes::{Regex, RegexBuilder};
+<span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-<span class="doccomment">/// Returns `true` if any of the patterns match the given message.</span>
-<span class="kw">fn</span> <span class="ident">is_match</span>(<span class="ident">globs</span>: <span class="kw-2">&amp;</span>[<span class="ident">Regex</span>], <span class="ident">message</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="ident">bool</span> {
-    <span class="ident">globs</span>.<span class="ident">iter</span>().<span class="ident">any</span>(<span class="op">|</span><span class="ident">regex</span><span class="op">|</span> <span class="ident">regex</span>.<span class="ident">is_match</span>(<span class="ident">message</span>.<span class="ident">as_ref</span>()))
+<span class="doccomment">/// Returns `true` if any of the patterns match the given message.
+</span><span class="kw">fn </span>is_match(globs: <span class="kw-2">&amp;</span>[Regex], message: <span class="kw-2">&amp;</span>[u8]) -&gt; bool {
+    globs.iter().any(|regex| regex.is_match(message.as_ref()))
 }
 
-<span class="doccomment">/// A list of patterns for glob matching.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Default</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">GlobPatterns</span> {
-    <span class="ident">patterns</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="ident">globs</span>: <span class="ident">OnceCell</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+<span class="doccomment">/// A list of patterns for glob matching.
+</span><span class="attribute">#[derive(Clone, Default)]
+</span><span class="kw">pub struct </span>GlobPatterns {
+    patterns: Vec&lt;String&gt;,
+    globs: OnceCell&lt;Vec&lt;Regex&gt;&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">GlobPatterns</span> {
-    <span class="doccomment">/// Creates a new</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">patterns</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> {
-            <span class="ident">patterns</span>,
-            <span class="ident">globs</span>: <span class="ident">OnceCell::new</span>(),
+<span class="kw">impl </span>GlobPatterns {
+    <span class="doccomment">/// Creates a new
+    </span><span class="kw">pub fn </span>new(patterns: Vec&lt;String&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            patterns,
+            globs: OnceCell::new(),
         }
     }
 
-    <span class="doccomment">/// Returns `true` if the list of patterns is empty.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="comment">// Check the list of patterns and not globs. Even if there are no globs to parse, we still</span>
-        <span class="comment">// want to serialize the &quot;invalid&quot; patterns to a downstream Relay.</span>
-        <span class="self">self</span>.<span class="ident">patterns</span>.<span class="ident">is_empty</span>()
+    <span class="doccomment">/// Returns `true` if the list of patterns is empty.
+    </span><span class="kw">pub fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="comment">// Check the list of patterns and not globs. Even if there are no globs to parse, we still
+        // want to serialize the &quot;invalid&quot; patterns to a downstream Relay.
+        </span><span class="self">self</span>.patterns.is_empty()
     }
 
-    <span class="doccomment">/// Returns `true` if any of the patterns match the given message.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_match</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">message</span>: <span class="ident">S</span>) -&gt; <span class="ident">bool</span>
-    <span class="kw">where</span>
-        <span class="ident">S</span>: <span class="ident">AsRef</span><span class="op">&lt;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span>,
+    <span class="doccomment">/// Returns `true` if any of the patterns match the given message.
+    </span><span class="kw">pub fn </span>is_match&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, message: S) -&gt; bool
+    <span class="kw">where
+        </span>S: AsRef&lt;[u8]&gt;,
     {
-        <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">as_ref</span>();
-        <span class="kw">if</span> <span class="ident">message</span>.<span class="ident">is_empty</span>() {
-            <span class="kw">return</span> <span class="bool-val">false</span>;
+        <span class="kw">let </span>message = message.as_ref();
+        <span class="kw">if </span>message.is_empty() {
+            <span class="kw">return </span><span class="bool-val">false</span>;
         }
 
-        <span class="kw">let</span> <span class="ident">globs</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">globs</span>.<span class="ident">get_or_init</span>(<span class="op">|</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">parse_globs</span>());
-        <span class="ident">is_match</span>(<span class="ident">globs</span>, <span class="ident">message</span>)
+        <span class="kw">let </span>globs = <span class="self">self</span>.globs.get_or_init(|| <span class="self">self</span>.parse_globs());
+        is_match(globs, message)
     }
 
-    <span class="doccomment">/// Parses valid patterns from the list.</span>
-    <span class="kw">fn</span> <span class="ident">parse_globs</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">globs</span> <span class="op">=</span> <span class="ident">Vec::with_capacity</span>(<span class="self">self</span>.<span class="ident">patterns</span>.<span class="ident">len</span>());
+    <span class="doccomment">/// Parses valid patterns from the list.
+    </span><span class="kw">fn </span>parse_globs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;Regex&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>globs = Vec::with_capacity(<span class="self">self</span>.patterns.len());
 
-        <span class="kw">for</span> <span class="ident">pattern</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">patterns</span> {
-            <span class="kw">let</span> <span class="ident">glob_result</span> <span class="op">=</span> <span class="ident">GlobBuilder::new</span>(<span class="ident">pattern</span>)
-                .<span class="ident">case_insensitive</span>(<span class="bool-val">true</span>)
-                .<span class="ident">backslash_escape</span>(<span class="bool-val">true</span>)
-                .<span class="ident">build</span>();
+        <span class="kw">for </span>pattern <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.patterns {
+            <span class="kw">let </span>glob_result = GlobBuilder::new(pattern)
+                .case_insensitive(<span class="bool-val">true</span>)
+                .backslash_escape(<span class="bool-val">true</span>)
+                .build();
 
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">glob</span>) <span class="op">=</span> <span class="ident">glob_result</span> {
-                <span class="kw">let</span> <span class="ident">regex_result</span> <span class="op">=</span> <span class="ident">RegexBuilder::new</span>(<span class="ident">glob</span>.<span class="ident">regex</span>())
-                    .<span class="ident">dot_matches_new_line</span>(<span class="bool-val">true</span>)
-                    .<span class="ident">build</span>();
+            <span class="kw">if let </span><span class="prelude-val">Ok</span>(glob) = glob_result {
+                <span class="kw">let </span>regex_result = RegexBuilder::new(glob.regex())
+                    .dot_matches_new_line(<span class="bool-val">true</span>)
+                    .build();
 
-                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">regex</span>) <span class="op">=</span> <span class="ident">regex_result</span> {
-                    <span class="ident">globs</span>.<span class="ident">push</span>(<span class="ident">regex</span>);
+                <span class="kw">if let </span><span class="prelude-val">Ok</span>(regex) = regex_result {
+                    globs.push(regex);
                 }
             }
         }
 
-        <span class="ident">globs</span>
+        globs
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">GlobPatterns</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="self">self</span>.<span class="ident">patterns</span>.<span class="ident">fmt</span>(<span class="ident">f</span>)
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>GlobPatterns {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="self">self</span>.patterns.fmt(f)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">GlobPatterns</span> {
-    <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">S</span>: <span class="ident">Serializer</span>,
+<span class="kw">impl </span>Serialize <span class="kw">for </span>GlobPatterns {
+    <span class="kw">fn </span>serialize&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
+    <span class="kw">where
+        </span>S: Serializer,
     {
-        <span class="self">self</span>.<span class="ident">patterns</span>.<span class="ident">serialize</span>(<span class="ident">serializer</span>)
+        <span class="self">self</span>.patterns.serialize(serializer)
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">GlobPatterns</span> {
-    <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D::Error</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">D</span>: <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>GlobPatterns {
+    <span class="kw">fn </span>deserialize&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt;
+    <span class="kw">where
+        </span>D: Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
     {
-        <span class="kw">let</span> <span class="ident">patterns</span> <span class="op">=</span> <span class="ident">Deserialize::deserialize</span>(<span class="ident">deserializer</span>)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(<span class="ident">GlobPatterns::new</span>(<span class="ident">patterns</span>))
+        <span class="kw">let </span>patterns = Deserialize::deserialize(deserializer)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(GlobPatterns::new(patterns))
     }
 }
 
-<span class="doccomment">/// Identifies which filter dropped an event for which reason.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Ported from Sentry&#39;s same-named &quot;enum&quot;. The enum variants are fed into outcomes in kebap-case</span>
-<span class="doccomment">/// (e.g.  &quot;browser-extensions&quot;)</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Serialize</span>, <span class="ident">Hash</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">FilterStatKey</span> {
-    <span class="doccomment">/// Filtered by ip address.</span>
-    <span class="ident">IpAddress</span>,
+<span class="doccomment">/// Identifies which filter dropped an event for which reason.
+///
+/// Ported from Sentry&#39;s same-named &quot;enum&quot;. The enum variants are fed into outcomes in kebap-case
+/// (e.g.  &quot;browser-extensions&quot;)
+</span><span class="attribute">#[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Hash)]
+</span><span class="kw">pub enum </span>FilterStatKey {
+    <span class="doccomment">/// Filtered by ip address.
+    </span>IpAddress,
 
-    <span class="doccomment">/// Filtered by release name (version).</span>
-    <span class="ident">ReleaseVersion</span>,
+    <span class="doccomment">/// Filtered by release name (version).
+    </span>ReleaseVersion,
 
-    <span class="doccomment">/// Filtered by error message.</span>
-    <span class="ident">ErrorMessage</span>,
+    <span class="doccomment">/// Filtered by error message.
+    </span>ErrorMessage,
 
-    <span class="doccomment">/// Filtered by browser extension.</span>
-    <span class="ident">BrowserExtensions</span>,
+    <span class="doccomment">/// Filtered by browser extension.
+    </span>BrowserExtensions,
 
-    <span class="doccomment">/// Filtered by legacy browser version.</span>
-    <span class="ident">LegacyBrowsers</span>,
+    <span class="doccomment">/// Filtered by legacy browser version.
+    </span>LegacyBrowsers,
 
-    <span class="doccomment">/// Filtered due to localhost restriction.</span>
-    <span class="ident">Localhost</span>,
+    <span class="doccomment">/// Filtered due to localhost restriction.
+    </span>Localhost,
 
-    <span class="doccomment">/// Filtered as known web crawler.</span>
-    <span class="ident">WebCrawlers</span>,
+    <span class="doccomment">/// Filtered as known web crawler.
+    </span>WebCrawlers,
 
-    <span class="doccomment">/// Filtered due to invalid CSP policy.</span>
-    <span class="ident">InvalidCsp</span>,
+    <span class="doccomment">/// Filtered due to invalid CSP policy.
+    </span>InvalidCsp,
 }
 
-<span class="comment">// An event grouped to a removed group.</span>
-<span class="comment">//</span>
-<span class="comment">// Not returned by any filters implemented in Rust.</span>
-<span class="comment">// DiscardedHash,</span>
+<span class="comment">// An event grouped to a removed group.
+//
+// Not returned by any filters implemented in Rust.
+// DiscardedHash,
 
-<span class="comment">// Invalid CORS header.</span>
-<span class="comment">//</span>
-<span class="comment">// NOTE: Although cors is in the Sentry&#39;s FilterStatKey enum it is used for</span>
-<span class="comment">// Invalid outcomes and therefore should logically belong to OutcomeInvalidReason</span>
-<span class="comment">// that is why it was commented here and moved to OutcomeInvalidReason enum</span>
-<span class="comment">// Cors,</span>
+// Invalid CORS header.
+//
+// NOTE: Although cors is in the Sentry&#39;s FilterStatKey enum it is used for
+// Invalid outcomes and therefore should logically belong to OutcomeInvalidReason
+// that is why it was commented here and moved to OutcomeInvalidReason enum
+// Cors,
 
-<span class="kw">impl</span> <span class="ident">FilterStatKey</span> {
-    <span class="doccomment">/// Returns the string identifier of the filter stat key.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">name</span>(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">FilterStatKey::IpAddress</span> =&gt; <span class="string">&quot;ip-address&quot;</span>,
-            <span class="ident">FilterStatKey::ReleaseVersion</span> =&gt; <span class="string">&quot;release-version&quot;</span>,
-            <span class="ident">FilterStatKey::ErrorMessage</span> =&gt; <span class="string">&quot;error-message&quot;</span>,
-            <span class="ident">FilterStatKey::BrowserExtensions</span> =&gt; <span class="string">&quot;browser-extensions&quot;</span>,
-            <span class="ident">FilterStatKey::LegacyBrowsers</span> =&gt; <span class="string">&quot;legacy-browsers&quot;</span>,
-            <span class="ident">FilterStatKey::Localhost</span> =&gt; <span class="string">&quot;localhost&quot;</span>,
-            <span class="ident">FilterStatKey::WebCrawlers</span> =&gt; <span class="string">&quot;web-crawlers&quot;</span>,
-            <span class="ident">FilterStatKey::InvalidCsp</span> =&gt; <span class="string">&quot;invalid-csp&quot;</span>,
+</span><span class="kw">impl </span>FilterStatKey {
+    <span class="doccomment">/// Returns the string identifier of the filter stat key.
+    </span><span class="kw">pub fn </span>name(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            FilterStatKey::IpAddress =&gt; <span class="string">&quot;ip-address&quot;</span>,
+            FilterStatKey::ReleaseVersion =&gt; <span class="string">&quot;release-version&quot;</span>,
+            FilterStatKey::ErrorMessage =&gt; <span class="string">&quot;error-message&quot;</span>,
+            FilterStatKey::BrowserExtensions =&gt; <span class="string">&quot;browser-extensions&quot;</span>,
+            FilterStatKey::LegacyBrowsers =&gt; <span class="string">&quot;legacy-browsers&quot;</span>,
+            FilterStatKey::Localhost =&gt; <span class="string">&quot;localhost&quot;</span>,
+            FilterStatKey::WebCrawlers =&gt; <span class="string">&quot;web-crawlers&quot;</span>,
+            FilterStatKey::InvalidCsp =&gt; <span class="string">&quot;invalid-csp&quot;</span>,
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">FilterStatKey</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.<span class="ident">name</span>())
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>FilterStatKey {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.name())
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">TryFrom</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">FilterStatKey</span> {
-    <span class="kw">type</span> <span class="ident">Error</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>;
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; TryFrom&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt; <span class="kw">for </span>FilterStatKey {
+    <span class="kw">type </span>Error = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str;
 
-    <span class="kw">fn</span> <span class="ident">try_from</span>(<span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Error</span><span class="op">&gt;</span> {
-        <span class="prelude-val">Ok</span>(<span class="kw">match</span> <span class="ident">value</span> {
-            <span class="string">&quot;ip-address&quot;</span> =&gt; <span class="ident">FilterStatKey::IpAddress</span>,
-            <span class="string">&quot;release-version&quot;</span> =&gt; <span class="ident">FilterStatKey::ReleaseVersion</span>,
-            <span class="string">&quot;error-message&quot;</span> =&gt; <span class="ident">FilterStatKey::ErrorMessage</span>,
-            <span class="string">&quot;browser-extensions&quot;</span> =&gt; <span class="ident">FilterStatKey::BrowserExtensions</span>,
-            <span class="string">&quot;legacy-browsers&quot;</span> =&gt; <span class="ident">FilterStatKey::LegacyBrowsers</span>,
-            <span class="string">&quot;localhost&quot;</span> =&gt; <span class="ident">FilterStatKey::Localhost</span>,
-            <span class="string">&quot;web-crawlers&quot;</span> =&gt; <span class="ident">FilterStatKey::WebCrawlers</span>,
-            <span class="string">&quot;invalid-csp&quot;</span> =&gt; <span class="ident">FilterStatKey::InvalidCsp</span>,
-            <span class="ident">other</span> =&gt; {
-                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">other</span>);
+    <span class="kw">fn </span>try_from(value: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Error&gt; {
+        <span class="prelude-val">Ok</span>(<span class="kw">match </span>value {
+            <span class="string">&quot;ip-address&quot; </span>=&gt; FilterStatKey::IpAddress,
+            <span class="string">&quot;release-version&quot; </span>=&gt; FilterStatKey::ReleaseVersion,
+            <span class="string">&quot;error-message&quot; </span>=&gt; FilterStatKey::ErrorMessage,
+            <span class="string">&quot;browser-extensions&quot; </span>=&gt; FilterStatKey::BrowserExtensions,
+            <span class="string">&quot;legacy-browsers&quot; </span>=&gt; FilterStatKey::LegacyBrowsers,
+            <span class="string">&quot;localhost&quot; </span>=&gt; FilterStatKey::Localhost,
+            <span class="string">&quot;web-crawlers&quot; </span>=&gt; FilterStatKey::WebCrawlers,
+            <span class="string">&quot;invalid-csp&quot; </span>=&gt; FilterStatKey::InvalidCsp,
+            other =&gt; {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(other);
             }
         })
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="macro">macro_rules!</span> <span class="ident">globs</span> {
-        ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">pattern</span>:<span class="ident">literal</span>),<span class="kw-2">*</span>) =&gt; {
-            <span class="ident">GlobPatterns::new</span>(<span class="macro">vec!</span>[
-                $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">pattern</span>.<span class="ident">to_string</span>()),<span class="op">*</span>
+    <span class="macro">macro_rules! </span>globs {
+        ($(<span class="macro-nonterminal">$pattern</span>:literal),<span class="kw-2">*</span>) =&gt; {
+            GlobPatterns::new(<span class="macro">vec!</span>[
+                $(<span class="macro-nonterminal">$pattern</span>.to_string()),*
             ])
         };
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_match_literal</span>() {
-        <span class="kw">let</span> <span class="ident">globs</span> <span class="op">=</span> <span class="macro">globs!</span>(<span class="string">&quot;foo&quot;</span>);
-        <span class="macro">assert!</span>(<span class="ident">globs</span>.<span class="ident">is_match</span>(<span class="string">&quot;foo&quot;</span>));
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_match_literal() {
+        <span class="kw">let </span>globs = <span class="macro">globs!</span>(<span class="string">&quot;foo&quot;</span>);
+        <span class="macro">assert!</span>(globs.is_match(<span class="string">&quot;foo&quot;</span>));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_match_negative</span>() {
-        <span class="kw">let</span> <span class="ident">globs</span> <span class="op">=</span> <span class="macro">globs!</span>(<span class="string">&quot;foo&quot;</span>);
-        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">globs</span>.<span class="ident">is_match</span>(<span class="string">&quot;nope&quot;</span>));
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_match_negative() {
+        <span class="kw">let </span>globs = <span class="macro">globs!</span>(<span class="string">&quot;foo&quot;</span>);
+        <span class="macro">assert!</span>(!globs.is_match(<span class="string">&quot;nope&quot;</span>));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_match_prefix</span>() {
-        <span class="kw">let</span> <span class="ident">globs</span> <span class="op">=</span> <span class="macro">globs!</span>(<span class="string">&quot;foo*&quot;</span>);
-        <span class="macro">assert!</span>(<span class="ident">globs</span>.<span class="ident">is_match</span>(<span class="string">&quot;foobarblub&quot;</span>));
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_match_prefix() {
+        <span class="kw">let </span>globs = <span class="macro">globs!</span>(<span class="string">&quot;foo*&quot;</span>);
+        <span class="macro">assert!</span>(globs.is_match(<span class="string">&quot;foobarblub&quot;</span>));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_match_suffix</span>() {
-        <span class="kw">let</span> <span class="ident">globs</span> <span class="op">=</span> <span class="macro">globs!</span>(<span class="string">&quot;*blub&quot;</span>);
-        <span class="macro">assert!</span>(<span class="ident">globs</span>.<span class="ident">is_match</span>(<span class="string">&quot;foobarblub&quot;</span>));
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_match_suffix() {
+        <span class="kw">let </span>globs = <span class="macro">globs!</span>(<span class="string">&quot;*blub&quot;</span>);
+        <span class="macro">assert!</span>(globs.is_match(<span class="string">&quot;foobarblub&quot;</span>));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_match_inner</span>() {
-        <span class="kw">let</span> <span class="ident">globs</span> <span class="op">=</span> <span class="macro">globs!</span>(<span class="string">&quot;*bar*&quot;</span>);
-        <span class="macro">assert!</span>(<span class="ident">globs</span>.<span class="ident">is_match</span>(<span class="string">&quot;foobarblub&quot;</span>));
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_match_inner() {
+        <span class="kw">let </span>globs = <span class="macro">globs!</span>(<span class="string">&quot;*bar*&quot;</span>);
+        <span class="macro">assert!</span>(globs.is_match(<span class="string">&quot;foobarblub&quot;</span>));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_match_utf8</span>() {}
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_match_utf8() {}
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_match_newline</span>() {
-        <span class="kw">let</span> <span class="ident">globs</span> <span class="op">=</span> <span class="macro">globs!</span>(<span class="string">&quot;*foo*&quot;</span>);
-        <span class="macro">assert!</span>(<span class="ident">globs</span>.<span class="ident">is_match</span>(<span class="string">&quot;foo\n&quot;</span>));
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_match_newline() {
+        <span class="kw">let </span>globs = <span class="macro">globs!</span>(<span class="string">&quot;*foo*&quot;</span>);
+        <span class="macro">assert!</span>(globs.is_match(<span class="string">&quot;foo\n&quot;</span>));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_match_newline_inner</span>() {
-        <span class="kw">let</span> <span class="ident">globs</span> <span class="op">=</span> <span class="macro">globs!</span>(<span class="string">&quot;foo*bar&quot;</span>);
-        <span class="macro">assert!</span>(<span class="ident">globs</span>.<span class="ident">is_match</span>(<span class="string">&quot;foo\nbar&quot;</span>));
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_match_newline_inner() {
+        <span class="kw">let </span>globs = <span class="macro">globs!</span>(<span class="string">&quot;foo*bar&quot;</span>);
+        <span class="macro">assert!</span>(globs.is_match(<span class="string">&quot;foo\nbar&quot;</span>));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_match_newline_pattern</span>() {
-        <span class="kw">let</span> <span class="ident">globs</span> <span class="op">=</span> <span class="macro">globs!</span>(<span class="string">&quot;foo*\n*bar&quot;</span>);
-        <span class="macro">assert!</span>(<span class="ident">globs</span>.<span class="ident">is_match</span>(<span class="string">&quot;foo \n bar&quot;</span>));
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_match_newline_pattern() {
+        <span class="kw">let </span>globs = <span class="macro">globs!</span>(<span class="string">&quot;foo*\n*bar&quot;</span>);
+        <span class="macro">assert!</span>(globs.is_match(<span class="string">&quot;foo \n bar&quot;</span>));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_match_range</span>() {
-        <span class="kw">let</span> <span class="ident">globs</span> <span class="op">=</span> <span class="macro">globs!</span>(<span class="string">&quot;1.18.[0-4].*&quot;</span>);
-        <span class="macro">assert!</span>(<span class="ident">globs</span>.<span class="ident">is_match</span>(<span class="string">&quot;1.18.4.2153-2aa83397b&quot;</span>));
-        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">globs</span>.<span class="ident">is_match</span>(<span class="string">&quot;1.18.5.2153-2aa83397b&quot;</span>));
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_match_range() {
+        <span class="kw">let </span>globs = <span class="macro">globs!</span>(<span class="string">&quot;1.18.[0-4].*&quot;</span>);
+        <span class="macro">assert!</span>(globs.is_match(<span class="string">&quot;1.18.4.2153-2aa83397b&quot;</span>));
+        <span class="macro">assert!</span>(!globs.is_match(<span class="string">&quot;1.18.5.2153-2aa83397b&quot;</span>));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_match_range_neg</span>() {
-        <span class="kw">let</span> <span class="ident">globs</span> <span class="op">=</span> <span class="macro">globs!</span>(<span class="string">&quot;1.18.[!0-4].*&quot;</span>);
-        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">globs</span>.<span class="ident">is_match</span>(<span class="string">&quot;1.18.4.2153-2aa83397b&quot;</span>));
-        <span class="macro">assert!</span>(<span class="ident">globs</span>.<span class="ident">is_match</span>(<span class="string">&quot;1.18.5.2153-2aa83397b&quot;</span>));
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_match_range_neg() {
+        <span class="kw">let </span>globs = <span class="macro">globs!</span>(<span class="string">&quot;1.18.[!0-4].*&quot;</span>);
+        <span class="macro">assert!</span>(!globs.is_match(<span class="string">&quot;1.18.4.2153-2aa83397b&quot;</span>));
+        <span class="macro">assert!</span>(globs.is_match(<span class="string">&quot;1.18.5.2153-2aa83397b&quot;</span>));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_match_neg_unsupported</span>() {
-        <span class="comment">// this is not necessarily desirable behavior, but it is our current one: negation (!)</span>
-        <span class="comment">// outside of [] doesn&#39;t work</span>
-        <span class="kw">let</span> <span class="ident">globs</span> <span class="op">=</span> <span class="macro">globs!</span>(<span class="string">&quot;!1.18.4.*&quot;</span>);
-        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">globs</span>.<span class="ident">is_match</span>(<span class="string">&quot;1.18.4.2153-2aa83397b&quot;</span>));
-        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">globs</span>.<span class="ident">is_match</span>(<span class="string">&quot;1.18.5.2153-2aa83397b&quot;</span>));
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_match_neg_unsupported() {
+        <span class="comment">// this is not necessarily desirable behavior, but it is our current one: negation (!)
+        // outside of [] doesn&#39;t work
+        </span><span class="kw">let </span>globs = <span class="macro">globs!</span>(<span class="string">&quot;!1.18.4.*&quot;</span>);
+        <span class="macro">assert!</span>(!globs.is_match(<span class="string">&quot;1.18.4.2153-2aa83397b&quot;</span>));
+        <span class="macro">assert!</span>(!globs.is_match(<span class="string">&quot;1.18.5.2153-2aa83397b&quot;</span>));
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_filter" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_filter" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

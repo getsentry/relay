@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/http.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>http.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_server/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/http.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>http.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_server/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_server/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -193,198 +193,198 @@
 <span id="191">191</span>
 <span id="192">192</span>
 <span id="193">193</span>
-</pre><pre class="rust"><code><span class="doccomment">///! Abstractions for dealing with either actix-web client structs or reqwest structs.</span>
-<span class="doccomment">///!</span>
-<span class="doccomment">///! All of it is implemented as enums because if they were traits, they&#39;d have to be boxed to be</span>
-<span class="doccomment">///! transferrable between actors. Trait objects in turn do not allow for consuming self, using</span>
-<span class="doccomment">///! generic methods or referencing the Self type in return values, all of which is very useful to</span>
-<span class="doccomment">///! do in builder types.</span>
-<span class="doccomment">///!</span>
-<span class="doccomment">///! Note: This literally does what the `http` crate is supposed to do. That crate has builder</span>
-<span class="doccomment">///! objects and common request objects, it&#39;s just that nobody bothers to implement the conversion</span>
-<span class="doccomment">///! logic.</span>
-<span class="kw">use</span> <span class="ident">std::io</span>;
+</pre><pre class="rust"><code><span class="doccomment">///! Abstractions for dealing with either actix-web client structs or reqwest structs.
+///!
+///! All of it is implemented as enums because if they were traits, they&#39;d have to be boxed to be
+///! transferrable between actors. Trait objects in turn do not allow for consuming self, using
+///! generic methods or referencing the Self type in return values, all of which is very useful to
+///! do in builder types.
+///!
+///! Note: This literally does what the `http` crate is supposed to do. That crate has builder
+///! objects and common request objects, it&#39;s just that nobody bothers to implement the conversion
+///! logic.
+</span><span class="kw">use </span>std::io;
 
-<span class="kw">use</span> <span class="ident">failure::Fail</span>;
-<span class="kw">use</span> <span class="ident">futures</span>::{<span class="ident">FutureExt</span>, <span class="ident">TryFutureExt</span>, <span class="ident">TryStreamExt</span>};
-<span class="kw">use</span> <span class="ident">futures01::prelude</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">serde::de::DeserializeOwned</span>;
+<span class="kw">use </span>failure::Fail;
+<span class="kw">use </span>futures::{FutureExt, TryFutureExt, TryStreamExt};
+<span class="kw">use </span>futures01::prelude::<span class="kw-2">*</span>;
+<span class="kw">use </span>serde::de::DeserializeOwned;
 
-<span class="kw">use</span> <span class="ident">relay_config::HttpEncoding</span>;
+<span class="kw">use </span>relay_config::HttpEncoding;
 
-<span class="attribute">#[<span class="ident">doc</span>(<span class="ident">inline</span>)]</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">reqwest::StatusCode</span>;
+<span class="attribute">#[doc(inline)]
+</span><span class="kw">pub use </span>reqwest::StatusCode;
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Fail</span>, <span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">HttpError</span> {
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;payload too large&quot;</span>)]</span>
-    <span class="ident">Overflow</span>,
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;could not send request&quot;</span>)]</span>
-    <span class="ident">Reqwest</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">reqwest::Error</span>),
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;failed to stream payload&quot;</span>)]</span>
-    <span class="ident">Io</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">io::Error</span>),
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;failed to parse JSON response&quot;</span>)]</span>
-    <span class="ident">Json</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">serde_json::Error</span>),
+<span class="attribute">#[derive(Fail, Debug)]
+</span><span class="kw">pub enum </span>HttpError {
+    <span class="attribute">#[fail(display = <span class="string">&quot;payload too large&quot;</span>)]
+    </span>Overflow,
+    <span class="attribute">#[fail(display = <span class="string">&quot;could not send request&quot;</span>)]
+    </span>Reqwest(<span class="attribute">#[cause] </span>reqwest::Error),
+    <span class="attribute">#[fail(display = <span class="string">&quot;failed to stream payload&quot;</span>)]
+    </span>Io(<span class="attribute">#[cause] </span>io::Error),
+    <span class="attribute">#[fail(display = <span class="string">&quot;failed to parse JSON response&quot;</span>)]
+    </span>Json(<span class="attribute">#[cause] </span>serde_json::Error),
 }
 
-<span class="kw">impl</span> <span class="ident">HttpError</span> {
-    <span class="doccomment">/// Returns `true` if the error indicates a network downtime.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_network_error</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident"><span class="self">Self</span>::Io</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">true</span>,
-            <span class="comment">// note: status codes are not handled here because we never call error_for_status. This</span>
-            <span class="comment">// logic is part of upstream actor.</span>
-            <span class="ident"><span class="self">Self</span>::Reqwest</span>(<span class="ident">error</span>) =&gt; <span class="ident">error</span>.<span class="ident">is_timeout</span>(),
-            <span class="ident"><span class="self">Self</span>::Json</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
-            <span class="ident">HttpError::Overflow</span> =&gt; <span class="bool-val">false</span>,
+<span class="kw">impl </span>HttpError {
+    <span class="doccomment">/// Returns `true` if the error indicates a network downtime.
+    </span><span class="kw">pub fn </span>is_network_error(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::Io(<span class="kw">_</span>) =&gt; <span class="bool-val">true</span>,
+            <span class="comment">// note: status codes are not handled here because we never call error_for_status. This
+            // logic is part of upstream actor.
+            </span><span class="self">Self</span>::Reqwest(error) =&gt; error.is_timeout(),
+            <span class="self">Self</span>::Json(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
+            HttpError::Overflow =&gt; <span class="bool-val">false</span>,
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">reqwest::Error</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">HttpError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">e</span>: <span class="ident">reqwest::Error</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">HttpError::Reqwest</span>(<span class="ident">e</span>)
+<span class="kw">impl </span>From&lt;reqwest::Error&gt; <span class="kw">for </span>HttpError {
+    <span class="kw">fn </span>from(e: reqwest::Error) -&gt; <span class="self">Self </span>{
+        HttpError::Reqwest(e)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">io::Error</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">HttpError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">e</span>: <span class="ident">io::Error</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">HttpError::Io</span>(<span class="ident">e</span>)
+<span class="kw">impl </span>From&lt;io::Error&gt; <span class="kw">for </span>HttpError {
+    <span class="kw">fn </span>from(e: io::Error) -&gt; <span class="self">Self </span>{
+        HttpError::Io(e)
     }
 }
 
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Request</span>(<span class="kw">pub</span> <span class="ident">reqwest::Request</span>);
+<span class="kw">pub struct </span>Request(<span class="kw">pub </span>reqwest::Request);
 
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RequestBuilder</span> {
-    <span class="ident">builder</span>: <span class="ident">reqwest::RequestBuilder</span>,
+<span class="kw">pub struct </span>RequestBuilder {
+    builder: reqwest::RequestBuilder,
 }
 
-<span class="kw">impl</span> <span class="ident">RequestBuilder</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">reqwest</span>(<span class="ident">builder</span>: <span class="ident">reqwest::RequestBuilder</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">RequestBuilder</span> { <span class="ident">builder</span> }
+<span class="kw">impl </span>RequestBuilder {
+    <span class="kw">pub fn </span>reqwest(builder: reqwest::RequestBuilder) -&gt; <span class="self">Self </span>{
+        RequestBuilder { builder }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">finish</span>(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Request</span>, <span class="ident">HttpError</span><span class="op">&gt;</span> {
-        <span class="prelude-val">Ok</span>(<span class="ident">Request</span>(<span class="self">self</span>.<span class="ident">builder</span>.<span class="ident">build</span>()<span class="question-mark">?</span>))
+    <span class="kw">pub fn </span>finish(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Request, HttpError&gt; {
+        <span class="prelude-val">Ok</span>(Request(<span class="self">self</span>.builder.build()<span class="question-mark">?</span>))
     }
 
-    <span class="doccomment">/// Add a new header, not replacing existing ones.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">header</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">key</span>: <span class="kw">impl</span> <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span>, <span class="ident">value</span>: <span class="kw">impl</span> <span class="ident">AsRef</span><span class="op">&lt;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span>) -&gt; <span class="kw-2">&amp;mut</span> <span class="self">Self</span> {
-        <span class="ident">take_mut::take</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">builder</span>, <span class="op">|</span><span class="ident">b</span><span class="op">|</span> {
-            <span class="ident">b</span>.<span class="ident">header</span>(<span class="ident">key</span>.<span class="ident">as_ref</span>(), <span class="ident">value</span>.<span class="ident">as_ref</span>())
+    <span class="doccomment">/// Add a new header, not replacing existing ones.
+    </span><span class="kw">pub fn </span>header(<span class="kw-2">&amp;mut </span><span class="self">self</span>, key: <span class="kw">impl </span>AsRef&lt;str&gt;, value: <span class="kw">impl </span>AsRef&lt;[u8]&gt;) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
+        take_mut::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.builder, |b| {
+            b.header(key.as_ref(), value.as_ref())
         });
-        <span class="self">self</span>
-    }
+        <span class="self">self
+    </span>}
 
-    <span class="doccomment">/// Add an optional header, not replacing existing ones.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// If the value is `Some`, the header is added. If the value is `None`, headers are not</span>
-    <span class="doccomment">/// changed.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">header_opt</span>(
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
-        <span class="ident">key</span>: <span class="kw">impl</span> <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span>,
-        <span class="ident">value</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw">impl</span> <span class="ident">AsRef</span><span class="op">&lt;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="kw-2">&amp;mut</span> <span class="self">Self</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">value</span>) <span class="op">=</span> <span class="ident">value</span> {
-            <span class="ident">take_mut::take</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">builder</span>, <span class="op">|</span><span class="ident">b</span><span class="op">|</span> {
-                <span class="ident">b</span>.<span class="ident">header</span>(<span class="ident">key</span>.<span class="ident">as_ref</span>(), <span class="ident">value</span>.<span class="ident">as_ref</span>())
+    <span class="doccomment">/// Add an optional header, not replacing existing ones.
+    ///
+    /// If the value is `Some`, the header is added. If the value is `None`, headers are not
+    /// changed.
+    </span><span class="kw">pub fn </span>header_opt(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        key: <span class="kw">impl </span>AsRef&lt;str&gt;,
+        value: <span class="prelude-ty">Option</span>&lt;<span class="kw">impl </span>AsRef&lt;[u8]&gt;&gt;,
+    ) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = value {
+            take_mut::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.builder, |b| {
+                b.header(key.as_ref(), value.as_ref())
             });
         }
-        <span class="self">self</span>
+        <span class="self">self
+    </span>}
+
+    <span class="kw">pub fn </span>body&lt;B: AsRef&lt;[u8]&gt;&gt;(<span class="kw-2">mut </span><span class="self">self</span>, body: B) -&gt; <span class="prelude-ty">Result</span>&lt;Request, HttpError&gt; {
+        <span class="self">self</span>.builder = <span class="self">self</span>.builder.body(body.as_ref().to_vec());
+        <span class="self">self</span>.finish()
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">body</span><span class="op">&lt;</span><span class="ident">B</span>: <span class="ident">AsRef</span><span class="op">&lt;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span><span class="op">&gt;</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">body</span>: <span class="ident">B</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Request</span>, <span class="ident">HttpError</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">builder</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">builder</span>.<span class="ident">body</span>(<span class="ident">body</span>.<span class="ident">as_ref</span>().<span class="ident">to_vec</span>());
-        <span class="self">self</span>.<span class="ident">finish</span>()
-    }
-
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">content_encoding</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">encoding</span>: <span class="ident">HttpEncoding</span>) -&gt; <span class="kw-2">&amp;mut</span> <span class="self">Self</span> {
-        <span class="kw">match</span> <span class="ident">encoding</span>.<span class="ident">name</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">name</span>) =&gt; <span class="self">self</span>.<span class="ident">header</span>(<span class="string">&quot;Content-Encoding&quot;</span>, <span class="ident">name</span>),
-            <span class="prelude-val">None</span> =&gt; <span class="self">self</span>,
+    <span class="kw">pub fn </span>content_encoding(<span class="kw-2">&amp;mut </span><span class="self">self</span>, encoding: HttpEncoding) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
+        <span class="kw">match </span>encoding.name() {
+            <span class="prelude-val">Some</span>(name) =&gt; <span class="self">self</span>.header(<span class="string">&quot;Content-Encoding&quot;</span>, name),
+            <span class="prelude-val">None </span>=&gt; <span class="self">self</span>,
         }
     }
 }
 
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Response</span>(<span class="kw">pub</span> <span class="ident">reqwest::Response</span>);
+<span class="kw">pub struct </span>Response(<span class="kw">pub </span>reqwest::Response);
 
-<span class="kw">impl</span> <span class="ident">Response</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">status</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">StatusCode</span> {
-        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">status</span>()
+<span class="kw">impl </span>Response {
+    <span class="kw">pub fn </span>status(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; StatusCode {
+        <span class="self">self</span>.<span class="number">0</span>.status()
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">json</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="lifetime">&#39;static</span> <span class="op">+</span> <span class="ident">DeserializeOwned</span><span class="op">&gt;</span>(
+    <span class="kw">pub fn </span>json&lt;T: <span class="lifetime">&#39;static </span>+ DeserializeOwned&gt;(
         <span class="self">self</span>,
-        <span class="ident">limit</span>: <span class="ident">usize</span>,
-    ) -&gt; <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">T</span>, <span class="ident">Error</span> <span class="op">=</span> <span class="ident">HttpError</span><span class="op">&gt;</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="self">self</span>
-            .<span class="ident">bytes</span>(<span class="ident">limit</span>)
-            .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">bytes</span><span class="op">|</span> <span class="ident">serde_json::from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">bytes</span>).<span class="ident">map_err</span>(<span class="ident">HttpError::Json</span>));
-        <span class="ident">Box::new</span>(<span class="ident">future</span>)
+        limit: usize,
+    ) -&gt; Box&lt;<span class="kw">dyn </span>Future&lt;Item = T, Error = HttpError&gt;&gt; {
+        <span class="kw">let </span>future = <span class="self">self
+            </span>.bytes(limit)
+            .and_then(|bytes| serde_json::from_slice(<span class="kw-2">&amp;</span>bytes).map_err(HttpError::Json));
+        Box::new(future)
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">consume</span>(<span class="kw-2">mut</span> <span class="self">self</span>) -&gt; <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="self">Self</span>, <span class="ident">Error</span> <span class="op">=</span> <span class="ident">HttpError</span><span class="op">&gt;</span><span class="op">&gt;</span> {
-        <span class="comment">// Consume the request payload such that the underlying connection returns to a</span>
-        <span class="comment">// &quot;clean state&quot;.</span>
-        <span class="comment">//</span>
-        <span class="comment">// We do not understand if this is strictly necessary for reqwest. It was ported</span>
-        <span class="comment">// from actix-web where it was clearly necessary to un-break keepalive connections,</span>
-        <span class="comment">// but no testcase has been written for this and we are unsure on how to reproduce</span>
-        <span class="comment">// outside of prod. I (markus) have not found code in reqwest that would explicitly</span>
-        <span class="comment">// deal with this.</span>
-        <span class="ident">Box::new</span>(
-            <span class="comment">// Note: The reqwest codepath is impossible to write with streams due to</span>
-            <span class="comment">// borrowing issues. You *have* to use `chunk()`.</span>
-            <span class="kw">async</span> <span class="kw">move</span> {
-                <span class="kw">while</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">chunk</span>().<span class="kw">await</span><span class="question-mark">?</span>.<span class="ident">is_some</span>() {}
+    <span class="kw">pub fn </span>consume(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; Box&lt;<span class="kw">dyn </span>Future&lt;Item = <span class="self">Self</span>, Error = HttpError&gt;&gt; {
+        <span class="comment">// Consume the request payload such that the underlying connection returns to a
+        // &quot;clean state&quot;.
+        //
+        // We do not understand if this is strictly necessary for reqwest. It was ported
+        // from actix-web where it was clearly necessary to un-break keepalive connections,
+        // but no testcase has been written for this and we are unsure on how to reproduce
+        // outside of prod. I (markus) have not found code in reqwest that would explicitly
+        // deal with this.
+        </span>Box::new(
+            <span class="comment">// Note: The reqwest codepath is impossible to write with streams due to
+            // borrowing issues. You *have* to use `chunk()`.
+            </span><span class="kw">async move </span>{
+                <span class="kw">while </span><span class="self">self</span>.<span class="number">0</span>.chunk().<span class="kw">await</span><span class="question-mark">?</span>.is_some() {}
                 <span class="prelude-val">Ok</span>(<span class="self">self</span>)
             }
-            .<span class="ident">boxed_local</span>()
-            .<span class="ident">compat</span>(),
+            .boxed_local()
+            .compat(),
         )
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_header</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">key</span>: <span class="kw">impl</span> <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span> {
-        <span class="prelude-val">Some</span>(<span class="self">self</span>.<span class="number">0</span>.<span class="ident">headers</span>().<span class="ident">get</span>(<span class="ident">key</span>.<span class="ident">as_ref</span>())<span class="question-mark">?</span>.<span class="ident">as_bytes</span>())
+    <span class="kw">pub fn </span>get_header(<span class="kw-2">&amp;</span><span class="self">self</span>, key: <span class="kw">impl </span>AsRef&lt;str&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>[u8]&gt; {
+        <span class="prelude-val">Some</span>(<span class="self">self</span>.<span class="number">0</span>.headers().get(key.as_ref())<span class="question-mark">?</span>.as_bytes())
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_all_headers</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">key</span>: <span class="kw">impl</span> <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="number">0</span>
-            .<span class="ident">headers</span>()
-            .<span class="ident">get_all</span>(<span class="ident">key</span>.<span class="ident">as_ref</span>())
-            .<span class="ident">into_iter</span>()
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">value</span><span class="op">|</span> <span class="ident">value</span>.<span class="ident">as_bytes</span>())
-            .<span class="ident">collect</span>()
+    <span class="kw">pub fn </span>get_all_headers(<span class="kw-2">&amp;</span><span class="self">self</span>, key: <span class="kw">impl </span>AsRef&lt;str&gt;) -&gt; Vec&lt;<span class="kw-2">&amp;</span>[u8]&gt; {
+        <span class="self">self</span>.<span class="number">0
+            </span>.headers()
+            .get_all(key.as_ref())
+            .into_iter()
+            .map(|value| value.as_bytes())
+            .collect()
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">clone_headers</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="ident">String</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>)<span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="number">0</span>
-            .<span class="ident">headers</span>()
-            .<span class="ident">iter</span>()
-            .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">k</span>, <span class="ident">v</span>)<span class="op">|</span> (<span class="ident">k</span>.<span class="ident">as_str</span>().<span class="ident">to_owned</span>(), <span class="ident">v</span>.<span class="ident">as_bytes</span>().<span class="ident">to_owned</span>()))
-            .<span class="ident">collect</span>()
+    <span class="kw">pub fn </span>clone_headers(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;(String, Vec&lt;u8&gt;)&gt; {
+        <span class="self">self</span>.<span class="number">0
+            </span>.headers()
+            .iter()
+            .map(|(k, v)| (k.as_str().to_owned(), v.as_bytes().to_owned()))
+            .collect()
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">bytes</span>(<span class="self">self</span>, <span class="ident">limit</span>: <span class="ident">usize</span>) -&gt; <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">Error</span> <span class="op">=</span> <span class="ident">HttpError</span><span class="op">&gt;</span><span class="op">&gt;</span> {
-        <span class="ident">Box::new</span>(
-            <span class="self">self</span>.<span class="number">0</span>
-                .<span class="ident">bytes_stream</span>()
-                .<span class="ident">map_err</span>(<span class="ident">HttpError::Reqwest</span>)
-                .<span class="ident">try_fold</span>(
-                    <span class="ident">Vec::with_capacity</span>(<span class="number">8192</span>),
-                    <span class="kw">move</span> <span class="op">|</span><span class="kw-2">mut</span> <span class="ident">body</span>, <span class="ident">chunk</span><span class="op">|</span> <span class="kw">async</span> <span class="kw">move</span> {
-                        <span class="kw">if</span> (<span class="ident">body</span>.<span class="ident">len</span>() <span class="op">+</span> <span class="ident">chunk</span>.<span class="ident">len</span>()) <span class="op">&gt;</span> <span class="ident">limit</span> {
-                            <span class="prelude-val">Err</span>(<span class="ident">HttpError::Overflow</span>)
-                        } <span class="kw">else</span> {
-                            <span class="ident">body</span>.<span class="ident">extend_from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">chunk</span>);
-                            <span class="prelude-val">Ok</span>(<span class="ident">body</span>)
+    <span class="kw">pub fn </span>bytes(<span class="self">self</span>, limit: usize) -&gt; Box&lt;<span class="kw">dyn </span>Future&lt;Item = Vec&lt;u8&gt;, Error = HttpError&gt;&gt; {
+        Box::new(
+            <span class="self">self</span>.<span class="number">0
+                </span>.bytes_stream()
+                .map_err(HttpError::Reqwest)
+                .try_fold(
+                    Vec::with_capacity(<span class="number">8192</span>),
+                    <span class="kw">move </span>|<span class="kw-2">mut </span>body, chunk| <span class="kw">async move </span>{
+                        <span class="kw">if </span>(body.len() + chunk.len()) &gt; limit {
+                            <span class="prelude-val">Err</span>(HttpError::Overflow)
+                        } <span class="kw">else </span>{
+                            body.extend_from_slice(<span class="kw-2">&amp;</span>chunk);
+                            <span class="prelude-val">Ok</span>(body)
                         }
                     },
                 )
-                .<span class="ident">boxed_local</span>()
-                .<span class="ident">compat</span>(),
+                .boxed_local()
+                .compat(),
         )
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

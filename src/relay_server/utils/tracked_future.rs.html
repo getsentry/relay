@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/utils/tracked_future.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>tracked_future.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/utils/tracked_future.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>tracked_future.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_server/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -171,176 +171,176 @@
 <span id="169">169</span>
 <span id="170">170</span>
 <span id="171">171</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">actix</span>::{<span class="ident">Message</span>, <span class="ident">Recipient</span>};
-<span class="kw">use</span> <span class="ident">futures01</span>::{<span class="ident">Async</span>, <span class="ident">Future</span>, <span class="ident">Poll</span>};
+</pre><pre class="rust"><code><span class="kw">use </span>actix::{Message, Recipient};
+<span class="kw">use </span>futures01::{Async, Future, Poll};
 
-<span class="doccomment">/// Message send on the notification channel when the tracked future finishes or is disposed.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TrackedFutureFinished</span>;
+<span class="doccomment">/// Message send on the notification channel when the tracked future finishes or is disposed.
+</span><span class="kw">pub struct </span>TrackedFutureFinished;
 
-<span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">TrackedFutureFinished</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
+<span class="kw">impl </span>Message <span class="kw">for </span>TrackedFutureFinished {
+    <span class="kw">type </span><span class="prelude-ty">Result </span>= ();
 }
 
-<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">IntoTracked</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">F</span>: <span class="ident">Future</span>,
+<span class="kw">pub trait </span>IntoTracked&lt;F&gt;
+<span class="kw">where
+    </span>F: Future,
 {
-    <span class="kw">fn</span> <span class="ident">track</span>(<span class="self">self</span>, <span class="ident">notifier</span>: <span class="ident">Recipient</span><span class="op">&lt;</span><span class="ident">TrackedFutureFinished</span><span class="op">&gt;</span>) -&gt; <span class="ident">TrackedFuture</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>;
+    <span class="kw">fn </span>track(<span class="self">self</span>, notifier: Recipient&lt;TrackedFutureFinished&gt;) -&gt; TrackedFuture&lt;F&gt;;
 }
 
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TrackedFuture</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span> {
-    <span class="ident">notified</span>: <span class="ident">bool</span>,
-    <span class="ident">notifier</span>: <span class="ident">Recipient</span><span class="op">&lt;</span><span class="ident">TrackedFutureFinished</span><span class="op">&gt;</span>,
-    <span class="ident">inner</span>: <span class="ident">F</span>,
+<span class="kw">pub struct </span>TrackedFuture&lt;F&gt; {
+    notified: bool,
+    notifier: Recipient&lt;TrackedFutureFinished&gt;,
+    inner: F,
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span> <span class="ident">TrackedFuture</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">notify</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
-        <span class="self">self</span>.<span class="ident">notifier</span>
-            .<span class="ident">do_send</span>(<span class="ident">TrackedFutureFinished</span>)
-            .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> {
+<span class="kw">impl</span>&lt;F&gt; TrackedFuture&lt;F&gt; {
+    <span class="kw">fn </span>notify(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="self">self</span>.notifier
+            .do_send(TrackedFutureFinished)
+            .map_err(|<span class="kw">_</span>| {
                 <span class="macro">relay_log::error!</span>(<span class="string">&quot;TrackedFuture could not notify completion&quot;</span>);
             })
-            .<span class="ident">ok</span>();
+            .ok();
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span> <span class="ident">IntoTracked</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">F</span>
-<span class="kw">where</span>
-    <span class="ident">F</span>: <span class="ident">Future</span>,
+<span class="kw">impl</span>&lt;F&gt; IntoTracked&lt;F&gt; <span class="kw">for </span>F
+<span class="kw">where
+    </span>F: Future,
 {
-    <span class="kw">fn</span> <span class="ident">track</span>(<span class="self">self</span>, <span class="ident">notifier</span>: <span class="ident">Recipient</span><span class="op">&lt;</span><span class="ident">TrackedFutureFinished</span><span class="op">&gt;</span>) -&gt; <span class="ident">TrackedFuture</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span> {
-        <span class="ident">TrackedFuture</span> {
-            <span class="ident">notified</span>: <span class="bool-val">false</span>,
-            <span class="ident">inner</span>: <span class="self">self</span>,
-            <span class="ident">notifier</span>,
+    <span class="kw">fn </span>track(<span class="self">self</span>, notifier: Recipient&lt;TrackedFutureFinished&gt;) -&gt; TrackedFuture&lt;F&gt; {
+        TrackedFuture {
+            notified: <span class="bool-val">false</span>,
+            inner: <span class="self">self</span>,
+            notifier,
         }
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span> <span class="ident">Future</span> <span class="kw">for</span> <span class="ident">TrackedFuture</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">F</span>: <span class="ident">Future</span>,
+<span class="kw">impl</span>&lt;F&gt; Future <span class="kw">for </span>TrackedFuture&lt;F&gt;
+<span class="kw">where
+    </span>F: Future,
 {
-    <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="ident">F::Item</span>;
-    <span class="kw">type</span> <span class="ident">Error</span> <span class="op">=</span> <span class="ident">F::Error</span>;
+    <span class="kw">type </span>Item = F::Item;
+    <span class="kw">type </span>Error = F::Error;
 
-    <span class="kw">fn</span> <span class="ident">poll</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="ident">Poll</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Item</span>, <span class="ident"><span class="self">Self</span>::Error</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">ret_val</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">poll</span>();
+    <span class="kw">fn </span>poll(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Poll&lt;<span class="self">Self</span>::Item, <span class="self">Self</span>::Error&gt; {
+        <span class="kw">let </span>ret_val = <span class="self">self</span>.inner.poll();
 
-        <span class="kw">match</span> <span class="ident">ret_val</span> {
-            <span class="prelude-val">Ok</span>(<span class="ident">Async::NotReady</span>) =&gt; {}
-            <span class="kw">_</span> =&gt; {
-                <span class="comment">// future is finished notify channel</span>
-                <span class="self">self</span>.<span class="ident">notified</span> <span class="op">=</span> <span class="bool-val">true</span>;
-                <span class="self">self</span>.<span class="ident">notify</span>();
+        <span class="kw">match </span>ret_val {
+            <span class="prelude-val">Ok</span>(Async::NotReady) =&gt; {}
+            <span class="kw">_ </span>=&gt; {
+                <span class="comment">// future is finished notify channel
+                </span><span class="self">self</span>.notified = <span class="bool-val">true</span>;
+                <span class="self">self</span>.notify();
             }
         }
-        <span class="ident">ret_val</span>
+        ret_val
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">TrackedFuture</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
-        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">notified</span> {
-            <span class="comment">//future dropped without being brought to completion</span>
-            <span class="macro">relay_log::info!</span>(<span class="string">&quot;Tracked future dropped without being disposed&quot;</span>);
-            <span class="self">self</span>.<span class="ident">notify</span>();
+<span class="kw">impl</span>&lt;F&gt; Drop <span class="kw">for </span>TrackedFuture&lt;F&gt; {
+    <span class="kw">fn </span>drop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="kw">if </span>!<span class="self">self</span>.notified {
+            <span class="comment">//future dropped without being brought to completion
+            </span><span class="macro">relay_log::info!</span>(<span class="string">&quot;Tracked future dropped without being disposed&quot;</span>);
+            <span class="self">self</span>.notify();
         }
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">test</span> {
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>test {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">use</span> <span class="ident">actix</span>::{<span class="ident">Actor</span>, <span class="ident">Context</span>, <span class="ident">Handler</span>};
-    <span class="kw">use</span> <span class="ident">failure::_core::time::Duration</span>;
-    <span class="kw">use</span> <span class="ident">futures01::sync::oneshot</span>::{<span class="ident">channel</span>, <span class="ident">Sender</span>};
-    <span class="kw">use</span> <span class="ident">tokio_timer::Timeout</span>;
+    <span class="kw">use </span>actix::{Actor, Context, Handler};
+    <span class="kw">use </span>failure::_core::time::Duration;
+    <span class="kw">use </span>futures01::sync::oneshot::{channel, Sender};
+    <span class="kw">use </span>tokio_timer::Timeout;
 
-    <span class="kw">struct</span> <span class="ident">TestActor</span> {
-        <span class="ident">notifier</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Sender</span><span class="op">&lt;</span>()<span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="kw">struct </span>TestActor {
+        notifier: <span class="prelude-ty">Option</span>&lt;Sender&lt;()&gt;&gt;,
     }
 
-    <span class="kw">impl</span> <span class="ident">TestActor</span> {
-        <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">notifier</span>: <span class="ident">Sender</span><span class="op">&lt;</span>()<span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-            <span class="ident">TestActor</span> {
-                <span class="ident">notifier</span>: <span class="prelude-val">Some</span>(<span class="ident">notifier</span>),
+    <span class="kw">impl </span>TestActor {
+        <span class="kw">pub fn </span>new(notifier: Sender&lt;()&gt;) -&gt; <span class="self">Self </span>{
+            TestActor {
+                notifier: <span class="prelude-val">Some</span>(notifier),
             }
         }
     }
 
-    <span class="kw">impl</span> <span class="ident">Actor</span> <span class="kw">for</span> <span class="ident">TestActor</span> {
-        <span class="kw">type</span> <span class="ident">Context</span> <span class="op">=</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>;
+    <span class="kw">impl </span>Actor <span class="kw">for </span>TestActor {
+        <span class="kw">type </span>Context = Context&lt;<span class="self">Self</span>&gt;;
     }
 
-    <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">TrackedFutureFinished</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">TestActor</span> {
-        <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
+    <span class="kw">impl </span>Handler&lt;TrackedFutureFinished&gt; <span class="kw">for </span>TestActor {
+        <span class="kw">type </span><span class="prelude-ty">Result </span>= ();
 
-        <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">_message</span>: <span class="ident">TrackedFutureFinished</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) {
-            <span class="kw">let</span> <span class="ident">notifier</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">notifier</span>.<span class="ident">take</span>().<span class="ident">unwrap</span>();
-            <span class="ident">notifier</span>.<span class="ident">send</span>(()).<span class="ident">ok</span>();
+        <span class="kw">fn </span>handle(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _message: TrackedFutureFinished, _ctx: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) {
+            <span class="kw">let </span>notifier = <span class="self">self</span>.notifier.take().unwrap();
+            notifier.send(()).ok();
         }
     }
 
-    <span class="kw">struct</span> <span class="ident">NeverEndingFuture</span>;
+    <span class="kw">struct </span>NeverEndingFuture;
 
-    <span class="kw">impl</span> <span class="ident">Future</span> <span class="kw">for</span> <span class="ident">NeverEndingFuture</span> {
-        <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> ();
-        <span class="kw">type</span> <span class="ident">Error</span> <span class="op">=</span> ();
+    <span class="kw">impl </span>Future <span class="kw">for </span>NeverEndingFuture {
+        <span class="kw">type </span>Item = ();
+        <span class="kw">type </span>Error = ();
 
-        <span class="kw">fn</span> <span class="ident">poll</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="ident">Poll</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Item</span>, <span class="ident"><span class="self">Self</span>::Error</span><span class="op">&gt;</span> {
+        <span class="kw">fn </span>poll(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Poll&lt;<span class="self">Self</span>::Item, <span class="self">Self</span>::Error&gt; {
             <span class="macro">relay_log::debug!</span>(<span class="string">&quot;never ending future poll&quot;</span>);
-            <span class="prelude-val">Ok</span>(<span class="ident">Async::NotReady</span>)
+            <span class="prelude-val">Ok</span>(Async::NotReady)
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_tracked_future_termination</span>() {
-        <span class="ident">relay_test::setup</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">futures</span> <span class="op">=</span> [
-            <span class="prelude-val">Some</span>(<span class="ident">futures01::future::ok</span>::<span class="op">&lt;</span><span class="ident">bool</span>, ()<span class="op">&gt;</span>(<span class="bool-val">true</span>)),
-            <span class="prelude-val">Some</span>(<span class="ident">futures01::future::err</span>::<span class="op">&lt;</span><span class="ident">bool</span>, ()<span class="op">&gt;</span>(())),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_tracked_future_termination() {
+        relay_test::setup();
+        <span class="kw">let </span><span class="kw-2">mut </span>futures = [
+            <span class="prelude-val">Some</span>(futures01::future::ok::&lt;bool, ()&gt;(<span class="bool-val">true</span>)),
+            <span class="prelude-val">Some</span>(futures01::future::err::&lt;bool, ()&gt;(())),
         ];
-        <span class="kw">for</span> <span class="ident">future</span> <span class="kw">in</span> <span class="kw-2">&amp;mut</span> <span class="ident">futures</span> {
-            <span class="ident">relay_test::block_fn</span>(<span class="op">|</span><span class="op">|</span> {
-                <span class="kw">let</span> (<span class="ident">tx</span>, <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">channel</span>::<span class="op">&lt;</span>()<span class="op">&gt;</span>();
-                <span class="kw">let</span> <span class="ident">addr</span> <span class="op">=</span> <span class="ident">TestActor::new</span>(<span class="ident">tx</span>).<span class="ident">start</span>();
-                <span class="kw">let</span> <span class="ident">rec</span> <span class="op">=</span> <span class="ident">addr</span>.<span class="ident">recipient</span>::<span class="op">&lt;</span><span class="ident">TrackedFutureFinished</span><span class="op">&gt;</span>();
+        <span class="kw">for </span>future <span class="kw">in </span><span class="kw-2">&amp;mut </span>futures {
+            relay_test::block_fn(|| {
+                <span class="kw">let </span>(tx, rx) = channel::&lt;()&gt;();
+                <span class="kw">let </span>addr = TestActor::new(tx).start();
+                <span class="kw">let </span>rec = addr.recipient::&lt;TrackedFutureFinished&gt;();
 
-                <span class="kw">let</span> <span class="ident">fut</span> <span class="op">=</span> <span class="ident">future</span>.<span class="ident">take</span>().<span class="ident">unwrap</span>().<span class="ident">track</span>(<span class="ident">rec</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ());
+                <span class="kw">let </span>fut = future.take().unwrap().track(rec).map(|<span class="kw">_</span>| ());
 
-                <span class="ident">actix::spawn</span>(<span class="ident">fut</span>);
+                actix::spawn(fut);
 
-                <span class="ident">Timeout::new</span>(<span class="ident">rx</span>, <span class="ident">Duration::from_millis</span>(<span class="number">10</span>)).<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> {
+                Timeout::new(rx, Duration::from_millis(<span class="number">10</span>)).map_err(|<span class="kw">_</span>| {
                     <span class="macro">relay_log::error!</span>(<span class="string">&quot;tracked future didn&#39;t not send a notification&quot;</span>);
                     <span class="macro">panic!</span>(<span class="string">&quot;no notification received before timeout&quot;</span>);
                 })
             })
-            .<span class="ident">ok</span>();
+            .ok();
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_tracked_future_dropped</span>() {
-        <span class="ident">relay_test::setup</span>();
-        <span class="ident">relay_test::block_fn</span>(<span class="op">|</span><span class="op">|</span> {
-            <span class="kw">let</span> (<span class="ident">tx</span>, <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">channel</span>::<span class="op">&lt;</span>()<span class="op">&gt;</span>();
-            <span class="kw">let</span> <span class="ident">addr</span> <span class="op">=</span> <span class="ident">TestActor::new</span>(<span class="ident">tx</span>).<span class="ident">start</span>();
-            <span class="kw">let</span> <span class="ident">rec</span> <span class="op">=</span> <span class="ident">addr</span>.<span class="ident">recipient</span>::<span class="op">&lt;</span><span class="ident">TrackedFutureFinished</span><span class="op">&gt;</span>();
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_tracked_future_dropped() {
+        relay_test::setup();
+        relay_test::block_fn(|| {
+            <span class="kw">let </span>(tx, rx) = channel::&lt;()&gt;();
+            <span class="kw">let </span>addr = TestActor::new(tx).start();
+            <span class="kw">let </span>rec = addr.recipient::&lt;TrackedFutureFinished&gt;();
 
-            <span class="comment">// dispose of future before it finishes (don&#39;t even schedule it)</span>
-            {
-                <span class="kw">let</span> <span class="ident">_fut</span> <span class="op">=</span> <span class="ident">NeverEndingFuture</span>.<span class="ident">track</span>(<span class="ident">rec</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ());
+            <span class="comment">// dispose of future before it finishes (don&#39;t even schedule it)
+            </span>{
+                <span class="kw">let </span>_fut = NeverEndingFuture.track(rec).map(|<span class="kw">_</span>| ());
             }
-            <span class="ident">Timeout::new</span>(<span class="ident">rx</span>, <span class="ident">Duration::from_millis</span>(<span class="number">10</span>)).<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> {
+            Timeout::new(rx, Duration::from_millis(<span class="number">10</span>)).map_err(|<span class="kw">_</span>| {
                 <span class="macro">relay_log::error!</span>(<span class="string">&quot;tracked future didn&#39;t not send a notification&quot;</span>);
                 <span class="macro">panic!</span>(<span class="string">&quot;no notification received before timeout&quot;</span>);
             })
         })
-        .<span class="ident">ok</span>();
+        .ok();
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

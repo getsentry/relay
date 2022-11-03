@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/protocol/templateinfo.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>templateinfo.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/protocol/templateinfo.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>templateinfo.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_general/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -98,51 +98,51 @@
 <span id="96">96</span>
 <span id="97">97</span>
 <span id="98">98</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Array</span>, <span class="ident">Object</span>, <span class="ident">Value</span>};
+</pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Array, Object, Value};
 
-<span class="doccomment">/// Template debug information.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>)]</span>
-<span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">process_func</span> <span class="op">=</span> <span class="string">&quot;process_template_info&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TemplateInfo</span> {
-    <span class="doccomment">/// The file name (basename only).</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>, <span class="ident">max_chars</span> <span class="op">=</span> <span class="string">&quot;short_path&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">filename</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Template debug information.
+</span><span class="attribute">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[metastructure(process_func = <span class="string">&quot;process_template_info&quot;</span>)]
+</span><span class="kw">pub struct </span>TemplateInfo {
+    <span class="doccomment">/// The file name (basename only).
+    </span><span class="attribute">#[metastructure(pii = <span class="string">&quot;true&quot;</span>, max_chars = <span class="string">&quot;short_path&quot;</span>)]
+    </span><span class="kw">pub </span>filename: Annotated&lt;String&gt;,
 
-    <span class="doccomment">/// Absolute path to the file.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>, <span class="ident">max_chars</span> <span class="op">=</span> <span class="string">&quot;path&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">abs_path</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Absolute path to the file.
+    </span><span class="attribute">#[metastructure(pii = <span class="string">&quot;true&quot;</span>, max_chars = <span class="string">&quot;path&quot;</span>)]
+    </span><span class="kw">pub </span>abs_path: Annotated&lt;String&gt;,
 
-    <span class="doccomment">/// Line number within the source file.</span>
-    <span class="kw">pub</span> <span class="ident">lineno</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Line number within the source file.
+    </span><span class="kw">pub </span>lineno: Annotated&lt;u64&gt;,
 
-    <span class="doccomment">/// Column number within the source file.</span>
-    <span class="kw">pub</span> <span class="ident">colno</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Column number within the source file.
+    </span><span class="kw">pub </span>colno: Annotated&lt;u64&gt;,
 
-    <span class="doccomment">/// Source code leading up to the current line.</span>
-    <span class="kw">pub</span> <span class="ident">pre_context</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Array</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Source code leading up to the current line.
+    </span><span class="kw">pub </span>pre_context: Annotated&lt;Array&lt;String&gt;&gt;,
 
-    <span class="doccomment">/// Source code of the current line.</span>
-    <span class="kw">pub</span> <span class="ident">context_line</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Source code of the current line.
+    </span><span class="kw">pub </span>context_line: Annotated&lt;String&gt;,
 
-    <span class="doccomment">/// Source code of the lines after the current line.</span>
-    <span class="kw">pub</span> <span class="ident">post_context</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Array</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Source code of the lines after the current line.
+    </span><span class="kw">pub </span>post_context: Annotated&lt;Array&lt;String&gt;&gt;,
 
-    <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">additional_properties</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">other</span>: <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
+    </span><span class="attribute">#[metastructure(additional_properties)]
+    </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">similar_asserts::assert_eq</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>similar_asserts::assert_eq;
 
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types::Map</span>;
+    <span class="kw">use </span><span class="kw">crate</span>::types::Map;
 
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_template_roundtrip</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_template_roundtrip() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;filename&quot;: &quot;myfile.rs&quot;,
   &quot;abs_path&quot;: &quot;/path/to&quot;,
   &quot;lineno&quot;: 2,
@@ -156,45 +156,45 @@
   ],
   &quot;other&quot;: &quot;value&quot;
 }&quot;#</span>;
-        <span class="kw">let</span> <span class="ident">template_info</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">TemplateInfo</span> {
-            <span class="ident">filename</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;myfile.rs&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">abs_path</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;/path/to&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">lineno</span>: <span class="ident">Annotated::new</span>(<span class="number">2</span>),
-            <span class="ident">colno</span>: <span class="ident">Annotated::new</span>(<span class="number">42</span>),
-            <span class="ident">pre_context</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="string">&quot;fn main() {&quot;</span>.<span class="ident">to_string</span>())]),
-            <span class="ident">context_line</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;unimplemented!()&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">post_context</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="string">&quot;}&quot;</span>.<span class="ident">to_string</span>())]),
-            <span class="ident">other</span>: {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Map::new</span>();
-                <span class="ident">map</span>.<span class="ident">insert</span>(
-                    <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                    <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+        <span class="kw">let </span>template_info = Annotated::new(TemplateInfo {
+            filename: Annotated::new(<span class="string">&quot;myfile.rs&quot;</span>.to_string()),
+            abs_path: Annotated::new(<span class="string">&quot;/path/to&quot;</span>.to_string()),
+            lineno: Annotated::new(<span class="number">2</span>),
+            colno: Annotated::new(<span class="number">42</span>),
+            pre_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">&quot;fn main() {&quot;</span>.to_string())]),
+            context_line: Annotated::new(<span class="string">&quot;unimplemented!()&quot;</span>.to_string()),
+            post_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">&quot;}&quot;</span>.to_string())]),
+            other: {
+                <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
+                map.insert(
+                    <span class="string">&quot;other&quot;</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
                 );
-                <span class="ident">map</span>
+                map
             },
         });
 
-        <span class="macro">assert_eq!</span>(<span class="ident">template_info</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">template_info</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(template_info, Annotated::from_json(json).unwrap());
+        <span class="macro">assert_eq!</span>(json, template_info.to_json_pretty().unwrap());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_template_default_values</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">&quot;{}&quot;</span>;
-        <span class="kw">let</span> <span class="ident">template_info</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">TemplateInfo</span> {
-            <span class="ident">filename</span>: <span class="ident">Annotated::empty</span>(),
-            <span class="ident">abs_path</span>: <span class="ident">Annotated::empty</span>(),
-            <span class="ident">lineno</span>: <span class="ident">Annotated::empty</span>(),
-            <span class="ident">colno</span>: <span class="ident">Annotated::empty</span>(),
-            <span class="ident">pre_context</span>: <span class="ident">Annotated::empty</span>(),
-            <span class="ident">context_line</span>: <span class="ident">Annotated::empty</span>(),
-            <span class="ident">post_context</span>: <span class="ident">Annotated::empty</span>(),
-            <span class="ident">other</span>: <span class="ident">Object::default</span>(),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_template_default_values() {
+        <span class="kw">let </span>json = <span class="string">&quot;{}&quot;</span>;
+        <span class="kw">let </span>template_info = Annotated::new(TemplateInfo {
+            filename: Annotated::empty(),
+            abs_path: Annotated::empty(),
+            lineno: Annotated::empty(),
+            colno: Annotated::empty(),
+            pre_context: Annotated::empty(),
+            context_line: Annotated::empty(),
+            post_context: Annotated::empty(),
+            other: Object::default(),
         });
 
-        <span class="macro">assert_eq!</span>(<span class="ident">template_info</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">template_info</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(template_info, Annotated::from_json(json).unwrap());
+        <span class="macro">assert_eq!</span>(json, template_info.to_json().unwrap());
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

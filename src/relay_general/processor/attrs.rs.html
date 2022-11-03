@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/processor/attrs.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>attrs.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/processor/attrs.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>attrs.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_general/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -839,788 +839,788 @@
 <span id="837">837</span>
 <span id="838">838</span>
 <span id="839">839</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
-<span class="kw">use</span> <span class="ident">std::fmt</span>;
-<span class="kw">use</span> <span class="ident">std::ops::RangeInclusive</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::ops::RangeInclusive;
 
-<span class="kw">use</span> <span class="ident">enumset</span>::{<span class="ident">EnumSet</span>, <span class="ident">EnumSetType</span>};
-<span class="kw">use</span> <span class="ident">failure::Fail</span>;
-<span class="kw">use</span> <span class="ident">smallvec::SmallVec</span>;
+<span class="kw">use </span>enumset::{EnumSet, EnumSetType};
+<span class="kw">use </span>failure::Fail;
+<span class="kw">use </span>smallvec::SmallVec;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::macros::derive_fromstr_and_display</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor</span>::{<span class="ident">ProcessValue</span>, <span class="ident">SelectorPathItem</span>, <span class="ident">SelectorSpec</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types::Annotated</span>;
+<span class="kw">use </span><span class="kw">crate</span>::macros::derive_fromstr_and_display;
+<span class="kw">use </span><span class="kw">crate</span>::processor::{ProcessValue, SelectorPathItem, SelectorSpec};
+<span class="kw">use </span><span class="kw">crate</span>::types::Annotated;
 
-<span class="doccomment">/// Error for unknown value types.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Fail</span>)]</span>
-<span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;unknown value type&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">UnknownValueTypeError</span>;
+<span class="doccomment">/// Error for unknown value types.
+</span><span class="attribute">#[derive(Debug, Fail)]
+#[fail(display = <span class="string">&quot;unknown value type&quot;</span>)]
+</span><span class="kw">pub struct </span>UnknownValueTypeError;
 
-<span class="doccomment">/// The (simplified) type of a value.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Ord</span>, <span class="ident">PartialOrd</span>, <span class="ident">EnumSetType</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">ValueType</span> {
-    <span class="comment">// Basic types</span>
-    <span class="ident">String</span>,
-    <span class="ident">Binary</span>,
-    <span class="ident">Number</span>,
-    <span class="ident">Boolean</span>,
-    <span class="ident">DateTime</span>,
-    <span class="ident">Array</span>,
-    <span class="ident">Object</span>,
+<span class="doccomment">/// The (simplified) type of a value.
+</span><span class="attribute">#[derive(Debug, Ord, PartialOrd, EnumSetType)]
+</span><span class="kw">pub enum </span>ValueType {
+    <span class="comment">// Basic types
+    </span>String,
+    Binary,
+    Number,
+    Boolean,
+    DateTime,
+    Array,
+    Object,
 
-    <span class="comment">// Roots</span>
-    <span class="ident">Event</span>,
-    <span class="ident">Attachments</span>,
+    <span class="comment">// Roots
+    </span>Event,
+    Attachments,
 
-    <span class="comment">// Protocol types</span>
-    <span class="ident">Exception</span>,
-    <span class="ident">Stacktrace</span>,
-    <span class="ident">Frame</span>,
-    <span class="ident">Request</span>,
-    <span class="ident">User</span>,
-    <span class="ident">LogEntry</span>,
-    <span class="ident">Message</span>,
-    <span class="ident">Thread</span>,
-    <span class="ident">Breadcrumb</span>,
-    <span class="ident">Span</span>,
-    <span class="ident">ClientSdkInfo</span>,
+    <span class="comment">// Protocol types
+    </span>Exception,
+    Stacktrace,
+    Frame,
+    Request,
+    User,
+    LogEntry,
+    Message,
+    Thread,
+    Breadcrumb,
+    Span,
+    ClientSdkInfo,
 
-    <span class="comment">// Attachments and Contents</span>
-    <span class="ident">Minidump</span>,
-    <span class="ident">HeapMemory</span>,
-    <span class="ident">StackMemory</span>,
+    <span class="comment">// Attachments and Contents
+    </span>Minidump,
+    HeapMemory,
+    StackMemory,
 }
 
-<span class="kw">impl</span> <span class="ident">ValueType</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">for_field</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">ProcessValue</span><span class="op">&gt;</span>(<span class="ident">field</span>: <span class="kw-2">&amp;</span><span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>) -&gt; <span class="ident">EnumSet</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="ident">field</span>
-            .<span class="ident">value</span>()
-            .<span class="ident">map</span>(<span class="ident">ProcessValue::value_type</span>)
-            .<span class="ident">unwrap_or_else</span>(<span class="ident">EnumSet::empty</span>)
+<span class="kw">impl </span>ValueType {
+    <span class="kw">pub fn </span>for_field&lt;T: ProcessValue&gt;(field: <span class="kw-2">&amp;</span>Annotated&lt;T&gt;) -&gt; EnumSet&lt;<span class="self">Self</span>&gt; {
+        field
+            .value()
+            .map(ProcessValue::value_type)
+            .unwrap_or_else(EnumSet::empty)
     }
 }
 
-<span class="macro">derive_fromstr_and_display!</span>(<span class="ident">ValueType</span>, <span class="ident">UnknownValueTypeError</span>, {
-    <span class="ident">ValueType::String</span> =&gt; <span class="string">&quot;string&quot;</span>,
-    <span class="ident">ValueType::Binary</span> =&gt; <span class="string">&quot;binary&quot;</span>,
-    <span class="ident">ValueType::Number</span> =&gt; <span class="string">&quot;number&quot;</span>,
-    <span class="ident">ValueType::Boolean</span> =&gt; <span class="string">&quot;boolean&quot;</span> <span class="op">|</span> <span class="string">&quot;bool&quot;</span>,
-    <span class="ident">ValueType::DateTime</span> =&gt; <span class="string">&quot;datetime&quot;</span>,
-    <span class="ident">ValueType::Array</span> =&gt; <span class="string">&quot;array&quot;</span> <span class="op">|</span> <span class="string">&quot;list&quot;</span>,
-    <span class="ident">ValueType::Object</span> =&gt; <span class="string">&quot;object&quot;</span>,
-    <span class="ident">ValueType::Event</span> =&gt; <span class="string">&quot;event&quot;</span>,
-    <span class="ident">ValueType::Attachments</span> =&gt; <span class="string">&quot;attachments&quot;</span>,
-    <span class="ident">ValueType::Exception</span> =&gt; <span class="string">&quot;error&quot;</span> <span class="op">|</span> <span class="string">&quot;exception&quot;</span>,
-    <span class="ident">ValueType::Stacktrace</span> =&gt; <span class="string">&quot;stack&quot;</span> <span class="op">|</span> <span class="string">&quot;stacktrace&quot;</span>,
-    <span class="ident">ValueType::Frame</span> =&gt; <span class="string">&quot;frame&quot;</span>,
-    <span class="ident">ValueType::Request</span> =&gt; <span class="string">&quot;http&quot;</span> <span class="op">|</span> <span class="string">&quot;request&quot;</span>,
-    <span class="ident">ValueType::User</span> =&gt; <span class="string">&quot;user&quot;</span>,
-    <span class="ident">ValueType::LogEntry</span> =&gt; <span class="string">&quot;logentry&quot;</span>,
-    <span class="ident">ValueType::Message</span> =&gt; <span class="string">&quot;message&quot;</span>,
-    <span class="ident">ValueType::Thread</span> =&gt; <span class="string">&quot;thread&quot;</span>,
-    <span class="ident">ValueType::Breadcrumb</span> =&gt; <span class="string">&quot;breadcrumb&quot;</span>,
-    <span class="ident">ValueType::Span</span> =&gt; <span class="string">&quot;span&quot;</span>,
-    <span class="ident">ValueType::ClientSdkInfo</span> =&gt; <span class="string">&quot;sdk&quot;</span>,
-    <span class="ident">ValueType::Minidump</span> =&gt; <span class="string">&quot;minidump&quot;</span>,
-    <span class="ident">ValueType::HeapMemory</span> =&gt; <span class="string">&quot;heap_memory&quot;</span>,
-    <span class="ident">ValueType::StackMemory</span> =&gt; <span class="string">&quot;stack_memory&quot;</span>,
+<span class="macro">derive_fromstr_and_display!</span>(ValueType, UnknownValueTypeError, {
+    ValueType::String =&gt; <span class="string">&quot;string&quot;</span>,
+    ValueType::Binary =&gt; <span class="string">&quot;binary&quot;</span>,
+    ValueType::Number =&gt; <span class="string">&quot;number&quot;</span>,
+    ValueType::Boolean =&gt; <span class="string">&quot;boolean&quot; </span>| <span class="string">&quot;bool&quot;</span>,
+    ValueType::DateTime =&gt; <span class="string">&quot;datetime&quot;</span>,
+    ValueType::Array =&gt; <span class="string">&quot;array&quot; </span>| <span class="string">&quot;list&quot;</span>,
+    ValueType::Object =&gt; <span class="string">&quot;object&quot;</span>,
+    ValueType::Event =&gt; <span class="string">&quot;event&quot;</span>,
+    ValueType::Attachments =&gt; <span class="string">&quot;attachments&quot;</span>,
+    ValueType::Exception =&gt; <span class="string">&quot;error&quot; </span>| <span class="string">&quot;exception&quot;</span>,
+    ValueType::Stacktrace =&gt; <span class="string">&quot;stack&quot; </span>| <span class="string">&quot;stacktrace&quot;</span>,
+    ValueType::Frame =&gt; <span class="string">&quot;frame&quot;</span>,
+    ValueType::Request =&gt; <span class="string">&quot;http&quot; </span>| <span class="string">&quot;request&quot;</span>,
+    ValueType::User =&gt; <span class="string">&quot;user&quot;</span>,
+    ValueType::LogEntry =&gt; <span class="string">&quot;logentry&quot;</span>,
+    ValueType::Message =&gt; <span class="string">&quot;message&quot;</span>,
+    ValueType::Thread =&gt; <span class="string">&quot;thread&quot;</span>,
+    ValueType::Breadcrumb =&gt; <span class="string">&quot;breadcrumb&quot;</span>,
+    ValueType::Span =&gt; <span class="string">&quot;span&quot;</span>,
+    ValueType::ClientSdkInfo =&gt; <span class="string">&quot;sdk&quot;</span>,
+    ValueType::Minidump =&gt; <span class="string">&quot;minidump&quot;</span>,
+    ValueType::HeapMemory =&gt; <span class="string">&quot;heap_memory&quot;</span>,
+    ValueType::StackMemory =&gt; <span class="string">&quot;stack_memory&quot;</span>,
 });
 
-<span class="doccomment">/// The maximum length of a field.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">MaxChars</span> {
-    <span class="ident">Hash</span>,
-    <span class="ident">EnumLike</span>,
-    <span class="ident">Summary</span>,
-    <span class="ident">Message</span>,
-    <span class="ident">Symbol</span>,
-    <span class="ident">Path</span>,
-    <span class="ident">ShortPath</span>,
-    <span class="ident">Logger</span>,
-    <span class="ident">Email</span>,
-    <span class="ident">Culprit</span>,
-    <span class="ident">TagKey</span>,
-    <span class="ident">TagValue</span>,
-    <span class="ident">Environment</span>,
-    <span class="ident">Hard</span>(<span class="ident">usize</span>),
-    <span class="ident">Soft</span>(<span class="ident">usize</span>),
+<span class="doccomment">/// The maximum length of a field.
+</span><span class="attribute">#[derive(Debug, Clone, Copy, PartialEq, Hash)]
+</span><span class="kw">pub enum </span>MaxChars {
+    Hash,
+    EnumLike,
+    Summary,
+    Message,
+    Symbol,
+    Path,
+    ShortPath,
+    Logger,
+    Email,
+    Culprit,
+    TagKey,
+    TagValue,
+    Environment,
+    Hard(usize),
+    Soft(usize),
 }
 
-<span class="kw">impl</span> <span class="ident">MaxChars</span> {
-    <span class="doccomment">/// The cap in number of unicode characters.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">limit</span>(<span class="self">self</span>) -&gt; <span class="ident">usize</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">MaxChars::Hash</span> =&gt; <span class="number">128</span>,
-            <span class="ident">MaxChars::EnumLike</span> =&gt; <span class="number">128</span>,
-            <span class="ident">MaxChars::Summary</span> =&gt; <span class="number">1024</span>,
-            <span class="ident">MaxChars::Message</span> =&gt; <span class="number">8192</span>,
-            <span class="ident">MaxChars::Symbol</span> =&gt; <span class="number">256</span>,
-            <span class="ident">MaxChars::Path</span> =&gt; <span class="number">256</span>,
-            <span class="ident">MaxChars::ShortPath</span> =&gt; <span class="number">128</span>,
-            <span class="comment">// these are from constants.py or limits imposed by the database</span>
-            <span class="ident">MaxChars::Logger</span> =&gt; <span class="number">64</span>,
-            <span class="ident">MaxChars::Email</span> =&gt; <span class="number">75</span>,
-            <span class="ident">MaxChars::Culprit</span> =&gt; <span class="number">200</span>,
-            <span class="ident">MaxChars::TagKey</span> =&gt; <span class="number">32</span>,
-            <span class="ident">MaxChars::TagValue</span> =&gt; <span class="number">200</span>,
-            <span class="ident">MaxChars::Environment</span> =&gt; <span class="number">64</span>,
-            <span class="ident">MaxChars::Soft</span>(<span class="ident">len</span>) <span class="op">|</span> <span class="ident">MaxChars::Hard</span>(<span class="ident">len</span>) =&gt; <span class="ident">len</span>,
+<span class="kw">impl </span>MaxChars {
+    <span class="doccomment">/// The cap in number of unicode characters.
+    </span><span class="kw">pub fn </span>limit(<span class="self">self</span>) -&gt; usize {
+        <span class="kw">match </span><span class="self">self </span>{
+            MaxChars::Hash =&gt; <span class="number">128</span>,
+            MaxChars::EnumLike =&gt; <span class="number">128</span>,
+            MaxChars::Summary =&gt; <span class="number">1024</span>,
+            MaxChars::Message =&gt; <span class="number">8192</span>,
+            MaxChars::Symbol =&gt; <span class="number">256</span>,
+            MaxChars::Path =&gt; <span class="number">256</span>,
+            MaxChars::ShortPath =&gt; <span class="number">128</span>,
+            <span class="comment">// these are from constants.py or limits imposed by the database
+            </span>MaxChars::Logger =&gt; <span class="number">64</span>,
+            MaxChars::Email =&gt; <span class="number">75</span>,
+            MaxChars::Culprit =&gt; <span class="number">200</span>,
+            MaxChars::TagKey =&gt; <span class="number">32</span>,
+            MaxChars::TagValue =&gt; <span class="number">200</span>,
+            MaxChars::Environment =&gt; <span class="number">64</span>,
+            MaxChars::Soft(len) | MaxChars::Hard(len) =&gt; len,
         }
     }
 
-    <span class="doccomment">/// The number of extra characters permitted.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">allowance</span>(<span class="self">self</span>) -&gt; <span class="ident">usize</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">MaxChars::Hash</span> =&gt; <span class="number">0</span>,
-            <span class="ident">MaxChars::EnumLike</span> =&gt; <span class="number">0</span>,
-            <span class="ident">MaxChars::Summary</span> =&gt; <span class="number">100</span>,
-            <span class="ident">MaxChars::Message</span> =&gt; <span class="number">200</span>,
-            <span class="ident">MaxChars::Symbol</span> =&gt; <span class="number">20</span>,
-            <span class="ident">MaxChars::Path</span> =&gt; <span class="number">40</span>,
-            <span class="ident">MaxChars::ShortPath</span> =&gt; <span class="number">20</span>,
-            <span class="ident">MaxChars::Logger</span> =&gt; <span class="number">0</span>,
-            <span class="ident">MaxChars::Email</span> =&gt; <span class="number">0</span>,
-            <span class="ident">MaxChars::Culprit</span> =&gt; <span class="number">0</span>,
-            <span class="ident">MaxChars::TagKey</span> =&gt; <span class="number">0</span>,
-            <span class="ident">MaxChars::TagValue</span> =&gt; <span class="number">0</span>,
-            <span class="ident">MaxChars::Environment</span> =&gt; <span class="number">0</span>,
-            <span class="ident">MaxChars::Soft</span>(<span class="kw">_</span>) =&gt; <span class="number">10</span>,
-            <span class="ident">MaxChars::Hard</span>(<span class="kw">_</span>) =&gt; <span class="number">0</span>,
-        }
-    }
-}
-
-<span class="doccomment">/// The maximum size of a databag.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">BagSize</span> {
-    <span class="ident">Small</span>,
-    <span class="ident">Medium</span>,
-    <span class="ident">Large</span>,
-    <span class="ident">Larger</span>,
-    <span class="ident">Massive</span>,
-}
-
-<span class="kw">impl</span> <span class="ident">BagSize</span> {
-    <span class="doccomment">/// Maximum depth of the structure.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_depth</span>(<span class="self">self</span>) -&gt; <span class="ident">usize</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">BagSize::Small</span> =&gt; <span class="number">3</span>,
-            <span class="ident">BagSize::Medium</span> =&gt; <span class="number">5</span>,
-            <span class="ident">BagSize::Large</span> =&gt; <span class="number">7</span>,
-            <span class="ident">BagSize::Larger</span> =&gt; <span class="number">7</span>,
-            <span class="ident">BagSize::Massive</span> =&gt; <span class="number">7</span>,
-        }
-    }
-
-    <span class="doccomment">/// Maximum estimated JSON bytes.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_size</span>(<span class="self">self</span>) -&gt; <span class="ident">usize</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">BagSize::Small</span> =&gt; <span class="number">1024</span>,
-            <span class="ident">BagSize::Medium</span> =&gt; <span class="number">2048</span>,
-            <span class="ident">BagSize::Large</span> =&gt; <span class="number">8192</span>,
-            <span class="ident">BagSize::Larger</span> =&gt; <span class="number">16384</span>,
-            <span class="ident">BagSize::Massive</span> =&gt; <span class="number">262_144</span>,
+    <span class="doccomment">/// The number of extra characters permitted.
+    </span><span class="kw">pub fn </span>allowance(<span class="self">self</span>) -&gt; usize {
+        <span class="kw">match </span><span class="self">self </span>{
+            MaxChars::Hash =&gt; <span class="number">0</span>,
+            MaxChars::EnumLike =&gt; <span class="number">0</span>,
+            MaxChars::Summary =&gt; <span class="number">100</span>,
+            MaxChars::Message =&gt; <span class="number">200</span>,
+            MaxChars::Symbol =&gt; <span class="number">20</span>,
+            MaxChars::Path =&gt; <span class="number">40</span>,
+            MaxChars::ShortPath =&gt; <span class="number">20</span>,
+            MaxChars::Logger =&gt; <span class="number">0</span>,
+            MaxChars::Email =&gt; <span class="number">0</span>,
+            MaxChars::Culprit =&gt; <span class="number">0</span>,
+            MaxChars::TagKey =&gt; <span class="number">0</span>,
+            MaxChars::TagValue =&gt; <span class="number">0</span>,
+            MaxChars::Environment =&gt; <span class="number">0</span>,
+            MaxChars::Soft(<span class="kw">_</span>) =&gt; <span class="number">10</span>,
+            MaxChars::Hard(<span class="kw">_</span>) =&gt; <span class="number">0</span>,
         }
     }
 }
 
-<span class="doccomment">/// Whether an attribute should be PII-strippable/should be subject to datascrubbers</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Pii</span> {
-    <span class="doccomment">/// The field will be stripped by default</span>
-    <span class="ident">True</span>,
-    <span class="doccomment">/// The field cannot be stripped at all</span>
-    <span class="ident">False</span>,
-    <span class="doccomment">/// The field will only be stripped when addressed with a specific path selector, but generic</span>
-    <span class="doccomment">/// selectors such as `$string` do not apply.</span>
-    <span class="ident">Maybe</span>,
+<span class="doccomment">/// The maximum size of a databag.
+</span><span class="attribute">#[derive(Debug, Clone, Copy, PartialEq, Hash)]
+</span><span class="kw">pub enum </span>BagSize {
+    Small,
+    Medium,
+    Large,
+    Larger,
+    Massive,
 }
 
-<span class="doccomment">/// Meta information about a field.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FieldAttrs</span> {
-    <span class="doccomment">/// Optionally the name of the field.</span>
-    <span class="kw">pub</span> <span class="ident">name</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// If the field is required.</span>
-    <span class="kw">pub</span> <span class="ident">required</span>: <span class="ident">bool</span>,
-    <span class="doccomment">/// If the field should be non-empty.</span>
-    <span class="kw">pub</span> <span class="ident">nonempty</span>: <span class="ident">bool</span>,
-    <span class="doccomment">/// Whether to trim whitespace from this string.</span>
-    <span class="kw">pub</span> <span class="ident">trim_whitespace</span>: <span class="ident">bool</span>,
-    <span class="doccomment">/// A set of allowed or denied character ranges for this string.</span>
-    <span class="kw">pub</span> <span class="ident">characters</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">CharacterSet</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// The maximum char length of this field.</span>
-    <span class="kw">pub</span> <span class="ident">max_chars</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">MaxChars</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// The maximum bag size of this field.</span>
-    <span class="kw">pub</span> <span class="ident">bag_size</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BagSize</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// The type of PII on the field.</span>
-    <span class="kw">pub</span> <span class="ident">pii</span>: <span class="ident">Pii</span>,
-    <span class="doccomment">/// Whether additional properties should be retained during normalization.</span>
-    <span class="kw">pub</span> <span class="ident">retain</span>: <span class="ident">bool</span>,
-}
-
-<span class="doccomment">/// A set of characters allowed or denied for a (string) field.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Note that this field is generated in the derive, it can&#39;t be constructed easily in tests.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">CharacterSet</span> {
-    <span class="doccomment">/// Generated in derive for performance. Can be left out when set is created manually.</span>
-    <span class="kw">pub</span> <span class="ident">char_is_valid</span>: <span class="kw">fn</span>(<span class="ident">char</span>) -&gt; <span class="ident">bool</span>,
-    <span class="doccomment">/// A set of ranges that are allowed/denied within the character set</span>
-    <span class="kw">pub</span> <span class="ident">ranges</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">RangeInclusive</span><span class="op">&lt;</span><span class="ident">char</span><span class="op">&gt;</span>],
-    <span class="doccomment">/// Whether the character set is inverted</span>
-    <span class="kw">pub</span> <span class="ident">is_negative</span>: <span class="ident">bool</span>,
-}
-
-<span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">CharacterSet</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="ident">f</span>.<span class="ident">debug_struct</span>(<span class="string">&quot;CharacterSet&quot;</span>)
-            .<span class="ident">field</span>(<span class="string">&quot;ranges&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">ranges</span>)
-            .<span class="ident">field</span>(<span class="string">&quot;is_negative&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">is_negative</span>)
-            .<span class="ident">finish</span>()
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">FieldAttrs</span> {
-    <span class="doccomment">/// Creates default `FieldAttrs`.</span>
-    <span class="kw">pub</span> <span class="kw">const</span> <span class="kw">fn</span> <span class="ident">new</span>() -&gt; <span class="self">Self</span> {
-        <span class="ident">FieldAttrs</span> {
-            <span class="ident">name</span>: <span class="prelude-val">None</span>,
-            <span class="ident">required</span>: <span class="bool-val">false</span>,
-            <span class="ident">nonempty</span>: <span class="bool-val">false</span>,
-            <span class="ident">trim_whitespace</span>: <span class="bool-val">false</span>,
-            <span class="ident">characters</span>: <span class="prelude-val">None</span>,
-            <span class="ident">max_chars</span>: <span class="prelude-val">None</span>,
-            <span class="ident">bag_size</span>: <span class="prelude-val">None</span>,
-            <span class="ident">pii</span>: <span class="ident">Pii::False</span>,
-            <span class="ident">retain</span>: <span class="bool-val">false</span>,
+<span class="kw">impl </span>BagSize {
+    <span class="doccomment">/// Maximum depth of the structure.
+    </span><span class="kw">pub fn </span>max_depth(<span class="self">self</span>) -&gt; usize {
+        <span class="kw">match </span><span class="self">self </span>{
+            BagSize::Small =&gt; <span class="number">3</span>,
+            BagSize::Medium =&gt; <span class="number">5</span>,
+            BagSize::Large =&gt; <span class="number">7</span>,
+            BagSize::Larger =&gt; <span class="number">7</span>,
+            BagSize::Massive =&gt; <span class="number">7</span>,
         }
     }
 
-    <span class="doccomment">/// Sets whether a value in this field is required.</span>
-    <span class="kw">pub</span> <span class="kw">const</span> <span class="kw">fn</span> <span class="ident">required</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">required</span>: <span class="ident">bool</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">self</span>.<span class="ident">required</span> <span class="op">=</span> <span class="ident">required</span>;
-        <span class="self">self</span>
-    }
-
-    <span class="doccomment">/// Sets whether this field can have an empty value.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This is distinct from `required`. An empty string (`&quot;&quot;`) passes the &quot;required&quot; check but not the</span>
-    <span class="doccomment">/// &quot;nonempty&quot; one.</span>
-    <span class="kw">pub</span> <span class="kw">const</span> <span class="kw">fn</span> <span class="ident">nonempty</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">nonempty</span>: <span class="ident">bool</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">self</span>.<span class="ident">nonempty</span> <span class="op">=</span> <span class="ident">nonempty</span>;
-        <span class="self">self</span>
-    }
-
-    <span class="doccomment">/// Sets whether whitespace should be trimmed before validation.</span>
-    <span class="kw">pub</span> <span class="kw">const</span> <span class="kw">fn</span> <span class="ident">trim_whitespace</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">trim_whitespace</span>: <span class="ident">bool</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">self</span>.<span class="ident">trim_whitespace</span> <span class="op">=</span> <span class="ident">trim_whitespace</span>;
-        <span class="self">self</span>
-    }
-
-    <span class="doccomment">/// Sets whether this field contains PII.</span>
-    <span class="kw">pub</span> <span class="kw">const</span> <span class="kw">fn</span> <span class="ident">pii</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">pii</span>: <span class="ident">Pii</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">self</span>.<span class="ident">pii</span> <span class="op">=</span> <span class="ident">pii</span>;
-        <span class="self">self</span>
-    }
-
-    <span class="doccomment">/// Sets the maximum number of characters allowed in the field.</span>
-    <span class="kw">pub</span> <span class="kw">const</span> <span class="kw">fn</span> <span class="ident">max_chars</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">max_chars</span>: <span class="ident">MaxChars</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">self</span>.<span class="ident">max_chars</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">max_chars</span>);
-        <span class="self">self</span>
-    }
-
-    <span class="doccomment">/// Sets the maximum size of all children in this field.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This applies particularly to objects and arrays, but also to structures.</span>
-    <span class="kw">pub</span> <span class="kw">const</span> <span class="kw">fn</span> <span class="ident">bag_size</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">bag_size</span>: <span class="ident">BagSize</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">self</span>.<span class="ident">bag_size</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">bag_size</span>);
-        <span class="self">self</span>
-    }
-
-    <span class="doccomment">/// Sets whether additional properties should be retained during normalization.</span>
-    <span class="kw">pub</span> <span class="kw">const</span> <span class="kw">fn</span> <span class="ident">retain</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">retain</span>: <span class="ident">bool</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">self</span>.<span class="ident">retain</span> <span class="op">=</span> <span class="ident">retain</span>;
-        <span class="self">self</span>
-    }
-}
-
-<span class="kw">static</span> <span class="ident">DEFAULT_FIELD_ATTRS</span>: <span class="ident">FieldAttrs</span> <span class="op">=</span> <span class="ident">FieldAttrs::new</span>();
-<span class="kw">static</span> <span class="ident">PII_TRUE_FIELD_ATTRS</span>: <span class="ident">FieldAttrs</span> <span class="op">=</span> <span class="ident">FieldAttrs::new</span>().<span class="ident">pii</span>(<span class="ident">Pii::True</span>);
-<span class="kw">static</span> <span class="ident">PII_MAYBE_FIELD_ATTRS</span>: <span class="ident">FieldAttrs</span> <span class="op">=</span> <span class="ident">FieldAttrs::new</span>().<span class="ident">pii</span>(<span class="ident">Pii::Maybe</span>);
-
-<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">FieldAttrs</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
-        <span class="ident"><span class="self">Self</span>::new</span>()
-    }
-}
-
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Eq</span>, <span class="ident">Ord</span>, <span class="ident">PartialOrd</span>)]</span>
-<span class="kw">enum</span> <span class="ident">PathItem</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="ident">StaticKey</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>),
-    <span class="ident">Index</span>(<span class="ident">usize</span>),
-}
-
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">PartialEq</span> <span class="kw">for</span> <span class="ident">PathItem</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">eq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="ident">PathItem</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
-        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">PathItem::StaticKey</span>(<span class="ident">s</span>) =&gt; <span class="ident">other</span>.<span class="ident">key</span>() <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="ident">s</span>),
-            <span class="ident">PathItem::Index</span>(<span class="ident">value</span>) =&gt; <span class="ident">other</span>.<span class="ident">index</span>() <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="ident">value</span>),
+    <span class="doccomment">/// Maximum estimated JSON bytes.
+    </span><span class="kw">pub fn </span>max_size(<span class="self">self</span>) -&gt; usize {
+        <span class="kw">match </span><span class="self">self </span>{
+            BagSize::Small =&gt; <span class="number">1024</span>,
+            BagSize::Medium =&gt; <span class="number">2048</span>,
+            BagSize::Large =&gt; <span class="number">8192</span>,
+            BagSize::Larger =&gt; <span class="number">16384</span>,
+            BagSize::Massive =&gt; <span class="number">262_144</span>,
         }
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">PathItem</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="doccomment">/// Returns the key if there is one</span>
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">PathItem::StaticKey</span>(<span class="ident">s</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">s</span>),
-            <span class="ident">PathItem::Index</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
+<span class="doccomment">/// Whether an attribute should be PII-strippable/should be subject to datascrubbers
+</span><span class="attribute">#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+</span><span class="kw">pub enum </span>Pii {
+    <span class="doccomment">/// The field will be stripped by default
+    </span>True,
+    <span class="doccomment">/// The field cannot be stripped at all
+    </span>False,
+    <span class="doccomment">/// The field will only be stripped when addressed with a specific path selector, but generic
+    /// selectors such as `$string` do not apply.
+    </span>Maybe,
+}
+
+<span class="doccomment">/// Meta information about a field.
+</span><span class="attribute">#[derive(Debug, Clone, Copy)]
+</span><span class="kw">pub struct </span>FieldAttrs {
+    <span class="doccomment">/// Optionally the name of the field.
+    </span><span class="kw">pub </span>name: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str&gt;,
+    <span class="doccomment">/// If the field is required.
+    </span><span class="kw">pub </span>required: bool,
+    <span class="doccomment">/// If the field should be non-empty.
+    </span><span class="kw">pub </span>nonempty: bool,
+    <span class="doccomment">/// Whether to trim whitespace from this string.
+    </span><span class="kw">pub </span>trim_whitespace: bool,
+    <span class="doccomment">/// A set of allowed or denied character ranges for this string.
+    </span><span class="kw">pub </span>characters: <span class="prelude-ty">Option</span>&lt;CharacterSet&gt;,
+    <span class="doccomment">/// The maximum char length of this field.
+    </span><span class="kw">pub </span>max_chars: <span class="prelude-ty">Option</span>&lt;MaxChars&gt;,
+    <span class="doccomment">/// The maximum bag size of this field.
+    </span><span class="kw">pub </span>bag_size: <span class="prelude-ty">Option</span>&lt;BagSize&gt;,
+    <span class="doccomment">/// The type of PII on the field.
+    </span><span class="kw">pub </span>pii: Pii,
+    <span class="doccomment">/// Whether additional properties should be retained during normalization.
+    </span><span class="kw">pub </span>retain: bool,
+}
+
+<span class="doccomment">/// A set of characters allowed or denied for a (string) field.
+///
+/// Note that this field is generated in the derive, it can&#39;t be constructed easily in tests.
+</span><span class="attribute">#[derive(Clone, Copy)]
+</span><span class="kw">pub struct </span>CharacterSet {
+    <span class="doccomment">/// Generated in derive for performance. Can be left out when set is created manually.
+    </span><span class="kw">pub </span>char_is_valid: <span class="kw">fn</span>(char) -&gt; bool,
+    <span class="doccomment">/// A set of ranges that are allowed/denied within the character set
+    </span><span class="kw">pub </span>ranges: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>[RangeInclusive&lt;char&gt;],
+    <span class="doccomment">/// Whether the character set is inverted
+    </span><span class="kw">pub </span>is_negative: bool,
+}
+
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>CharacterSet {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        f.debug_struct(<span class="string">&quot;CharacterSet&quot;</span>)
+            .field(<span class="string">&quot;ranges&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.ranges)
+            .field(<span class="string">&quot;is_negative&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.is_negative)
+            .finish()
+    }
+}
+
+<span class="kw">impl </span>FieldAttrs {
+    <span class="doccomment">/// Creates default `FieldAttrs`.
+    </span><span class="kw">pub const fn </span>new() -&gt; <span class="self">Self </span>{
+        FieldAttrs {
+            name: <span class="prelude-val">None</span>,
+            required: <span class="bool-val">false</span>,
+            nonempty: <span class="bool-val">false</span>,
+            trim_whitespace: <span class="bool-val">false</span>,
+            characters: <span class="prelude-val">None</span>,
+            max_chars: <span class="prelude-val">None</span>,
+            bag_size: <span class="prelude-val">None</span>,
+            pii: Pii::False,
+            retain: <span class="bool-val">false</span>,
         }
     }
 
-    <span class="doccomment">/// Returns the index if there is one</span>
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">index</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">PathItem::StaticKey</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
-            <span class="ident">PathItem::Index</span>(<span class="ident">idx</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">idx</span>),
+    <span class="doccomment">/// Sets whether a value in this field is required.
+    </span><span class="kw">pub const fn </span>required(<span class="kw-2">mut </span><span class="self">self</span>, required: bool) -&gt; <span class="self">Self </span>{
+        <span class="self">self</span>.required = required;
+        <span class="self">self
+    </span>}
+
+    <span class="doccomment">/// Sets whether this field can have an empty value.
+    ///
+    /// This is distinct from `required`. An empty string (`&quot;&quot;`) passes the &quot;required&quot; check but not the
+    /// &quot;nonempty&quot; one.
+    </span><span class="kw">pub const fn </span>nonempty(<span class="kw-2">mut </span><span class="self">self</span>, nonempty: bool) -&gt; <span class="self">Self </span>{
+        <span class="self">self</span>.nonempty = nonempty;
+        <span class="self">self
+    </span>}
+
+    <span class="doccomment">/// Sets whether whitespace should be trimmed before validation.
+    </span><span class="kw">pub const fn </span>trim_whitespace(<span class="kw-2">mut </span><span class="self">self</span>, trim_whitespace: bool) -&gt; <span class="self">Self </span>{
+        <span class="self">self</span>.trim_whitespace = trim_whitespace;
+        <span class="self">self
+    </span>}
+
+    <span class="doccomment">/// Sets whether this field contains PII.
+    </span><span class="kw">pub const fn </span>pii(<span class="kw-2">mut </span><span class="self">self</span>, pii: Pii) -&gt; <span class="self">Self </span>{
+        <span class="self">self</span>.pii = pii;
+        <span class="self">self
+    </span>}
+
+    <span class="doccomment">/// Sets the maximum number of characters allowed in the field.
+    </span><span class="kw">pub const fn </span>max_chars(<span class="kw-2">mut </span><span class="self">self</span>, max_chars: MaxChars) -&gt; <span class="self">Self </span>{
+        <span class="self">self</span>.max_chars = <span class="prelude-val">Some</span>(max_chars);
+        <span class="self">self
+    </span>}
+
+    <span class="doccomment">/// Sets the maximum size of all children in this field.
+    ///
+    /// This applies particularly to objects and arrays, but also to structures.
+    </span><span class="kw">pub const fn </span>bag_size(<span class="kw-2">mut </span><span class="self">self</span>, bag_size: BagSize) -&gt; <span class="self">Self </span>{
+        <span class="self">self</span>.bag_size = <span class="prelude-val">Some</span>(bag_size);
+        <span class="self">self
+    </span>}
+
+    <span class="doccomment">/// Sets whether additional properties should be retained during normalization.
+    </span><span class="kw">pub const fn </span>retain(<span class="kw-2">mut </span><span class="self">self</span>, retain: bool) -&gt; <span class="self">Self </span>{
+        <span class="self">self</span>.retain = retain;
+        <span class="self">self
+    </span>}
+}
+
+<span class="kw">static </span>DEFAULT_FIELD_ATTRS: FieldAttrs = FieldAttrs::new();
+<span class="kw">static </span>PII_TRUE_FIELD_ATTRS: FieldAttrs = FieldAttrs::new().pii(Pii::True);
+<span class="kw">static </span>PII_MAYBE_FIELD_ATTRS: FieldAttrs = FieldAttrs::new().pii(Pii::Maybe);
+
+<span class="kw">impl </span>Default <span class="kw">for </span>FieldAttrs {
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::new()
+    }
+}
+
+<span class="attribute">#[derive(Debug, Clone, Eq, Ord, PartialOrd)]
+</span><span class="kw">enum </span>PathItem&lt;<span class="lifetime">&#39;a</span>&gt; {
+    StaticKey(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str),
+    Index(usize),
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; PartialEq <span class="kw">for </span>PathItem&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span>PathItem&lt;<span class="lifetime">&#39;a</span>&gt;) -&gt; bool {
+        <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
+            PathItem::StaticKey(s) =&gt; other.key() == <span class="prelude-val">Some</span>(s),
+            PathItem::Index(value) =&gt; other.index() == <span class="prelude-val">Some</span>(value),
         }
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">PathItem</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">PathItem::StaticKey</span>(<span class="ident">s</span>) =&gt; <span class="ident">f</span>.<span class="ident">pad</span>(<span class="ident">s</span>),
-            <span class="ident">PathItem::Index</span>(<span class="ident">val</span>) =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="ident">val</span>),
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; PathItem&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="doccomment">/// Returns the key if there is one
+    </span><span class="attribute">#[inline]
+    </span><span class="kw">pub fn </span>key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
+        <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
+            PathItem::StaticKey(s) =&gt; <span class="prelude-val">Some</span>(s),
+            PathItem::Index(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
+        }
+    }
+
+    <span class="doccomment">/// Returns the index if there is one
+    </span><span class="attribute">#[inline]
+    </span><span class="kw">pub fn </span>index(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;usize&gt; {
+        <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
+            PathItem::StaticKey(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
+            PathItem::Index(idx) =&gt; <span class="prelude-val">Some</span>(idx),
         }
     }
 }
 
-<span class="doccomment">/// An event&#39;s processing state.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The processing state describes an item in an event which is being processed, an example</span>
-<span class="doccomment">/// of processing might be scrubbing the event for PII.  The processing state itself</span>
-<span class="doccomment">/// describes the current item and it&#39;s parent, which allows you to follow all the items up</span>
-<span class="doccomment">/// to the root item.  You can think of processing an event as a visitor pattern visiting</span>
-<span class="doccomment">/// all items in the event and the processing state is a stack describing the currently</span>
-<span class="doccomment">/// visited item and all it&#39;s parents.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// To use a processing state you most likely want to check whether a selector matches the</span>
-<span class="doccomment">/// current state.  For this you turn the state into a [`Path`] using</span>
-<span class="doccomment">/// [`ProcessingState::path`] and call [`Path::matches_selector`] which will iterate through</span>
-<span class="doccomment">/// the path items in the processing state and check whether a selector matches.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="ident">parent</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-    <span class="ident">path_item</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PathItem</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-    <span class="ident">attrs</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">FieldAttrs</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-    <span class="ident">value_type</span>: <span class="ident">EnumSet</span><span class="op">&lt;</span><span class="ident">ValueType</span><span class="op">&gt;</span>,
-    <span class="ident">depth</span>: <span class="ident">usize</span>,
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; fmt::Display <span class="kw">for </span>PathItem&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
+            PathItem::StaticKey(s) =&gt; f.pad(s),
+            PathItem::Index(val) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, val),
+        }
+    }
 }
 
-<span class="kw">static</span> <span class="ident">ROOT_STATE</span>: <span class="ident">ProcessingState</span> <span class="op">=</span> <span class="ident">ProcessingState</span> {
-    <span class="ident">parent</span>: <span class="prelude-val">None</span>,
-    <span class="ident">path_item</span>: <span class="prelude-val">None</span>,
-    <span class="ident">attrs</span>: <span class="prelude-val">None</span>,
-    <span class="ident">value_type</span>: <span class="macro">enumset::enum_set!</span>(),
-    <span class="ident">depth</span>: <span class="number">0</span>,
+<span class="doccomment">/// An event&#39;s processing state.
+///
+/// The processing state describes an item in an event which is being processed, an example
+/// of processing might be scrubbing the event for PII.  The processing state itself
+/// describes the current item and it&#39;s parent, which allows you to follow all the items up
+/// to the root item.  You can think of processing an event as a visitor pattern visiting
+/// all items in the event and the processing state is a stack describing the currently
+/// visited item and all it&#39;s parents.
+///
+/// To use a processing state you most likely want to check whether a selector matches the
+/// current state.  For this you turn the state into a [`Path`] using
+/// [`ProcessingState::path`] and call [`Path::matches_selector`] which will iterate through
+/// the path items in the processing state and check whether a selector matches.
+</span><span class="attribute">#[derive(Debug, Clone)]
+</span><span class="kw">pub struct </span>ProcessingState&lt;<span class="lifetime">&#39;a</span>&gt; {
+    parent: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>ProcessingState&lt;<span class="lifetime">&#39;a</span>&gt;&gt;,
+    path_item: <span class="prelude-ty">Option</span>&lt;PathItem&lt;<span class="lifetime">&#39;a</span>&gt;&gt;,
+    attrs: <span class="prelude-ty">Option</span>&lt;Cow&lt;<span class="lifetime">&#39;a</span>, FieldAttrs&gt;&gt;,
+    value_type: EnumSet&lt;ValueType&gt;,
+    depth: usize,
+}
+
+<span class="kw">static </span>ROOT_STATE: ProcessingState = ProcessingState {
+    parent: <span class="prelude-val">None</span>,
+    path_item: <span class="prelude-val">None</span>,
+    attrs: <span class="prelude-val">None</span>,
+    value_type: <span class="macro">enumset::enum_set!</span>(),
+    depth: <span class="number">0</span>,
 };
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="doccomment">/// Returns the root processing state.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">root</span>() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span><span class="op">&gt;</span> {
-        <span class="kw-2">&amp;</span><span class="ident">ROOT_STATE</span>
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; ProcessingState&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="doccomment">/// Returns the root processing state.
+    </span><span class="kw">pub fn </span>root() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>ProcessingState&lt;<span class="lifetime">&#39;static</span>&gt; {
+        <span class="kw-2">&amp;</span>ROOT_STATE
     }
 
-    <span class="doccomment">/// Creates a new root state.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_root</span>(
-        <span class="ident">attrs</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span>, <span class="ident">FieldAttrs</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-        <span class="ident">value_type</span>: <span class="kw">impl</span> <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">ValueType</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span><span class="op">&gt;</span> {
-        <span class="ident">ProcessingState</span> {
-            <span class="ident">parent</span>: <span class="prelude-val">None</span>,
-            <span class="ident">path_item</span>: <span class="prelude-val">None</span>,
-            <span class="ident">attrs</span>,
-            <span class="ident">value_type</span>: <span class="ident">value_type</span>.<span class="ident">into_iter</span>().<span class="ident">collect</span>(),
-            <span class="ident">depth</span>: <span class="number">0</span>,
+    <span class="doccomment">/// Creates a new root state.
+    </span><span class="kw">pub fn </span>new_root(
+        attrs: <span class="prelude-ty">Option</span>&lt;Cow&lt;<span class="lifetime">&#39;static</span>, FieldAttrs&gt;&gt;,
+        value_type: <span class="kw">impl </span>IntoIterator&lt;Item = ValueType&gt;,
+    ) -&gt; ProcessingState&lt;<span class="lifetime">&#39;static</span>&gt; {
+        ProcessingState {
+            parent: <span class="prelude-val">None</span>,
+            path_item: <span class="prelude-val">None</span>,
+            attrs,
+            value_type: value_type.into_iter().collect(),
+            depth: <span class="number">0</span>,
         }
     }
 
-    <span class="doccomment">/// Derives a processing state by entering a static key.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">enter_static</span>(
-        <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>,
-        <span class="ident">key</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
-        <span class="ident">attrs</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span>, <span class="ident">FieldAttrs</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-        <span class="ident">value_type</span>: <span class="kw">impl</span> <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">ValueType</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="self">Self</span> {
-        <span class="ident">ProcessingState</span> {
-            <span class="ident">parent</span>: <span class="prelude-val">Some</span>(<span class="self">self</span>),
-            <span class="ident">path_item</span>: <span class="prelude-val">Some</span>(<span class="ident">PathItem::StaticKey</span>(<span class="ident">key</span>)),
-            <span class="ident">attrs</span>,
-            <span class="ident">value_type</span>: <span class="ident">value_type</span>.<span class="ident">into_iter</span>().<span class="ident">collect</span>(),
-            <span class="ident">depth</span>: <span class="self">self</span>.<span class="ident">depth</span> <span class="op">+</span> <span class="number">1</span>,
+    <span class="doccomment">/// Derives a processing state by entering a static key.
+    </span><span class="kw">pub fn </span>enter_static(
+        <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>,
+        key: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str,
+        attrs: <span class="prelude-ty">Option</span>&lt;Cow&lt;<span class="lifetime">&#39;static</span>, FieldAttrs&gt;&gt;,
+        value_type: <span class="kw">impl </span>IntoIterator&lt;Item = ValueType&gt;,
+    ) -&gt; <span class="self">Self </span>{
+        ProcessingState {
+            parent: <span class="prelude-val">Some</span>(<span class="self">self</span>),
+            path_item: <span class="prelude-val">Some</span>(PathItem::StaticKey(key)),
+            attrs,
+            value_type: value_type.into_iter().collect(),
+            depth: <span class="self">self</span>.depth + <span class="number">1</span>,
         }
     }
 
-    <span class="doccomment">/// Derives a processing state by entering a borrowed key.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">enter_borrowed</span>(
-        <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>,
-        <span class="ident">key</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>,
-        <span class="ident">attrs</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">FieldAttrs</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-        <span class="ident">value_type</span>: <span class="kw">impl</span> <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">ValueType</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="self">Self</span> {
-        <span class="ident">ProcessingState</span> {
-            <span class="ident">parent</span>: <span class="prelude-val">Some</span>(<span class="self">self</span>),
-            <span class="ident">path_item</span>: <span class="prelude-val">Some</span>(<span class="ident">PathItem::StaticKey</span>(<span class="ident">key</span>)),
-            <span class="ident">attrs</span>,
-            <span class="ident">value_type</span>: <span class="ident">value_type</span>.<span class="ident">into_iter</span>().<span class="ident">collect</span>(),
-            <span class="ident">depth</span>: <span class="self">self</span>.<span class="ident">depth</span> <span class="op">+</span> <span class="number">1</span>,
+    <span class="doccomment">/// Derives a processing state by entering a borrowed key.
+    </span><span class="kw">pub fn </span>enter_borrowed(
+        <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>,
+        key: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str,
+        attrs: <span class="prelude-ty">Option</span>&lt;Cow&lt;<span class="lifetime">&#39;a</span>, FieldAttrs&gt;&gt;,
+        value_type: <span class="kw">impl </span>IntoIterator&lt;Item = ValueType&gt;,
+    ) -&gt; <span class="self">Self </span>{
+        ProcessingState {
+            parent: <span class="prelude-val">Some</span>(<span class="self">self</span>),
+            path_item: <span class="prelude-val">Some</span>(PathItem::StaticKey(key)),
+            attrs,
+            value_type: value_type.into_iter().collect(),
+            depth: <span class="self">self</span>.depth + <span class="number">1</span>,
         }
     }
 
-    <span class="doccomment">/// Derives a processing state by entering an index.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">enter_index</span>(
-        <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>,
-        <span class="ident">idx</span>: <span class="ident">usize</span>,
-        <span class="ident">attrs</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">FieldAttrs</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-        <span class="ident">value_type</span>: <span class="kw">impl</span> <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">ValueType</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="self">Self</span> {
-        <span class="ident">ProcessingState</span> {
-            <span class="ident">parent</span>: <span class="prelude-val">Some</span>(<span class="self">self</span>),
-            <span class="ident">path_item</span>: <span class="prelude-val">Some</span>(<span class="ident">PathItem::Index</span>(<span class="ident">idx</span>)),
-            <span class="ident">attrs</span>,
-            <span class="ident">value_type</span>: <span class="ident">value_type</span>.<span class="ident">into_iter</span>().<span class="ident">collect</span>(),
-            <span class="ident">depth</span>: <span class="self">self</span>.<span class="ident">depth</span> <span class="op">+</span> <span class="number">1</span>,
+    <span class="doccomment">/// Derives a processing state by entering an index.
+    </span><span class="kw">pub fn </span>enter_index(
+        <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>,
+        idx: usize,
+        attrs: <span class="prelude-ty">Option</span>&lt;Cow&lt;<span class="lifetime">&#39;a</span>, FieldAttrs&gt;&gt;,
+        value_type: <span class="kw">impl </span>IntoIterator&lt;Item = ValueType&gt;,
+    ) -&gt; <span class="self">Self </span>{
+        ProcessingState {
+            parent: <span class="prelude-val">Some</span>(<span class="self">self</span>),
+            path_item: <span class="prelude-val">Some</span>(PathItem::Index(idx)),
+            attrs,
+            value_type: value_type.into_iter().collect(),
+            depth: <span class="self">self</span>.depth + <span class="number">1</span>,
         }
     }
 
-    <span class="doccomment">/// Derives a processing state without adding a path segment. Useful in newtype structs.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">enter_nothing</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>, <span class="ident">attrs</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">FieldAttrs</span><span class="op">&gt;</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">ProcessingState</span> {
-            <span class="ident">attrs</span>,
-            <span class="ident">path_item</span>: <span class="prelude-val">None</span>,
-            <span class="ident">parent</span>: <span class="prelude-val">Some</span>(<span class="self">self</span>),
-            ..<span class="self">self</span>.<span class="ident">clone</span>()
+    <span class="doccomment">/// Derives a processing state without adding a path segment. Useful in newtype structs.
+    </span><span class="kw">pub fn </span>enter_nothing(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>, attrs: <span class="prelude-ty">Option</span>&lt;Cow&lt;<span class="lifetime">&#39;a</span>, FieldAttrs&gt;&gt;) -&gt; <span class="self">Self </span>{
+        ProcessingState {
+            attrs,
+            path_item: <span class="prelude-val">None</span>,
+            parent: <span class="prelude-val">Some</span>(<span class="self">self</span>),
+            ..<span class="self">self</span>.clone()
         }
     }
 
-    <span class="doccomment">/// Returns the path in the processing state.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">path</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>) -&gt; <span class="ident">Path</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-        <span class="ident">Path</span>(<span class="self">self</span>)
+    <span class="doccomment">/// Returns the path in the processing state.
+    </span><span class="kw">pub fn </span>path(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>) -&gt; Path&lt;<span class="lifetime">&#39;a</span>&gt; {
+        Path(<span class="self">self</span>)
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">value_type</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">EnumSet</span><span class="op">&lt;</span><span class="ident">ValueType</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">value_type</span>
+    <span class="kw">pub fn </span>value_type(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; EnumSet&lt;ValueType&gt; {
+        <span class="self">self</span>.value_type
     }
 
-    <span class="doccomment">/// Returns the field attributes.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">attrs</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">FieldAttrs</span> {
-        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">attrs</span> {
-            <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">cow</span>) =&gt; <span class="ident">cow</span>,
-            <span class="prelude-val">None</span> =&gt; <span class="kw-2">&amp;</span><span class="ident">DEFAULT_FIELD_ATTRS</span>,
+    <span class="doccomment">/// Returns the field attributes.
+    </span><span class="kw">pub fn </span>attrs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>FieldAttrs {
+        <span class="kw">match </span><span class="self">self</span>.attrs {
+            <span class="prelude-val">Some</span>(<span class="kw-2">ref </span>cow) =&gt; cow,
+            <span class="prelude-val">None </span>=&gt; <span class="kw-2">&amp;</span>DEFAULT_FIELD_ATTRS,
         }
     }
 
-    <span class="doccomment">/// Derives the attrs for recursion.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">inner_attrs</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span>, <span class="ident">FieldAttrs</span><span class="op">&gt;</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">attrs</span>().<span class="ident">pii</span> {
-            <span class="ident">Pii::True</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">Cow::Borrowed</span>(<span class="kw-2">&amp;</span><span class="ident">PII_TRUE_FIELD_ATTRS</span>)),
-            <span class="ident">Pii::False</span> =&gt; <span class="prelude-val">None</span>,
-            <span class="ident">Pii::Maybe</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">Cow::Borrowed</span>(<span class="kw-2">&amp;</span><span class="ident">PII_MAYBE_FIELD_ATTRS</span>)),
+    <span class="doccomment">/// Derives the attrs for recursion.
+    </span><span class="kw">pub fn </span>inner_attrs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Cow&lt;<span class="lifetime">&#39;_</span>, FieldAttrs&gt;&gt; {
+        <span class="kw">match </span><span class="self">self</span>.attrs().pii {
+            Pii::True =&gt; <span class="prelude-val">Some</span>(Cow::Borrowed(<span class="kw-2">&amp;</span>PII_TRUE_FIELD_ATTRS)),
+            Pii::False =&gt; <span class="prelude-val">None</span>,
+            Pii::Maybe =&gt; <span class="prelude-val">Some</span>(Cow::Borrowed(<span class="kw-2">&amp;</span>PII_MAYBE_FIELD_ATTRS)),
         }
     }
 
-    <span class="doccomment">/// Iterates through this state and all its ancestors up the hierarchy.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This starts at the top of the stack of processing states and ends at the root.  Thus</span>
-    <span class="doccomment">/// the first item returned is the currently visited leaf of the event structure.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">iter</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>) -&gt; <span class="ident">ProcessingStateIter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-        <span class="ident">ProcessingStateIter</span> {
-            <span class="ident">state</span>: <span class="prelude-val">Some</span>(<span class="self">self</span>),
-            <span class="ident">size</span>: <span class="self">self</span>.<span class="ident">depth</span>,
+    <span class="doccomment">/// Iterates through this state and all its ancestors up the hierarchy.
+    ///
+    /// This starts at the top of the stack of processing states and ends at the root.  Thus
+    /// the first item returned is the currently visited leaf of the event structure.
+    </span><span class="kw">pub fn </span>iter(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>) -&gt; ProcessingStateIter&lt;<span class="lifetime">&#39;a</span>&gt; {
+        ProcessingStateIter {
+            state: <span class="prelude-val">Some</span>(<span class="self">self</span>),
+            size: <span class="self">self</span>.depth,
         }
     }
 
-    <span class="doccomment">/// Return the depth (~ indentation level) of the currently processed value.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">depth</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>) -&gt; <span class="ident">usize</span> {
-        <span class="self">self</span>.<span class="ident">depth</span>
+    <span class="doccomment">/// Return the depth (~ indentation level) of the currently processed value.
+    </span><span class="kw">pub fn </span>depth(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.depth
     }
 
-    <span class="doccomment">/// Return whether the depth changed between parent and self.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This is `false` when we entered a newtype struct.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">entered_anything</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">parent</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">parent</span> {
-            <span class="ident">parent</span>.<span class="ident">depth</span>() <span class="op">!</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">depth</span>()
-        } <span class="kw">else</span> {
-            <span class="bool-val">true</span>
-        }
+    <span class="doccomment">/// Return whether the depth changed between parent and self.
+    ///
+    /// This is `false` when we entered a newtype struct.
+    </span><span class="kw">pub fn </span>entered_anything(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>) -&gt; bool {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(parent) = <span class="self">self</span>.parent {
+            parent.depth() != <span class="self">self</span>.depth()
+        } <span class="kw">else </span>{
+            <span class="bool-val">true
+        </span>}
     }
 
-    <span class="doccomment">/// Returns the last path item if there is one. Skips over &quot;dummy&quot; path segments that exist</span>
-    <span class="doccomment">/// because of newtypes.</span>
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">path_item</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">PathItem</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span><span class="op">&gt;</span> {
-        <span class="kw">for</span> <span class="ident">state</span> <span class="kw">in</span> <span class="self">self</span>.<span class="ident">iter</span>() {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">path_item</span>) <span class="op">=</span> <span class="ident">state</span>.<span class="ident">path_item</span> {
-                <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">path_item</span>);
+    <span class="doccomment">/// Returns the last path item if there is one. Skips over &quot;dummy&quot; path segments that exist
+    /// because of newtypes.
+    </span><span class="attribute">#[inline]
+    </span><span class="kw">fn </span>path_item(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>PathItem&lt;<span class="lifetime">&#39;_</span>&gt;&gt; {
+        <span class="kw">for </span>state <span class="kw">in </span><span class="self">self</span>.iter() {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>path_item) = state.path_item {
+                <span class="kw">return </span><span class="prelude-val">Some</span>(path_item);
             }
         }
-        <span class="prelude-val">None</span>
+        <span class="prelude-val">None
+    </span>}
+}
+
+<span class="kw">pub struct </span>ProcessingStateIter&lt;<span class="lifetime">&#39;a</span>&gt; {
+    state: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>ProcessingState&lt;<span class="lifetime">&#39;a</span>&gt;&gt;,
+    size: usize,
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Iterator <span class="kw">for </span>ProcessingStateIter&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="kw">type </span>Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>ProcessingState&lt;<span class="lifetime">&#39;a</span>&gt;;
+
+    <span class="kw">fn </span>next(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>::Item&gt; {
+        <span class="kw">let </span>current = <span class="self">self</span>.state<span class="question-mark">?</span>;
+        <span class="self">self</span>.state = current.parent;
+        <span class="prelude-val">Some</span>(current)
+    }
+
+    <span class="kw">fn </span>size_hint(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (usize, <span class="prelude-ty">Option</span>&lt;usize&gt;) {
+        (<span class="self">self</span>.size, <span class="prelude-val">Some</span>(<span class="self">self</span>.size))
     }
 }
 
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ProcessingStateIter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="ident">state</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-    <span class="ident">size</span>: <span class="ident">usize</span>,
-}
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; ExactSizeIterator <span class="kw">for </span>ProcessingStateIter&lt;<span class="lifetime">&#39;a</span>&gt; {}
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Iterator</span> <span class="kw">for</span> <span class="ident">ProcessingStateIter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>;
-
-    <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Item</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">current</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">state</span><span class="question-mark">?</span>;
-        <span class="self">self</span>.<span class="ident">state</span> <span class="op">=</span> <span class="ident">current</span>.<span class="ident">parent</span>;
-        <span class="prelude-val">Some</span>(<span class="ident">current</span>)
-    }
-
-    <span class="kw">fn</span> <span class="ident">size_hint</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (<span class="ident">usize</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>) {
-        (<span class="self">self</span>.<span class="ident">size</span>, <span class="prelude-val">Some</span>(<span class="self">self</span>.<span class="ident">size</span>))
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Default <span class="kw">for </span>ProcessingState&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        ProcessingState::root().clone()
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">ExactSizeIterator</span> <span class="kw">for</span> <span class="ident">ProcessingStateIter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {}
+<span class="doccomment">/// Represents the [`ProcessingState`] as a path.
+///
+/// This is a view of a [`ProcessingState`] which treats the stack of states as a path.  In
+/// particular the [`Path::matches_selector`] method allows if a selector matches this path.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>Path&lt;<span class="lifetime">&#39;a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>ProcessingState&lt;<span class="lifetime">&#39;a</span>&gt;);
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
-        <span class="ident">ProcessingState::root</span>().<span class="ident">clone</span>()
-    }
-}
-
-<span class="doccomment">/// Represents the [`ProcessingState`] as a path.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This is a view of a [`ProcessingState`] which treats the stack of states as a path.  In</span>
-<span class="doccomment">/// particular the [`Path::matches_selector`] method allows if a selector matches this path.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Path</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>);
-
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Path</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="doccomment">/// Returns the current key if there is one</span>
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
-        <span class="ident">PathItem::key</span>(<span class="self">self</span>.<span class="number">0</span>.<span class="ident">path_item</span>()<span class="question-mark">?</span>)
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Path&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="doccomment">/// Returns the current key if there is one
+    </span><span class="attribute">#[inline]
+    </span><span class="kw">pub fn </span>key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
+        PathItem::key(<span class="self">self</span>.<span class="number">0</span>.path_item()<span class="question-mark">?</span>)
     }
 
-    <span class="doccomment">/// Returns the current index if there is one</span>
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">index</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
-        <span class="ident">PathItem::index</span>(<span class="self">self</span>.<span class="number">0</span>.<span class="ident">path_item</span>()<span class="question-mark">?</span>)
+    <span class="doccomment">/// Returns the current index if there is one
+    </span><span class="attribute">#[inline]
+    </span><span class="kw">pub fn </span>index(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;usize&gt; {
+        PathItem::index(<span class="self">self</span>.<span class="number">0</span>.path_item()<span class="question-mark">?</span>)
     }
 
-    <span class="doccomment">/// Checks if a path matches given selector.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This walks both the selector and the path starting at the end and towards the root</span>
-    <span class="doccomment">/// to determine if the selector matches the current path.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">matches_selector</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">selector</span>: <span class="kw-2">&amp;</span><span class="ident">SelectorSpec</span>) -&gt; <span class="ident">bool</span> {
-        <span class="kw">let</span> <span class="ident">pii</span> <span class="op">=</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">attrs</span>().<span class="ident">pii</span>;
-        <span class="kw">if</span> <span class="ident">pii</span> <span class="op">==</span> <span class="ident">Pii::False</span> {
-            <span class="kw">return</span> <span class="bool-val">false</span>;
+    <span class="doccomment">/// Checks if a path matches given selector.
+    ///
+    /// This walks both the selector and the path starting at the end and towards the root
+    /// to determine if the selector matches the current path.
+    </span><span class="kw">pub fn </span>matches_selector(<span class="kw-2">&amp;</span><span class="self">self</span>, selector: <span class="kw-2">&amp;</span>SelectorSpec) -&gt; bool {
+        <span class="kw">let </span>pii = <span class="self">self</span>.<span class="number">0</span>.attrs().pii;
+        <span class="kw">if </span>pii == Pii::False {
+            <span class="kw">return </span><span class="bool-val">false</span>;
         }
 
-        <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">selector</span> {
-            <span class="ident">SelectorSpec::Path</span>(<span class="kw-2">ref</span> <span class="ident">path</span>) =&gt; {
-                <span class="comment">// fastest path: the selector is deeper than the current structure.</span>
-                <span class="kw">if</span> <span class="ident">path</span>.<span class="ident">len</span>() <span class="op">&gt;</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">depth</span> {
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
+        <span class="kw">match </span><span class="kw-2">*</span>selector {
+            SelectorSpec::Path(<span class="kw-2">ref </span>path) =&gt; {
+                <span class="comment">// fastest path: the selector is deeper than the current structure.
+                </span><span class="kw">if </span>path.len() &gt; <span class="self">self</span>.<span class="number">0</span>.depth {
+                    <span class="kw">return </span><span class="bool-val">false</span>;
                 }
 
-                <span class="comment">// fast path: we do not have any deep matches</span>
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">state_iter</span> <span class="op">=</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">iter</span>().<span class="ident">filter</span>(<span class="op">|</span><span class="ident">state</span><span class="op">|</span> <span class="ident">state</span>.<span class="ident">entered_anything</span>());
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">selector_iter</span> <span class="op">=</span> <span class="ident">path</span>.<span class="ident">iter</span>().<span class="ident">enumerate</span>().<span class="ident">rev</span>();
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">depth_match</span> <span class="op">=</span> <span class="bool-val">false</span>;
-                <span class="kw">for</span> <span class="ident">state</span> <span class="kw">in</span> <span class="kw-2">&amp;mut</span> <span class="ident">state_iter</span> {
-                    <span class="kw">match</span> <span class="ident">selector_iter</span>.<span class="ident">next</span>() {
-                        <span class="prelude-val">Some</span>((<span class="ident">i</span>, <span class="ident">path_item</span>)) =&gt; {
-                            <span class="kw">if</span> <span class="op">!</span><span class="ident">path_item</span>.<span class="ident">matches_state</span>(<span class="ident">pii</span>, <span class="ident">i</span>, <span class="ident">state</span>) {
-                                <span class="kw">return</span> <span class="bool-val">false</span>;
+                <span class="comment">// fast path: we do not have any deep matches
+                </span><span class="kw">let </span><span class="kw-2">mut </span>state_iter = <span class="self">self</span>.<span class="number">0</span>.iter().filter(|state| state.entered_anything());
+                <span class="kw">let </span><span class="kw-2">mut </span>selector_iter = path.iter().enumerate().rev();
+                <span class="kw">let </span><span class="kw-2">mut </span>depth_match = <span class="bool-val">false</span>;
+                <span class="kw">for </span>state <span class="kw">in </span><span class="kw-2">&amp;mut </span>state_iter {
+                    <span class="kw">match </span>selector_iter.next() {
+                        <span class="prelude-val">Some</span>((i, path_item)) =&gt; {
+                            <span class="kw">if </span>!path_item.matches_state(pii, i, state) {
+                                <span class="kw">return </span><span class="bool-val">false</span>;
                             }
 
-                            <span class="kw">if</span> <span class="macro">matches!</span>(<span class="ident">path_item</span>, <span class="ident">SelectorPathItem::DeepWildcard</span>) {
-                                <span class="ident">depth_match</span> <span class="op">=</span> <span class="bool-val">true</span>;
+                            <span class="kw">if </span><span class="macro">matches!</span>(path_item, SelectorPathItem::DeepWildcard) {
+                                depth_match = <span class="bool-val">true</span>;
                                 <span class="kw">break</span>;
                             }
                         }
-                        <span class="prelude-val">None</span> =&gt; <span class="kw">break</span>,
+                        <span class="prelude-val">None </span>=&gt; <span class="kw">break</span>,
                     }
                 }
 
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">depth_match</span> {
-                    <span class="kw">return</span> <span class="bool-val">true</span>;
+                <span class="kw">if </span>!depth_match {
+                    <span class="kw">return </span><span class="bool-val">true</span>;
                 }
 
-                <span class="comment">// slow path: we collect the remaining states and skip up to the first</span>
-                <span class="comment">// match of the selector.</span>
-                <span class="kw">let</span> <span class="ident">remaining_states</span> <span class="op">=</span> <span class="ident">state_iter</span>.<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">SmallVec</span><span class="op">&lt;</span>[<span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>; <span class="number">16</span>]<span class="op">&gt;</span><span class="op">&gt;</span>();
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">selector_iter</span> <span class="op">=</span> <span class="ident">selector_iter</span>.<span class="ident">rev</span>().<span class="ident">peekable</span>();
-                <span class="kw">let</span> (<span class="ident">first_selector_i</span>, <span class="ident">first_selector_path</span>) <span class="op">=</span> <span class="kw">match</span> <span class="ident">selector_iter</span>.<span class="ident">next</span>() {
-                    <span class="prelude-val">Some</span>(<span class="ident">selector_path</span>) =&gt; <span class="ident">selector_path</span>,
-                    <span class="prelude-val">None</span> =&gt; <span class="kw">return</span> <span class="op">!</span><span class="ident">remaining_states</span>.<span class="ident">is_empty</span>(),
+                <span class="comment">// slow path: we collect the remaining states and skip up to the first
+                // match of the selector.
+                </span><span class="kw">let </span>remaining_states = state_iter.collect::&lt;SmallVec&lt;[<span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;; <span class="number">16</span>]&gt;&gt;();
+                <span class="kw">let </span><span class="kw-2">mut </span>selector_iter = selector_iter.rev().peekable();
+                <span class="kw">let </span>(first_selector_i, first_selector_path) = <span class="kw">match </span>selector_iter.next() {
+                    <span class="prelude-val">Some</span>(selector_path) =&gt; selector_path,
+                    <span class="prelude-val">None </span>=&gt; <span class="kw">return </span>!remaining_states.is_empty(),
                 };
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">path_match_iterator</span> <span class="op">=</span> <span class="ident">remaining_states</span>.<span class="ident">iter</span>().<span class="ident">rev</span>().<span class="ident">skip_while</span>(<span class="op">|</span><span class="ident">state</span><span class="op">|</span> {
-                    <span class="op">!</span><span class="ident">first_selector_path</span>.<span class="ident">matches_state</span>(<span class="ident">pii</span>, <span class="ident">first_selector_i</span>, <span class="ident">state</span>)
+                <span class="kw">let </span><span class="kw-2">mut </span>path_match_iterator = remaining_states.iter().rev().skip_while(|state| {
+                    !first_selector_path.matches_state(pii, first_selector_i, state)
                 });
-                <span class="kw">if</span> <span class="ident">path_match_iterator</span>.<span class="ident">next</span>().<span class="ident">is_none</span>() {
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
+                <span class="kw">if </span>path_match_iterator.next().is_none() {
+                    <span class="kw">return </span><span class="bool-val">false</span>;
                 }
 
-                <span class="comment">// then we check all remaining items and that nothing is left of the selector</span>
-                <span class="ident">path_match_iterator</span>
-                    .<span class="ident">zip</span>(<span class="kw-2">&amp;mut</span> <span class="ident">selector_iter</span>)
-                    .<span class="ident">all</span>(<span class="op">|</span>(<span class="ident">state</span>, (<span class="ident">i</span>, <span class="ident">selector_path</span>))<span class="op">|</span> <span class="ident">selector_path</span>.<span class="ident">matches_state</span>(<span class="ident">pii</span>, <span class="ident">i</span>, <span class="ident">state</span>))
-                    <span class="op">&amp;&amp;</span> <span class="ident">selector_iter</span>.<span class="ident">next</span>().<span class="ident">is_none</span>()
+                <span class="comment">// then we check all remaining items and that nothing is left of the selector
+                </span>path_match_iterator
+                    .zip(<span class="kw-2">&amp;mut </span>selector_iter)
+                    .all(|(state, (i, selector_path))| selector_path.matches_state(pii, i, state))
+                    &amp;&amp; selector_iter.next().is_none()
             }
-            <span class="ident">SelectorSpec::And</span>(<span class="kw-2">ref</span> <span class="ident">xs</span>) =&gt; <span class="ident">xs</span>.<span class="ident">iter</span>().<span class="ident">all</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">matches_selector</span>(<span class="ident">x</span>)),
-            <span class="ident">SelectorSpec::Or</span>(<span class="kw-2">ref</span> <span class="ident">xs</span>) =&gt; <span class="ident">xs</span>.<span class="ident">iter</span>().<span class="ident">any</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">matches_selector</span>(<span class="ident">x</span>)),
-            <span class="ident">SelectorSpec::Not</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) =&gt; <span class="op">!</span><span class="self">self</span>.<span class="ident">matches_selector</span>(<span class="ident">x</span>),
+            SelectorSpec::And(<span class="kw-2">ref </span>xs) =&gt; xs.iter().all(|x| <span class="self">self</span>.matches_selector(x)),
+            SelectorSpec::Or(<span class="kw-2">ref </span>xs) =&gt; xs.iter().any(|x| <span class="self">self</span>.matches_selector(x)),
+            SelectorSpec::Not(<span class="kw-2">ref </span>x) =&gt; !<span class="self">self</span>.matches_selector(x),
         }
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">Path</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">items</span> <span class="op">=</span> <span class="ident">Vec::with_capacity</span>(<span class="self">self</span>.<span class="number">0</span>.<span class="ident">depth</span>);
-        <span class="kw">for</span> <span class="ident">state</span> <span class="kw">in</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">iter</span>() {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">path_item</span>) <span class="op">=</span> <span class="ident">state</span>.<span class="ident">path_item</span> {
-                <span class="ident">items</span>.<span class="ident">push</span>(<span class="ident">path_item</span>)
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; fmt::Display <span class="kw">for </span>Path&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">let </span><span class="kw-2">mut </span>items = Vec::with_capacity(<span class="self">self</span>.<span class="number">0</span>.depth);
+        <span class="kw">for </span>state <span class="kw">in </span><span class="self">self</span>.<span class="number">0</span>.iter() {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>path_item) = state.path_item {
+                items.push(path_item)
             }
         }
 
-        <span class="kw">for</span> (<span class="ident">idx</span>, <span class="ident">item</span>) <span class="kw">in</span> <span class="ident">items</span>.<span class="ident">into_iter</span>().<span class="ident">rev</span>().<span class="ident">enumerate</span>() {
-            <span class="kw">if</span> <span class="ident">idx</span> <span class="op">&gt;</span> <span class="number">0</span> {
-                <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;.&quot;</span>)<span class="question-mark">?</span>;
+        <span class="kw">for </span>(idx, item) <span class="kw">in </span>items.into_iter().rev().enumerate() {
+            <span class="kw">if </span>idx &gt; <span class="number">0 </span>{
+                <span class="macro">write!</span>(f, <span class="string">&quot;.&quot;</span>)<span class="question-mark">?</span>;
             }
-            <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="ident">item</span>)<span class="question-mark">?</span>;
+            <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, item)<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">itertools::Itertools</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>itertools::Itertools;
 
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="macro">macro_rules!</span> <span class="ident">assert_matches_raw</span> {
-        (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">state</span>:<span class="ident">expr</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">selector</span>:<span class="ident">expr</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">expected</span>:<span class="ident">expr</span>) =&gt; {{
-            <span class="kw">let</span> <span class="ident">actual</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">state</span>.<span class="ident">path</span>().<span class="ident">matches_selector</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">selector</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>());
+    <span class="macro">macro_rules! </span>assert_matches_raw {
+        (<span class="macro-nonterminal">$state</span>:expr, <span class="macro-nonterminal">$selector</span>:expr, <span class="macro-nonterminal">$expected</span>:expr) =&gt; {{
+            <span class="kw">let </span>actual = <span class="macro-nonterminal">$state</span>.path().matches_selector(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$selector</span>.parse().unwrap());
             <span class="macro">assert!</span>(
-                <span class="ident">actual</span> <span class="op">==</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">expected</span>,
+                actual == <span class="macro-nonterminal">$expected</span>,
                 <span class="string">&quot;Matched {} against {}, expected {:?}, actually {:?}&quot;</span>,
-                <span class="macro-nonterminal">$</span><span class="macro-nonterminal">selector</span>,
-                <span class="macro-nonterminal">$</span><span class="macro-nonterminal">state</span>.<span class="ident">path</span>(),
-                <span class="macro-nonterminal">$</span><span class="macro-nonterminal">expected</span>,
-                <span class="ident">actual</span>
+                <span class="macro-nonterminal">$selector</span>,
+                <span class="macro-nonterminal">$state</span>.path(),
+                <span class="macro-nonterminal">$expected</span>,
+                actual
             );
         }};
     }
 
-    <span class="macro">macro_rules!</span> <span class="ident">assert_matches_pii_maybe</span> {
-        (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">state</span>:<span class="ident">expr</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">selector</span>:<span class="ident">expr</span>,)<span class="kw-2">*</span>) =&gt; {{
-            <span class="macro">assert_matches_pii_true!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">state</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">selector</span>,)<span class="kw-2">*</span>);
-            <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">state</span>;
-            <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">enter_nothing</span>(<span class="prelude-val">Some</span>(<span class="ident">Cow::Borrowed</span>(<span class="kw-2">&amp;</span><span class="ident">PII_MAYBE_FIELD_ATTRS</span>)));
+    <span class="macro">macro_rules! </span>assert_matches_pii_maybe {
+        (<span class="macro-nonterminal">$state</span>:expr, $(<span class="macro-nonterminal">$selector</span>:expr,)<span class="kw-2">*</span>) =&gt; {{
+            <span class="macro">assert_matches_pii_true!</span>(<span class="macro-nonterminal">$state</span>, $(<span class="macro-nonterminal">$selector</span>,)<span class="kw-2">*</span>);
+            <span class="kw">let </span>state = <span class="kw-2">&amp;</span><span class="macro-nonterminal">$state</span>;
+            <span class="kw">let </span>state = state.enter_nothing(<span class="prelude-val">Some</span>(Cow::Borrowed(<span class="kw-2">&amp;</span>PII_MAYBE_FIELD_ATTRS)));
 
             $(
-                <span class="macro">assert_matches_raw!</span>(<span class="ident">state</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">selector</span>, <span class="bool-val">true</span>);
-            )<span class="op">*</span>
+                <span class="macro">assert_matches_raw!</span>(state, <span class="macro-nonterminal">$selector</span>, <span class="bool-val">true</span>);
+            )*
 
-            <span class="kw">let</span> <span class="ident">joined</span> <span class="op">=</span> <span class="macro">vec!</span>[$(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">selector</span>),<span class="kw-2">*</span>].<span class="ident">into_iter</span>().<span class="ident">join</span>(<span class="string">&quot; &amp;&amp; &quot;</span>);
-            <span class="macro">assert_matches_raw!</span>(<span class="ident">state</span>, <span class="kw-2">&amp;</span><span class="ident">joined</span>, <span class="bool-val">true</span>);
+            <span class="kw">let </span>joined = <span class="macro">vec!</span>[$(<span class="macro-nonterminal">$selector</span>),<span class="kw-2">*</span>].into_iter().join(<span class="string">&quot; &amp;&amp; &quot;</span>);
+            <span class="macro">assert_matches_raw!</span>(state, <span class="kw-2">&amp;</span>joined, <span class="bool-val">true</span>);
 
-            <span class="kw">let</span> <span class="ident">joined</span> <span class="op">=</span> <span class="macro">vec!</span>[$(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">selector</span>),<span class="kw-2">*</span>].<span class="ident">into_iter</span>().<span class="ident">join</span>(<span class="string">&quot; || &quot;</span>);
-            <span class="macro">assert_matches_raw!</span>(<span class="ident">state</span>, <span class="kw-2">&amp;</span><span class="ident">joined</span>, <span class="bool-val">true</span>);
+            <span class="kw">let </span>joined = <span class="macro">vec!</span>[$(<span class="macro-nonterminal">$selector</span>),<span class="kw-2">*</span>].into_iter().join(<span class="string">&quot; || &quot;</span>);
+            <span class="macro">assert_matches_raw!</span>(state, <span class="kw-2">&amp;</span>joined, <span class="bool-val">true</span>);
 
-            <span class="kw">let</span> <span class="ident">joined</span> <span class="op">=</span> <span class="macro">vec!</span>[<span class="string">&quot;**&quot;</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">selector</span>),<span class="kw-2">*</span>].<span class="ident">into_iter</span>().<span class="ident">join</span>(<span class="string">&quot; || &quot;</span>);
-            <span class="macro">assert_matches_raw!</span>(<span class="ident">state</span>, <span class="kw-2">&amp;</span><span class="ident">joined</span>, <span class="bool-val">true</span>);
+            <span class="kw">let </span>joined = <span class="macro">vec!</span>[<span class="string">&quot;**&quot;</span>, $(<span class="macro-nonterminal">$selector</span>),<span class="kw-2">*</span>].into_iter().join(<span class="string">&quot; || &quot;</span>);
+            <span class="macro">assert_matches_raw!</span>(state, <span class="kw-2">&amp;</span>joined, <span class="bool-val">true</span>);
         }}
     }
 
-    <span class="macro">macro_rules!</span> <span class="ident">assert_matches_pii_true</span> {
-        (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">state</span>:<span class="ident">expr</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">selector</span>:<span class="ident">expr</span>,)<span class="kw-2">*</span>) =&gt; {{
-            <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">state</span>;
-            <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">enter_nothing</span>(<span class="prelude-val">Some</span>(<span class="ident">Cow::Borrowed</span>(<span class="kw-2">&amp;</span><span class="ident">PII_TRUE_FIELD_ATTRS</span>)));
+    <span class="macro">macro_rules! </span>assert_matches_pii_true {
+        (<span class="macro-nonterminal">$state</span>:expr, $(<span class="macro-nonterminal">$selector</span>:expr,)<span class="kw-2">*</span>) =&gt; {{
+            <span class="kw">let </span>state = <span class="kw-2">&amp;</span><span class="macro-nonterminal">$state</span>;
+            <span class="kw">let </span>state = state.enter_nothing(<span class="prelude-val">Some</span>(Cow::Borrowed(<span class="kw-2">&amp;</span>PII_TRUE_FIELD_ATTRS)));
             $(
-                <span class="macro">assert_matches_raw!</span>(<span class="ident">state</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">selector</span>, <span class="bool-val">true</span>);
-            )<span class="op">*</span>
+                <span class="macro">assert_matches_raw!</span>(state, <span class="macro-nonterminal">$selector</span>, <span class="bool-val">true</span>);
+            )*
 
-            <span class="kw">let</span> <span class="ident">joined</span> <span class="op">=</span> <span class="macro">vec!</span>[$(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">selector</span>),<span class="kw-2">*</span>].<span class="ident">into_iter</span>().<span class="ident">join</span>(<span class="string">&quot; &amp;&amp; &quot;</span>);
-            <span class="macro">assert_matches_raw!</span>(<span class="ident">state</span>, <span class="kw-2">&amp;</span><span class="ident">joined</span>, <span class="bool-val">true</span>);
+            <span class="kw">let </span>joined = <span class="macro">vec!</span>[$(<span class="macro-nonterminal">$selector</span>),<span class="kw-2">*</span>].into_iter().join(<span class="string">&quot; &amp;&amp; &quot;</span>);
+            <span class="macro">assert_matches_raw!</span>(state, <span class="kw-2">&amp;</span>joined, <span class="bool-val">true</span>);
 
-            <span class="kw">let</span> <span class="ident">joined</span> <span class="op">=</span> <span class="macro">vec!</span>[$(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">selector</span>),<span class="kw-2">*</span>].<span class="ident">into_iter</span>().<span class="ident">join</span>(<span class="string">&quot; || &quot;</span>);
-            <span class="macro">assert_matches_raw!</span>(<span class="ident">state</span>, <span class="kw-2">&amp;</span><span class="ident">joined</span>, <span class="bool-val">true</span>);
+            <span class="kw">let </span>joined = <span class="macro">vec!</span>[$(<span class="macro-nonterminal">$selector</span>),<span class="kw-2">*</span>].into_iter().join(<span class="string">&quot; || &quot;</span>);
+            <span class="macro">assert_matches_raw!</span>(state, <span class="kw-2">&amp;</span>joined, <span class="bool-val">true</span>);
 
-            <span class="kw">let</span> <span class="ident">joined</span> <span class="op">=</span> <span class="macro">vec!</span>[<span class="string">&quot;**&quot;</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">selector</span>),<span class="kw-2">*</span>].<span class="ident">into_iter</span>().<span class="ident">join</span>(<span class="string">&quot; || &quot;</span>);
-            <span class="macro">assert_matches_raw!</span>(<span class="ident">state</span>, <span class="kw-2">&amp;</span><span class="ident">joined</span>, <span class="bool-val">true</span>);
+            <span class="kw">let </span>joined = <span class="macro">vec!</span>[<span class="string">&quot;**&quot;</span>, $(<span class="macro-nonterminal">$selector</span>),<span class="kw-2">*</span>].into_iter().join(<span class="string">&quot; || &quot;</span>);
+            <span class="macro">assert_matches_raw!</span>(state, <span class="kw-2">&amp;</span>joined, <span class="bool-val">true</span>);
         }}
     }
 
-    <span class="macro">macro_rules!</span> <span class="ident">assert_not_matches</span> {
-        (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">state</span>:<span class="ident">expr</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">selector</span>:<span class="ident">expr</span>,)<span class="kw-2">*</span>) =&gt; {{
-            <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">state</span>;
+    <span class="macro">macro_rules! </span>assert_not_matches {
+        (<span class="macro-nonterminal">$state</span>:expr, $(<span class="macro-nonterminal">$selector</span>:expr,)<span class="kw-2">*</span>) =&gt; {{
+            <span class="kw">let </span>state = <span class="kw-2">&amp;</span><span class="macro-nonterminal">$state</span>;
             $(
-                <span class="macro">assert_matches_raw!</span>(<span class="ident">state</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">selector</span>, <span class="bool-val">false</span>);
-            )<span class="op">*</span>
+                <span class="macro">assert_matches_raw!</span>(state, <span class="macro-nonterminal">$selector</span>, <span class="bool-val">false</span>);
+            )*
         }}
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_matching</span>() {
-        <span class="kw">let</span> <span class="ident">event_state</span> <span class="op">=</span> <span class="ident">ProcessingState::new_root</span>(<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="ident">ValueType::Event</span>)); <span class="comment">// .</span>
-        <span class="kw">let</span> <span class="ident">user_state</span> <span class="op">=</span> <span class="ident">event_state</span>.<span class="ident">enter_static</span>(<span class="string">&quot;user&quot;</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="ident">ValueType::User</span>)); <span class="comment">// .user</span>
-        <span class="kw">let</span> <span class="ident">extra_state</span> <span class="op">=</span> <span class="ident">user_state</span>.<span class="ident">enter_static</span>(<span class="string">&quot;extra&quot;</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="ident">ValueType::Object</span>)); <span class="comment">// .user.extra</span>
-        <span class="kw">let</span> <span class="ident">foo_state</span> <span class="op">=</span> <span class="ident">extra_state</span>.<span class="ident">enter_static</span>(<span class="string">&quot;foo&quot;</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="ident">ValueType::Array</span>)); <span class="comment">// .user.extra.foo</span>
-        <span class="kw">let</span> <span class="ident">zero_state</span> <span class="op">=</span> <span class="ident">foo_state</span>.<span class="ident">enter_index</span>(<span class="number">0</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>); <span class="comment">// .user.extra.foo.0</span>
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_matching() {
+        <span class="kw">let </span>event_state = ProcessingState::new_root(<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(ValueType::Event)); <span class="comment">// .
+        </span><span class="kw">let </span>user_state = event_state.enter_static(<span class="string">&quot;user&quot;</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(ValueType::User)); <span class="comment">// .user
+        </span><span class="kw">let </span>extra_state = user_state.enter_static(<span class="string">&quot;extra&quot;</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(ValueType::Object)); <span class="comment">// .user.extra
+        </span><span class="kw">let </span>foo_state = extra_state.enter_static(<span class="string">&quot;foo&quot;</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(ValueType::Array)); <span class="comment">// .user.extra.foo
+        </span><span class="kw">let </span>zero_state = foo_state.enter_index(<span class="number">0</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>); <span class="comment">// .user.extra.foo.0
 
-        <span class="macro">assert_matches_pii_maybe!</span>(
-            <span class="ident">extra_state</span>,
-            <span class="string">&quot;user.extra&quot;</span>,  <span class="comment">// this is an exact match to the state</span>
-            <span class="string">&quot;$user.extra&quot;</span>, <span class="comment">// this is a match below a type</span>
-            <span class="string">&quot;(** || user.*) &amp;&amp; !(foo.bar.baz || a.b.c)&quot;</span>,
+        </span><span class="macro">assert_matches_pii_maybe!</span>(
+            extra_state,
+            <span class="string">&quot;user.extra&quot;</span>,  <span class="comment">// this is an exact match to the state
+            </span><span class="string">&quot;$user.extra&quot;</span>, <span class="comment">// this is a match below a type
+            </span><span class="string">&quot;(** || user.*) &amp;&amp; !(foo.bar.baz || a.b.c)&quot;</span>,
         );
 
         <span class="macro">assert_matches_pii_true!</span>(
-            <span class="ident">extra_state</span>,
-            <span class="comment">// known limitation: double-negations *could* be specific (I&#39;d expect this as a user), but</span>
-            <span class="comment">// right now we don&#39;t support it</span>
-            <span class="string">&quot;!(!user.extra)&quot;</span>,
+            extra_state,
+            <span class="comment">// known limitation: double-negations *could* be specific (I&#39;d expect this as a user), but
+            // right now we don&#39;t support it
+            </span><span class="string">&quot;!(!user.extra)&quot;</span>,
             <span class="string">&quot;!(!$user.extra)&quot;</span>,
         );
 
         <span class="macro">assert_matches_pii_maybe!</span>(
-            <span class="ident">foo_state</span>,
-            <span class="string">&quot;$user.extra.*&quot;</span>, <span class="comment">// this is a wildcard match into a type</span>
-        );
+            foo_state,
+            <span class="string">&quot;$user.extra.*&quot;</span>, <span class="comment">// this is a wildcard match into a type
+        </span>);
 
         <span class="macro">assert_matches_pii_maybe!</span>(
-            <span class="ident">zero_state</span>,
-            <span class="string">&quot;$user.extra.foo.*&quot;</span>, <span class="comment">// a wildcard match into an array</span>
-            <span class="string">&quot;$user.extra.foo.0&quot;</span>, <span class="comment">// a direct match into an array</span>
-        );
+            zero_state,
+            <span class="string">&quot;$user.extra.foo.*&quot;</span>, <span class="comment">// a wildcard match into an array
+            </span><span class="string">&quot;$user.extra.foo.0&quot;</span>, <span class="comment">// a direct match into an array
+        </span>);
 
         <span class="macro">assert_matches_pii_true!</span>(
-            <span class="ident">zero_state</span>,
-            <span class="comment">// deep matches are wild</span>
-            <span class="string">&quot;$user.extra.foo.**&quot;</span>,
+            zero_state,
+            <span class="comment">// deep matches are wild
+            </span><span class="string">&quot;$user.extra.foo.**&quot;</span>,
             <span class="string">&quot;$user.extra.**&quot;</span>,
             <span class="string">&quot;$user.**&quot;</span>,
             <span class="string">&quot;$event.**&quot;</span>,
             <span class="string">&quot;$user.**.0&quot;</span>,
-            <span class="comment">// types are anywhere</span>
-            <span class="string">&quot;$user.$object.**.0&quot;</span>,
+            <span class="comment">// types are anywhere
+            </span><span class="string">&quot;$user.$object.**.0&quot;</span>,
             <span class="string">&quot;(**.0 | absolutebogus)&quot;</span>,
             <span class="string">&quot;(~$object)&quot;</span>,
             <span class="string">&quot;($object.** &amp; (~absolutebogus))&quot;</span>,
@@ -1628,10 +1628,10 @@
         );
 
         <span class="macro">assert_not_matches!</span>(
-            <span class="ident">zero_state</span>,
-            <span class="string">&quot;$user.extra.foo.1&quot;</span>, <span class="comment">// direct mismatch in an array</span>
-            <span class="comment">// deep matches are wild</span>
-            <span class="string">&quot;$user.extra.bar.**&quot;</span>,
+            zero_state,
+            <span class="string">&quot;$user.extra.foo.1&quot;</span>, <span class="comment">// direct mismatch in an array
+            // deep matches are wild
+            </span><span class="string">&quot;$user.extra.bar.**&quot;</span>,
             <span class="string">&quot;$user.**.1&quot;</span>,
             <span class="string">&quot;($object | absolutebogus)&quot;</span>,
             <span class="string">&quot;($object &amp; absolutebogus)&quot;</span>,
@@ -1640,43 +1640,43 @@
         );
 
         <span class="macro">assert_matches_pii_true!</span>(
-            <span class="ident">foo_state</span>,
+            foo_state,
             <span class="string">&quot;($array &amp; $object.*)&quot;</span>,
             <span class="string">&quot;(** &amp; $object.*)&quot;</span>,
             <span class="string">&quot;**.$array&quot;</span>,
         );
 
-        <span class="macro">assert_not_matches!</span>(<span class="ident">foo_state</span>, <span class="string">&quot;($object &amp; $object.*)&quot;</span>,);
+        <span class="macro">assert_not_matches!</span>(foo_state, <span class="string">&quot;($object &amp; $object.*)&quot;</span>,);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_attachments_matching</span>() {
-        <span class="kw">let</span> <span class="ident">event_state</span> <span class="op">=</span> <span class="ident">ProcessingState::new_root</span>(<span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
-        <span class="kw">let</span> <span class="ident">attachments_state</span> <span class="op">=</span> <span class="ident">event_state</span>.<span class="ident">enter_static</span>(<span class="string">&quot;&quot;</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="ident">ValueType::Attachments</span>)); <span class="comment">// .</span>
-        <span class="kw">let</span> <span class="ident">txt_state</span> <span class="op">=</span> <span class="ident">attachments_state</span>.<span class="ident">enter_static</span>(<span class="string">&quot;file.txt&quot;</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="ident">ValueType::Binary</span>)); <span class="comment">// .&#39;file.txt&#39;</span>
-        <span class="kw">let</span> <span class="ident">minidump_state</span> <span class="op">=</span>
-            <span class="ident">attachments_state</span>.<span class="ident">enter_static</span>(<span class="string">&quot;file.dmp&quot;</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="ident">ValueType::Minidump</span>)); <span class="comment">// .&#39;file.txt&#39;</span>
-        <span class="kw">let</span> <span class="ident">minidump_state_inner</span> <span class="op">=</span> <span class="ident">minidump_state</span>.<span class="ident">enter_static</span>(<span class="string">&quot;&quot;</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="ident">ValueType::Binary</span>)); <span class="comment">// .&#39;file.txt&#39;</span>
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_attachments_matching() {
+        <span class="kw">let </span>event_state = ProcessingState::new_root(<span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
+        <span class="kw">let </span>attachments_state = event_state.enter_static(<span class="string">&quot;&quot;</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(ValueType::Attachments)); <span class="comment">// .
+        </span><span class="kw">let </span>txt_state = attachments_state.enter_static(<span class="string">&quot;file.txt&quot;</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(ValueType::Binary)); <span class="comment">// .&#39;file.txt&#39;
+        </span><span class="kw">let </span>minidump_state =
+            attachments_state.enter_static(<span class="string">&quot;file.dmp&quot;</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(ValueType::Minidump)); <span class="comment">// .&#39;file.txt&#39;
+        </span><span class="kw">let </span>minidump_state_inner = minidump_state.enter_static(<span class="string">&quot;&quot;</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(ValueType::Binary)); <span class="comment">// .&#39;file.txt&#39;
 
-        <span class="macro">assert_matches_pii_maybe!</span>(<span class="ident">attachments_state</span>, <span class="string">&quot;$attachments&quot;</span>,);
-        <span class="macro">assert_matches_pii_maybe!</span>(<span class="ident">txt_state</span>, <span class="string">&quot;$attachments.&#39;file.txt&#39;&quot;</span>,);
+        </span><span class="macro">assert_matches_pii_maybe!</span>(attachments_state, <span class="string">&quot;$attachments&quot;</span>,);
+        <span class="macro">assert_matches_pii_maybe!</span>(txt_state, <span class="string">&quot;$attachments.&#39;file.txt&#39;&quot;</span>,);
 
-        <span class="macro">assert_matches_pii_true!</span>(<span class="ident">txt_state</span>, <span class="string">&quot;$binary&quot;</span>,);
-        <span class="comment">// WAT.  All entire attachments are binary, so why not be able to select them (specific)</span>
-        <span class="comment">// like this?  Especially since we can select them with wildcard.</span>
-        <span class="macro">assert_matches_pii_true!</span>(<span class="ident">txt_state</span>, <span class="string">&quot;$attachments.$binary&quot;</span>,);
+        <span class="macro">assert_matches_pii_true!</span>(txt_state, <span class="string">&quot;$binary&quot;</span>,);
+        <span class="comment">// WAT.  All entire attachments are binary, so why not be able to select them (specific)
+        // like this?  Especially since we can select them with wildcard.
+        </span><span class="macro">assert_matches_pii_true!</span>(txt_state, <span class="string">&quot;$attachments.$binary&quot;</span>,);
 
-        <span class="comment">// WAT.  This is not problematic but rather... weird?</span>
-        <span class="macro">assert_matches_pii_maybe!</span>(<span class="ident">txt_state</span>, <span class="string">&quot;$attachments.*&quot;</span>,);
-        <span class="macro">assert_matches_pii_true!</span>(<span class="ident">txt_state</span>, <span class="string">&quot;$attachments.**&quot;</span>,);
+        <span class="comment">// WAT.  This is not problematic but rather... weird?
+        </span><span class="macro">assert_matches_pii_maybe!</span>(txt_state, <span class="string">&quot;$attachments.*&quot;</span>,);
+        <span class="macro">assert_matches_pii_true!</span>(txt_state, <span class="string">&quot;$attachments.**&quot;</span>,);
 
-        <span class="macro">assert_matches_pii_maybe!</span>(<span class="ident">minidump_state</span>, <span class="string">&quot;$minidump&quot;</span>,);
-        <span class="comment">// WAT.  This should not behave differently from plain $minidump</span>
-        <span class="macro">assert_matches_pii_true!</span>(<span class="ident">minidump_state</span>, <span class="string">&quot;$attachments.$minidump&quot;</span>,);
+        <span class="macro">assert_matches_pii_maybe!</span>(minidump_state, <span class="string">&quot;$minidump&quot;</span>,);
+        <span class="comment">// WAT.  This should not behave differently from plain $minidump
+        </span><span class="macro">assert_matches_pii_true!</span>(minidump_state, <span class="string">&quot;$attachments.$minidump&quot;</span>,);
 
-        <span class="comment">// WAT.  We have the full path to a field here.</span>
-        <span class="macro">assert_matches_pii_true!</span>(<span class="ident">minidump_state_inner</span>, <span class="string">&quot;$attachments.$minidump.$binary&quot;</span>,);
+        <span class="comment">// WAT.  We have the full path to a field here.
+        </span><span class="macro">assert_matches_pii_true!</span>(minidump_state_inner, <span class="string">&quot;$attachments.$minidump.$binary&quot;</span>,);
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

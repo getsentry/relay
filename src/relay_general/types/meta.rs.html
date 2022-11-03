@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/types/meta.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>meta.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/types/meta.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>meta.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_general/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -627,632 +627,632 @@
 <span id="625">625</span>
 <span id="626">626</span>
 <span id="627">627</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
-<span class="kw">use</span> <span class="ident">std::str::FromStr</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::str::FromStr;
 
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">de</span>, <span class="ident">ser::SerializeSeq</span>, <span class="ident">Deserialize</span>, <span class="ident">Deserializer</span>, <span class="ident">Serialize</span>, <span class="ident">Serializer</span>};
-<span class="kw">use</span> <span class="ident">smallvec::SmallVec</span>;
+<span class="kw">use </span>serde::{de, ser::SerializeSeq, Deserialize, Deserializer, Serialize, Serializer};
+<span class="kw">use </span>smallvec::SmallVec;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor::estimate_size</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">IntoValue</span>, <span class="ident">Map</span>, <span class="ident">Value</span>};
+<span class="kw">use </span><span class="kw">crate</span>::processor::estimate_size;
+<span class="kw">use </span><span class="kw">crate</span>::types::{IntoValue, Map, Value};
 
-<span class="doccomment">/// The start (inclusive) and end (exclusive) indices of a `Remark`.</span>
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">Range</span> <span class="op">=</span> (<span class="ident">usize</span>, <span class="ident">usize</span>);
+<span class="doccomment">/// The start (inclusive) and end (exclusive) indices of a `Remark`.
+</span><span class="kw">pub type </span>Range = (usize, usize);
 
-<span class="doccomment">/// Gives an indication about the type of remark.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">RemarkType</span> {
-    <span class="doccomment">/// The remark just annotates a value but the value did not change.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;a&quot;</span>)]</span>
-    <span class="ident">Annotated</span>,
-    <span class="doccomment">/// The original value was removed entirely.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;x&quot;</span>)]</span>
-    <span class="ident">Removed</span>,
-    <span class="doccomment">/// The original value was substituted by a replacement value.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;s&quot;</span>)]</span>
-    <span class="ident">Substituted</span>,
-    <span class="doccomment">/// The original value was masked.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;m&quot;</span>)]</span>
-    <span class="ident">Masked</span>,
-    <span class="doccomment">/// The original value was replaced through pseudonymization.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;p&quot;</span>)]</span>
-    <span class="ident">Pseudonymized</span>,
-    <span class="doccomment">/// The original value was encrypted (not implemented yet).</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;e&quot;</span>)]</span>
-    <span class="ident">Encrypted</span>,
+<span class="doccomment">/// Gives an indication about the type of remark.
+</span><span class="attribute">#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+</span><span class="kw">pub enum </span>RemarkType {
+    <span class="doccomment">/// The remark just annotates a value but the value did not change.
+    </span><span class="attribute">#[serde(rename = <span class="string">&quot;a&quot;</span>)]
+    </span>Annotated,
+    <span class="doccomment">/// The original value was removed entirely.
+    </span><span class="attribute">#[serde(rename = <span class="string">&quot;x&quot;</span>)]
+    </span>Removed,
+    <span class="doccomment">/// The original value was substituted by a replacement value.
+    </span><span class="attribute">#[serde(rename = <span class="string">&quot;s&quot;</span>)]
+    </span>Substituted,
+    <span class="doccomment">/// The original value was masked.
+    </span><span class="attribute">#[serde(rename = <span class="string">&quot;m&quot;</span>)]
+    </span>Masked,
+    <span class="doccomment">/// The original value was replaced through pseudonymization.
+    </span><span class="attribute">#[serde(rename = <span class="string">&quot;p&quot;</span>)]
+    </span>Pseudonymized,
+    <span class="doccomment">/// The original value was encrypted (not implemented yet).
+    </span><span class="attribute">#[serde(rename = <span class="string">&quot;e&quot;</span>)]
+    </span>Encrypted,
 }
 
-<span class="doccomment">/// Information on a modified section in a string.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Remark</span> {
-    <span class="kw">pub</span> <span class="ident">ty</span>: <span class="ident">RemarkType</span>,
-    <span class="kw">pub</span> <span class="ident">rule_id</span>: <span class="ident">String</span>,
-    <span class="kw">pub</span> <span class="ident">range</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Range</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Information on a modified section in a string.
+</span><span class="attribute">#[derive(Clone, Debug, PartialEq)]
+</span><span class="kw">pub struct </span>Remark {
+    <span class="kw">pub </span>ty: RemarkType,
+    <span class="kw">pub </span>rule_id: String,
+    <span class="kw">pub </span>range: <span class="prelude-ty">Option</span>&lt;Range&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">Remark</span> {
-    <span class="doccomment">/// Creates a new remark.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span><span class="op">&lt;</span><span class="ident">S</span>: <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="ident">ty</span>: <span class="ident">RemarkType</span>, <span class="ident">rule_id</span>: <span class="ident">S</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">Remark</span> {
-            <span class="ident">rule_id</span>: <span class="ident">rule_id</span>.<span class="ident">into</span>(),
-            <span class="ident">ty</span>,
-            <span class="ident">range</span>: <span class="prelude-val">None</span>,
+<span class="kw">impl </span>Remark {
+    <span class="doccomment">/// Creates a new remark.
+    </span><span class="kw">pub fn </span>new&lt;S: Into&lt;String&gt;&gt;(ty: RemarkType, rule_id: S) -&gt; <span class="self">Self </span>{
+        Remark {
+            rule_id: rule_id.into(),
+            ty,
+            range: <span class="prelude-val">None</span>,
         }
     }
 
-    <span class="doccomment">/// Creates a new text remark with range indices.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_range</span><span class="op">&lt;</span><span class="ident">S</span>: <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="ident">ty</span>: <span class="ident">RemarkType</span>, <span class="ident">rule_id</span>: <span class="ident">S</span>, <span class="ident">range</span>: <span class="ident">Range</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">Remark</span> {
-            <span class="ident">rule_id</span>: <span class="ident">rule_id</span>.<span class="ident">into</span>(),
-            <span class="ident">ty</span>,
-            <span class="ident">range</span>: <span class="prelude-val">Some</span>(<span class="ident">range</span>),
+    <span class="doccomment">/// Creates a new text remark with range indices.
+    </span><span class="kw">pub fn </span>with_range&lt;S: Into&lt;String&gt;&gt;(ty: RemarkType, rule_id: S, range: Range) -&gt; <span class="self">Self </span>{
+        Remark {
+            rule_id: rule_id.into(),
+            ty,
+            range: <span class="prelude-val">Some</span>(range),
         }
     }
 
-    <span class="doccomment">/// The note of this remark.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">rule_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">str</span> {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">rule_id</span>
+    <span class="doccomment">/// The note of this remark.
+    </span><span class="kw">pub fn </span>rule_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.rule_id
     }
 
-    <span class="doccomment">/// The range of this remark.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">range</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Range</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">range</span>.<span class="ident">as_ref</span>()
+    <span class="doccomment">/// The range of this remark.
+    </span><span class="kw">pub fn </span>range(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Range&gt; {
+        <span class="self">self</span>.range.as_ref()
     }
 
-    <span class="doccomment">/// The length of this range.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">range</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">r</span><span class="op">|</span> <span class="ident">r</span>.<span class="number">1</span> <span class="op">-</span> <span class="ident">r</span>.<span class="number">0</span>)
+    <span class="doccomment">/// The length of this range.
+    </span><span class="kw">pub fn </span>len(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;usize&gt; {
+        <span class="self">self</span>.range.map(|r| r.<span class="number">1 </span>- r.<span class="number">0</span>)
     }
 
-    <span class="doccomment">/// Indicates if the remark refers to an empty range</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">len</span>().<span class="ident">map_or</span>(<span class="bool-val">false</span>, <span class="op">|</span><span class="ident">l</span><span class="op">|</span> <span class="ident">l</span> <span class="op">==</span> <span class="number">0</span>)
+    <span class="doccomment">/// Indicates if the remark refers to an empty range
+    </span><span class="kw">pub fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.len().map_or(<span class="bool-val">false</span>, |l| l == <span class="number">0</span>)
     }
 
-    <span class="doccomment">/// Returns the type.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">ty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">RemarkType</span> {
-        <span class="self">self</span>.<span class="ident">ty</span>
+    <span class="doccomment">/// Returns the type.
+    </span><span class="kw">pub fn </span>ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; RemarkType {
+        <span class="self">self</span>.ty
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Remark</span> {
-    <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span>: <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D::Error</span><span class="op">&gt;</span> {
-        <span class="kw">struct</span> <span class="ident">RemarkVisitor</span>;
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>Remark {
+    <span class="kw">fn </span>deserialize&lt;D: Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt; {
+        <span class="kw">struct </span>RemarkVisitor;
 
-        <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">de::Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RemarkVisitor</span> {
-            <span class="kw">type</span> <span class="ident">Value</span> <span class="op">=</span> <span class="ident">Remark</span>;
+        <span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; de::Visitor&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>RemarkVisitor {
+            <span class="kw">type </span>Value = Remark;
 
-            <span class="kw">fn</span> <span class="ident">expecting</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">formatter</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-                <span class="macro">write!</span>(<span class="ident">formatter</span>, <span class="string">&quot;a meta remark&quot;</span>)
+            <span class="kw">fn </span>expecting(<span class="kw-2">&amp;</span><span class="self">self</span>, formatter: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+                <span class="macro">write!</span>(formatter, <span class="string">&quot;a meta remark&quot;</span>)
             }
 
-            <span class="kw">fn</span> <span class="ident">visit_seq</span><span class="op">&lt;</span><span class="ident">A</span>: <span class="ident">de::SeqAccess</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">seq</span>: <span class="ident">A</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span>, <span class="ident">A::Error</span><span class="op">&gt;</span> {
-                <span class="kw">let</span> <span class="ident">rule_id</span> <span class="op">=</span> <span class="ident">seq</span>
-                    .<span class="ident">next_element</span>()<span class="question-mark">?</span>
-                    .<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">de::Error::custom</span>(<span class="string">&quot;missing required rule-id&quot;</span>))<span class="question-mark">?</span>;
-                <span class="kw">let</span> <span class="ident">ty</span> <span class="op">=</span> <span class="ident">seq</span>
-                    .<span class="ident">next_element</span>()<span class="question-mark">?</span>
-                    .<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">de::Error::custom</span>(<span class="string">&quot;missing required remark-type&quot;</span>))<span class="question-mark">?</span>;
-                <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="ident">seq</span>.<span class="ident">next_element</span>()<span class="question-mark">?</span>;
-                <span class="kw">let</span> <span class="ident">end</span> <span class="op">=</span> <span class="ident">seq</span>.<span class="ident">next_element</span>()<span class="question-mark">?</span>;
+            <span class="kw">fn </span>visit_seq&lt;A: de::SeqAccess&lt;<span class="lifetime">&#39;de</span>&gt;&gt;(<span class="self">self</span>, <span class="kw-2">mut </span>seq: A) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Value, A::Error&gt; {
+                <span class="kw">let </span>rule_id = seq
+                    .next_element()<span class="question-mark">?
+                    </span>.ok_or_else(|| de::Error::custom(<span class="string">&quot;missing required rule-id&quot;</span>))<span class="question-mark">?</span>;
+                <span class="kw">let </span>ty = seq
+                    .next_element()<span class="question-mark">?
+                    </span>.ok_or_else(|| de::Error::custom(<span class="string">&quot;missing required remark-type&quot;</span>))<span class="question-mark">?</span>;
+                <span class="kw">let </span>start = seq.next_element()<span class="question-mark">?</span>;
+                <span class="kw">let </span>end = seq.next_element()<span class="question-mark">?</span>;
 
-                <span class="comment">// Drain the sequence</span>
-                <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">de::IgnoredAny</span>) <span class="op">=</span> <span class="ident">seq</span>.<span class="ident">next_element</span>()<span class="question-mark">?</span> {}
+                <span class="comment">// Drain the sequence
+                </span><span class="kw">while let </span><span class="prelude-val">Some</span>(de::IgnoredAny) = seq.next_element()<span class="question-mark">? </span>{}
 
-                <span class="kw">let</span> <span class="ident">range</span> <span class="op">=</span> <span class="kw">match</span> (<span class="ident">start</span>, <span class="ident">end</span>) {
-                    (<span class="prelude-val">Some</span>(<span class="ident">start</span>), <span class="prelude-val">Some</span>(<span class="ident">end</span>)) =&gt; <span class="prelude-val">Some</span>((<span class="ident">start</span>, <span class="ident">end</span>)),
-                    <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
+                <span class="kw">let </span>range = <span class="kw">match </span>(start, end) {
+                    (<span class="prelude-val">Some</span>(start), <span class="prelude-val">Some</span>(end)) =&gt; <span class="prelude-val">Some</span>((start, end)),
+                    <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
                 };
 
-                <span class="prelude-val">Ok</span>(<span class="ident">Remark</span> { <span class="ident">ty</span>, <span class="ident">rule_id</span>, <span class="ident">range</span> })
+                <span class="prelude-val">Ok</span>(Remark { ty, rule_id, range })
             }
         }
 
-        <span class="ident">deserializer</span>.<span class="ident">deserialize_seq</span>(<span class="ident">RemarkVisitor</span>)
+        deserializer.deserialize_seq(RemarkVisitor)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">Remark</span> {
-    <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span>: <span class="ident">Serializer</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">seq</span> <span class="op">=</span> <span class="ident">serializer</span>.<span class="ident">serialize_seq</span>(<span class="prelude-val">None</span>)<span class="question-mark">?</span>;
-        <span class="ident">seq</span>.<span class="ident">serialize_element</span>(<span class="self">self</span>.<span class="ident">rule_id</span>())<span class="question-mark">?</span>;
-        <span class="ident">seq</span>.<span class="ident">serialize_element</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">ty</span>())<span class="question-mark">?</span>;
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">range</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">range</span>() {
-            <span class="ident">seq</span>.<span class="ident">serialize_element</span>(<span class="kw-2">&amp;</span><span class="ident">range</span>.<span class="number">0</span>)<span class="question-mark">?</span>;
-            <span class="ident">seq</span>.<span class="ident">serialize_element</span>(<span class="kw-2">&amp;</span><span class="ident">range</span>.<span class="number">1</span>)<span class="question-mark">?</span>;
+<span class="kw">impl </span>Serialize <span class="kw">for </span>Remark {
+    <span class="kw">fn </span>serialize&lt;S: Serializer&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>seq = serializer.serialize_seq(<span class="prelude-val">None</span>)<span class="question-mark">?</span>;
+        seq.serialize_element(<span class="self">self</span>.rule_id())<span class="question-mark">?</span>;
+        seq.serialize_element(<span class="kw-2">&amp;</span><span class="self">self</span>.ty())<span class="question-mark">?</span>;
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(range) = <span class="self">self</span>.range() {
+            seq.serialize_element(<span class="kw-2">&amp;</span>range.<span class="number">0</span>)<span class="question-mark">?</span>;
+            seq.serialize_element(<span class="kw-2">&amp;</span>range.<span class="number">1</span>)<span class="question-mark">?</span>;
         }
-        <span class="ident">seq</span>.<span class="ident">end</span>()
+        seq.end()
     }
 }
 
-<span class="doccomment">/// The kind of an `Error`.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">ErrorKind</span> {
-    <span class="doccomment">/// The data does not fit the schema or is semantically incorrect.</span>
-    <span class="ident">InvalidData</span>,
+<span class="doccomment">/// The kind of an `Error`.
+</span><span class="attribute">#[derive(Clone, Debug, Eq, PartialEq)]
+</span><span class="kw">pub enum </span>ErrorKind {
+    <span class="doccomment">/// The data does not fit the schema or is semantically incorrect.
+    </span>InvalidData,
 
-    <span class="doccomment">/// The structure is missing a required attribute.</span>
-    <span class="ident">MissingAttribute</span>,
+    <span class="doccomment">/// The structure is missing a required attribute.
+    </span>MissingAttribute,
 
-    <span class="doccomment">/// The attribute is not allowed in this structure.</span>
-    <span class="ident">InvalidAttribute</span>,
+    <span class="doccomment">/// The attribute is not allowed in this structure.
+    </span>InvalidAttribute,
 
-    <span class="doccomment">/// This value was too long and removed entirely.</span>
-    <span class="ident">ValueTooLong</span>,
+    <span class="doccomment">/// This value was too long and removed entirely.
+    </span>ValueTooLong,
 
-    <span class="doccomment">/// Clock-drift of the SDK has been corrected in all timestamps.</span>
-    <span class="ident">ClockDrift</span>,
+    <span class="doccomment">/// Clock-drift of the SDK has been corrected in all timestamps.
+    </span>ClockDrift,
 
-    <span class="doccomment">/// The timestamp is too old.</span>
-    <span class="ident">PastTimestamp</span>,
+    <span class="doccomment">/// The timestamp is too old.
+    </span>PastTimestamp,
 
-    <span class="doccomment">/// The timestamp lies in the future, likely due to clock drift.</span>
-    <span class="ident">FutureTimestamp</span>,
+    <span class="doccomment">/// The timestamp lies in the future, likely due to clock drift.
+    </span>FutureTimestamp,
 
-    <span class="doccomment">/// Any other unknown error for forward compatibility.</span>
-    <span class="ident">Unknown</span>(<span class="ident">String</span>),
+    <span class="doccomment">/// Any other unknown error for forward compatibility.
+    </span>Unknown(String),
 }
 
-<span class="kw">impl</span> <span class="ident">ErrorKind</span> {
-    <span class="doccomment">/// Parses an error kind from a `&amp;str` or `String`.</span>
-    <span class="kw">fn</span> <span class="ident">parse</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="ident">string</span>: <span class="ident">S</span>) -&gt; <span class="self">Self</span>
-    <span class="kw">where</span>
-        <span class="ident">S</span>: <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+<span class="kw">impl </span>ErrorKind {
+    <span class="doccomment">/// Parses an error kind from a `&amp;str` or `String`.
+    </span><span class="kw">fn </span>parse&lt;S&gt;(string: S) -&gt; <span class="self">Self
+    </span><span class="kw">where
+        </span>S: AsRef&lt;str&gt; + Into&lt;String&gt;,
     {
-        <span class="kw">match</span> <span class="ident">string</span>.<span class="ident">as_ref</span>() {
-            <span class="string">&quot;invalid_data&quot;</span> =&gt; <span class="ident">ErrorKind::InvalidData</span>,
-            <span class="string">&quot;missing_attribute&quot;</span> =&gt; <span class="ident">ErrorKind::MissingAttribute</span>,
-            <span class="string">&quot;invalid_attribute&quot;</span> =&gt; <span class="ident">ErrorKind::InvalidAttribute</span>,
-            <span class="string">&quot;value_too_long&quot;</span> =&gt; <span class="ident">ErrorKind::ValueTooLong</span>,
-            <span class="string">&quot;past_timestamp&quot;</span> =&gt; <span class="ident">ErrorKind::PastTimestamp</span>,
-            <span class="string">&quot;future_timestamp&quot;</span> =&gt; <span class="ident">ErrorKind::FutureTimestamp</span>,
-            <span class="kw">_</span> =&gt; <span class="ident">ErrorKind::Unknown</span>(<span class="ident">string</span>.<span class="ident">into</span>()),
+        <span class="kw">match </span>string.as_ref() {
+            <span class="string">&quot;invalid_data&quot; </span>=&gt; ErrorKind::InvalidData,
+            <span class="string">&quot;missing_attribute&quot; </span>=&gt; ErrorKind::MissingAttribute,
+            <span class="string">&quot;invalid_attribute&quot; </span>=&gt; ErrorKind::InvalidAttribute,
+            <span class="string">&quot;value_too_long&quot; </span>=&gt; ErrorKind::ValueTooLong,
+            <span class="string">&quot;past_timestamp&quot; </span>=&gt; ErrorKind::PastTimestamp,
+            <span class="string">&quot;future_timestamp&quot; </span>=&gt; ErrorKind::FutureTimestamp,
+            <span class="kw">_ </span>=&gt; ErrorKind::Unknown(string.into()),
         }
     }
 
-    <span class="doccomment">/// Returns the string representation of this error kind.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">str</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">ErrorKind::InvalidData</span> =&gt; <span class="string">&quot;invalid_data&quot;</span>,
-            <span class="ident">ErrorKind::MissingAttribute</span> =&gt; <span class="string">&quot;missing_attribute&quot;</span>,
-            <span class="ident">ErrorKind::InvalidAttribute</span> =&gt; <span class="string">&quot;invalid_attribute&quot;</span>,
-            <span class="ident">ErrorKind::ValueTooLong</span> =&gt; <span class="string">&quot;value_too_long&quot;</span>,
-            <span class="ident">ErrorKind::PastTimestamp</span> =&gt; <span class="string">&quot;past_timestamp&quot;</span>,
-            <span class="ident">ErrorKind::FutureTimestamp</span> =&gt; <span class="string">&quot;future_timestamp&quot;</span>,
-            <span class="ident">ErrorKind::ClockDrift</span> =&gt; <span class="string">&quot;clock_drift&quot;</span>,
-            <span class="ident">ErrorKind::Unknown</span>(<span class="ident">error</span>) =&gt; <span class="ident">error</span>,
+    <span class="doccomment">/// Returns the string representation of this error kind.
+    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            ErrorKind::InvalidData =&gt; <span class="string">&quot;invalid_data&quot;</span>,
+            ErrorKind::MissingAttribute =&gt; <span class="string">&quot;missing_attribute&quot;</span>,
+            ErrorKind::InvalidAttribute =&gt; <span class="string">&quot;invalid_attribute&quot;</span>,
+            ErrorKind::ValueTooLong =&gt; <span class="string">&quot;value_too_long&quot;</span>,
+            ErrorKind::PastTimestamp =&gt; <span class="string">&quot;past_timestamp&quot;</span>,
+            ErrorKind::FutureTimestamp =&gt; <span class="string">&quot;future_timestamp&quot;</span>,
+            ErrorKind::ClockDrift =&gt; <span class="string">&quot;clock_drift&quot;</span>,
+            ErrorKind::Unknown(error) =&gt; error,
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">ErrorKind</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.<span class="ident">as_str</span>())
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>ErrorKind {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.as_str())
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ErrorKind</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">string</span>: <span class="ident">String</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">ErrorKind::parse</span>(<span class="ident">string</span>)
+<span class="kw">impl </span>From&lt;String&gt; <span class="kw">for </span>ErrorKind {
+    <span class="kw">fn </span>from(string: String) -&gt; <span class="self">Self </span>{
+        ErrorKind::parse(string)
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ErrorKind</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">ErrorKind::parse</span>(<span class="ident">string</span>)
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt; <span class="kw">for </span>ErrorKind {
+    <span class="kw">fn </span>from(string: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str) -&gt; <span class="self">Self </span>{
+        ErrorKind::parse(string)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">FromStr</span> <span class="kw">for</span> <span class="ident">ErrorKind</span> {
-    <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> ();
+<span class="kw">impl </span>FromStr <span class="kw">for </span>ErrorKind {
+    <span class="kw">type </span><span class="prelude-val">Err </span>= ();
 
-    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
-        <span class="prelude-val">Ok</span>(<span class="ident">ErrorKind::from</span>(<span class="ident">string</span>))
+    <span class="kw">fn </span>from_str(string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
+        <span class="prelude-val">Ok</span>(ErrorKind::from(string))
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ErrorKind</span> {
-    <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span>: <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D::Error</span><span class="op">&gt;</span> {
-        <span class="kw">struct</span> <span class="ident">ErrorKindVisitor</span>;
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>ErrorKind {
+    <span class="kw">fn </span>deserialize&lt;D: Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt; {
+        <span class="kw">struct </span>ErrorKindVisitor;
 
-        <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">de::Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ErrorKindVisitor</span> {
-            <span class="kw">type</span> <span class="ident">Value</span> <span class="op">=</span> <span class="ident">ErrorKind</span>;
+        <span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; de::Visitor&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>ErrorKindVisitor {
+            <span class="kw">type </span>Value = ErrorKind;
 
-            <span class="kw">fn</span> <span class="ident">expecting</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">formatter</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-                <span class="macro">write!</span>(<span class="ident">formatter</span>, <span class="string">&quot;an error kind&quot;</span>)
+            <span class="kw">fn </span>expecting(<span class="kw-2">&amp;</span><span class="self">self</span>, formatter: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+                <span class="macro">write!</span>(formatter, <span class="string">&quot;an error kind&quot;</span>)
             }
 
-            <span class="kw">fn</span> <span class="ident">visit_str</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span>, <span class="ident">E</span><span class="op">&gt;</span>
-            <span class="kw">where</span>
-                <span class="ident">E</span>: <span class="ident">de::Error</span>,
+            <span class="kw">fn </span>visit_str&lt;E&gt;(<span class="self">self</span>, string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Value, E&gt;
+            <span class="kw">where
+                </span>E: de::Error,
             {
-                <span class="prelude-val">Ok</span>(<span class="ident">ErrorKind::from</span>(<span class="ident">string</span>))
+                <span class="prelude-val">Ok</span>(ErrorKind::from(string))
             }
 
-            <span class="kw">fn</span> <span class="ident">visit_string</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">string</span>: <span class="ident">String</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span>, <span class="ident">E</span><span class="op">&gt;</span>
-            <span class="kw">where</span>
-                <span class="ident">E</span>: <span class="ident">de::Error</span>,
+            <span class="kw">fn </span>visit_string&lt;E&gt;(<span class="self">self</span>, string: String) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Value, E&gt;
+            <span class="kw">where
+                </span>E: de::Error,
             {
-                <span class="prelude-val">Ok</span>(<span class="ident">ErrorKind::from</span>(<span class="ident">string</span>))
+                <span class="prelude-val">Ok</span>(ErrorKind::from(string))
             }
         }
 
-        <span class="ident">deserializer</span>.<span class="ident">deserialize_str</span>(<span class="ident">ErrorKindVisitor</span>)
+        deserializer.deserialize_str(ErrorKindVisitor)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">ErrorKind</span> {
-    <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span>: <span class="ident">Serializer</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span> {
-        <span class="ident">serializer</span>.<span class="ident">serialize_str</span>(<span class="self">self</span>.<span class="ident">as_str</span>())
+<span class="kw">impl </span>Serialize <span class="kw">for </span>ErrorKind {
+    <span class="kw">fn </span>serialize&lt;S: Serializer&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt; {
+        serializer.serialize_str(<span class="self">self</span>.as_str())
     }
 }
 
-<span class="doccomment">/// An error with an enumerable kind and optional data.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">PartialEq</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Error</span> {
-    <span class="ident">kind</span>: <span class="ident">ErrorKind</span>,
-    <span class="ident">data</span>: <span class="ident">Map</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">Value</span><span class="op">&gt;</span>,
+<span class="doccomment">/// An error with an enumerable kind and optional data.
+</span><span class="attribute">#[derive(Debug, Clone, PartialEq)]
+</span><span class="kw">pub struct </span>Error {
+    kind: ErrorKind,
+    data: Map&lt;String, Value&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">Error</span> {
-    <span class="doccomment">/// Creates a new error with the given data.</span>
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">with_data</span>(<span class="ident">kind</span>: <span class="ident">ErrorKind</span>, <span class="ident">data</span>: <span class="ident">Map</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">Value</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">Error</span> { <span class="ident">kind</span>, <span class="ident">data</span> }
+<span class="kw">impl </span>Error {
+    <span class="doccomment">/// Creates a new error with the given data.
+    </span><span class="attribute">#[inline]
+    </span><span class="kw">fn </span>with_data(kind: ErrorKind, data: Map&lt;String, Value&gt;) -&gt; <span class="self">Self </span>{
+        Error { kind, data }
     }
 
-    <span class="doccomment">/// Creates a new error without data.</span>
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">kind</span>: <span class="ident">ErrorKind</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">Error::with_data</span>(<span class="ident">kind</span>, <span class="ident">Map::default</span>())
+    <span class="doccomment">/// Creates a new error without data.
+    </span><span class="attribute">#[inline]
+    </span><span class="kw">pub fn </span>new(kind: ErrorKind) -&gt; <span class="self">Self </span>{
+        Error::with_data(kind, Map::default())
     }
 
-    <span class="doccomment">/// Creates a new error and allows instant modification in a function.</span>
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="ident">kind</span>: <span class="ident">ErrorKind</span>, <span class="ident">f</span>: <span class="ident">F</span>) -&gt; <span class="self">Self</span>
-    <span class="kw">where</span>
-        <span class="ident">F</span>: <span class="ident">FnOnce</span>(<span class="kw-2">&amp;mut</span> <span class="self">Self</span>),
+    <span class="doccomment">/// Creates a new error and allows instant modification in a function.
+    </span><span class="attribute">#[inline]
+    </span><span class="kw">pub fn </span>with&lt;F&gt;(kind: ErrorKind, f: F) -&gt; <span class="self">Self
+    </span><span class="kw">where
+        </span>F: FnOnce(<span class="kw-2">&amp;mut </span><span class="self">Self</span>),
     {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">error</span> <span class="op">=</span> <span class="ident">Error::new</span>(<span class="ident">kind</span>);
-        <span class="ident">f</span>(<span class="kw-2">&amp;mut</span> <span class="ident">error</span>);
-        <span class="ident">error</span>
+        <span class="kw">let </span><span class="kw-2">mut </span>error = Error::new(kind);
+        f(<span class="kw-2">&amp;mut </span>error);
+        error
     }
 
-    <span class="doccomment">/// Creates an invalid data error with a plain text reason.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">invalid</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="ident">reason</span>: <span class="ident">S</span>) -&gt; <span class="self">Self</span>
-    <span class="kw">where</span>
-        <span class="ident">S</span>: <span class="ident">std::fmt::Display</span>,
+    <span class="doccomment">/// Creates an invalid data error with a plain text reason.
+    </span><span class="kw">pub fn </span>invalid&lt;S&gt;(reason: S) -&gt; <span class="self">Self
+    </span><span class="kw">where
+        </span>S: std::fmt::Display,
     {
-        <span class="ident">Error::with</span>(<span class="ident">ErrorKind::InvalidData</span>, <span class="op">|</span><span class="ident">error</span><span class="op">|</span> {
-            <span class="ident">error</span>.<span class="ident">insert</span>(<span class="string">&quot;reason&quot;</span>, <span class="ident">reason</span>.<span class="ident">to_string</span>());
+        Error::with(ErrorKind::InvalidData, |error| {
+            error.insert(<span class="string">&quot;reason&quot;</span>, reason.to_string());
         })
     }
 
-    <span class="doccomment">/// Creates an error that describes an invalid value.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expected</span>(<span class="ident">expectation</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="self">Self</span> {
-        <span class="comment">// Does not use `Error::invalid` to avoid the string copy.</span>
-        <span class="ident">Error::with</span>(<span class="ident">ErrorKind::InvalidData</span>, <span class="op">|</span><span class="ident">error</span><span class="op">|</span> {
-            <span class="ident">error</span>.<span class="ident">insert</span>(<span class="string">&quot;reason&quot;</span>, <span class="macro">format!</span>(<span class="string">&quot;expected {}&quot;</span>, <span class="ident">expectation</span>));
+    <span class="doccomment">/// Creates an error that describes an invalid value.
+    </span><span class="kw">pub fn </span>expected(expectation: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
+        <span class="comment">// Does not use `Error::invalid` to avoid the string copy.
+        </span>Error::with(ErrorKind::InvalidData, |error| {
+            error.insert(<span class="string">&quot;reason&quot;</span>, <span class="macro">format!</span>(<span class="string">&quot;expected {}&quot;</span>, expectation));
         })
     }
 
-    <span class="doccomment">/// Creates an error that describes an expected non-empty value.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">nonempty</span>() -&gt; <span class="self">Self</span> {
-        <span class="comment">// TODO: Replace `invalid_data` this with an explicity error constant for empty values</span>
-        <span class="ident">Error::invalid</span>(<span class="string">&quot;expected a non-empty value&quot;</span>)
+    <span class="doccomment">/// Creates an error that describes an expected non-empty value.
+    </span><span class="kw">pub fn </span>nonempty() -&gt; <span class="self">Self </span>{
+        <span class="comment">// TODO: Replace `invalid_data` this with an explicity error constant for empty values
+        </span>Error::invalid(<span class="string">&quot;expected a non-empty value&quot;</span>)
     }
 
-    <span class="doccomment">/// Returns the kind of this error.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">kind</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">ErrorKind</span> {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">kind</span>
+    <span class="doccomment">/// Returns the kind of this error.
+    </span><span class="kw">pub fn </span>kind(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>ErrorKind {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.kind
     }
 
-    <span class="doccomment">/// Returns an iterator over the data of this error.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">data</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl</span> <span class="ident">Iterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> (<span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="kw-2">&amp;</span><span class="ident">Value</span>)<span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">data</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">k</span>, <span class="ident">v</span>)<span class="op">|</span> (<span class="ident">k</span>.<span class="ident">as_str</span>(), <span class="ident">v</span>))
+    <span class="doccomment">/// Returns an iterator over the data of this error.
+    </span><span class="kw">pub fn </span>data(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = (<span class="kw-2">&amp;</span>str, <span class="kw-2">&amp;</span>Value)&gt; {
+        <span class="self">self</span>.data.iter().map(|(k, v)| (k.as_str(), v))
     }
 
-    <span class="doccomment">/// Inserts a new key into the data bag of this error.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">insert</span><span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">V</span><span class="op">&gt;</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">key</span>: <span class="ident">K</span>, <span class="ident">value</span>: <span class="ident">V</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">K</span>: <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-        <span class="ident">V</span>: <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Inserts a new key into the data bag of this error.
+    </span><span class="kw">pub fn </span>insert&lt;K, V&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, key: K, value: V) -&gt; <span class="prelude-ty">Option</span>&lt;Value&gt;
+    <span class="kw">where
+        </span>K: Into&lt;String&gt;,
+        V: Into&lt;Value&gt;,
     {
-        <span class="self">self</span>.<span class="ident">data</span>.<span class="ident">insert</span>(<span class="ident">key</span>.<span class="ident">into</span>(), <span class="ident">value</span>.<span class="ident">into</span>())
+        <span class="self">self</span>.data.insert(key.into(), value.into())
     }
 
-    <span class="doccomment">/// Retrieves a key from the data bag of this error.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get</span><span class="op">&lt;</span><span class="ident">K</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">key</span>: <span class="ident">K</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Value</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">K</span>: <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Retrieves a key from the data bag of this error.
+    </span><span class="kw">pub fn </span>get&lt;K&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, key: K) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Value&gt;
+    <span class="kw">where
+        </span>K: AsRef&lt;str&gt;,
     {
-        <span class="self">self</span>.<span class="ident">data</span>.<span class="ident">get</span>(<span class="ident">key</span>.<span class="ident">as_ref</span>())
+        <span class="self">self</span>.data.get(key.as_ref())
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">ErrorKind</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Error</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">kind</span>: <span class="ident">ErrorKind</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">Error::new</span>(<span class="ident">kind</span>)
+<span class="kw">impl </span>From&lt;ErrorKind&gt; <span class="kw">for </span>Error {
+    <span class="kw">fn </span>from(kind: ErrorKind) -&gt; <span class="self">Self </span>{
+        Error::new(kind)
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Error</span> {
-    <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span>: <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D::Error</span><span class="op">&gt;</span> {
-        <span class="kw">struct</span> <span class="ident">ErrorVisitor</span>;
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>Error {
+    <span class="kw">fn </span>deserialize&lt;D: Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt; {
+        <span class="kw">struct </span>ErrorVisitor;
 
-        <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">de::Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ErrorVisitor</span> {
-            <span class="kw">type</span> <span class="ident">Value</span> <span class="op">=</span> <span class="ident">Error</span>;
+        <span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; de::Visitor&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>ErrorVisitor {
+            <span class="kw">type </span>Value = Error;
 
-            <span class="kw">fn</span> <span class="ident">expecting</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">formatter</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-                <span class="macro">write!</span>(<span class="ident">formatter</span>, <span class="string">&quot;a meta remark&quot;</span>)
+            <span class="kw">fn </span>expecting(<span class="kw-2">&amp;</span><span class="self">self</span>, formatter: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+                <span class="macro">write!</span>(formatter, <span class="string">&quot;a meta remark&quot;</span>)
             }
 
-            <span class="kw">fn</span> <span class="ident">visit_str</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span>, <span class="ident">E</span><span class="op">&gt;</span>
-            <span class="kw">where</span>
-                <span class="ident">E</span>: <span class="ident">de::Error</span>,
+            <span class="kw">fn </span>visit_str&lt;E&gt;(<span class="self">self</span>, string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Value, E&gt;
+            <span class="kw">where
+                </span>E: de::Error,
             {
-                <span class="prelude-val">Ok</span>(<span class="ident">Error::new</span>(<span class="ident">ErrorKind::from</span>(<span class="ident">string</span>)))
+                <span class="prelude-val">Ok</span>(Error::new(ErrorKind::from(string)))
             }
 
-            <span class="kw">fn</span> <span class="ident">visit_string</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">string</span>: <span class="ident">String</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span>, <span class="ident">E</span><span class="op">&gt;</span>
-            <span class="kw">where</span>
-                <span class="ident">E</span>: <span class="ident">de::Error</span>,
+            <span class="kw">fn </span>visit_string&lt;E&gt;(<span class="self">self</span>, string: String) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Value, E&gt;
+            <span class="kw">where
+                </span>E: de::Error,
             {
-                <span class="prelude-val">Ok</span>(<span class="ident">Error::new</span>(<span class="ident">ErrorKind::from</span>(<span class="ident">string</span>)))
+                <span class="prelude-val">Ok</span>(Error::new(ErrorKind::from(string)))
             }
 
-            <span class="kw">fn</span> <span class="ident">visit_seq</span><span class="op">&lt;</span><span class="ident">A</span>: <span class="ident">de::SeqAccess</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">seq</span>: <span class="ident">A</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span>, <span class="ident">A::Error</span><span class="op">&gt;</span> {
-                <span class="kw">let</span> <span class="ident">kind</span> <span class="op">=</span> <span class="ident">seq</span>
-                    .<span class="ident">next_element</span>()<span class="question-mark">?</span>
-                    .<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">de::Error::custom</span>(<span class="string">&quot;missing error kind&quot;</span>))<span class="question-mark">?</span>;
-                <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">seq</span>.<span class="ident">next_element</span>()<span class="question-mark">?</span>.<span class="ident">unwrap_or_default</span>();
+            <span class="kw">fn </span>visit_seq&lt;A: de::SeqAccess&lt;<span class="lifetime">&#39;de</span>&gt;&gt;(<span class="self">self</span>, <span class="kw-2">mut </span>seq: A) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Value, A::Error&gt; {
+                <span class="kw">let </span>kind = seq
+                    .next_element()<span class="question-mark">?
+                    </span>.ok_or_else(|| de::Error::custom(<span class="string">&quot;missing error kind&quot;</span>))<span class="question-mark">?</span>;
+                <span class="kw">let </span>data = seq.next_element()<span class="question-mark">?</span>.unwrap_or_default();
 
-                <span class="comment">// Drain the sequence</span>
-                <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">de::IgnoredAny</span>) <span class="op">=</span> <span class="ident">seq</span>.<span class="ident">next_element</span>()<span class="question-mark">?</span> {}
+                <span class="comment">// Drain the sequence
+                </span><span class="kw">while let </span><span class="prelude-val">Some</span>(de::IgnoredAny) = seq.next_element()<span class="question-mark">? </span>{}
 
-                <span class="prelude-val">Ok</span>(<span class="ident">Error::with_data</span>(<span class="ident">kind</span>, <span class="ident">data</span>))
+                <span class="prelude-val">Ok</span>(Error::with_data(kind, data))
             }
         }
 
-        <span class="ident">deserializer</span>.<span class="ident">deserialize_any</span>(<span class="ident">ErrorVisitor</span>)
+        deserializer.deserialize_any(ErrorVisitor)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">Error</span> {
-    <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span>: <span class="ident">Serializer</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">data</span>.<span class="ident">is_empty</span>() {
-            <span class="kw">return</span> <span class="self">self</span>.<span class="ident">kind</span>.<span class="ident">serialize</span>(<span class="ident">serializer</span>);
+<span class="kw">impl </span>Serialize <span class="kw">for </span>Error {
+    <span class="kw">fn </span>serialize&lt;S: Serializer&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt; {
+        <span class="kw">if </span><span class="self">self</span>.data.is_empty() {
+            <span class="kw">return </span><span class="self">self</span>.kind.serialize(serializer);
         }
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">seq</span> <span class="op">=</span> <span class="ident">serializer</span>.<span class="ident">serialize_seq</span>(<span class="prelude-val">None</span>)<span class="question-mark">?</span>;
-        <span class="ident">seq</span>.<span class="ident">serialize_element</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">kind</span>)<span class="question-mark">?</span>;
-        <span class="ident">seq</span>.<span class="ident">serialize_element</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">data</span>)<span class="question-mark">?</span>;
-        <span class="ident">seq</span>.<span class="ident">end</span>()
+        <span class="kw">let </span><span class="kw-2">mut </span>seq = serializer.serialize_seq(<span class="prelude-val">None</span>)<span class="question-mark">?</span>;
+        seq.serialize_element(<span class="kw-2">&amp;</span><span class="self">self</span>.kind)<span class="question-mark">?</span>;
+        seq.serialize_element(<span class="kw-2">&amp;</span><span class="self">self</span>.data)<span class="question-mark">?</span>;
+        seq.end()
     }
 }
 
-<span class="doccomment">/// Meta information for a data field in the event payload.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MetaInner</span> {
-    <span class="doccomment">/// Remarks detailling modifications of this field.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;SmallVec::is_empty&quot;</span>, <span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;rem&quot;</span>)]</span>
-    <span class="ident">remarks</span>: <span class="ident">SmallVec</span><span class="op">&lt;</span>[<span class="ident">Remark</span>; <span class="number">3</span>]<span class="op">&gt;</span>,
+<span class="doccomment">/// Meta information for a data field in the event payload.
+</span><span class="attribute">#[derive(Clone, Deserialize, Serialize)]
+</span><span class="kw">pub struct </span>MetaInner {
+    <span class="doccomment">/// Remarks detailling modifications of this field.
+    </span><span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;SmallVec::is_empty&quot;</span>, rename = <span class="string">&quot;rem&quot;</span>)]
+    </span>remarks: SmallVec&lt;[Remark; <span class="number">3</span>]&gt;,
 
-    <span class="doccomment">/// Errors that happened during normalization or processing.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;SmallVec::is_empty&quot;</span>, <span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;err&quot;</span>)]</span>
-    <span class="ident">errors</span>: <span class="ident">SmallVec</span><span class="op">&lt;</span>[<span class="ident">Error</span>; <span class="number">3</span>]<span class="op">&gt;</span>,
+    <span class="doccomment">/// Errors that happened during normalization or processing.
+    </span><span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;SmallVec::is_empty&quot;</span>, rename = <span class="string">&quot;err&quot;</span>)]
+    </span>errors: SmallVec&lt;[Error; <span class="number">3</span>]&gt;,
 
-    <span class="doccomment">/// The original length of modified text fields or collections.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>, <span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;len&quot;</span>)]</span>
-    <span class="ident">original_length</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The original length of modified text fields or collections.
+    </span><span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>, rename = <span class="string">&quot;len&quot;</span>)]
+    </span>original_length: <span class="prelude-ty">Option</span>&lt;u32&gt;,
 
-    <span class="doccomment">/// In some cases the original value might be sent along.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>, <span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;val&quot;</span>)]</span>
-    <span class="ident">original_value</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// In some cases the original value might be sent along.
+    </span><span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>, rename = <span class="string">&quot;val&quot;</span>)]
+    </span>original_value: <span class="prelude-ty">Option</span>&lt;Value&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">MetaInner</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">original_length</span>.<span class="ident">is_none</span>()
-            <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">remarks</span>.<span class="ident">is_empty</span>()
-            <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">errors</span>.<span class="ident">is_empty</span>()
-            <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">original_value</span>.<span class="ident">is_none</span>()
+<span class="kw">impl </span>MetaInner {
+    <span class="kw">pub fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.original_length.is_none()
+            &amp;&amp; <span class="self">self</span>.remarks.is_empty()
+            &amp;&amp; <span class="self">self</span>.errors.is_empty()
+            &amp;&amp; <span class="self">self</span>.original_value.is_none()
     }
 }
 
-<span class="doccomment">/// Meta information for a data field in the event payload.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Default</span>, <span class="ident">Serialize</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Meta</span>(<span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">MetaInner</span><span class="op">&gt;</span><span class="op">&gt;</span>);
+<span class="doccomment">/// Meta information for a data field in the event payload.
+</span><span class="attribute">#[derive(Clone, Default, Serialize)]
+</span><span class="kw">pub struct </span>Meta(<span class="prelude-ty">Option</span>&lt;Box&lt;MetaInner&gt;&gt;);
 
-<span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">Meta</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="ident">f</span>.<span class="ident">debug_struct</span>(<span class="string">&quot;Meta&quot;</span>)
-            .<span class="ident">field</span>(<span class="string">&quot;remarks&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">remarks</span>())
-            .<span class="ident">field</span>(<span class="string">&quot;errors&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">errors</span>())
-            .<span class="ident">field</span>(<span class="string">&quot;original_length&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">original_length</span>())
-            .<span class="ident">field</span>(<span class="string">&quot;original_value&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">original_value</span>())
-            .<span class="ident">finish</span>()
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Meta {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        f.debug_struct(<span class="string">&quot;Meta&quot;</span>)
+            .field(<span class="string">&quot;remarks&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.remarks())
+            .field(<span class="string">&quot;errors&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.errors())
+            .field(<span class="string">&quot;original_length&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.original_length())
+            .field(<span class="string">&quot;original_value&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.original_value())
+            .finish()
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Meta</span> {
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Meta</span>, <span class="ident">D::Error</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">D</span>: <span class="ident">serde::Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>Meta {
+    <span class="attribute">#[inline]
+    </span><span class="kw">fn </span>deserialize&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;Meta, D::Error&gt;
+    <span class="kw">where
+        </span>D: serde::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
     {
-        <span class="prelude-val">Ok</span>(<span class="kw">match</span> <span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">MetaInner</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="ident">::deserialize</span>(<span class="ident">deserializer</span>)<span class="question-mark">?</span> {
-            <span class="prelude-val">Some</span>(<span class="ident">value</span>) =&gt; {
-                <span class="kw">if</span> <span class="ident">value</span>.<span class="ident">is_empty</span>() {
-                    <span class="ident">Meta</span>(<span class="prelude-val">None</span>)
-                } <span class="kw">else</span> {
-                    <span class="ident">Meta</span>(<span class="prelude-val">Some</span>(<span class="ident">Box::new</span>(<span class="ident">value</span>)))
+        <span class="prelude-val">Ok</span>(<span class="kw">match </span>&lt;<span class="prelude-ty">Option</span>&lt;MetaInner&gt;&gt;::deserialize(deserializer)<span class="question-mark">? </span>{
+            <span class="prelude-val">Some</span>(value) =&gt; {
+                <span class="kw">if </span>value.is_empty() {
+                    Meta(<span class="prelude-val">None</span>)
+                } <span class="kw">else </span>{
+                    Meta(<span class="prelude-val">Some</span>(Box::new(value)))
                 }
             }
-            <span class="prelude-val">None</span> =&gt; <span class="ident">Meta</span>(<span class="prelude-val">None</span>),
+            <span class="prelude-val">None </span>=&gt; Meta(<span class="prelude-val">None</span>),
         })
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Meta</span> {
-    <span class="doccomment">/// From an error</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_error</span><span class="op">&lt;</span><span class="ident">E</span>: <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">Error</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="ident">err</span>: <span class="ident">E</span>) -&gt; <span class="self">Self</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::default</span>();
-        <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">err</span>);
-        <span class="ident">meta</span>
+<span class="kw">impl </span>Meta {
+    <span class="doccomment">/// From an error
+    </span><span class="kw">pub fn </span>from_error&lt;E: Into&lt;Error&gt;&gt;(err: E) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span><span class="kw-2">mut </span>meta = <span class="self">Self</span>::default();
+        meta.add_error(err);
+        meta
     }
 
-    <span class="kw">fn</span> <span class="ident">upsert</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut</span> <span class="ident">MetaInner</span> {
-        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">get_or_insert_with</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Box::new</span>(<span class="ident">MetaInner::default</span>()))
+    <span class="kw">fn </span>upsert(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span>MetaInner {
+        <span class="self">self</span>.<span class="number">0</span>.get_or_insert_with(|| Box::new(MetaInner::default()))
     }
 
-    <span class="doccomment">/// The original length of this field, if applicable.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">original_length</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="number">0</span>
-            .<span class="ident">as_ref</span>()
-            .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">original_length</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span> <span class="kw">as</span> <span class="ident">usize</span>))
+    <span class="doccomment">/// The original length of this field, if applicable.
+    </span><span class="kw">pub fn </span>original_length(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;usize&gt; {
+        <span class="self">self</span>.<span class="number">0
+            </span>.as_ref()
+            .and_then(|x| x.original_length.map(|x| x <span class="kw">as </span>usize))
     }
 
-    <span class="doccomment">/// Updates the original length of this annotation.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_original_length</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">original_length</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>) {
-        <span class="kw">let</span> <span class="ident">inner</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">upsert</span>();
-        <span class="kw">if</span> <span class="ident">inner</span>.<span class="ident">original_length</span>.<span class="ident">is_none</span>() {
-            <span class="ident">inner</span>.<span class="ident">original_length</span> <span class="op">=</span> <span class="ident">original_length</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span> <span class="kw">as</span> <span class="ident">u32</span>);
+    <span class="doccomment">/// Updates the original length of this annotation.
+    </span><span class="kw">pub fn </span>set_original_length(<span class="kw-2">&amp;mut </span><span class="self">self</span>, original_length: <span class="prelude-ty">Option</span>&lt;usize&gt;) {
+        <span class="kw">let </span>inner = <span class="self">self</span>.upsert();
+        <span class="kw">if </span>inner.original_length.is_none() {
+            inner.original_length = original_length.map(|x| x <span class="kw">as </span>u32);
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">remarks</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[<span class="ident">Remark</span>] {
-        <span class="kw">match</span> <span class="self">self</span>.<span class="number">0</span> {
-            <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">inner</span>) =&gt; <span class="kw-2">&amp;</span><span class="ident">inner</span>.<span class="ident">remarks</span>[..],
-            <span class="prelude-val">None</span> =&gt; <span class="kw-2">&amp;</span>[][..],
+    <span class="kw">fn </span>remarks(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[Remark] {
+        <span class="kw">match </span><span class="self">self</span>.<span class="number">0 </span>{
+            <span class="prelude-val">Some</span>(<span class="kw-2">ref </span>inner) =&gt; <span class="kw-2">&amp;</span>inner.remarks[..],
+            <span class="prelude-val">None </span>=&gt; <span class="kw-2">&amp;</span>[][..],
         }
     }
 
-    <span class="doccomment">/// Iterates all remarks on this field.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">iter_remarks</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl</span> <span class="ident">Iterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">Remark</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">remarks</span>().<span class="ident">iter</span>()
+    <span class="doccomment">/// Iterates all remarks on this field.
+    </span><span class="kw">pub fn </span>iter_remarks(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span>Remark&gt; {
+        <span class="self">self</span>.remarks().iter()
     }
 
-    <span class="doccomment">/// Indicates whether this field has remarks.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">has_remarks</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">as_ref</span>().<span class="ident">map_or</span>(<span class="bool-val">false</span>, <span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">remarks</span>.<span class="ident">is_empty</span>())
+    <span class="doccomment">/// Indicates whether this field has remarks.
+    </span><span class="kw">pub fn </span>has_remarks(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.<span class="number">0</span>.as_ref().map_or(<span class="bool-val">false</span>, |x| x.remarks.is_empty())
     }
 
-    <span class="doccomment">/// Clears all remarks</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">clear_remarks</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">inner</span>) <span class="op">=</span> <span class="self">self</span>.<span class="number">0</span> {
-            <span class="ident">inner</span>.<span class="ident">remarks</span>.<span class="ident">clear</span>();
+    <span class="doccomment">/// Clears all remarks
+    </span><span class="kw">pub fn </span>clear_remarks(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>inner) = <span class="self">self</span>.<span class="number">0 </span>{
+            inner.remarks.clear();
         }
     }
 
-    <span class="doccomment">/// Adds a remark.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">add_remark</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">remark</span>: <span class="ident">Remark</span>) {
-        <span class="self">self</span>.<span class="ident">upsert</span>().<span class="ident">remarks</span>.<span class="ident">push</span>(<span class="ident">remark</span>);
+    <span class="doccomment">/// Adds a remark.
+    </span><span class="kw">pub fn </span>add_remark(<span class="kw-2">&amp;mut </span><span class="self">self</span>, remark: Remark) {
+        <span class="self">self</span>.upsert().remarks.push(remark);
     }
 
-    <span class="kw">fn</span> <span class="ident">errors</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[<span class="ident">Error</span>] {
-        <span class="kw">match</span> <span class="self">self</span>.<span class="number">0</span> {
-            <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">inner</span>) =&gt; <span class="kw-2">&amp;</span><span class="ident">inner</span>.<span class="ident">errors</span>[..],
-            <span class="prelude-val">None</span> =&gt; <span class="kw-2">&amp;</span>[][..],
+    <span class="kw">fn </span>errors(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[Error] {
+        <span class="kw">match </span><span class="self">self</span>.<span class="number">0 </span>{
+            <span class="prelude-val">Some</span>(<span class="kw-2">ref </span>inner) =&gt; <span class="kw-2">&amp;</span>inner.errors[..],
+            <span class="prelude-val">None </span>=&gt; <span class="kw-2">&amp;</span>[][..],
         }
     }
 
-    <span class="doccomment">/// Iterates errors on this field.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">iter_errors</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl</span> <span class="ident">Iterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">Error</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">errors</span>().<span class="ident">iter</span>()
+    <span class="doccomment">/// Iterates errors on this field.
+    </span><span class="kw">pub fn </span>iter_errors(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span>Error&gt; {
+        <span class="self">self</span>.errors().iter()
     }
 
-    <span class="doccomment">/// Mutable reference to errors of this field.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">add_error</span><span class="op">&lt;</span><span class="ident">E</span>: <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">Error</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">err</span>: <span class="ident">E</span>) {
-        <span class="kw">let</span> <span class="ident">errors</span> <span class="op">=</span> <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">upsert</span>().<span class="ident">errors</span>;
-        <span class="kw">let</span> <span class="ident">err</span> <span class="op">=</span> <span class="ident">err</span>.<span class="ident">into</span>();
-        <span class="kw">if</span> <span class="ident">errors</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">err</span>) {
+    <span class="doccomment">/// Mutable reference to errors of this field.
+    </span><span class="kw">pub fn </span>add_error&lt;E: Into&lt;Error&gt;&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, err: E) {
+        <span class="kw">let </span>errors = <span class="kw-2">&amp;mut </span><span class="self">self</span>.upsert().errors;
+        <span class="kw">let </span>err = err.into();
+        <span class="kw">if </span>errors.contains(<span class="kw-2">&amp;</span>err) {
             <span class="kw">return</span>;
         }
-        <span class="ident">errors</span>.<span class="ident">push</span>(<span class="ident">err</span>);
+        errors.push(err);
     }
 
-    <span class="doccomment">/// Returns a reference to the original value, if any.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">original_value</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Value</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">as_ref</span>().<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">original_value</span>.<span class="ident">as_ref</span>())
+    <span class="doccomment">/// Returns a reference to the original value, if any.
+    </span><span class="kw">pub fn </span>original_value(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Value&gt; {
+        <span class="self">self</span>.<span class="number">0</span>.as_ref().and_then(|x| x.original_value.as_ref())
     }
 
-    <span class="doccomment">/// Sets the original value.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_original_value</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">original_value</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>)
-    <span class="kw">where</span>
-        <span class="ident">T</span>: <span class="ident">IntoValue</span>,
+    <span class="doccomment">/// Sets the original value.
+    </span><span class="kw">pub fn </span>set_original_value&lt;T&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, original_value: <span class="prelude-ty">Option</span>&lt;T&gt;)
+    <span class="kw">where
+        </span>T: IntoValue,
     {
-        <span class="comment">// XXX: Since metadata is currently not subject to trimming, only allow really small values</span>
-        <span class="comment">// in original_value for now.</span>
-        <span class="kw">if</span> <span class="ident">estimate_size</span>(<span class="ident">original_value</span>.<span class="ident">as_ref</span>()) <span class="op">&lt;</span> <span class="number">500</span> {
-            <span class="self">self</span>.<span class="ident">upsert</span>().<span class="ident">original_value</span> <span class="op">=</span> <span class="ident">original_value</span>.<span class="ident">map</span>(<span class="ident">IntoValue::into_value</span>);
+        <span class="comment">// XXX: Since metadata is currently not subject to trimming, only allow really small values
+        // in original_value for now.
+        </span><span class="kw">if </span>estimate_size(original_value.as_ref()) &lt; <span class="number">500 </span>{
+            <span class="self">self</span>.upsert().original_value = original_value.map(IntoValue::into_value);
         }
     }
 
-    <span class="doccomment">/// Take out the original value.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">take_original_value</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">as_mut</span>().<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">original_value</span>.<span class="ident">take</span>())
+    <span class="doccomment">/// Take out the original value.
+    </span><span class="kw">pub fn </span>take_original_value(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Value&gt; {
+        <span class="self">self</span>.<span class="number">0</span>.as_mut().and_then(|x| x.original_value.take())
     }
 
-    <span class="doccomment">/// Indicates whether this field has errors.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">has_errors</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">as_ref</span>().<span class="ident">map_or</span>(<span class="bool-val">false</span>, <span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="op">!</span><span class="ident">x</span>.<span class="ident">errors</span>.<span class="ident">is_empty</span>())
+    <span class="doccomment">/// Indicates whether this field has errors.
+    </span><span class="kw">pub fn </span>has_errors(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.<span class="number">0</span>.as_ref().map_or(<span class="bool-val">false</span>, |x| !x.errors.is_empty())
     }
 
-    <span class="doccomment">/// Indicates whether this field has meta data attached.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">as_ref</span>().<span class="ident">map_or</span>(<span class="bool-val">true</span>, <span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">is_empty</span>())
+    <span class="doccomment">/// Indicates whether this field has meta data attached.
+    </span><span class="kw">pub fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.<span class="number">0</span>.as_ref().map_or(<span class="bool-val">true</span>, |x| x.is_empty())
     }
 
-    <span class="doccomment">/// Merges this meta with another one.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">merge</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">other</span>: <span class="self">Self</span>) -&gt; <span class="self">Self</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">other_inner</span>) <span class="op">=</span> <span class="ident">other</span>.<span class="number">0</span> {
-            <span class="kw">let</span> <span class="ident">other_inner</span> <span class="op">=</span> <span class="kw-2">*</span><span class="ident">other_inner</span>;
-            <span class="kw">let</span> <span class="ident">inner</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">upsert</span>();
-            <span class="ident">inner</span>.<span class="ident">remarks</span>.<span class="ident">extend</span>(<span class="ident">other_inner</span>.<span class="ident">remarks</span>.<span class="ident">into_iter</span>());
-            <span class="ident">inner</span>.<span class="ident">errors</span>.<span class="ident">extend</span>(<span class="ident">other_inner</span>.<span class="ident">errors</span>.<span class="ident">into_iter</span>());
-            <span class="kw">if</span> <span class="ident">inner</span>.<span class="ident">original_length</span>.<span class="ident">is_none</span>() {
-                <span class="ident">inner</span>.<span class="ident">original_length</span> <span class="op">=</span> <span class="ident">other_inner</span>.<span class="ident">original_length</span>;
+    <span class="doccomment">/// Merges this meta with another one.
+    </span><span class="kw">pub fn </span>merge(<span class="kw-2">mut </span><span class="self">self</span>, other: <span class="self">Self</span>) -&gt; <span class="self">Self </span>{
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(other_inner) = other.<span class="number">0 </span>{
+            <span class="kw">let </span>other_inner = <span class="kw-2">*</span>other_inner;
+            <span class="kw">let </span>inner = <span class="self">self</span>.upsert();
+            inner.remarks.extend(other_inner.remarks.into_iter());
+            inner.errors.extend(other_inner.errors.into_iter());
+            <span class="kw">if </span>inner.original_length.is_none() {
+                inner.original_length = other_inner.original_length;
             }
-            <span class="kw">if</span> <span class="ident">inner</span>.<span class="ident">original_value</span>.<span class="ident">is_none</span>() {
-                <span class="ident">inner</span>.<span class="ident">original_value</span> <span class="op">=</span> <span class="ident">other_inner</span>.<span class="ident">original_value</span>;
+            <span class="kw">if </span>inner.original_value.is_none() {
+                inner.original_value = other_inner.original_value;
             }
         }
-        <span class="self">self</span>
-    }
+        <span class="self">self
+    </span>}
 }
 
-<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">MetaInner</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
-        <span class="ident">MetaInner</span> {
-            <span class="ident">remarks</span>: <span class="ident">SmallVec::new</span>(),
-            <span class="ident">errors</span>: <span class="ident">SmallVec::new</span>(),
-            <span class="ident">original_length</span>: <span class="prelude-val">None</span>,
-            <span class="ident">original_value</span>: <span class="prelude-val">None</span>,
+<span class="kw">impl </span>Default <span class="kw">for </span>MetaInner {
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        MetaInner {
+            remarks: SmallVec::new(),
+            errors: SmallVec::new(),
+            original_length: <span class="prelude-val">None</span>,
+            original_value: <span class="prelude-val">None</span>,
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">PartialEq</span> <span class="kw">for</span> <span class="ident">MetaInner</span> {
-    <span class="kw">fn</span> <span class="ident">eq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">remarks</span> <span class="op">==</span> <span class="ident">other</span>.<span class="ident">remarks</span>
-            <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">errors</span> <span class="op">==</span> <span class="ident">other</span>.<span class="ident">errors</span>
-            <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">original_length</span> <span class="op">==</span> <span class="ident">other</span>.<span class="ident">original_length</span>
-            <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">original_value</span> <span class="op">==</span> <span class="ident">other</span>.<span class="ident">original_value</span>
+<span class="kw">impl </span>PartialEq <span class="kw">for </span>MetaInner {
+    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
+        <span class="self">self</span>.remarks == other.remarks
+            &amp;&amp; <span class="self">self</span>.errors == other.errors
+            &amp;&amp; <span class="self">self</span>.original_length == other.original_length
+            &amp;&amp; <span class="self">self</span>.original_value == other.original_value
     }
 }
 
-<span class="kw">impl</span> <span class="ident">PartialEq</span> <span class="kw">for</span> <span class="ident">Meta</span> {
-    <span class="kw">fn</span> <span class="ident">eq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">is_empty</span>() <span class="op">&amp;&amp;</span> <span class="ident">other</span>.<span class="ident">is_empty</span>() {
-            <span class="bool-val">true</span>
-        } <span class="kw">else</span> {
-            <span class="kw">match</span> (<span class="self">self</span>.<span class="number">0</span>.<span class="ident">as_ref</span>(), <span class="ident">other</span>.<span class="number">0</span>.<span class="ident">as_ref</span>()) {
-                (<span class="prelude-val">Some</span>(<span class="ident">a</span>), <span class="prelude-val">Some</span>(<span class="ident">b</span>)) =&gt; <span class="ident">a</span> <span class="op">==</span> <span class="ident">b</span>,
-                <span class="kw">_</span> =&gt; <span class="bool-val">false</span>,
+<span class="kw">impl </span>PartialEq <span class="kw">for </span>Meta {
+    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
+        <span class="kw">if </span><span class="self">self</span>.is_empty() &amp;&amp; other.is_empty() {
+            <span class="bool-val">true
+        </span>} <span class="kw">else </span>{
+            <span class="kw">match </span>(<span class="self">self</span>.<span class="number">0</span>.as_ref(), other.<span class="number">0</span>.as_ref()) {
+                (<span class="prelude-val">Some</span>(a), <span class="prelude-val">Some</span>(b)) =&gt; a == b,
+                <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
             }
         }
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

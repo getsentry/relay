@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-cabi/src/auth.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>auth.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_cabi/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_cabi/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-cabi/src/auth.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>auth.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_cabi/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_cabi/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_cabi/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -208,213 +208,213 @@
 <span id="206">206</span>
 <span id="207">207</span>
 <span id="208">208</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">chrono::Duration</span>;
-<span class="kw">use</span> <span class="ident">serde::Serialize</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>chrono::Duration;
+<span class="kw">use </span>serde::Serialize;
 
-<span class="kw">use</span> <span class="ident">relay_auth</span>::{
-    <span class="ident">generate_key_pair</span>, <span class="ident">generate_relay_id</span>, <span class="ident">PublicKey</span>, <span class="ident">RegisterRequest</span>, <span class="ident">RegisterResponse</span>, <span class="ident">RelayId</span>,
-    <span class="ident">RelayVersion</span>, <span class="ident">SecretKey</span>,
+<span class="kw">use </span>relay_auth::{
+    generate_key_pair, generate_relay_id, PublicKey, RegisterRequest, RegisterResponse, RelayId,
+    RelayVersion, SecretKey,
 };
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::core</span>::{<span class="ident">RelayBuf</span>, <span class="ident">RelayStr</span>, <span class="ident">RelayUuid</span>};
+<span class="kw">use </span><span class="kw">crate</span>::core::{RelayBuf, RelayStr, RelayUuid};
 
-<span class="doccomment">/// Represents a public key in Relay.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RelayPublicKey</span>;
+<span class="doccomment">/// Represents a public key in Relay.
+</span><span class="kw">pub struct </span>RelayPublicKey;
 
-<span class="doccomment">/// Represents a secret key in Relay.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RelaySecretKey</span>;
+<span class="doccomment">/// Represents a secret key in Relay.
+</span><span class="kw">pub struct </span>RelaySecretKey;
 
-<span class="doccomment">/// Represents a key pair from key generation.</span>
-<span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RelayKeyPair</span> {
-    <span class="doccomment">/// The public key used for verifying Relay signatures.</span>
-    <span class="kw">pub</span> <span class="ident">public_key</span>: <span class="kw-2">*mut</span> <span class="ident">RelayPublicKey</span>,
-    <span class="doccomment">/// The secret key used for signing Relay requests.</span>
-    <span class="kw">pub</span> <span class="ident">secret_key</span>: <span class="kw-2">*mut</span> <span class="ident">RelaySecretKey</span>,
+<span class="doccomment">/// Represents a key pair from key generation.
+</span><span class="attribute">#[repr(C)]
+</span><span class="kw">pub struct </span>RelayKeyPair {
+    <span class="doccomment">/// The public key used for verifying Relay signatures.
+    </span><span class="kw">pub </span>public_key: <span class="kw-2">*mut </span>RelayPublicKey,
+    <span class="doccomment">/// The secret key used for signing Relay requests.
+    </span><span class="kw">pub </span>secret_key: <span class="kw-2">*mut </span>RelaySecretKey,
 }
 
-<span class="doccomment">/// Represents a register request.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RelayRegisterRequest</span>;
+<span class="doccomment">/// Represents a register request.
+</span><span class="kw">pub struct </span>RelayRegisterRequest;
 
-<span class="doccomment">/// Parses a public key from a string.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_publickey_parse</span>(<span class="ident">s</span>: <span class="kw-2">*const</span> <span class="ident">RelayStr</span>) -&gt; <span class="kw-2">*mut</span> <span class="ident">RelayPublicKey</span> {
-    <span class="kw">let</span> <span class="ident">public_key</span>: <span class="ident">PublicKey</span> <span class="op">=</span> (<span class="kw-2">*</span><span class="ident">s</span>).<span class="ident">as_str</span>().<span class="ident">parse</span>()<span class="question-mark">?</span>;
-    <span class="ident">Box::into_raw</span>(<span class="ident">Box::new</span>(<span class="ident">public_key</span>)) <span class="kw">as</span> <span class="kw-2">*mut</span> <span class="ident">RelayPublicKey</span>
+<span class="doccomment">/// Parses a public key from a string.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_publickey_parse(s: <span class="kw-2">*const </span>RelayStr) -&gt; <span class="kw-2">*mut </span>RelayPublicKey {
+    <span class="kw">let </span>public_key: PublicKey = (<span class="kw-2">*</span>s).as_str().parse()<span class="question-mark">?</span>;
+    Box::into_raw(Box::new(public_key)) <span class="kw">as </span><span class="kw-2">*mut </span>RelayPublicKey
 }
 
-<span class="doccomment">/// Frees a public key.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_publickey_free</span>(<span class="ident">spk</span>: <span class="kw-2">*mut</span> <span class="ident">RelayPublicKey</span>) {
-    <span class="kw">if</span> <span class="op">!</span><span class="ident">spk</span>.<span class="ident">is_null</span>() {
-        <span class="kw">let</span> <span class="ident">pk</span> <span class="op">=</span> <span class="ident">spk</span> <span class="kw">as</span> <span class="kw-2">*mut</span> <span class="ident">PublicKey</span>;
-        <span class="kw">let</span> <span class="ident">_dropped</span> <span class="op">=</span> <span class="ident">Box::from_raw</span>(<span class="ident">pk</span>);
+<span class="doccomment">/// Frees a public key.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_publickey_free(spk: <span class="kw-2">*mut </span>RelayPublicKey) {
+    <span class="kw">if </span>!spk.is_null() {
+        <span class="kw">let </span>pk = spk <span class="kw">as </span><span class="kw-2">*mut </span>PublicKey;
+        <span class="kw">let </span>_dropped = Box::from_raw(pk);
     }
 }
 
-<span class="doccomment">/// Converts a public key into a string.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_publickey_to_string</span>(<span class="ident">spk</span>: <span class="kw-2">*const</span> <span class="ident">RelayPublicKey</span>) -&gt; <span class="ident">RelayStr</span> {
-    <span class="kw">let</span> <span class="ident">pk</span> <span class="op">=</span> <span class="ident">spk</span> <span class="kw">as</span> <span class="kw-2">*const</span> <span class="ident">PublicKey</span>;
-    <span class="ident">RelayStr::from_string</span>((<span class="kw-2">*</span><span class="ident">pk</span>).<span class="ident">to_string</span>())
+<span class="doccomment">/// Converts a public key into a string.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_publickey_to_string(spk: <span class="kw-2">*const </span>RelayPublicKey) -&gt; RelayStr {
+    <span class="kw">let </span>pk = spk <span class="kw">as </span><span class="kw-2">*const </span>PublicKey;
+    RelayStr::from_string((<span class="kw-2">*</span>pk).to_string())
 }
 
-<span class="doccomment">/// Verifies a signature</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_publickey_verify</span>(
-    <span class="ident">spk</span>: <span class="kw-2">*const</span> <span class="ident">RelayPublicKey</span>,
-    <span class="ident">data</span>: <span class="kw-2">*const</span> <span class="ident">RelayBuf</span>,
-    <span class="ident">sig</span>: <span class="kw-2">*const</span> <span class="ident">RelayStr</span>,
-) -&gt; <span class="ident">bool</span> {
-    <span class="kw">let</span> <span class="ident">pk</span> <span class="op">=</span> <span class="ident">spk</span> <span class="kw">as</span> <span class="kw-2">*const</span> <span class="ident">PublicKey</span>;
-    (<span class="kw-2">*</span><span class="ident">pk</span>).<span class="ident">verify</span>((<span class="kw-2">*</span><span class="ident">data</span>).<span class="ident">as_bytes</span>(), (<span class="kw-2">*</span><span class="ident">sig</span>).<span class="ident">as_str</span>())
+<span class="doccomment">/// Verifies a signature
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_publickey_verify(
+    spk: <span class="kw-2">*const </span>RelayPublicKey,
+    data: <span class="kw-2">*const </span>RelayBuf,
+    sig: <span class="kw-2">*const </span>RelayStr,
+) -&gt; bool {
+    <span class="kw">let </span>pk = spk <span class="kw">as </span><span class="kw-2">*const </span>PublicKey;
+    (<span class="kw-2">*</span>pk).verify((<span class="kw-2">*</span>data).as_bytes(), (<span class="kw-2">*</span>sig).as_str())
 }
 
-<span class="doccomment">/// Verifies a signature</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_publickey_verify_timestamp</span>(
-    <span class="ident">spk</span>: <span class="kw-2">*const</span> <span class="ident">RelayPublicKey</span>,
-    <span class="ident">data</span>: <span class="kw-2">*const</span> <span class="ident">RelayBuf</span>,
-    <span class="ident">sig</span>: <span class="kw-2">*const</span> <span class="ident">RelayStr</span>,
-    <span class="ident">max_age</span>: <span class="ident">u32</span>,
-) -&gt; <span class="ident">bool</span> {
-    <span class="kw">let</span> <span class="ident">pk</span> <span class="op">=</span> <span class="ident">spk</span> <span class="kw">as</span> <span class="kw-2">*const</span> <span class="ident">PublicKey</span>;
-    <span class="kw">let</span> <span class="ident">max_age</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">Duration::seconds</span>(<span class="ident">i64::from</span>(<span class="ident">max_age</span>)));
-    (<span class="kw-2">*</span><span class="ident">pk</span>).<span class="ident">verify_timestamp</span>((<span class="kw-2">*</span><span class="ident">data</span>).<span class="ident">as_bytes</span>(), (<span class="kw-2">*</span><span class="ident">sig</span>).<span class="ident">as_str</span>(), <span class="ident">max_age</span>)
+<span class="doccomment">/// Verifies a signature
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_publickey_verify_timestamp(
+    spk: <span class="kw-2">*const </span>RelayPublicKey,
+    data: <span class="kw-2">*const </span>RelayBuf,
+    sig: <span class="kw-2">*const </span>RelayStr,
+    max_age: u32,
+) -&gt; bool {
+    <span class="kw">let </span>pk = spk <span class="kw">as </span><span class="kw-2">*const </span>PublicKey;
+    <span class="kw">let </span>max_age = <span class="prelude-val">Some</span>(Duration::seconds(i64::from(max_age)));
+    (<span class="kw-2">*</span>pk).verify_timestamp((<span class="kw-2">*</span>data).as_bytes(), (<span class="kw-2">*</span>sig).as_str(), max_age)
 }
 
-<span class="doccomment">/// Parses a secret key from a string.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_secretkey_parse</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">RelayStr</span>) -&gt; <span class="kw-2">*mut</span> <span class="ident">RelaySecretKey</span> {
-    <span class="kw">let</span> <span class="ident">secret_key</span>: <span class="ident">SecretKey</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">as_str</span>().<span class="ident">parse</span>()<span class="question-mark">?</span>;
-    <span class="ident">Box::into_raw</span>(<span class="ident">Box::new</span>(<span class="ident">secret_key</span>)) <span class="kw">as</span> <span class="kw-2">*mut</span> <span class="ident">RelaySecretKey</span>
+<span class="doccomment">/// Parses a secret key from a string.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_secretkey_parse(s: <span class="kw-2">&amp;</span>RelayStr) -&gt; <span class="kw-2">*mut </span>RelaySecretKey {
+    <span class="kw">let </span>secret_key: SecretKey = s.as_str().parse()<span class="question-mark">?</span>;
+    Box::into_raw(Box::new(secret_key)) <span class="kw">as </span><span class="kw-2">*mut </span>RelaySecretKey
 }
 
-<span class="doccomment">/// Frees a secret key.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_secretkey_free</span>(<span class="ident">spk</span>: <span class="kw-2">*mut</span> <span class="ident">RelaySecretKey</span>) {
-    <span class="kw">if</span> <span class="op">!</span><span class="ident">spk</span>.<span class="ident">is_null</span>() {
-        <span class="kw">let</span> <span class="ident">pk</span> <span class="op">=</span> <span class="ident">spk</span> <span class="kw">as</span> <span class="kw-2">*mut</span> <span class="ident">SecretKey</span>;
-        <span class="kw">let</span> <span class="ident">_dropped</span> <span class="op">=</span> <span class="ident">Box::from_raw</span>(<span class="ident">pk</span>);
+<span class="doccomment">/// Frees a secret key.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_secretkey_free(spk: <span class="kw-2">*mut </span>RelaySecretKey) {
+    <span class="kw">if </span>!spk.is_null() {
+        <span class="kw">let </span>pk = spk <span class="kw">as </span><span class="kw-2">*mut </span>SecretKey;
+        <span class="kw">let </span>_dropped = Box::from_raw(pk);
     }
 }
 
-<span class="doccomment">/// Converts a secret key into a string.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_secretkey_to_string</span>(<span class="ident">spk</span>: <span class="kw-2">*const</span> <span class="ident">RelaySecretKey</span>) -&gt; <span class="ident">RelayStr</span> {
-    <span class="kw">let</span> <span class="ident">pk</span> <span class="op">=</span> <span class="ident">spk</span> <span class="kw">as</span> <span class="kw-2">*const</span> <span class="ident">SecretKey</span>;
-    <span class="ident">RelayStr::from_string</span>((<span class="kw-2">*</span><span class="ident">pk</span>).<span class="ident">to_string</span>())
+<span class="doccomment">/// Converts a secret key into a string.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_secretkey_to_string(spk: <span class="kw-2">*const </span>RelaySecretKey) -&gt; RelayStr {
+    <span class="kw">let </span>pk = spk <span class="kw">as </span><span class="kw-2">*const </span>SecretKey;
+    RelayStr::from_string((<span class="kw-2">*</span>pk).to_string())
 }
 
-<span class="doccomment">/// Verifies a signature</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_secretkey_sign</span>(
-    <span class="ident">spk</span>: <span class="kw-2">*const</span> <span class="ident">RelaySecretKey</span>,
-    <span class="ident">data</span>: <span class="kw-2">*const</span> <span class="ident">RelayBuf</span>,
-) -&gt; <span class="ident">RelayStr</span> {
-    <span class="kw">let</span> <span class="ident">pk</span> <span class="op">=</span> <span class="ident">spk</span> <span class="kw">as</span> <span class="kw-2">*const</span> <span class="ident">SecretKey</span>;
-    <span class="ident">RelayStr::from_string</span>((<span class="kw-2">*</span><span class="ident">pk</span>).<span class="ident">sign</span>((<span class="kw-2">*</span><span class="ident">data</span>).<span class="ident">as_bytes</span>()))
+<span class="doccomment">/// Verifies a signature
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_secretkey_sign(
+    spk: <span class="kw-2">*const </span>RelaySecretKey,
+    data: <span class="kw-2">*const </span>RelayBuf,
+) -&gt; RelayStr {
+    <span class="kw">let </span>pk = spk <span class="kw">as </span><span class="kw-2">*const </span>SecretKey;
+    RelayStr::from_string((<span class="kw-2">*</span>pk).sign((<span class="kw-2">*</span>data).as_bytes()))
 }
 
-<span class="doccomment">/// Generates a secret, public key pair.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_generate_key_pair</span>() -&gt; <span class="ident">RelayKeyPair</span> {
-    <span class="kw">let</span> (<span class="ident">sk</span>, <span class="ident">pk</span>) <span class="op">=</span> <span class="ident">generate_key_pair</span>();
-    <span class="ident">RelayKeyPair</span> {
-        <span class="ident">secret_key</span>: <span class="ident">Box::into_raw</span>(<span class="ident">Box::new</span>(<span class="ident">sk</span>)) <span class="kw">as</span> <span class="kw-2">*mut</span> <span class="ident">RelaySecretKey</span>,
-        <span class="ident">public_key</span>: <span class="ident">Box::into_raw</span>(<span class="ident">Box::new</span>(<span class="ident">pk</span>)) <span class="kw">as</span> <span class="kw-2">*mut</span> <span class="ident">RelayPublicKey</span>,
+<span class="doccomment">/// Generates a secret, public key pair.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_generate_key_pair() -&gt; RelayKeyPair {
+    <span class="kw">let </span>(sk, pk) = generate_key_pair();
+    RelayKeyPair {
+        secret_key: Box::into_raw(Box::new(sk)) <span class="kw">as </span><span class="kw-2">*mut </span>RelaySecretKey,
+        public_key: Box::into_raw(Box::new(pk)) <span class="kw">as </span><span class="kw-2">*mut </span>RelayPublicKey,
     }
 }
 
-<span class="doccomment">/// Randomly generates an relay id</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_generate_relay_id</span>() -&gt; <span class="ident">RelayUuid</span> {
-    <span class="kw">let</span> <span class="ident">relay_id</span> <span class="op">=</span> <span class="ident">generate_relay_id</span>();
-    <span class="ident">RelayUuid::new</span>(<span class="ident">relay_id</span>)
+<span class="doccomment">/// Randomly generates an relay id
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_generate_relay_id() -&gt; RelayUuid {
+    <span class="kw">let </span>relay_id = generate_relay_id();
+    RelayUuid::new(relay_id)
 }
 
-<span class="doccomment">/// Creates a challenge from a register request and returns JSON.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_create_register_challenge</span>(
-    <span class="ident">data</span>: <span class="kw-2">*const</span> <span class="ident">RelayBuf</span>,
-    <span class="ident">signature</span>: <span class="kw-2">*const</span> <span class="ident">RelayStr</span>,
-    <span class="ident">secret</span>: <span class="kw-2">*const</span> <span class="ident">RelayStr</span>,
-    <span class="ident">max_age</span>: <span class="ident">u32</span>,
-) -&gt; <span class="ident">RelayStr</span> {
-    <span class="kw">let</span> <span class="ident">max_age</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">max_age</span> {
-        <span class="number">0</span> =&gt; <span class="prelude-val">None</span>,
-        <span class="ident">m</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">Duration::seconds</span>(<span class="ident">i64::from</span>(<span class="ident">m</span>))),
+<span class="doccomment">/// Creates a challenge from a register request and returns JSON.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_create_register_challenge(
+    data: <span class="kw-2">*const </span>RelayBuf,
+    signature: <span class="kw-2">*const </span>RelayStr,
+    secret: <span class="kw-2">*const </span>RelayStr,
+    max_age: u32,
+) -&gt; RelayStr {
+    <span class="kw">let </span>max_age = <span class="kw">match </span>max_age {
+        <span class="number">0 </span>=&gt; <span class="prelude-val">None</span>,
+        m =&gt; <span class="prelude-val">Some</span>(Duration::seconds(i64::from(m))),
     };
 
-    <span class="kw">let</span> <span class="ident">req</span> <span class="op">=</span>
-        <span class="ident">RegisterRequest::bootstrap_unpack</span>((<span class="kw-2">*</span><span class="ident">data</span>).<span class="ident">as_bytes</span>(), (<span class="kw-2">*</span><span class="ident">signature</span>).<span class="ident">as_str</span>(), <span class="ident">max_age</span>)<span class="question-mark">?</span>;
+    <span class="kw">let </span>req =
+        RegisterRequest::bootstrap_unpack((<span class="kw-2">*</span>data).as_bytes(), (<span class="kw-2">*</span>signature).as_str(), max_age)<span class="question-mark">?</span>;
 
-    <span class="kw">let</span> <span class="ident">challenge</span> <span class="op">=</span> <span class="ident">req</span>.<span class="ident">into_challenge</span>((<span class="kw-2">*</span><span class="ident">secret</span>).<span class="ident">as_str</span>().<span class="ident">as_bytes</span>());
-    <span class="ident">RelayStr::from_string</span>(<span class="ident">serde_json::to_string</span>(<span class="kw-2">&amp;</span><span class="ident">challenge</span>)<span class="question-mark">?</span>)
+    <span class="kw">let </span>challenge = req.into_challenge((<span class="kw-2">*</span>secret).as_str().as_bytes());
+    RelayStr::from_string(serde_json::to_string(<span class="kw-2">&amp;</span>challenge)<span class="question-mark">?</span>)
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>)]</span>
-<span class="kw">struct</span> <span class="ident">RelayRegisterResponse</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="kw">pub</span> <span class="ident">relay_id</span>: <span class="ident">RelayId</span>,
-    <span class="kw">pub</span> <span class="ident">token</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>,
-    <span class="kw">pub</span> <span class="ident">public_key</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">PublicKey</span>,
-    <span class="kw">pub</span> <span class="ident">version</span>: <span class="ident">RelayVersion</span>,
+<span class="attribute">#[derive(Serialize)]
+</span><span class="kw">struct </span>RelayRegisterResponse&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="kw">pub </span>relay_id: RelayId,
+    <span class="kw">pub </span>token: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str,
+    <span class="kw">pub </span>public_key: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>PublicKey,
+    <span class="kw">pub </span>version: RelayVersion,
 }
 
-<span class="doccomment">/// Validates a register response.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_validate_register_response</span>(
-    <span class="ident">data</span>: <span class="kw-2">*const</span> <span class="ident">RelayBuf</span>,
-    <span class="ident">signature</span>: <span class="kw-2">*const</span> <span class="ident">RelayStr</span>,
-    <span class="ident">secret</span>: <span class="kw-2">*const</span> <span class="ident">RelayStr</span>,
-    <span class="ident">max_age</span>: <span class="ident">u32</span>,
-) -&gt; <span class="ident">RelayStr</span> {
-    <span class="kw">let</span> <span class="ident">max_age</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">max_age</span> {
-        <span class="number">0</span> =&gt; <span class="prelude-val">None</span>,
-        <span class="ident">m</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">Duration::seconds</span>(<span class="ident">i64::from</span>(<span class="ident">m</span>))),
+<span class="doccomment">/// Validates a register response.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_validate_register_response(
+    data: <span class="kw-2">*const </span>RelayBuf,
+    signature: <span class="kw-2">*const </span>RelayStr,
+    secret: <span class="kw-2">*const </span>RelayStr,
+    max_age: u32,
+) -&gt; RelayStr {
+    <span class="kw">let </span>max_age = <span class="kw">match </span>max_age {
+        <span class="number">0 </span>=&gt; <span class="prelude-val">None</span>,
+        m =&gt; <span class="prelude-val">Some</span>(Duration::seconds(i64::from(m))),
     };
 
-    <span class="kw">let</span> (<span class="ident">response</span>, <span class="ident">state</span>) <span class="op">=</span> <span class="ident">RegisterResponse::unpack</span>(
-        (<span class="kw-2">*</span><span class="ident">data</span>).<span class="ident">as_bytes</span>(),
-        (<span class="kw-2">*</span><span class="ident">signature</span>).<span class="ident">as_str</span>(),
-        (<span class="kw-2">*</span><span class="ident">secret</span>).<span class="ident">as_str</span>().<span class="ident">as_bytes</span>(),
-        <span class="ident">max_age</span>,
+    <span class="kw">let </span>(response, state) = RegisterResponse::unpack(
+        (<span class="kw-2">*</span>data).as_bytes(),
+        (<span class="kw-2">*</span>signature).as_str(),
+        (<span class="kw-2">*</span>secret).as_str().as_bytes(),
+        max_age,
     )<span class="question-mark">?</span>;
 
-    <span class="kw">let</span> <span class="ident">relay_response</span> <span class="op">=</span> <span class="ident">RelayRegisterResponse</span> {
-        <span class="ident">relay_id</span>: <span class="ident">response</span>.<span class="ident">relay_id</span>(),
-        <span class="ident">token</span>: <span class="ident">response</span>.<span class="ident">token</span>(),
-        <span class="ident">public_key</span>: <span class="ident">state</span>.<span class="ident">public_key</span>(),
-        <span class="ident">version</span>: <span class="ident">response</span>.<span class="ident">version</span>(),
+    <span class="kw">let </span>relay_response = RelayRegisterResponse {
+        relay_id: response.relay_id(),
+        token: response.token(),
+        public_key: state.public_key(),
+        version: response.version(),
     };
 
-    <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="ident">serde_json::to_string</span>(<span class="kw-2">&amp;</span><span class="ident">relay_response</span>)<span class="question-mark">?</span>;
-    <span class="ident">RelayStr::from_string</span>(<span class="ident">json</span>)
+    <span class="kw">let </span>json = serde_json::to_string(<span class="kw-2">&amp;</span>relay_response)<span class="question-mark">?</span>;
+    RelayStr::from_string(json)
 }
 
-<span class="doccomment">/// Returns true if the given version is supported by this library.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_version_supported</span>(<span class="ident">version</span>: <span class="kw-2">&amp;</span><span class="ident">RelayStr</span>) -&gt; <span class="ident">bool</span> {
-    <span class="kw">let</span> <span class="ident">relay_version</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">version</span>.<span class="ident">as_str</span>() {
-        <span class="string">&quot;&quot;</span> =&gt; <span class="ident">RelayVersion::default</span>(),
-        <span class="ident">s</span> =&gt; <span class="ident">s</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">RelayVersion</span><span class="op">&gt;</span>()<span class="question-mark">?</span>,
+<span class="doccomment">/// Returns true if the given version is supported by this library.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_version_supported(version: <span class="kw-2">&amp;</span>RelayStr) -&gt; bool {
+    <span class="kw">let </span>relay_version = <span class="kw">match </span>version.as_str() {
+        <span class="string">&quot;&quot; </span>=&gt; RelayVersion::default(),
+        s =&gt; s.parse::&lt;RelayVersion&gt;()<span class="question-mark">?</span>,
     };
 
-    <span class="ident">relay_version</span>.<span class="ident">supported</span>()
+    relay_version.supported()
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_cabi" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_cabi" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

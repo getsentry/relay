@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-redis/src/real.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>real.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_redis/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_redis/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-redis/src/real.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>real.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_redis/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_redis/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_redis/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -170,175 +170,175 @@
 <span id="168">168</span>
 <span id="169">169</span>
 <span id="170">170</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">failure::Fail</span>;
-<span class="kw">use</span> <span class="ident">r2d2</span>::{<span class="ident">Pool</span>, <span class="ident">PooledConnection</span>};
-<span class="kw">use</span> <span class="ident">redis::ConnectionLike</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>failure::Fail;
+<span class="kw">use </span>r2d2::{Pool, PooledConnection};
+<span class="kw">use </span>redis::ConnectionLike;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::config</span>::{<span class="ident">RedisConfig</span>, <span class="ident">RedisConfigOptions</span>};
+<span class="kw">use </span><span class="kw">crate</span>::config::{RedisConfig, RedisConfigOptions};
 
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">redis</span>;
+<span class="kw">pub use </span>redis;
 
-<span class="doccomment">/// An error returned from `RedisPool`.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Fail</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">RedisError</span> {
-    <span class="doccomment">/// Failure in r2d2 pool.</span>
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;failed to pool redis connection&quot;</span>)]</span>
-    <span class="ident">Pool</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">r2d2::Error</span>),
+<span class="doccomment">/// An error returned from `RedisPool`.
+</span><span class="attribute">#[derive(Debug, Fail)]
+</span><span class="kw">pub enum </span>RedisError {
+    <span class="doccomment">/// Failure in r2d2 pool.
+    </span><span class="attribute">#[fail(display = <span class="string">&quot;failed to pool redis connection&quot;</span>)]
+    </span>Pool(<span class="attribute">#[cause] </span>r2d2::Error),
 
-    <span class="doccomment">/// Failure in Redis communication.</span>
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;failed to communicate with redis&quot;</span>)]</span>
-    <span class="ident">Redis</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">redis::RedisError</span>),
+    <span class="doccomment">/// Failure in Redis communication.
+    </span><span class="attribute">#[fail(display = <span class="string">&quot;failed to communicate with redis&quot;</span>)]
+    </span>Redis(<span class="attribute">#[cause] </span>redis::RedisError),
 }
 
-<span class="kw">enum</span> <span class="ident">ConnectionInner</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="ident">Cluster</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">redis::cluster::ClusterConnection</span>),
-    <span class="ident">Single</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">redis::Connection</span>),
+<span class="kw">enum </span>ConnectionInner&lt;<span class="lifetime">&#39;a</span>&gt; {
+    Cluster(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>redis::cluster::ClusterConnection),
+    Single(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>redis::Connection),
 }
 
-<span class="doccomment">/// A reference to a pooled connection from `PooledClient`.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Connection</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="ident">inner</span>: <span class="ident">ConnectionInner</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
+<span class="doccomment">/// A reference to a pooled connection from `PooledClient`.
+</span><span class="kw">pub struct </span>Connection&lt;<span class="lifetime">&#39;a</span>&gt; {
+    inner: ConnectionInner&lt;<span class="lifetime">&#39;a</span>&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">ConnectionLike</span> <span class="kw">for</span> <span class="ident">Connection</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">req_packed_command</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">cmd</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="ident">redis::RedisResult</span><span class="op">&lt;</span><span class="ident">redis::Value</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">inner</span> {
-            <span class="ident">ConnectionInner::Cluster</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">con</span>) =&gt; <span class="ident">con</span>.<span class="ident">req_packed_command</span>(<span class="ident">cmd</span>),
-            <span class="ident">ConnectionInner::Single</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">con</span>) =&gt; <span class="ident">con</span>.<span class="ident">req_packed_command</span>(<span class="ident">cmd</span>),
+<span class="kw">impl </span>ConnectionLike <span class="kw">for </span>Connection&lt;<span class="lifetime">&#39;_</span>&gt; {
+    <span class="kw">fn </span>req_packed_command(<span class="kw-2">&amp;mut </span><span class="self">self</span>, cmd: <span class="kw-2">&amp;</span>[u8]) -&gt; redis::RedisResult&lt;redis::Value&gt; {
+        <span class="kw">match </span><span class="self">self</span>.inner {
+            ConnectionInner::Cluster(<span class="kw-2">ref mut </span>con) =&gt; con.req_packed_command(cmd),
+            ConnectionInner::Single(<span class="kw-2">ref mut </span>con) =&gt; con.req_packed_command(cmd),
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">req_packed_commands</span>(
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
-        <span class="ident">cmd</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
-        <span class="ident">offset</span>: <span class="ident">usize</span>,
-        <span class="ident">count</span>: <span class="ident">usize</span>,
-    ) -&gt; <span class="ident">redis::RedisResult</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">redis::Value</span><span class="op">&gt;</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">inner</span> {
-            <span class="ident">ConnectionInner::Cluster</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">con</span>) =&gt; <span class="ident">con</span>.<span class="ident">req_packed_commands</span>(<span class="ident">cmd</span>, <span class="ident">offset</span>, <span class="ident">count</span>),
-            <span class="ident">ConnectionInner::Single</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">con</span>) =&gt; <span class="ident">con</span>.<span class="ident">req_packed_commands</span>(<span class="ident">cmd</span>, <span class="ident">offset</span>, <span class="ident">count</span>),
+    <span class="kw">fn </span>req_packed_commands(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        cmd: <span class="kw-2">&amp;</span>[u8],
+        offset: usize,
+        count: usize,
+    ) -&gt; redis::RedisResult&lt;Vec&lt;redis::Value&gt;&gt; {
+        <span class="kw">match </span><span class="self">self</span>.inner {
+            ConnectionInner::Cluster(<span class="kw-2">ref mut </span>con) =&gt; con.req_packed_commands(cmd, offset, count),
+            ConnectionInner::Single(<span class="kw-2">ref mut </span>con) =&gt; con.req_packed_commands(cmd, offset, count),
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">get_db</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">i64</span> {
-        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">inner</span> {
-            <span class="ident">ConnectionInner::Cluster</span>(<span class="kw-2">ref</span> <span class="ident">con</span>) =&gt; <span class="ident">con</span>.<span class="ident">get_db</span>(),
-            <span class="ident">ConnectionInner::Single</span>(<span class="kw-2">ref</span> <span class="ident">con</span>) =&gt; <span class="ident">con</span>.<span class="ident">get_db</span>(),
+    <span class="kw">fn </span>get_db(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; i64 {
+        <span class="kw">match </span><span class="self">self</span>.inner {
+            ConnectionInner::Cluster(<span class="kw-2">ref </span>con) =&gt; con.get_db(),
+            ConnectionInner::Single(<span class="kw-2">ref </span>con) =&gt; con.get_db(),
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">check_connection</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">inner</span> {
-            <span class="ident">ConnectionInner::Cluster</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">con</span>) =&gt; <span class="ident">con</span>.<span class="ident">check_connection</span>(),
-            <span class="ident">ConnectionInner::Single</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">con</span>) =&gt; <span class="ident">con</span>.<span class="ident">check_connection</span>(),
+    <span class="kw">fn </span>check_connection(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; bool {
+        <span class="kw">match </span><span class="self">self</span>.inner {
+            ConnectionInner::Cluster(<span class="kw-2">ref mut </span>con) =&gt; con.check_connection(),
+            ConnectionInner::Single(<span class="kw-2">ref mut </span>con) =&gt; con.check_connection(),
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">is_open</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">inner</span> {
-            <span class="ident">ConnectionInner::Cluster</span>(<span class="kw-2">ref</span> <span class="ident">con</span>) =&gt; <span class="ident">con</span>.<span class="ident">is_open</span>(),
-            <span class="ident">ConnectionInner::Single</span>(<span class="kw-2">ref</span> <span class="ident">con</span>) =&gt; <span class="ident">con</span>.<span class="ident">is_open</span>(),
+    <span class="kw">fn </span>is_open(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="kw">match </span><span class="self">self</span>.inner {
+            ConnectionInner::Cluster(<span class="kw-2">ref </span>con) =&gt; con.is_open(),
+            ConnectionInner::Single(<span class="kw-2">ref </span>con) =&gt; con.is_open(),
         }
     }
 }
 
-<span class="kw">enum</span> <span class="ident">PooledClientInner</span> {
-    <span class="ident">Cluster</span>(<span class="ident">PooledConnection</span><span class="op">&lt;</span><span class="ident">redis::cluster::ClusterClient</span><span class="op">&gt;</span>),
-    <span class="ident">Single</span>(<span class="ident">PooledConnection</span><span class="op">&lt;</span><span class="ident">redis::Client</span><span class="op">&gt;</span>),
+<span class="kw">enum </span>PooledClientInner {
+    Cluster(PooledConnection&lt;redis::cluster::ClusterClient&gt;),
+    Single(PooledConnection&lt;redis::Client&gt;),
 }
 
-<span class="doccomment">/// A pooled Redis client.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">PooledClient</span> {
-    <span class="ident">inner</span>: <span class="ident">PooledClientInner</span>,
+<span class="doccomment">/// A pooled Redis client.
+</span><span class="kw">pub struct </span>PooledClient {
+    inner: PooledClientInner,
 }
 
-<span class="kw">impl</span> <span class="ident">PooledClient</span> {
-    <span class="doccomment">/// Returns a pooled connection to this client.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">connection</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="ident">Connection</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">inner</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">inner</span> {
-            <span class="ident">PooledClientInner::Cluster</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">client</span>) =&gt; <span class="ident">ConnectionInner::Cluster</span>(<span class="kw-2">&amp;mut</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">client</span>),
-            <span class="ident">PooledClientInner::Single</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">client</span>) =&gt; <span class="ident">ConnectionInner::Single</span>(<span class="kw-2">&amp;mut</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">client</span>),
+<span class="kw">impl </span>PooledClient {
+    <span class="doccomment">/// Returns a pooled connection to this client.
+    </span><span class="kw">pub fn </span>connection(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Connection&lt;<span class="lifetime">&#39;_</span>&gt; {
+        <span class="kw">let </span>inner = <span class="kw">match </span><span class="self">self</span>.inner {
+            PooledClientInner::Cluster(<span class="kw-2">ref mut </span>client) =&gt; ConnectionInner::Cluster(client),
+            PooledClientInner::Single(<span class="kw-2">ref mut </span>client) =&gt; ConnectionInner::Single(client),
         };
 
-        <span class="ident">Connection</span> { <span class="ident">inner</span> }
+        Connection { inner }
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
-<span class="kw">enum</span> <span class="ident">RedisPoolInner</span> {
-    <span class="ident">Cluster</span>(<span class="ident">Pool</span><span class="op">&lt;</span><span class="ident">redis::cluster::ClusterClient</span><span class="op">&gt;</span>),
-    <span class="ident">Single</span>(<span class="ident">Pool</span><span class="op">&lt;</span><span class="ident">redis::Client</span><span class="op">&gt;</span>),
+<span class="attribute">#[derive(Clone)]
+</span><span class="kw">enum </span>RedisPoolInner {
+    Cluster(Pool&lt;redis::cluster::ClusterClient&gt;),
+    Single(Pool&lt;redis::Client&gt;),
 }
 
-<span class="doccomment">/// Abstraction over cluster vs non-cluster mode.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Even just writing a method that takes a command and executes it doesn&#39;t really work because</span>
-<span class="doccomment">/// there&#39;s both `Cmd` and `ScriptInvocation` to take care of, and both have sync vs async</span>
-<span class="doccomment">/// APIs.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Basically don&#39;t waste your time here, if you want to abstract over this, consider</span>
-<span class="doccomment">/// upstreaming to the redis crate.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RedisPool</span> {
-    <span class="ident">inner</span>: <span class="ident">RedisPoolInner</span>,
+<span class="doccomment">/// Abstraction over cluster vs non-cluster mode.
+///
+/// Even just writing a method that takes a command and executes it doesn&#39;t really work because
+/// there&#39;s both `Cmd` and `ScriptInvocation` to take care of, and both have sync vs async
+/// APIs.
+///
+/// Basically don&#39;t waste your time here, if you want to abstract over this, consider
+/// upstreaming to the redis crate.
+</span><span class="attribute">#[derive(Clone)]
+</span><span class="kw">pub struct </span>RedisPool {
+    inner: RedisPoolInner,
 }
 
-<span class="kw">impl</span> <span class="ident">RedisPool</span> {
-    <span class="doccomment">/// Creates a `RedisPool` from configuration.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">RedisConfig</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">RedisError</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="ident">config</span> {
-            <span class="ident">RedisConfig::Cluster</span> {
-                <span class="kw-2">ref</span> <span class="ident">cluster_nodes</span>,
-                <span class="kw-2">ref</span> <span class="ident">options</span>,
+<span class="kw">impl </span>RedisPool {
+    <span class="doccomment">/// Creates a `RedisPool` from configuration.
+    </span><span class="kw">pub fn </span>new(config: <span class="kw-2">&amp;</span>RedisConfig) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, RedisError&gt; {
+        <span class="kw">match </span>config {
+            RedisConfig::Cluster {
+                <span class="kw-2">ref </span>cluster_nodes,
+                <span class="kw-2">ref </span>options,
             } =&gt; {
-                <span class="kw">let</span> <span class="ident">servers</span> <span class="op">=</span> <span class="ident">cluster_nodes</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="ident">String::as_str</span>).<span class="ident">collect</span>();
-                <span class="ident"><span class="self">Self</span>::cluster</span>(<span class="ident">servers</span>, <span class="ident">options</span>)
+                <span class="kw">let </span>servers = cluster_nodes.iter().map(String::as_str).collect();
+                <span class="self">Self</span>::cluster(servers, options)
             }
-            <span class="ident">RedisConfig::Single</span>(<span class="kw-2">ref</span> <span class="ident">server</span>) =&gt; <span class="ident"><span class="self">Self</span>::single</span>(<span class="ident">server</span>, <span class="kw-2">&amp;</span><span class="ident">RedisConfigOptions::default</span>()),
-            <span class="ident">RedisConfig::SingleWithOpts</span> {
-                <span class="kw-2">ref</span> <span class="ident">server</span>,
-                <span class="kw-2">ref</span> <span class="ident">options</span>,
-            } =&gt; <span class="ident"><span class="self">Self</span>::single</span>(<span class="ident">server</span>, <span class="ident">options</span>),
+            RedisConfig::Single(<span class="kw-2">ref </span>server) =&gt; <span class="self">Self</span>::single(server, <span class="kw-2">&amp;</span>RedisConfigOptions::default()),
+            RedisConfig::SingleWithOpts {
+                <span class="kw-2">ref </span>server,
+                <span class="kw-2">ref </span>options,
+            } =&gt; <span class="self">Self</span>::single(server, options),
         }
     }
 
-    <span class="doccomment">/// Creates a `RedisPool` in cluster configuration.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">cluster</span>(<span class="ident">servers</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>, <span class="ident">opts</span>: <span class="kw-2">&amp;</span><span class="ident">RedisConfigOptions</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">RedisError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">pool</span> <span class="op">=</span> <span class="ident">Pool::builder</span>()
-            .<span class="ident">max_size</span>(<span class="ident">opts</span>.<span class="ident">max_connections</span>)
-            .<span class="ident">test_on_check_out</span>(<span class="bool-val">false</span>)
-            .<span class="ident">build</span>(<span class="ident">redis::cluster::ClusterClient::new</span>(<span class="ident">servers</span>).<span class="ident">map_err</span>(<span class="ident">RedisError::Redis</span>)<span class="question-mark">?</span>)
-            .<span class="ident">map_err</span>(<span class="ident">RedisError::Pool</span>)<span class="question-mark">?</span>;
+    <span class="doccomment">/// Creates a `RedisPool` in cluster configuration.
+    </span><span class="kw">pub fn </span>cluster(servers: Vec&lt;<span class="kw-2">&amp;</span>str&gt;, opts: <span class="kw-2">&amp;</span>RedisConfigOptions) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, RedisError&gt; {
+        <span class="kw">let </span>pool = Pool::builder()
+            .max_size(opts.max_connections)
+            .test_on_check_out(<span class="bool-val">false</span>)
+            .build(redis::cluster::ClusterClient::new(servers).map_err(RedisError::Redis)<span class="question-mark">?</span>)
+            .map_err(RedisError::Pool)<span class="question-mark">?</span>;
 
-        <span class="kw">let</span> <span class="ident">inner</span> <span class="op">=</span> <span class="ident">RedisPoolInner::Cluster</span>(<span class="ident">pool</span>);
-        <span class="prelude-val">Ok</span>(<span class="ident">RedisPool</span> { <span class="ident">inner</span> })
+        <span class="kw">let </span>inner = RedisPoolInner::Cluster(pool);
+        <span class="prelude-val">Ok</span>(RedisPool { inner })
     }
 
-    <span class="doccomment">/// Creates a `RedisPool` in single-node configuration.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">single</span>(<span class="ident">server</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">opts</span>: <span class="kw-2">&amp;</span><span class="ident">RedisConfigOptions</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">RedisError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">pool</span> <span class="op">=</span> <span class="ident">Pool::builder</span>()
-            .<span class="ident">max_size</span>(<span class="ident">opts</span>.<span class="ident">max_connections</span>)
-            .<span class="ident">test_on_check_out</span>(<span class="bool-val">false</span>)
-            .<span class="ident">build</span>(<span class="ident">redis::Client::open</span>(<span class="ident">server</span>).<span class="ident">map_err</span>(<span class="ident">RedisError::Redis</span>)<span class="question-mark">?</span>)
-            .<span class="ident">map_err</span>(<span class="ident">RedisError::Pool</span>)<span class="question-mark">?</span>;
+    <span class="doccomment">/// Creates a `RedisPool` in single-node configuration.
+    </span><span class="kw">pub fn </span>single(server: <span class="kw-2">&amp;</span>str, opts: <span class="kw-2">&amp;</span>RedisConfigOptions) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, RedisError&gt; {
+        <span class="kw">let </span>pool = Pool::builder()
+            .max_size(opts.max_connections)
+            .test_on_check_out(<span class="bool-val">false</span>)
+            .build(redis::Client::open(server).map_err(RedisError::Redis)<span class="question-mark">?</span>)
+            .map_err(RedisError::Pool)<span class="question-mark">?</span>;
 
-        <span class="kw">let</span> <span class="ident">inner</span> <span class="op">=</span> <span class="ident">RedisPoolInner::Single</span>(<span class="ident">pool</span>);
-        <span class="prelude-val">Ok</span>(<span class="ident">RedisPool</span> { <span class="ident">inner</span> })
+        <span class="kw">let </span>inner = RedisPoolInner::Single(pool);
+        <span class="prelude-val">Ok</span>(RedisPool { inner })
     }
 
-    <span class="doccomment">/// Returns a pooled connection to a client.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">client</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">PooledClient</span>, <span class="ident">RedisError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">inner</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">inner</span> {
-            <span class="ident">RedisPoolInner::Cluster</span>(<span class="kw-2">ref</span> <span class="ident">pool</span>) =&gt; {
-                <span class="ident">PooledClientInner::Cluster</span>(<span class="ident">pool</span>.<span class="ident">get</span>().<span class="ident">map_err</span>(<span class="ident">RedisError::Pool</span>)<span class="question-mark">?</span>)
+    <span class="doccomment">/// Returns a pooled connection to a client.
+    </span><span class="kw">pub fn </span>client(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;PooledClient, RedisError&gt; {
+        <span class="kw">let </span>inner = <span class="kw">match </span><span class="self">self</span>.inner {
+            RedisPoolInner::Cluster(<span class="kw-2">ref </span>pool) =&gt; {
+                PooledClientInner::Cluster(pool.get().map_err(RedisError::Pool)<span class="question-mark">?</span>)
             }
-            <span class="ident">RedisPoolInner::Single</span>(<span class="kw-2">ref</span> <span class="ident">pool</span>) =&gt; {
-                <span class="ident">PooledClientInner::Single</span>(<span class="ident">pool</span>.<span class="ident">get</span>().<span class="ident">map_err</span>(<span class="ident">RedisError::Pool</span>)<span class="question-mark">?</span>)
+            RedisPoolInner::Single(<span class="kw-2">ref </span>pool) =&gt; {
+                PooledClientInner::Single(pool.get().map_err(RedisError::Pool)<span class="question-mark">?</span>)
             }
         };
 
-        <span class="prelude-val">Ok</span>(<span class="ident">PooledClient</span> { <span class="ident">inner</span> })
+        <span class="prelude-val">Ok</span>(PooledClient { inner })
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_redis" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_redis" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

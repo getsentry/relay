@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/project.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>project.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/project.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>project.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_server/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -1077,1034 +1077,1034 @@
 <span id="1075">1075</span>
 <span id="1076">1076</span>
 <span id="1077">1077</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeSet</span>, <span class="ident">VecDeque</span>};
-<span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
-<span class="kw">use</span> <span class="ident">std::time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>};
+</pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeSet, VecDeque};
+<span class="kw">use </span>std::sync::Arc;
+<span class="kw">use </span>std::time::{Duration, Instant};
 
-<span class="kw">use</span> <span class="ident">actix::prelude</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">DateTime</span>, <span class="ident">Utc</span>};
-<span class="kw">use</span> <span class="ident">futures01</span>::{<span class="ident">future::Shared</span>, <span class="ident">sync::oneshot</span>, <span class="ident">Future</span>};
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
-<span class="kw">use</span> <span class="ident">serde_json::Value</span>;
-<span class="kw">use</span> <span class="ident">smallvec::SmallVec</span>;
-<span class="kw">use</span> <span class="ident">url::Url</span>;
+<span class="kw">use </span>actix::prelude::<span class="kw-2">*</span>;
+<span class="kw">use </span>chrono::{DateTime, Utc};
+<span class="kw">use </span>futures01::{future::Shared, sync::oneshot, Future};
+<span class="kw">use </span>serde::{Deserialize, Serialize};
+<span class="kw">use </span>serde_json::Value;
+<span class="kw">use </span>smallvec::SmallVec;
+<span class="kw">use </span>url::Url;
 
-<span class="kw">use</span> <span class="ident">relay_auth::PublicKey</span>;
-<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">ProjectId</span>, <span class="ident">ProjectKey</span>};
-<span class="kw">use</span> <span class="ident">relay_config::Config</span>;
-<span class="kw">use</span> <span class="ident">relay_filter</span>::{<span class="ident">matches_any_origin</span>, <span class="ident">FiltersConfig</span>};
-<span class="kw">use</span> <span class="ident">relay_general::pii</span>::{<span class="ident">DataScrubbingConfig</span>, <span class="ident">PiiConfig</span>};
-<span class="kw">use</span> <span class="ident">relay_general::store</span>::{<span class="ident">BreakdownsConfig</span>, <span class="ident">MeasurementsConfig</span>};
-<span class="kw">use</span> <span class="ident">relay_general::types::SpanAttribute</span>;
-<span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">Bucket</span>, <span class="ident">InsertMetrics</span>, <span class="ident">MergeBuckets</span>, <span class="ident">Metric</span>, <span class="ident">MetricsContainer</span>};
-<span class="kw">use</span> <span class="ident">relay_quotas</span>::{<span class="ident">Quota</span>, <span class="ident">RateLimits</span>, <span class="ident">Scoping</span>};
-<span class="kw">use</span> <span class="ident">relay_sampling::SamplingConfig</span>;
-<span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
+<span class="kw">use </span>relay_auth::PublicKey;
+<span class="kw">use </span>relay_common::{ProjectId, ProjectKey};
+<span class="kw">use </span>relay_config::Config;
+<span class="kw">use </span>relay_filter::{matches_any_origin, FiltersConfig};
+<span class="kw">use </span>relay_general::pii::{DataScrubbingConfig, PiiConfig};
+<span class="kw">use </span>relay_general::store::{BreakdownsConfig, MeasurementsConfig};
+<span class="kw">use </span>relay_general::types::SpanAttribute;
+<span class="kw">use </span>relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric, MetricsContainer};
+<span class="kw">use </span>relay_quotas::{Quota, RateLimits, Scoping};
+<span class="kw">use </span>relay_sampling::SamplingConfig;
+<span class="kw">use </span>relay_statsd::metric;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome</span>::{<span class="ident">DiscardReason</span>, <span class="ident">Outcome</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::processor</span>::{<span class="ident">EnvelopeProcessor</span>, <span class="ident">ProcessEnvelope</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::project_cache</span>::{
-    <span class="ident">AddSamplingState</span>, <span class="ident">CheckedEnvelope</span>, <span class="ident">ProjectCache</span>, <span class="ident">ProjectError</span>, <span class="ident">UpdateProjectState</span>,
+<span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{DiscardReason, Outcome};
+<span class="kw">use </span><span class="kw">crate</span>::actors::processor::{EnvelopeProcessor, ProcessEnvelope};
+<span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{
+    AddSamplingState, CheckedEnvelope, ProjectCache, ProjectError, UpdateProjectState,
 };
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope::Envelope</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::extractors::RequestMeta</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::sessions::SessionMetricsConfig</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::transactions::TransactionMetricsConfig</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::TaggingRule</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service::Registry</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd::RelayCounters</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{
-    <span class="self">self</span>, <span class="ident">EnvelopeContext</span>, <span class="ident">EnvelopeLimiter</span>, <span class="ident">ErrorBoundary</span>, <span class="ident">MetricsLimiter</span>, <span class="ident">Response</span>,
+<span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
+<span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
+<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::sessions::SessionMetricsConfig;
+<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::TransactionMetricsConfig;
+<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::TaggingRule;
+<span class="kw">use </span><span class="kw">crate</span>::service::Registry;
+<span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
+<span class="kw">use </span><span class="kw">crate</span>::utils::{
+    <span class="self">self</span>, EnvelopeContext, EnvelopeLimiter, ErrorBoundary, MetricsLimiter, Response,
 };
 
-<span class="doccomment">/// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
-<span class="kw">enum</span> <span class="ident">Expiry</span> {
-    <span class="doccomment">/// The project state is perfectly up to date.</span>
-    <span class="ident">Updated</span>,
-    <span class="doccomment">/// The project state is outdated but events depending on this project state can still be</span>
-    <span class="doccomment">/// processed. The state should be refreshed in the background though.</span>
-    <span class="ident">Stale</span>,
-    <span class="doccomment">/// The project state is completely outdated and events need to be buffered up until the new</span>
-    <span class="doccomment">/// state has been fetched.</span>
-    <span class="ident">Expired</span>,
+<span class="doccomment">/// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
+</span><span class="attribute">#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+</span><span class="kw">enum </span>Expiry {
+    <span class="doccomment">/// The project state is perfectly up to date.
+    </span>Updated,
+    <span class="doccomment">/// The project state is outdated but events depending on this project state can still be
+    /// processed. The state should be refreshed in the background though.
+    </span>Stale,
+    <span class="doccomment">/// The project state is completely outdated and events need to be buffered up until the new
+    /// state has been fetched.
+    </span>Expired,
 }
 
-<span class="doccomment">/// The expiry status of a project state, together with the state itself if it has not expired.</span>
-<span class="doccomment">/// Return value of [`Project::expiry_state`].</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">ExpiryState</span> {
-    <span class="doccomment">/// An up-to-date project state. See [`Expiry::Updated`].</span>
-    <span class="ident">Updated</span>(<span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span>),
-    <span class="doccomment">/// A stale project state that can still be used. See [`Expiry::Stale`].</span>
-    <span class="ident">Stale</span>(<span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span>),
-    <span class="doccomment">/// An expired project state that should not be used. See [`Expiry::Expired`].</span>
-    <span class="ident">Expired</span>,
+<span class="doccomment">/// The expiry status of a project state, together with the state itself if it has not expired.
+/// Return value of [`Project::expiry_state`].
+</span><span class="kw">pub enum </span>ExpiryState {
+    <span class="doccomment">/// An up-to-date project state. See [`Expiry::Updated`].
+    </span>Updated(Arc&lt;ProjectState&gt;),
+    <span class="doccomment">/// A stale project state that can still be used. See [`Expiry::Stale`].
+    </span>Stale(Arc&lt;ProjectState&gt;),
+    <span class="doccomment">/// An expired project state that should not be used. See [`Expiry::Expired`].
+    </span>Expired,
 }
 
-<span class="doccomment">/// Features exposed by project config.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">PartialOrd</span>, <span class="ident">Ord</span>, <span class="ident">Hash</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Feature</span> {
-    <span class="doccomment">/// Enables ingestion and normalization of profiles.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;organizations:profiling&quot;</span>)]</span>
-    <span class="ident">Profiling</span>,
-    <span class="doccomment">/// Enables ingestion of Session Replays (Replay Recordings and Replay Events)</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;organizations:session-replay&quot;</span>)]</span>
-    <span class="ident">Replays</span>,
+<span class="doccomment">/// Features exposed by project config.
+</span><span class="attribute">#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+</span><span class="kw">pub enum </span>Feature {
+    <span class="doccomment">/// Enables ingestion and normalization of profiles.
+    </span><span class="attribute">#[serde(rename = <span class="string">&quot;organizations:profiling&quot;</span>)]
+    </span>Profiling,
+    <span class="doccomment">/// Enables ingestion of Session Replays (Replay Recordings and Replay Events)
+    </span><span class="attribute">#[serde(rename = <span class="string">&quot;organizations:session-replay&quot;</span>)]
+    </span>Replays,
 
-    <span class="doccomment">/// Unused.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This used to control the initial experimental metrics extraction for sessions and has been</span>
-    <span class="doccomment">/// discontinued.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;organizations:metrics-extraction&quot;</span>)]</span>
-    <span class="ident">Deprecated1</span>,
+    <span class="doccomment">/// Unused.
+    ///
+    /// This used to control the initial experimental metrics extraction for sessions and has been
+    /// discontinued.
+    </span><span class="attribute">#[serde(rename = <span class="string">&quot;organizations:metrics-extraction&quot;</span>)]
+    </span>Deprecated1,
 
-    <span class="doccomment">/// Forward compatibility.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">other</span>)]</span>
-    <span class="ident">Unknown</span>,
+    <span class="doccomment">/// Forward compatibility.
+    </span><span class="attribute">#[serde(other)]
+    </span>Unknown,
 }
 
-<span class="doccomment">/// These are config values that the user can modify in the UI.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ProjectConfig</span> {
-    <span class="doccomment">/// URLs that are permitted for cross original JavaScript requests.</span>
-    <span class="kw">pub</span> <span class="ident">allowed_domains</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// List of relay public keys that are permitted to access this project.</span>
-    <span class="kw">pub</span> <span class="ident">trusted_relays</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">PublicKey</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// Configuration for PII stripping.</span>
-    <span class="kw">pub</span> <span class="ident">pii_config</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PiiConfig</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// The grouping configuration.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">grouping_config</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// Configuration for filter rules.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;FiltersConfig::is_empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">filter_settings</span>: <span class="ident">FiltersConfig</span>,
-    <span class="doccomment">/// Configuration for data scrubbers.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;DataScrubbingConfig::is_disabled&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">datascrubbing_settings</span>: <span class="ident">DataScrubbingConfig</span>,
-    <span class="doccomment">/// Maximum event retention for the organization.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">event_retention</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u16</span><span class="op">&gt;</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Vec::is_empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">quotas</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Quota</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// Configuration for sampling traces, if not present there will be no sampling.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">dynamic_sampling</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SamplingConfig</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// Configuration for measurements.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">measurements</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">MeasurementsConfig</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// Configuration for operation breakdown. Will be emitted only if present.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">breakdowns_v2</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BreakdownsConfig</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// Configuration for extracting metrics from sessions.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;SessionMetricsConfig::is_disabled&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">session_metrics</span>: <span class="ident">SessionMetricsConfig</span>,
-    <span class="doccomment">/// Configuration for extracting metrics from transaction events.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">transaction_metrics</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ErrorBoundary</span><span class="op">&lt;</span><span class="ident">TransactionMetricsConfig</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// The span attributes configuration.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;BTreeSet::is_empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">span_attributes</span>: <span class="ident">BTreeSet</span><span class="op">&lt;</span><span class="ident">SpanAttribute</span><span class="op">&gt;</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Vec::is_empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">metric_conditional_tagging</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TaggingRule</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// Exposable features enabled for this project</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;BTreeSet::is_empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">features</span>: <span class="ident">BTreeSet</span><span class="op">&lt;</span><span class="ident">Feature</span><span class="op">&gt;</span>,
+<span class="doccomment">/// These are config values that the user can modify in the UI.
+</span><span class="attribute">#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+</span><span class="kw">pub struct </span>ProjectConfig {
+    <span class="doccomment">/// URLs that are permitted for cross original JavaScript requests.
+    </span><span class="kw">pub </span>allowed_domains: Vec&lt;String&gt;,
+    <span class="doccomment">/// List of relay public keys that are permitted to access this project.
+    </span><span class="kw">pub </span>trusted_relays: Vec&lt;PublicKey&gt;,
+    <span class="doccomment">/// Configuration for PII stripping.
+    </span><span class="kw">pub </span>pii_config: <span class="prelude-ty">Option</span>&lt;PiiConfig&gt;,
+    <span class="doccomment">/// The grouping configuration.
+    </span><span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="kw">pub </span>grouping_config: <span class="prelude-ty">Option</span>&lt;Value&gt;,
+    <span class="doccomment">/// Configuration for filter rules.
+    </span><span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;FiltersConfig::is_empty&quot;</span>)]
+    </span><span class="kw">pub </span>filter_settings: FiltersConfig,
+    <span class="doccomment">/// Configuration for data scrubbers.
+    </span><span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;DataScrubbingConfig::is_disabled&quot;</span>)]
+    </span><span class="kw">pub </span>datascrubbing_settings: DataScrubbingConfig,
+    <span class="doccomment">/// Maximum event retention for the organization.
+    </span><span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="kw">pub </span>event_retention: <span class="prelude-ty">Option</span>&lt;u16&gt;,
+    <span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
+    </span><span class="kw">pub </span>quotas: Vec&lt;Quota&gt;,
+    <span class="doccomment">/// Configuration for sampling traces, if not present there will be no sampling.
+    </span><span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="kw">pub </span>dynamic_sampling: <span class="prelude-ty">Option</span>&lt;SamplingConfig&gt;,
+    <span class="doccomment">/// Configuration for measurements.
+    </span><span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="kw">pub </span>measurements: <span class="prelude-ty">Option</span>&lt;MeasurementsConfig&gt;,
+    <span class="doccomment">/// Configuration for operation breakdown. Will be emitted only if present.
+    </span><span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="kw">pub </span>breakdowns_v2: <span class="prelude-ty">Option</span>&lt;BreakdownsConfig&gt;,
+    <span class="doccomment">/// Configuration for extracting metrics from sessions.
+    </span><span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;SessionMetricsConfig::is_disabled&quot;</span>)]
+    </span><span class="kw">pub </span>session_metrics: SessionMetricsConfig,
+    <span class="doccomment">/// Configuration for extracting metrics from transaction events.
+    </span><span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="kw">pub </span>transaction_metrics: <span class="prelude-ty">Option</span>&lt;ErrorBoundary&lt;TransactionMetricsConfig&gt;&gt;,
+    <span class="doccomment">/// The span attributes configuration.
+    </span><span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;BTreeSet::is_empty&quot;</span>)]
+    </span><span class="kw">pub </span>span_attributes: BTreeSet&lt;SpanAttribute&gt;,
+    <span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
+    </span><span class="kw">pub </span>metric_conditional_tagging: Vec&lt;TaggingRule&gt;,
+    <span class="doccomment">/// Exposable features enabled for this project
+    </span><span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;BTreeSet::is_empty&quot;</span>)]
+    </span><span class="kw">pub </span>features: BTreeSet&lt;Feature&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">ProjectConfig</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
-        <span class="ident">ProjectConfig</span> {
-            <span class="ident">allowed_domains</span>: <span class="macro">vec!</span>[<span class="string">&quot;*&quot;</span>.<span class="ident">to_string</span>()],
-            <span class="ident">trusted_relays</span>: <span class="macro">vec!</span>[],
-            <span class="ident">pii_config</span>: <span class="prelude-val">None</span>,
-            <span class="ident">grouping_config</span>: <span class="prelude-val">None</span>,
-            <span class="ident">filter_settings</span>: <span class="ident">FiltersConfig::default</span>(),
-            <span class="ident">datascrubbing_settings</span>: <span class="ident">DataScrubbingConfig::default</span>(),
-            <span class="ident">event_retention</span>: <span class="prelude-val">None</span>,
-            <span class="ident">quotas</span>: <span class="ident">Vec::new</span>(),
-            <span class="ident">dynamic_sampling</span>: <span class="prelude-val">None</span>,
-            <span class="ident">measurements</span>: <span class="prelude-val">None</span>,
-            <span class="ident">breakdowns_v2</span>: <span class="prelude-val">None</span>,
-            <span class="ident">session_metrics</span>: <span class="ident">SessionMetricsConfig::default</span>(),
-            <span class="ident">transaction_metrics</span>: <span class="prelude-val">None</span>,
-            <span class="ident">span_attributes</span>: <span class="ident">BTreeSet::new</span>(),
-            <span class="ident">metric_conditional_tagging</span>: <span class="ident">Vec::new</span>(),
-            <span class="ident">features</span>: <span class="ident">BTreeSet::new</span>(),
+<span class="kw">impl </span>Default <span class="kw">for </span>ProjectConfig {
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        ProjectConfig {
+            allowed_domains: <span class="macro">vec!</span>[<span class="string">&quot;*&quot;</span>.to_string()],
+            trusted_relays: <span class="macro">vec!</span>[],
+            pii_config: <span class="prelude-val">None</span>,
+            grouping_config: <span class="prelude-val">None</span>,
+            filter_settings: FiltersConfig::default(),
+            datascrubbing_settings: DataScrubbingConfig::default(),
+            event_retention: <span class="prelude-val">None</span>,
+            quotas: Vec::new(),
+            dynamic_sampling: <span class="prelude-val">None</span>,
+            measurements: <span class="prelude-val">None</span>,
+            breakdowns_v2: <span class="prelude-val">None</span>,
+            session_metrics: SessionMetricsConfig::default(),
+            transaction_metrics: <span class="prelude-val">None</span>,
+            span_attributes: BTreeSet::new(),
+            metric_conditional_tagging: Vec::new(),
+            features: BTreeSet::new(),
         }
     }
 }
 
-<span class="doccomment">/// These are config values that are passed to external Relays.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Serialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>, <span class="ident">remote</span> <span class="op">=</span> <span class="string">&quot;ProjectConfig&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">LimitedProjectConfig</span> {
-    <span class="kw">pub</span> <span class="ident">allowed_domains</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="kw">pub</span> <span class="ident">trusted_relays</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">PublicKey</span><span class="op">&gt;</span>,
-    <span class="kw">pub</span> <span class="ident">pii_config</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PiiConfig</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// Configuration for filter rules.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;FiltersConfig::is_empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">filter_settings</span>: <span class="ident">FiltersConfig</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;DataScrubbingConfig::is_disabled&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">datascrubbing_settings</span>: <span class="ident">DataScrubbingConfig</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">dynamic_sampling</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SamplingConfig</span><span class="op">&gt;</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;SessionMetricsConfig::is_disabled&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">session_metrics</span>: <span class="ident">SessionMetricsConfig</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">transaction_metrics</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ErrorBoundary</span><span class="op">&lt;</span><span class="ident">TransactionMetricsConfig</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Vec::is_empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">metric_conditional_tagging</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TaggingRule</span><span class="op">&gt;</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;BTreeSet::is_empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">span_attributes</span>: <span class="ident">BTreeSet</span><span class="op">&lt;</span><span class="ident">SpanAttribute</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// Configuration for measurements.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">measurements</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">MeasurementsConfig</span><span class="op">&gt;</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">breakdowns_v2</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BreakdownsConfig</span><span class="op">&gt;</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;BTreeSet::is_empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">features</span>: <span class="ident">BTreeSet</span><span class="op">&lt;</span><span class="ident">Feature</span><span class="op">&gt;</span>,
+<span class="doccomment">/// These are config values that are passed to external Relays.
+</span><span class="attribute">#[derive(Debug, Serialize)]
+#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>, remote = <span class="string">&quot;ProjectConfig&quot;</span>)]
+</span><span class="kw">pub struct </span>LimitedProjectConfig {
+    <span class="kw">pub </span>allowed_domains: Vec&lt;String&gt;,
+    <span class="kw">pub </span>trusted_relays: Vec&lt;PublicKey&gt;,
+    <span class="kw">pub </span>pii_config: <span class="prelude-ty">Option</span>&lt;PiiConfig&gt;,
+    <span class="doccomment">/// Configuration for filter rules.
+    </span><span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;FiltersConfig::is_empty&quot;</span>)]
+    </span><span class="kw">pub </span>filter_settings: FiltersConfig,
+    <span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;DataScrubbingConfig::is_disabled&quot;</span>)]
+    </span><span class="kw">pub </span>datascrubbing_settings: DataScrubbingConfig,
+    <span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="kw">pub </span>dynamic_sampling: <span class="prelude-ty">Option</span>&lt;SamplingConfig&gt;,
+    <span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;SessionMetricsConfig::is_disabled&quot;</span>)]
+    </span><span class="kw">pub </span>session_metrics: SessionMetricsConfig,
+    <span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="kw">pub </span>transaction_metrics: <span class="prelude-ty">Option</span>&lt;ErrorBoundary&lt;TransactionMetricsConfig&gt;&gt;,
+    <span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
+    </span><span class="kw">pub </span>metric_conditional_tagging: Vec&lt;TaggingRule&gt;,
+    <span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;BTreeSet::is_empty&quot;</span>)]
+    </span><span class="kw">pub </span>span_attributes: BTreeSet&lt;SpanAttribute&gt;,
+    <span class="doccomment">/// Configuration for measurements.
+    </span><span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="kw">pub </span>measurements: <span class="prelude-ty">Option</span>&lt;MeasurementsConfig&gt;,
+    <span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="kw">pub </span>breakdowns_v2: <span class="prelude-ty">Option</span>&lt;BreakdownsConfig&gt;,
+    <span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;BTreeSet::is_empty&quot;</span>)]
+    </span><span class="kw">pub </span>features: BTreeSet&lt;Feature&gt;,
 }
 
-<span class="doccomment">/// The project state is a cached server state of a project.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ProjectState</span> {
-    <span class="doccomment">/// Unique identifier of this project.</span>
-    <span class="kw">pub</span> <span class="ident">project_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ProjectId</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// The timestamp of when the state was last changed.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This might be `None` in some rare cases like where states</span>
-    <span class="doccomment">/// are faked locally.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">last_change</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// Indicates that the project is disabled.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">disabled</span>: <span class="ident">bool</span>,
-    <span class="doccomment">/// A container of known public keys in the project.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Since version 2, each project state corresponds to a single public key. For this reason,</span>
-    <span class="doccomment">/// only a single key can occur in this list.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">public_keys</span>: <span class="ident">SmallVec</span><span class="op">&lt;</span>[<span class="ident">PublicKeyConfig</span>; <span class="number">1</span>]<span class="op">&gt;</span>,
-    <span class="doccomment">/// The project&#39;s slug if available.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">slug</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// The project&#39;s current config.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">config</span>: <span class="ident">ProjectConfig</span>,
-    <span class="doccomment">/// The organization id.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">organization_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+<span class="doccomment">/// The project state is a cached server state of a project.
+</span><span class="attribute">#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+</span><span class="kw">pub struct </span>ProjectState {
+    <span class="doccomment">/// Unique identifier of this project.
+    </span><span class="kw">pub </span>project_id: <span class="prelude-ty">Option</span>&lt;ProjectId&gt;,
+    <span class="doccomment">/// The timestamp of when the state was last changed.
+    ///
+    /// This might be `None` in some rare cases like where states
+    /// are faked locally.
+    </span><span class="attribute">#[serde(default)]
+    </span><span class="kw">pub </span>last_change: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
+    <span class="doccomment">/// Indicates that the project is disabled.
+    </span><span class="attribute">#[serde(default)]
+    </span><span class="kw">pub </span>disabled: bool,
+    <span class="doccomment">/// A container of known public keys in the project.
+    ///
+    /// Since version 2, each project state corresponds to a single public key. For this reason,
+    /// only a single key can occur in this list.
+    </span><span class="attribute">#[serde(default)]
+    </span><span class="kw">pub </span>public_keys: SmallVec&lt;[PublicKeyConfig; <span class="number">1</span>]&gt;,
+    <span class="doccomment">/// The project&#39;s slug if available.
+    </span><span class="attribute">#[serde(default)]
+    </span><span class="kw">pub </span>slug: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    <span class="doccomment">/// The project&#39;s current config.
+    </span><span class="attribute">#[serde(default)]
+    </span><span class="kw">pub </span>config: ProjectConfig,
+    <span class="doccomment">/// The organization id.
+    </span><span class="attribute">#[serde(default)]
+    </span><span class="kw">pub </span>organization_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
 
-    <span class="doccomment">/// The time at which this project state was last updated.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip</span>, <span class="ident">default</span> <span class="op">=</span> <span class="string">&quot;Instant::now&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">last_fetch</span>: <span class="ident">Instant</span>,
+    <span class="doccomment">/// The time at which this project state was last updated.
+    </span><span class="attribute">#[serde(skip, default = <span class="string">&quot;Instant::now&quot;</span>)]
+    </span><span class="kw">pub </span>last_fetch: Instant,
 
-    <span class="doccomment">/// True if this project state failed fetching or was incompatible with this Relay.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip</span>, <span class="ident">default</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">invalid</span>: <span class="ident">bool</span>,
+    <span class="doccomment">/// True if this project state failed fetching or was incompatible with this Relay.
+    </span><span class="attribute">#[serde(skip, default)]
+    </span><span class="kw">pub </span>invalid: bool,
 }
 
-<span class="doccomment">/// Controls how we serialize a ProjectState for an external Relay</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Serialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>, <span class="ident">remote</span> <span class="op">=</span> <span class="string">&quot;ProjectState&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">LimitedProjectState</span> {
-    <span class="kw">pub</span> <span class="ident">project_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ProjectId</span><span class="op">&gt;</span>,
-    <span class="kw">pub</span> <span class="ident">last_change</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-    <span class="kw">pub</span> <span class="ident">disabled</span>: <span class="ident">bool</span>,
-    <span class="kw">pub</span> <span class="ident">public_keys</span>: <span class="ident">SmallVec</span><span class="op">&lt;</span>[<span class="ident">PublicKeyConfig</span>; <span class="number">1</span>]<span class="op">&gt;</span>,
-    <span class="kw">pub</span> <span class="ident">slug</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">with</span> <span class="op">=</span> <span class="string">&quot;LimitedProjectConfig&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">config</span>: <span class="ident">ProjectConfig</span>,
-    <span class="kw">pub</span> <span class="ident">organization_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Controls how we serialize a ProjectState for an external Relay
+</span><span class="attribute">#[derive(Debug, Serialize)]
+#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>, remote = <span class="string">&quot;ProjectState&quot;</span>)]
+</span><span class="kw">pub struct </span>LimitedProjectState {
+    <span class="kw">pub </span>project_id: <span class="prelude-ty">Option</span>&lt;ProjectId&gt;,
+    <span class="kw">pub </span>last_change: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
+    <span class="kw">pub </span>disabled: bool,
+    <span class="kw">pub </span>public_keys: SmallVec&lt;[PublicKeyConfig; <span class="number">1</span>]&gt;,
+    <span class="kw">pub </span>slug: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    <span class="attribute">#[serde(with = <span class="string">&quot;LimitedProjectConfig&quot;</span>)]
+    </span><span class="kw">pub </span>config: ProjectConfig,
+    <span class="kw">pub </span>organization_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">ProjectState</span> {
-    <span class="doccomment">/// Project state for a missing project.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">missing</span>() -&gt; <span class="self">Self</span> {
-        <span class="ident">ProjectState</span> {
-            <span class="ident">project_id</span>: <span class="prelude-val">None</span>,
-            <span class="ident">last_change</span>: <span class="prelude-val">None</span>,
-            <span class="ident">disabled</span>: <span class="bool-val">true</span>,
-            <span class="ident">public_keys</span>: <span class="ident">SmallVec::new</span>(),
-            <span class="ident">slug</span>: <span class="prelude-val">None</span>,
-            <span class="ident">config</span>: <span class="ident">ProjectConfig::default</span>(),
-            <span class="ident">organization_id</span>: <span class="prelude-val">None</span>,
-            <span class="ident">last_fetch</span>: <span class="ident">Instant::now</span>(),
-            <span class="ident">invalid</span>: <span class="bool-val">false</span>,
+<span class="kw">impl </span>ProjectState {
+    <span class="doccomment">/// Project state for a missing project.
+    </span><span class="kw">pub fn </span>missing() -&gt; <span class="self">Self </span>{
+        ProjectState {
+            project_id: <span class="prelude-val">None</span>,
+            last_change: <span class="prelude-val">None</span>,
+            disabled: <span class="bool-val">true</span>,
+            public_keys: SmallVec::new(),
+            slug: <span class="prelude-val">None</span>,
+            config: ProjectConfig::default(),
+            organization_id: <span class="prelude-val">None</span>,
+            last_fetch: Instant::now(),
+            invalid: <span class="bool-val">false</span>,
         }
     }
 
-    <span class="doccomment">/// Project state for an unknown but allowed project.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This state is used for forwarding in Proxy mode.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">allowed</span>() -&gt; <span class="self">Self</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">ProjectState::missing</span>();
-        <span class="ident">state</span>.<span class="ident">disabled</span> <span class="op">=</span> <span class="bool-val">false</span>;
-        <span class="ident">state</span>
+    <span class="doccomment">/// Project state for an unknown but allowed project.
+    ///
+    /// This state is used for forwarding in Proxy mode.
+    </span><span class="kw">pub fn </span>allowed() -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span><span class="kw-2">mut </span>state = ProjectState::missing();
+        state.disabled = <span class="bool-val">false</span>;
+        state
     }
 
-    <span class="doccomment">/// Project state for a deserialization error.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">err</span>() -&gt; <span class="self">Self</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">ProjectState::missing</span>();
-        <span class="ident">state</span>.<span class="ident">invalid</span> <span class="op">=</span> <span class="bool-val">true</span>;
-        <span class="ident">state</span>
+    <span class="doccomment">/// Project state for a deserialization error.
+    </span><span class="kw">pub fn </span>err() -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span><span class="kw-2">mut </span>state = ProjectState::missing();
+        state.invalid = <span class="bool-val">true</span>;
+        state
     }
 
-    <span class="doccomment">/// Returns configuration options for the public key.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_public_key_config</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">PublicKeyConfig</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">public_keys</span>.<span class="ident">get</span>(<span class="number">0</span>)
+    <span class="doccomment">/// Returns configuration options for the public key.
+    </span><span class="kw">pub fn </span>get_public_key_config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>PublicKeyConfig&gt; {
+        <span class="self">self</span>.public_keys.get(<span class="number">0</span>)
     }
 
-    <span class="doccomment">/// Returns `true` if the entire project should be considered</span>
-    <span class="doccomment">/// disabled (blackholed, deleted etc.).</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">disabled</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">disabled</span>
+    <span class="doccomment">/// Returns `true` if the entire project should be considered
+    /// disabled (blackholed, deleted etc.).
+    </span><span class="kw">pub fn </span>disabled(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.disabled
     }
 
-    <span class="doccomment">/// Returns `true` if the project state obtained from the upstream could not be parsed. This</span>
-    <span class="doccomment">/// results in events being dropped similar to disabled states, but can provide separate</span>
-    <span class="doccomment">/// metrics.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">invalid</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">invalid</span>
+    <span class="doccomment">/// Returns `true` if the project state obtained from the upstream could not be parsed. This
+    /// results in events being dropped similar to disabled states, but can provide separate
+    /// metrics.
+    </span><span class="kw">pub fn </span>invalid(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.invalid
     }
 
-    <span class="doccomment">/// Returns whether this state is outdated and needs to be refetched.</span>
-    <span class="kw">fn</span> <span class="ident">check_expiry</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) -&gt; <span class="ident">Expiry</span> {
-        <span class="kw">let</span> <span class="ident">expiry</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">project_id</span> {
-            <span class="prelude-val">None</span> =&gt; <span class="ident">config</span>.<span class="ident">cache_miss_expiry</span>(),
-            <span class="prelude-val">Some</span>(<span class="kw">_</span>) =&gt; <span class="ident">config</span>.<span class="ident">project_cache_expiry</span>(),
+    <span class="doccomment">/// Returns whether this state is outdated and needs to be refetched.
+    </span><span class="kw">fn </span>check_expiry(<span class="kw-2">&amp;</span><span class="self">self</span>, config: <span class="kw-2">&amp;</span>Config) -&gt; Expiry {
+        <span class="kw">let </span>expiry = <span class="kw">match </span><span class="self">self</span>.project_id {
+            <span class="prelude-val">None </span>=&gt; config.cache_miss_expiry(),
+            <span class="prelude-val">Some</span>(<span class="kw">_</span>) =&gt; config.project_cache_expiry(),
         };
 
-        <span class="kw">let</span> <span class="ident">elapsed</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">last_fetch</span>.<span class="ident">elapsed</span>();
-        <span class="kw">if</span> <span class="ident">elapsed</span> <span class="op">&gt;</span><span class="op">=</span> <span class="ident">expiry</span> <span class="op">+</span> <span class="ident">config</span>.<span class="ident">project_grace_period</span>() {
-            <span class="ident">Expiry::Expired</span>
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">elapsed</span> <span class="op">&gt;</span><span class="op">=</span> <span class="ident">expiry</span> {
-            <span class="ident">Expiry::Stale</span>
-        } <span class="kw">else</span> {
-            <span class="ident">Expiry::Updated</span>
+        <span class="kw">let </span>elapsed = <span class="self">self</span>.last_fetch.elapsed();
+        <span class="kw">if </span>elapsed &gt;= expiry + config.project_grace_period() {
+            Expiry::Expired
+        } <span class="kw">else if </span>elapsed &gt;= expiry {
+            Expiry::Stale
+        } <span class="kw">else </span>{
+            Expiry::Updated
         }
     }
 
-    <span class="doccomment">/// Returns the project config.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">config</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">ProjectConfig</span> {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>
+    <span class="doccomment">/// Returns the project config.
+    </span><span class="kw">pub fn </span>config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>ProjectConfig {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.config
     }
 
-    <span class="doccomment">/// Returns `true` if the given project ID matches this project.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// If the project state has not been loaded, this check is skipped because the project</span>
-    <span class="doccomment">/// identifier is not yet known. Likewise, this check is skipped for the legacy store endpoint</span>
-    <span class="doccomment">/// which comes without a project ID. The id is later overwritten in `check_envelope`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_valid_project_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">stated_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ProjectId</span><span class="op">&gt;</span>, <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) -&gt; <span class="ident">bool</span> {
-        <span class="kw">match</span> (<span class="self">self</span>.<span class="ident">project_id</span>, <span class="ident">stated_id</span>, <span class="ident">config</span>.<span class="ident">override_project_ids</span>()) {
-            (<span class="prelude-val">Some</span>(<span class="ident">actual_id</span>), <span class="prelude-val">Some</span>(<span class="ident">stated_id</span>), <span class="bool-val">false</span>) =&gt; <span class="ident">actual_id</span> <span class="op">==</span> <span class="ident">stated_id</span>,
-            <span class="kw">_</span> =&gt; <span class="bool-val">true</span>,
+    <span class="doccomment">/// Returns `true` if the given project ID matches this project.
+    ///
+    /// If the project state has not been loaded, this check is skipped because the project
+    /// identifier is not yet known. Likewise, this check is skipped for the legacy store endpoint
+    /// which comes without a project ID. The id is later overwritten in `check_envelope`.
+    </span><span class="kw">pub fn </span>is_valid_project_id(<span class="kw-2">&amp;</span><span class="self">self</span>, stated_id: <span class="prelude-ty">Option</span>&lt;ProjectId&gt;, config: <span class="kw-2">&amp;</span>Config) -&gt; bool {
+        <span class="kw">match </span>(<span class="self">self</span>.project_id, stated_id, config.override_project_ids()) {
+            (<span class="prelude-val">Some</span>(actual_id), <span class="prelude-val">Some</span>(stated_id), <span class="bool-val">false</span>) =&gt; actual_id == stated_id,
+            <span class="kw">_ </span>=&gt; <span class="bool-val">true</span>,
         }
     }
 
-    <span class="doccomment">/// Checks if this origin is allowed for this project.</span>
-    <span class="kw">fn</span> <span class="ident">is_valid_origin</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">origin</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Url</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
-        <span class="comment">// Generally accept any event without an origin.</span>
-        <span class="kw">let</span> <span class="ident">origin</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">origin</span> {
-            <span class="prelude-val">Some</span>(<span class="ident">origin</span>) =&gt; <span class="ident">origin</span>,
-            <span class="prelude-val">None</span> =&gt; <span class="kw">return</span> <span class="bool-val">true</span>,
+    <span class="doccomment">/// Checks if this origin is allowed for this project.
+    </span><span class="kw">fn </span>is_valid_origin(<span class="kw-2">&amp;</span><span class="self">self</span>, origin: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Url&gt;) -&gt; bool {
+        <span class="comment">// Generally accept any event without an origin.
+        </span><span class="kw">let </span>origin = <span class="kw">match </span>origin {
+            <span class="prelude-val">Some</span>(origin) =&gt; origin,
+            <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="bool-val">true</span>,
         };
 
-        <span class="comment">// Match against list of allowed origins. If the list is empty we always reject.</span>
-        <span class="kw">let</span> <span class="ident">allowed</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>().<span class="ident">allowed_domains</span>;
-        <span class="kw">if</span> <span class="ident">allowed</span>.<span class="ident">is_empty</span>() {
-            <span class="kw">return</span> <span class="bool-val">false</span>;
+        <span class="comment">// Match against list of allowed origins. If the list is empty we always reject.
+        </span><span class="kw">let </span>allowed = <span class="kw-2">&amp;</span><span class="self">self</span>.config().allowed_domains;
+        <span class="kw">if </span>allowed.is_empty() {
+            <span class="kw">return </span><span class="bool-val">false</span>;
         }
 
-        <span class="kw">let</span> <span class="ident">allowed</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">allowed</span>
-            .<span class="ident">iter</span>()
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">origin</span><span class="op">|</span> <span class="ident">origin</span>.<span class="ident">as_str</span>().<span class="ident">into</span>())
-            .<span class="ident">collect</span>();
+        <span class="kw">let </span>allowed: Vec&lt;<span class="kw">_</span>&gt; = allowed
+            .iter()
+            .map(|origin| origin.as_str().into())
+            .collect();
 
-        <span class="ident">matches_any_origin</span>(<span class="prelude-val">Some</span>(<span class="ident">origin</span>.<span class="ident">as_str</span>()), <span class="kw-2">&amp;</span><span class="ident">allowed</span>)
+        matches_any_origin(<span class="prelude-val">Some</span>(origin.as_str()), <span class="kw-2">&amp;</span>allowed)
     }
 
-    <span class="doccomment">/// Returns `true` if the given public key matches this state.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This is a sanity check since project states are keyed by the DSN public key. Unless the</span>
-    <span class="doccomment">/// state is invalid or unloaded, it must always match the public key.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_matching_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>) -&gt; <span class="ident">bool</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">key_config</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_public_key_config</span>() {
-            <span class="comment">// Always validate if we have a key config.</span>
-            <span class="ident">key_config</span>.<span class="ident">public_key</span> <span class="op">==</span> <span class="ident">project_key</span>
-        } <span class="kw">else</span> {
-            <span class="comment">// Loaded states must have a key config, but ignore missing and invalid states.</span>
-            <span class="self">self</span>.<span class="ident">project_id</span>.<span class="ident">is_none</span>()
+    <span class="doccomment">/// Returns `true` if the given public key matches this state.
+    ///
+    /// This is a sanity check since project states are keyed by the DSN public key. Unless the
+    /// state is invalid or unloaded, it must always match the public key.
+    </span><span class="kw">pub fn </span>is_matching_key(<span class="kw-2">&amp;</span><span class="self">self</span>, project_key: ProjectKey) -&gt; bool {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(key_config) = <span class="self">self</span>.get_public_key_config() {
+            <span class="comment">// Always validate if we have a key config.
+            </span>key_config.public_key == project_key
+        } <span class="kw">else </span>{
+            <span class="comment">// Loaded states must have a key config, but ignore missing and invalid states.
+            </span><span class="self">self</span>.project_id.is_none()
         }
     }
 
-    <span class="doccomment">/// Amends request `Scoping` with information from this project state.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This scoping amends `RequestMeta::get_partial_scoping` by adding organization and key info.</span>
-    <span class="doccomment">/// The processor must fetch the full scoping before attempting to rate limit with partial</span>
-    <span class="doccomment">/// scoping.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// To get the own scoping of this ProjectKey without amending request information, use</span>
-    <span class="doccomment">/// [`Project::scoping`] instead.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">scope_request</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">meta</span>: <span class="kw-2">&amp;</span><span class="ident">RequestMeta</span>) -&gt; <span class="ident">Scoping</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">scoping</span> <span class="op">=</span> <span class="ident">meta</span>.<span class="ident">get_partial_scoping</span>();
+    <span class="doccomment">/// Amends request `Scoping` with information from this project state.
+    ///
+    /// This scoping amends `RequestMeta::get_partial_scoping` by adding organization and key info.
+    /// The processor must fetch the full scoping before attempting to rate limit with partial
+    /// scoping.
+    ///
+    /// To get the own scoping of this ProjectKey without amending request information, use
+    /// [`Project::scoping`] instead.
+    </span><span class="kw">pub fn </span>scope_request(<span class="kw-2">&amp;</span><span class="self">self</span>, meta: <span class="kw-2">&amp;</span>RequestMeta) -&gt; Scoping {
+        <span class="kw">let </span><span class="kw-2">mut </span>scoping = meta.get_partial_scoping();
 
-        <span class="comment">// The key configuration may be missing if the event has been queued for extended times and</span>
-        <span class="comment">// project was refetched in between. In such a case, access to key quotas is not availabe,</span>
-        <span class="comment">// but we can gracefully execute all other rate limiting.</span>
-        <span class="ident">scoping</span>.<span class="ident">key_id</span> <span class="op">=</span> <span class="self">self</span>
-            .<span class="ident">get_public_key_config</span>()
-            .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">config</span><span class="op">|</span> <span class="ident">config</span>.<span class="ident">numeric_id</span>);
+        <span class="comment">// The key configuration may be missing if the event has been queued for extended times and
+        // project was refetched in between. In such a case, access to key quotas is not availabe,
+        // but we can gracefully execute all other rate limiting.
+        </span>scoping.key_id = <span class="self">self
+            </span>.get_public_key_config()
+            .and_then(|config| config.numeric_id);
 
-        <span class="comment">// The original project identifier is part of the DSN. If the DSN was moved to another</span>
-        <span class="comment">// project, the actual project identifier is different and can be obtained from project</span>
-        <span class="comment">// states. This is only possible when the project state has been loaded.</span>
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">project_id</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">project_id</span> {
-            <span class="ident">scoping</span>.<span class="ident">project_id</span> <span class="op">=</span> <span class="ident">project_id</span>;
+        <span class="comment">// The original project identifier is part of the DSN. If the DSN was moved to another
+        // project, the actual project identifier is different and can be obtained from project
+        // states. This is only possible when the project state has been loaded.
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(project_id) = <span class="self">self</span>.project_id {
+            scoping.project_id = project_id;
         }
 
-        <span class="comment">// This is a hack covering three cases:</span>
-        <span class="comment">//  1. Relay has not fetched the project state. In this case we have no way of knowing</span>
-        <span class="comment">//     which organization this project belongs to and we need to ignore any</span>
-        <span class="comment">//     organization-wide rate limits stored globally. This project state cannot hold</span>
-        <span class="comment">//     organization rate limits yet.</span>
-        <span class="comment">//  2. The state has been loaded, but the organization_id is not available. This is only</span>
-        <span class="comment">//     the case for legacy Sentry servers that do not reply with organization rate</span>
-        <span class="comment">//     limits. Thus, the organization_id doesn&#39;t matter.</span>
-        <span class="comment">//  3. An organization id is available and can be matched against rate limits. In this</span>
-        <span class="comment">//     project, all organizations will match automatically, unless the organization id</span>
-        <span class="comment">//     has changed since the last fetch.</span>
-        <span class="ident">scoping</span>.<span class="ident">organization_id</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">organization_id</span>.<span class="ident">unwrap_or</span>(<span class="number">0</span>);
+        <span class="comment">// This is a hack covering three cases:
+        //  1. Relay has not fetched the project state. In this case we have no way of knowing
+        //     which organization this project belongs to and we need to ignore any
+        //     organization-wide rate limits stored globally. This project state cannot hold
+        //     organization rate limits yet.
+        //  2. The state has been loaded, but the organization_id is not available. This is only
+        //     the case for legacy Sentry servers that do not reply with organization rate
+        //     limits. Thus, the organization_id doesn&#39;t matter.
+        //  3. An organization id is available and can be matched against rate limits. In this
+        //     project, all organizations will match automatically, unless the organization id
+        //     has changed since the last fetch.
+        </span>scoping.organization_id = <span class="self">self</span>.organization_id.unwrap_or(<span class="number">0</span>);
 
-        <span class="ident">scoping</span>
+        scoping
     }
 
-    <span class="doccomment">/// Returns quotas declared in this project state.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_quotas</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[<span class="ident">Quota</span>] {
-        <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">quotas</span>.<span class="ident">as_slice</span>()
+    <span class="doccomment">/// Returns quotas declared in this project state.
+    </span><span class="kw">pub fn </span>get_quotas(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[Quota] {
+        <span class="self">self</span>.config.quotas.as_slice()
     }
 
-    <span class="doccomment">/// Returns `Err` if the project is known to be invalid or disabled.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// If this project state is hard outdated, this returns `Ok(())`, instead, to avoid prematurely</span>
-    <span class="doccomment">/// dropping data.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">check_disabled</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">DiscardReason</span><span class="op">&gt;</span> {
-        <span class="comment">// if the state is out of date, we proceed as if it was still up to date. The</span>
-        <span class="comment">// upstream relay (or sentry) will still filter events.</span>
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">check_expiry</span>(<span class="ident">config</span>) <span class="op">==</span> <span class="ident">Expiry::Expired</span> {
-            <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
+    <span class="doccomment">/// Returns `Err` if the project is known to be invalid or disabled.
+    ///
+    /// If this project state is hard outdated, this returns `Ok(())`, instead, to avoid prematurely
+    /// dropping data.
+    </span><span class="kw">pub fn </span>check_disabled(<span class="kw-2">&amp;</span><span class="self">self</span>, config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Result</span>&lt;(), DiscardReason&gt; {
+        <span class="comment">// if the state is out of date, we proceed as if it was still up to date. The
+        // upstream relay (or sentry) will still filter events.
+        </span><span class="kw">if </span><span class="self">self</span>.check_expiry(config) == Expiry::Expired {
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
 
-        <span class="comment">// if we recorded an invalid project state response from the upstream (i.e. parsing</span>
-        <span class="comment">// failed), discard the event with a state reason.</span>
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">invalid</span>() {
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">DiscardReason::ProjectState</span>);
+        <span class="comment">// if we recorded an invalid project state response from the upstream (i.e. parsing
+        // failed), discard the event with a state reason.
+        </span><span class="kw">if </span><span class="self">self</span>.invalid() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(DiscardReason::ProjectState);
         }
 
-        <span class="comment">// only drop events if we know for sure the project or key are disabled.</span>
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">disabled</span>() {
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">DiscardReason::ProjectId</span>);
+        <span class="comment">// only drop events if we know for sure the project or key are disabled.
+        </span><span class="kw">if </span><span class="self">self</span>.disabled() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(DiscardReason::ProjectId);
         }
 
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="doccomment">/// Determines whether the given request should be accepted or discarded.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Returns `Ok(())` if the request should be accepted. Returns `Err(DiscardReason)` if the</span>
-    <span class="doccomment">/// request should be discarded, by indicating the reason. The checks preformed for this are:</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">///  - Allowed origin headers</span>
-    <span class="doccomment">///  - Disabled or unknown projects</span>
-    <span class="doccomment">///  - Disabled project keys (DSN)</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">check_request</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">meta</span>: <span class="kw-2">&amp;</span><span class="ident">RequestMeta</span>, <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">DiscardReason</span><span class="op">&gt;</span> {
-        <span class="comment">// Verify that the stated project id in the DSN matches the public key used to retrieve this</span>
-        <span class="comment">// project state.</span>
-        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">is_valid_project_id</span>(<span class="ident">meta</span>.<span class="ident">project_id</span>(), <span class="ident">config</span>) {
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">DiscardReason::ProjectId</span>);
+    <span class="doccomment">/// Determines whether the given request should be accepted or discarded.
+    ///
+    /// Returns `Ok(())` if the request should be accepted. Returns `Err(DiscardReason)` if the
+    /// request should be discarded, by indicating the reason. The checks preformed for this are:
+    ///
+    ///  - Allowed origin headers
+    ///  - Disabled or unknown projects
+    ///  - Disabled project keys (DSN)
+    </span><span class="kw">pub fn </span>check_request(<span class="kw-2">&amp;</span><span class="self">self</span>, meta: <span class="kw-2">&amp;</span>RequestMeta, config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Result</span>&lt;(), DiscardReason&gt; {
+        <span class="comment">// Verify that the stated project id in the DSN matches the public key used to retrieve this
+        // project state.
+        </span><span class="kw">if </span>!<span class="self">self</span>.is_valid_project_id(meta.project_id(), config) {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(DiscardReason::ProjectId);
         }
 
-        <span class="comment">// Try to verify the request origin with the project config.</span>
-        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">is_valid_origin</span>(<span class="ident">meta</span>.<span class="ident">origin</span>()) {
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">DiscardReason::Cors</span>);
+        <span class="comment">// Try to verify the request origin with the project config.
+        </span><span class="kw">if </span>!<span class="self">self</span>.is_valid_origin(meta.origin()) {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(DiscardReason::Cors);
         }
 
-        <span class="comment">// sanity-check that the state has a matching public key loaded.</span>
-        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">is_matching_key</span>(<span class="ident">meta</span>.<span class="ident">public_key</span>()) {
-            <span class="macro">relay_log::error!</span>(<span class="string">&quot;public key mismatch on state {}&quot;</span>, <span class="ident">meta</span>.<span class="ident">public_key</span>());
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">DiscardReason::ProjectId</span>);
+        <span class="comment">// sanity-check that the state has a matching public key loaded.
+        </span><span class="kw">if </span>!<span class="self">self</span>.is_matching_key(meta.public_key()) {
+            <span class="macro">relay_log::error!</span>(<span class="string">&quot;public key mismatch on state {}&quot;</span>, meta.public_key());
+            <span class="kw">return </span><span class="prelude-val">Err</span>(DiscardReason::ProjectId);
         }
 
-        <span class="comment">// Check for invalid or disabled projects.</span>
-        <span class="self">self</span>.<span class="ident">check_disabled</span>(<span class="ident">config</span>)<span class="question-mark">?</span>;
+        <span class="comment">// Check for invalid or disabled projects.
+        </span><span class="self">self</span>.check_disabled(config)<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="doccomment">/// Validates data in this project state and removes values that are partially invalid.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sanitize</span>(<span class="kw-2">mut</span> <span class="self">self</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">quotas</span>.<span class="ident">retain</span>(<span class="ident">Quota::is_valid</span>);
-        <span class="self">self</span>
+    <span class="doccomment">/// Validates data in this project state and removes values that are partially invalid.
+    </span><span class="kw">pub fn </span>sanitize(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
+        <span class="self">self</span>.config.quotas.retain(Quota::is_valid);
+        <span class="self">self
+    </span>}
+
+    <span class="kw">pub fn </span>has_feature(<span class="kw-2">&amp;</span><span class="self">self</span>, feature: Feature) -&gt; bool {
+        <span class="self">self</span>.config.features.contains(<span class="kw-2">&amp;</span>feature)
     }
-
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">has_feature</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">feature</span>: <span class="ident">Feature</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">features</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">feature</span>)
-    }
 }
 
-<span class="doccomment">/// Represents a public key received from the projectconfig endpoint.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">PublicKeyConfig</span> {
-    <span class="doccomment">/// Public part of key (random hash).</span>
-    <span class="kw">pub</span> <span class="ident">public_key</span>: <span class="ident">ProjectKey</span>,
+<span class="doccomment">/// Represents a public key received from the projectconfig endpoint.
+</span><span class="attribute">#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+</span><span class="kw">pub struct </span>PublicKeyConfig {
+    <span class="doccomment">/// Public part of key (random hash).
+    </span><span class="kw">pub </span>public_key: ProjectKey,
 
-    <span class="doccomment">/// The primary key of the DSN in Sentry&#39;s main database.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">numeric_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The primary key of the DSN in Sentry&#39;s main database.
+    </span><span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="kw">pub </span>numeric_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
 }
 
-<span class="kw">struct</span> <span class="ident">StateChannel</span> {
-    <span class="ident">sender</span>: <span class="ident">oneshot::Sender</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-    <span class="ident">receiver</span>: <span class="ident">Shared</span><span class="op">&lt;</span><span class="ident">oneshot::Receiver</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-    <span class="ident">no_cache</span>: <span class="ident">bool</span>,
+<span class="kw">struct </span>StateChannel {
+    sender: oneshot::Sender&lt;Arc&lt;ProjectState&gt;&gt;,
+    receiver: Shared&lt;oneshot::Receiver&lt;Arc&lt;ProjectState&gt;&gt;&gt;,
+    no_cache: bool,
 }
 
-<span class="kw">impl</span> <span class="ident">StateChannel</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() -&gt; <span class="self">Self</span> {
-        <span class="kw">let</span> (<span class="ident">sender</span>, <span class="ident">receiver</span>) <span class="op">=</span> <span class="ident">oneshot::channel</span>();
-        <span class="self">Self</span> {
-            <span class="ident">sender</span>,
-            <span class="ident">receiver</span>: <span class="ident">receiver</span>.<span class="ident">shared</span>(),
-            <span class="ident">no_cache</span>: <span class="bool-val">false</span>,
+<span class="kw">impl </span>StateChannel {
+    <span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>(sender, receiver) = oneshot::channel();
+        <span class="self">Self </span>{
+            sender,
+            receiver: receiver.shared(),
+            no_cache: <span class="bool-val">false</span>,
         }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">no_cache</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">no_cache</span>: <span class="ident">bool</span>) -&gt; <span class="kw-2">&amp;mut</span> <span class="self">Self</span> {
-        <span class="self">self</span>.<span class="ident">no_cache</span> <span class="op">=</span> <span class="ident">no_cache</span>;
-        <span class="self">self</span>
+    <span class="kw">pub fn </span>no_cache(<span class="kw-2">&amp;mut </span><span class="self">self</span>, no_cache: bool) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
+        <span class="self">self</span>.no_cache = no_cache;
+        <span class="self">self
+    </span>}
+
+    <span class="kw">pub fn </span>receiver(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Shared&lt;oneshot::Receiver&lt;Arc&lt;ProjectState&gt;&gt;&gt; {
+        <span class="self">self</span>.receiver.clone()
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">receiver</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Shared</span><span class="op">&lt;</span><span class="ident">oneshot::Receiver</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">receiver</span>.<span class="ident">clone</span>()
-    }
-
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">send</span>(<span class="self">self</span>, <span class="ident">state</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span>) {
-        <span class="self">self</span>.<span class="ident">sender</span>.<span class="ident">send</span>(<span class="ident">state</span>).<span class="ident">ok</span>();
+    <span class="kw">pub fn </span>send(<span class="self">self</span>, state: Arc&lt;ProjectState&gt;) {
+        <span class="self">self</span>.sender.send(state).ok();
     }
 }
 
-<span class="doccomment">/// Structure representing organization and project configuration for a project key.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This structure no longer uniquely identifies a project. Instead, it identifies a project key.</span>
-<span class="doccomment">/// Projects can define multiple keys, in which case this structure is duplicated for each instance.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Project</span> {
-    <span class="ident">last_updated_at</span>: <span class="ident">Instant</span>,
-    <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>,
-    <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
-    <span class="ident">state</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-    <span class="ident">state_channel</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">StateChannel</span><span class="op">&gt;</span>,
-    <span class="ident">pending_validations</span>: <span class="ident">VecDeque</span><span class="op">&lt;</span>(<span class="ident">Envelope</span>, <span class="ident">EnvelopeContext</span>)<span class="op">&gt;</span>,
-    <span class="ident">pending_sampling</span>: <span class="ident">VecDeque</span><span class="op">&lt;</span><span class="ident">ProcessEnvelope</span><span class="op">&gt;</span>,
-    <span class="ident">rate_limits</span>: <span class="ident">RateLimits</span>,
-    <span class="ident">last_no_cache</span>: <span class="ident">Instant</span>,
+<span class="doccomment">/// Structure representing organization and project configuration for a project key.
+///
+/// This structure no longer uniquely identifies a project. Instead, it identifies a project key.
+/// Projects can define multiple keys, in which case this structure is duplicated for each instance.
+</span><span class="kw">pub struct </span>Project {
+    last_updated_at: Instant,
+    project_key: ProjectKey,
+    config: Arc&lt;Config&gt;,
+    state: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;,
+    state_channel: <span class="prelude-ty">Option</span>&lt;StateChannel&gt;,
+    pending_validations: VecDeque&lt;(Envelope, EnvelopeContext)&gt;,
+    pending_sampling: VecDeque&lt;ProcessEnvelope&gt;,
+    rate_limits: RateLimits,
+    last_no_cache: Instant,
 }
 
-<span class="kw">impl</span> <span class="ident">Project</span> {
-    <span class="doccomment">/// Creates a new `Project`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">key</span>: <span class="ident">ProjectKey</span>, <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">Project</span> {
-            <span class="ident">last_updated_at</span>: <span class="ident">Instant::now</span>(),
-            <span class="ident">project_key</span>: <span class="ident">key</span>,
-            <span class="ident">config</span>,
-            <span class="ident">state</span>: <span class="prelude-val">None</span>,
-            <span class="ident">state_channel</span>: <span class="prelude-val">None</span>,
-            <span class="ident">pending_validations</span>: <span class="ident">VecDeque::new</span>(),
-            <span class="ident">pending_sampling</span>: <span class="ident">VecDeque::new</span>(),
-            <span class="ident">rate_limits</span>: <span class="ident">RateLimits::new</span>(),
-            <span class="ident">last_no_cache</span>: <span class="ident">Instant::now</span>(),
+<span class="kw">impl </span>Project {
+    <span class="doccomment">/// Creates a new `Project`.
+    </span><span class="kw">pub fn </span>new(key: ProjectKey, config: Arc&lt;Config&gt;) -&gt; <span class="self">Self </span>{
+        Project {
+            last_updated_at: Instant::now(),
+            project_key: key,
+            config,
+            state: <span class="prelude-val">None</span>,
+            state_channel: <span class="prelude-val">None</span>,
+            pending_validations: VecDeque::new(),
+            pending_sampling: VecDeque::new(),
+            rate_limits: RateLimits::new(),
+            last_no_cache: Instant::now(),
         }
     }
 
-    <span class="doccomment">/// If we know that a project is disabled, disallow metrics, too.</span>
-    <span class="kw">fn</span> <span class="ident">metrics_allowed</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">state</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">valid_state</span>() {
-            <span class="ident">state</span>.<span class="ident">check_disabled</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>).<span class="ident">is_ok</span>()
-        } <span class="kw">else</span> {
-            <span class="comment">// Projects without state go back to the original state of allowing metrics.</span>
-            <span class="bool-val">true</span>
-        }
+    <span class="doccomment">/// If we know that a project is disabled, disallow metrics, too.
+    </span><span class="kw">fn </span>metrics_allowed(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(state) = <span class="self">self</span>.valid_state() {
+            state.check_disabled(<span class="kw-2">&amp;</span><span class="self">self</span>.config).is_ok()
+        } <span class="kw">else </span>{
+            <span class="comment">// Projects without state go back to the original state of allowing metrics.
+            </span><span class="bool-val">true
+        </span>}
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">merge_rate_limits</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">rate_limits</span>: <span class="ident">RateLimits</span>) {
-        <span class="self">self</span>.<span class="ident">rate_limits</span>.<span class="ident">merge</span>(<span class="ident">rate_limits</span>);
+    <span class="kw">pub fn </span>merge_rate_limits(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rate_limits: RateLimits) {
+        <span class="self">self</span>.rate_limits.merge(rate_limits);
     }
 
-    <span class="doccomment">/// Returns the current [`ExpiryState`] for this project.</span>
-    <span class="doccomment">/// If the project state&#39;s [`Expiry`] is `Expired`, do not return it.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expiry_state</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">ExpiryState</span> {
-        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">state</span> {
-            <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">state</span>) =&gt; <span class="kw">match</span> <span class="ident">state</span>.<span class="ident">check_expiry</span>(<span class="self">self</span>.<span class="ident">config</span>.<span class="ident">as_ref</span>()) {
-                <span class="ident">Expiry::Updated</span> =&gt; <span class="ident">ExpiryState::Updated</span>(<span class="ident">state</span>.<span class="ident">clone</span>()),
-                <span class="ident">Expiry::Stale</span> =&gt; <span class="ident">ExpiryState::Stale</span>(<span class="ident">state</span>.<span class="ident">clone</span>()),
-                <span class="ident">Expiry::Expired</span> =&gt; <span class="ident">ExpiryState::Expired</span>,
+    <span class="doccomment">/// Returns the current [`ExpiryState`] for this project.
+    /// If the project state&#39;s [`Expiry`] is `Expired`, do not return it.
+    </span><span class="kw">pub fn </span>expiry_state(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ExpiryState {
+        <span class="kw">match </span><span class="self">self</span>.state {
+            <span class="prelude-val">Some</span>(<span class="kw-2">ref </span>state) =&gt; <span class="kw">match </span>state.check_expiry(<span class="self">self</span>.config.as_ref()) {
+                Expiry::Updated =&gt; ExpiryState::Updated(state.clone()),
+                Expiry::Stale =&gt; ExpiryState::Stale(state.clone()),
+                Expiry::Expired =&gt; ExpiryState::Expired,
             },
-            <span class="prelude-val">None</span> =&gt; <span class="ident">ExpiryState::Expired</span>,
+            <span class="prelude-val">None </span>=&gt; ExpiryState::Expired,
         }
     }
 
-    <span class="doccomment">/// Returns the project state if it is not expired.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Convenience wrapper around [`expiry_state`](Self::expiry_state).</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">valid_state</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">expiry_state</span>() {
-            <span class="ident">ExpiryState::Updated</span>(<span class="ident">state</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">state</span>),
-            <span class="ident">ExpiryState::Stale</span>(<span class="ident">state</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">state</span>),
-            <span class="ident">ExpiryState::Expired</span> =&gt; <span class="prelude-val">None</span>,
+    <span class="doccomment">/// Returns the project state if it is not expired.
+    ///
+    /// Convenience wrapper around [`expiry_state`](Self::expiry_state).
+    </span><span class="kw">pub fn </span>valid_state(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt; {
+        <span class="kw">match </span><span class="self">self</span>.expiry_state() {
+            ExpiryState::Updated(state) =&gt; <span class="prelude-val">Some</span>(state),
+            ExpiryState::Stale(state) =&gt; <span class="prelude-val">Some</span>(state),
+            ExpiryState::Expired =&gt; <span class="prelude-val">None</span>,
         }
     }
 
-    <span class="doccomment">/// The rate limits that are active for this project.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">rate_limits</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">RateLimits</span> {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">rate_limits</span>
+    <span class="doccomment">/// The rate limits that are active for this project.
+    </span><span class="kw">pub fn </span>rate_limits(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>RateLimits {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.rate_limits
     }
 
-    <span class="doccomment">/// The last time the project state was updated</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">last_updated_at</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Instant</span> {
-        <span class="self">self</span>.<span class="ident">last_updated_at</span>
+    <span class="doccomment">/// The last time the project state was updated
+    </span><span class="kw">pub fn </span>last_updated_at(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Instant {
+        <span class="self">self</span>.last_updated_at
     }
 
-    <span class="doccomment">/// Refresh the update time of the project in order to delay eviction.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Called by the project cache when the project state is refreshed.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">refresh_updated_timestamp</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
-        <span class="self">self</span>.<span class="ident">last_updated_at</span> <span class="op">=</span> <span class="ident">Instant::now</span>();
+    <span class="doccomment">/// Refresh the update time of the project in order to delay eviction.
+    ///
+    /// Called by the project cache when the project state is refreshed.
+    </span><span class="kw">pub fn </span>refresh_updated_timestamp(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="self">self</span>.last_updated_at = Instant::now();
     }
 
-    <span class="doccomment">/// Applies cached rate limits to the given metrics or metrics buckets.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This only applies the rate limits currently stored on the project.</span>
-    <span class="kw">fn</span> <span class="ident">rate_limit_metrics</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">MetricsContainer</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">metrics</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> (<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">state</span>, <span class="self">self</span>.<span class="ident">scoping</span>()) {
-            (<span class="prelude-val">Some</span>(<span class="ident">state</span>), <span class="prelude-val">Some</span>(<span class="ident">scoping</span>)) =&gt; {
-                <span class="kw">match</span> <span class="ident">MetricsLimiter::create</span>(<span class="ident">metrics</span>, <span class="kw-2">&amp;</span><span class="ident">state</span>.<span class="ident">config</span>.<span class="ident">quotas</span>, <span class="ident">scoping</span>) {
-                    <span class="prelude-val">Ok</span>(<span class="kw-2">mut</span> <span class="ident">limiter</span>) =&gt; {
-                        <span class="ident">limiter</span>.<span class="ident">enforce_limits</span>(<span class="prelude-val">Ok</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">rate_limits</span>));
-                        <span class="ident">limiter</span>.<span class="ident">into_metrics</span>()
+    <span class="doccomment">/// Applies cached rate limits to the given metrics or metrics buckets.
+    ///
+    /// This only applies the rate limits currently stored on the project.
+    </span><span class="kw">fn </span>rate_limit_metrics&lt;T: MetricsContainer&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, metrics: Vec&lt;T&gt;) -&gt; Vec&lt;T&gt; {
+        <span class="kw">match </span>(<span class="kw-2">&amp;</span><span class="self">self</span>.state, <span class="self">self</span>.scoping()) {
+            (<span class="prelude-val">Some</span>(state), <span class="prelude-val">Some</span>(scoping)) =&gt; {
+                <span class="kw">match </span>MetricsLimiter::create(metrics, <span class="kw-2">&amp;</span>state.config.quotas, scoping) {
+                    <span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>limiter) =&gt; {
+                        limiter.enforce_limits(<span class="prelude-val">Ok</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.rate_limits));
+                        limiter.into_metrics()
                     }
-                    <span class="prelude-val">Err</span>(<span class="ident">metrics</span>) =&gt; <span class="ident">metrics</span>,
+                    <span class="prelude-val">Err</span>(metrics) =&gt; metrics,
                 }
             }
-            <span class="kw">_</span> =&gt; <span class="ident">metrics</span>,
+            <span class="kw">_ </span>=&gt; metrics,
         }
     }
 
-    <span class="doccomment">/// Inserts given [buckets](Bucket) into the metrics aggregator.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The buckets will be keyed underneath this project key.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">merge_buckets</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">buckets</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span>) {
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">metrics_allowed</span>() {
-            <span class="kw">let</span> <span class="ident">buckets</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">rate_limit_metrics</span>(<span class="ident">buckets</span>);
-            <span class="kw">if</span> <span class="op">!</span><span class="ident">buckets</span>.<span class="ident">is_empty</span>() {
-                <span class="ident">Registry::aggregator</span>().<span class="ident">send</span>(<span class="ident">MergeBuckets::new</span>(<span class="self">self</span>.<span class="ident">project_key</span>, <span class="ident">buckets</span>));
+    <span class="doccomment">/// Inserts given [buckets](Bucket) into the metrics aggregator.
+    ///
+    /// The buckets will be keyed underneath this project key.
+    </span><span class="kw">pub fn </span>merge_buckets(<span class="kw-2">&amp;mut </span><span class="self">self</span>, buckets: Vec&lt;Bucket&gt;) {
+        <span class="kw">if </span><span class="self">self</span>.metrics_allowed() {
+            <span class="kw">let </span>buckets = <span class="self">self</span>.rate_limit_metrics(buckets);
+            <span class="kw">if </span>!buckets.is_empty() {
+                Registry::aggregator().send(MergeBuckets::new(<span class="self">self</span>.project_key, buckets));
             }
         }
     }
 
-    <span class="doccomment">/// Inserts given [metrics](Metric) into the metrics aggregator.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The metrics will be keyed underneath this project key.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">insert_metrics</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">metrics</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Metric</span><span class="op">&gt;</span>) {
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">metrics_allowed</span>() {
-            <span class="kw">let</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">rate_limit_metrics</span>(<span class="ident">metrics</span>);
-            <span class="kw">if</span> <span class="op">!</span><span class="ident">metrics</span>.<span class="ident">is_empty</span>() {
-                <span class="ident">Registry::aggregator</span>().<span class="ident">send</span>(<span class="ident">InsertMetrics::new</span>(<span class="self">self</span>.<span class="ident">project_key</span>, <span class="ident">metrics</span>));
+    <span class="doccomment">/// Inserts given [metrics](Metric) into the metrics aggregator.
+    ///
+    /// The metrics will be keyed underneath this project key.
+    </span><span class="kw">pub fn </span>insert_metrics(<span class="kw-2">&amp;mut </span><span class="self">self</span>, metrics: Vec&lt;Metric&gt;) {
+        <span class="kw">if </span><span class="self">self</span>.metrics_allowed() {
+            <span class="kw">let </span>metrics = <span class="self">self</span>.rate_limit_metrics(metrics);
+            <span class="kw">if </span>!metrics.is_empty() {
+                Registry::aggregator().send(InsertMetrics::new(<span class="self">self</span>.project_key, metrics));
             }
         }
     }
 
-    <span class="doccomment">/// Ensures the project state gets updated and returns it once valid.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This first checks if the state needs to be updated. This is the case if the project state</span>
-    <span class="doccomment">/// has passed its cache timeout. The `no_cache` flag forces an update. This does nothing if an</span>
-    <span class="doccomment">/// update is already running in the background.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Independent of updating, _stale_ states can still be returned immediately as long as they</span>
-    <span class="doccomment">/// are in the [grace period](Config::project_grace_period). This function returns:</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">///  - [`Response::Reply(Ok)`](Response::Reply) if the state is updated or stale, and `no_cache`</span>
-    <span class="doccomment">///    was not specified. This case is infallible.</span>
-    <span class="doccomment">///  - [`Response::Future`] if the state was expired or `no_cache` was specified. This future</span>
-    <span class="doccomment">///    may fail if the state repeatedly cannot be fetched. The future does not have to be</span>
-    <span class="doccomment">///    awaited for the update to pass.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_or_fetch_state</span>(
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
-        <span class="kw-2">mut</span> <span class="ident">no_cache</span>: <span class="ident">bool</span>,
-    ) -&gt; <span class="ident">Response</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span>, <span class="ident">ProjectError</span><span class="op">&gt;</span> {
-        <span class="comment">// count number of times we are looking for the project state</span>
-        <span class="macro">metric!</span>(<span class="ident">counter</span>(<span class="ident">RelayCounters::ProjectStateGet</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>);
+    <span class="doccomment">/// Ensures the project state gets updated and returns it once valid.
+    ///
+    /// This first checks if the state needs to be updated. This is the case if the project state
+    /// has passed its cache timeout. The `no_cache` flag forces an update. This does nothing if an
+    /// update is already running in the background.
+    ///
+    /// Independent of updating, _stale_ states can still be returned immediately as long as they
+    /// are in the [grace period](Config::project_grace_period). This function returns:
+    ///
+    ///  - [`Response::Reply(Ok)`](Response::Reply) if the state is updated or stale, and `no_cache`
+    ///    was not specified. This case is infallible.
+    ///  - [`Response::Future`] if the state was expired or `no_cache` was specified. This future
+    ///    may fail if the state repeatedly cannot be fetched. The future does not have to be
+    ///    awaited for the update to pass.
+    </span><span class="kw">pub fn </span>get_or_fetch_state(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        <span class="kw-2">mut </span>no_cache: bool,
+    ) -&gt; Response&lt;Arc&lt;ProjectState&gt;, ProjectError&gt; {
+        <span class="comment">// count number of times we are looking for the project state
+        </span><span class="macro">metric!</span>(counter(RelayCounters::ProjectStateGet) += <span class="number">1</span>);
 
-        <span class="comment">// Allow at most 1 no_cache request per second. Gracefully degrade to cached requests.</span>
-        <span class="kw">if</span> <span class="ident">no_cache</span> {
-            <span class="kw">if</span> <span class="self">self</span>.<span class="ident">last_no_cache</span>.<span class="ident">elapsed</span>() <span class="op">&lt;</span> <span class="ident">Duration::from_secs</span>(<span class="number">1</span>) {
-                <span class="ident">no_cache</span> <span class="op">=</span> <span class="bool-val">false</span>;
-            } <span class="kw">else</span> {
-                <span class="macro">metric!</span>(<span class="ident">counter</span>(<span class="ident">RelayCounters::ProjectStateNoCache</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>);
-                <span class="self">self</span>.<span class="ident">last_no_cache</span> <span class="op">=</span> <span class="ident">Instant::now</span>();
+        <span class="comment">// Allow at most 1 no_cache request per second. Gracefully degrade to cached requests.
+        </span><span class="kw">if </span>no_cache {
+            <span class="kw">if </span><span class="self">self</span>.last_no_cache.elapsed() &lt; Duration::from_secs(<span class="number">1</span>) {
+                no_cache = <span class="bool-val">false</span>;
+            } <span class="kw">else </span>{
+                <span class="macro">metric!</span>(counter(RelayCounters::ProjectStateNoCache) += <span class="number">1</span>);
+                <span class="self">self</span>.last_no_cache = Instant::now();
             }
         }
 
-        <span class="kw">let</span> <span class="ident">cached_state</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">expiry_state</span>() {
-            <span class="comment">// Never use the cached state if `no_cache` is set.</span>
-            <span class="kw">_</span> <span class="kw">if</span> <span class="ident">no_cache</span> =&gt; <span class="prelude-val">None</span>,
-            <span class="comment">// There is no project state that can be used, fetch a state and return it.</span>
-            <span class="ident">ExpiryState::Expired</span> =&gt; <span class="prelude-val">None</span>,
-            <span class="comment">// The project is semi-outdated, fetch new state but return old one.</span>
-            <span class="ident">ExpiryState::Stale</span>(<span class="ident">state</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">state</span>),
-            <span class="comment">// The project is not outdated, return early here to jump over fetching logic below.</span>
-            <span class="ident">ExpiryState::Updated</span>(<span class="ident">state</span>) =&gt; <span class="kw">return</span> <span class="ident">Response::ok</span>(<span class="ident">state</span>),
+        <span class="kw">let </span>cached_state = <span class="kw">match </span><span class="self">self</span>.expiry_state() {
+            <span class="comment">// Never use the cached state if `no_cache` is set.
+            </span><span class="kw">_ if </span>no_cache =&gt; <span class="prelude-val">None</span>,
+            <span class="comment">// There is no project state that can be used, fetch a state and return it.
+            </span>ExpiryState::Expired =&gt; <span class="prelude-val">None</span>,
+            <span class="comment">// The project is semi-outdated, fetch new state but return old one.
+            </span>ExpiryState::Stale(state) =&gt; <span class="prelude-val">Some</span>(state),
+            <span class="comment">// The project is not outdated, return early here to jump over fetching logic below.
+            </span>ExpiryState::Updated(state) =&gt; <span class="kw">return </span>Response::ok(state),
         };
 
-        <span class="kw">let</span> <span class="ident">receiver</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">state_channel</span> {
-            <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">channel</span>) <span class="kw">if</span> <span class="ident">channel</span>.<span class="ident">no_cache</span> <span class="op">|</span><span class="op">|</span> <span class="op">!</span><span class="ident">no_cache</span> =&gt; {
-                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;project {} state request amended&quot;</span>, <span class="self">self</span>.<span class="ident">project_key</span>);
-                <span class="ident">channel</span>.<span class="ident">receiver</span>()
+        <span class="kw">let </span>receiver = <span class="kw">match </span><span class="self">self</span>.state_channel {
+            <span class="prelude-val">Some</span>(<span class="kw-2">ref </span>channel) <span class="kw">if </span>channel.no_cache || !no_cache =&gt; {
+                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;project {} state request amended&quot;</span>, <span class="self">self</span>.project_key);
+                channel.receiver()
             }
-            <span class="kw">_</span> =&gt; {
-                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;project {} state requested&quot;</span>, <span class="self">self</span>.<span class="ident">project_key</span>);
+            <span class="kw">_ </span>=&gt; {
+                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;project {} state requested&quot;</span>, <span class="self">self</span>.project_key);
 
-                <span class="kw">let</span> <span class="ident">receiver</span> <span class="op">=</span> <span class="self">self</span>
-                    .<span class="ident">state_channel</span>
-                    .<span class="ident">get_or_insert_with</span>(<span class="ident">StateChannel::new</span>)
-                    .<span class="ident">no_cache</span>(<span class="ident">no_cache</span>)
-                    .<span class="ident">receiver</span>();
+                <span class="kw">let </span>receiver = <span class="self">self
+                    </span>.state_channel
+                    .get_or_insert_with(StateChannel::new)
+                    .no_cache(no_cache)
+                    .receiver();
 
-                <span class="comment">// Either there is no running request, or the current request does not have</span>
-                <span class="comment">// `no_cache` set. In both cases, start a new request. All in-flight receivers will</span>
-                <span class="comment">// get the latest state.</span>
-                <span class="self">self</span>.<span class="ident">fetch_state</span>(<span class="ident">no_cache</span>);
+                <span class="comment">// Either there is no running request, or the current request does not have
+                // `no_cache` set. In both cases, start a new request. All in-flight receivers will
+                // get the latest state.
+                </span><span class="self">self</span>.fetch_state(no_cache);
 
-                <span class="ident">receiver</span>
+                receiver
             }
         };
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">rv</span>) <span class="op">=</span> <span class="ident">cached_state</span> {
-            <span class="kw">return</span> <span class="ident">Response::ok</span>(<span class="ident">rv</span>);
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(rv) = cached_state {
+            <span class="kw">return </span>Response::ok(rv);
         }
 
-        <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">receiver</span>
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">shared</span><span class="op">|</span> (<span class="kw-2">*</span><span class="ident">shared</span>).<span class="ident">clone</span>())
-            .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">ProjectError::FetchFailed</span>);
+        <span class="kw">let </span>future = receiver
+            .map(|shared| (<span class="kw-2">*</span>shared).clone())
+            .map_err(|<span class="kw">_</span>| ProjectError::FetchFailed);
 
-        <span class="ident">Response::future</span>(<span class="ident">future</span>)
+        Response::future(future)
     }
 
-    <span class="doccomment">/// Validates the envelope and submits the envelope to the next stage.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// If this project is disabled or rate limited, corresponding items are dropped from the</span>
-    <span class="doccomment">/// envelope. Remaining items in the Envelope are forwarded:</span>
-    <span class="doccomment">///  - If the envelope needs dynamic sampling, this sends [`AddSamplingState`] to the</span>
-    <span class="doccomment">///    [`ProjectCache`] to add the required project state.</span>
-    <span class="doccomment">///  - Otherwise, the envelope is directly submitted to the [`EnvelopeProcessor`].</span>
-    <span class="kw">fn</span> <span class="ident">flush_validation</span>(
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
-        <span class="ident">envelope</span>: <span class="ident">Envelope</span>,
-        <span class="ident">envelope_context</span>: <span class="ident">EnvelopeContext</span>,
-        <span class="ident">project_state</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Validates the envelope and submits the envelope to the next stage.
+    ///
+    /// If this project is disabled or rate limited, corresponding items are dropped from the
+    /// envelope. Remaining items in the Envelope are forwarded:
+    ///  - If the envelope needs dynamic sampling, this sends [`AddSamplingState`] to the
+    ///    [`ProjectCache`] to add the required project state.
+    ///  - Otherwise, the envelope is directly submitted to the [`EnvelopeProcessor`].
+    </span><span class="kw">fn </span>flush_validation(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        envelope: Envelope,
+        envelope_context: EnvelopeContext,
+        project_state: Arc&lt;ProjectState&gt;,
     ) {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">checked</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">check_envelope</span>(<span class="ident">envelope</span>, <span class="ident">envelope_context</span>) {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="ident">envelope</span>, <span class="ident">envelope_context</span>)) <span class="op">=</span> <span class="ident">checked</span>.<span class="ident">envelope</span> {
-                <span class="kw">let</span> <span class="ident">process</span> <span class="op">=</span> <span class="ident">ProcessEnvelope</span> {
-                    <span class="ident">envelope</span>,
-                    <span class="ident">envelope_context</span>,
-                    <span class="ident">project_state</span>,
-                    <span class="ident">sampling_project_state</span>: <span class="prelude-val">None</span>,
+        <span class="kw">if let </span><span class="prelude-val">Ok</span>(checked) = <span class="self">self</span>.check_envelope(envelope, envelope_context) {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>((envelope, envelope_context)) = checked.envelope {
+                <span class="kw">let </span>process = ProcessEnvelope {
+                    envelope,
+                    envelope_context,
+                    project_state,
+                    sampling_project_state: <span class="prelude-val">None</span>,
                 };
 
-                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">sampling_key</span>) <span class="op">=</span> <span class="ident">utils::get_sampling_key</span>(<span class="kw-2">&amp;</span><span class="ident">process</span>.<span class="ident">envelope</span>) {
-                    <span class="ident">ProjectCache::from_registry</span>()
-                        .<span class="ident">do_send</span>(<span class="ident">AddSamplingState::new</span>(<span class="ident">sampling_key</span>, <span class="ident">process</span>));
-                } <span class="kw">else</span> {
-                    <span class="ident">EnvelopeProcessor::from_registry</span>().<span class="ident">send</span>(<span class="ident">process</span>);
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(sampling_key) = utils::get_sampling_key(<span class="kw-2">&amp;</span>process.envelope) {
+                    ProjectCache::from_registry()
+                        .do_send(AddSamplingState::new(sampling_key, process));
+                } <span class="kw">else </span>{
+                    EnvelopeProcessor::from_registry().send(process);
                 }
             }
         }
     }
 
-    <span class="doccomment">/// Enqueues an envelope for validation.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// If the project state is up to date, the message will be immediately to the next stage.</span>
-    <span class="doccomment">/// Otherwise, this queues the envelope and flushes it when the project has been updated.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This method will trigger an update of the project state internally if the state is stale or</span>
-    <span class="doccomment">/// outdated.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">enqueue_validation</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">envelope</span>: <span class="ident">Envelope</span>, <span class="ident">context</span>: <span class="ident">EnvelopeContext</span>) {
-        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">get_or_fetch_state</span>(<span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">no_cache</span>()) {
-            <span class="ident">Response::Reply</span>(<span class="prelude-val">Ok</span>(<span class="ident">state</span>)) =&gt; <span class="self">self</span>.<span class="ident">flush_validation</span>(<span class="ident">envelope</span>, <span class="ident">context</span>, <span class="ident">state</span>),
-            <span class="kw">_</span> =&gt; <span class="self">self</span>.<span class="ident">pending_validations</span>.<span class="ident">push_back</span>((<span class="ident">envelope</span>, <span class="ident">context</span>)),
+    <span class="doccomment">/// Enqueues an envelope for validation.
+    ///
+    /// If the project state is up to date, the message will be immediately to the next stage.
+    /// Otherwise, this queues the envelope and flushes it when the project has been updated.
+    ///
+    /// This method will trigger an update of the project state internally if the state is stale or
+    /// outdated.
+    </span><span class="kw">pub fn </span>enqueue_validation(<span class="kw-2">&amp;mut </span><span class="self">self</span>, envelope: Envelope, context: EnvelopeContext) {
+        <span class="kw">match </span><span class="self">self</span>.get_or_fetch_state(envelope.meta().no_cache()) {
+            Response::Reply(<span class="prelude-val">Ok</span>(state)) =&gt; <span class="self">self</span>.flush_validation(envelope, context, state),
+            <span class="kw">_ </span>=&gt; <span class="self">self</span>.pending_validations.push_back((envelope, context)),
         }
     }
 
-    <span class="doccomment">/// Adds the project state for dynamic sampling and submits the Envelope for processing.</span>
-    <span class="kw">fn</span> <span class="ident">flush_sampling</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">message</span>: <span class="ident">ProcessEnvelope</span>) {
-        <span class="comment">// Intentionally ignore all errors and leave the envelope unsampled.</span>
-        <span class="ident">message</span>.<span class="ident">sampling_project_state</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">valid_state</span>();
-        <span class="ident">EnvelopeProcessor::from_registry</span>().<span class="ident">send</span>(<span class="ident">message</span>);
+    <span class="doccomment">/// Adds the project state for dynamic sampling and submits the Envelope for processing.
+    </span><span class="kw">fn </span>flush_sampling(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>message: ProcessEnvelope) {
+        <span class="comment">// Intentionally ignore all errors and leave the envelope unsampled.
+        </span>message.sampling_project_state = <span class="self">self</span>.valid_state();
+        EnvelopeProcessor::from_registry().send(message);
     }
 
-    <span class="doccomment">/// Enqueues an envelope for adding a dynamic sampling project state.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// If the project state is up to date, the message will be immediately submitted for</span>
-    <span class="doccomment">/// processing. Otherwise, this queues the envelope and flushes it when the project has been</span>
-    <span class="doccomment">/// updated.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This method will trigger an update of the project state internally if the state is stale or</span>
-    <span class="doccomment">/// outdated.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">enqueue_sampling</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">ProcessEnvelope</span>) {
-        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">get_or_fetch_state</span>(<span class="ident">message</span>.<span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">no_cache</span>()) {
-            <span class="ident">Response::Reply</span>(<span class="kw">_</span>) =&gt; <span class="self">self</span>.<span class="ident">flush_sampling</span>(<span class="ident">message</span>),
-            <span class="ident">Response::Future</span>(<span class="kw">_</span>) =&gt; <span class="self">self</span>.<span class="ident">pending_sampling</span>.<span class="ident">push_back</span>(<span class="ident">message</span>),
+    <span class="doccomment">/// Enqueues an envelope for adding a dynamic sampling project state.
+    ///
+    /// If the project state is up to date, the message will be immediately submitted for
+    /// processing. Otherwise, this queues the envelope and flushes it when the project has been
+    /// updated.
+    ///
+    /// This method will trigger an update of the project state internally if the state is stale or
+    /// outdated.
+    </span><span class="kw">pub fn </span>enqueue_sampling(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: ProcessEnvelope) {
+        <span class="kw">match </span><span class="self">self</span>.get_or_fetch_state(message.envelope.meta().no_cache()) {
+            Response::Reply(<span class="kw">_</span>) =&gt; <span class="self">self</span>.flush_sampling(message),
+            Response::Future(<span class="kw">_</span>) =&gt; <span class="self">self</span>.pending_sampling.push_back(message),
         }
     }
 
-    <span class="doccomment">/// Replaces the internal project state with a new one and triggers pending actions.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This flushes pending envelopes from [`ValidateEnvelope`] and [`AddSamplingState`] and</span>
-    <span class="doccomment">/// notifies all pending receivers from [`get_or_fetch_state`](Self::get_or_fetch_state).</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// `no_cache` should be passed from the requesting call. Updates with `no_cache` will always</span>
-    <span class="doccomment">/// take precedence.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// [`ValidateEnvelope`]: crate::actors::project_cache::ValidateEnvelope</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">update_state</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">state</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span>, <span class="ident">no_cache</span>: <span class="ident">bool</span>) {
-        <span class="kw">let</span> <span class="ident">channel</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">state_channel</span>.<span class="ident">take</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">channel</span>) =&gt; <span class="ident">channel</span>,
-            <span class="prelude-val">None</span> =&gt; <span class="kw">return</span>,
+    <span class="doccomment">/// Replaces the internal project state with a new one and triggers pending actions.
+    ///
+    /// This flushes pending envelopes from [`ValidateEnvelope`] and [`AddSamplingState`] and
+    /// notifies all pending receivers from [`get_or_fetch_state`](Self::get_or_fetch_state).
+    ///
+    /// `no_cache` should be passed from the requesting call. Updates with `no_cache` will always
+    /// take precedence.
+    ///
+    /// [`ValidateEnvelope`]: crate::actors::project_cache::ValidateEnvelope
+    </span><span class="kw">pub fn </span>update_state(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw-2">mut </span>state: Arc&lt;ProjectState&gt;, no_cache: bool) {
+        <span class="kw">let </span>channel = <span class="kw">match </span><span class="self">self</span>.state_channel.take() {
+            <span class="prelude-val">Some</span>(channel) =&gt; channel,
+            <span class="prelude-val">None </span>=&gt; <span class="kw">return</span>,
         };
 
-        <span class="comment">// If the channel has `no_cache` set but we are not a `no_cache` request, we have</span>
-        <span class="comment">// been superseeded. Put it back and let the other request take precedence.</span>
-        <span class="kw">if</span> <span class="ident">channel</span>.<span class="ident">no_cache</span> <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">no_cache</span> {
-            <span class="self">self</span>.<span class="ident">state_channel</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">channel</span>);
+        <span class="comment">// If the channel has `no_cache` set but we are not a `no_cache` request, we have
+        // been superseeded. Put it back and let the other request take precedence.
+        </span><span class="kw">if </span>channel.no_cache &amp;&amp; !no_cache {
+            <span class="self">self</span>.state_channel = <span class="prelude-val">Some</span>(channel);
             <span class="kw">return</span>;
         }
 
-        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">expiry_state</span>() {
-            <span class="comment">// If the new state is invalid but the old one still usable, keep the old one.</span>
-            <span class="ident">ExpiryState::Updated</span>(<span class="ident">old</span>) <span class="op">|</span> <span class="ident">ExpiryState::Stale</span>(<span class="ident">old</span>) <span class="kw">if</span> <span class="ident">state</span>.<span class="ident">invalid</span>() =&gt; <span class="ident">state</span> <span class="op">=</span> <span class="ident">old</span>,
-            <span class="comment">// If the new state is valid or the old one is expired, always use the new one.</span>
-            <span class="kw">_</span> =&gt; <span class="self">self</span>.<span class="ident">state</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">state</span>.<span class="ident">clone</span>()),
+        <span class="kw">match </span><span class="self">self</span>.expiry_state() {
+            <span class="comment">// If the new state is invalid but the old one still usable, keep the old one.
+            </span>ExpiryState::Updated(old) | ExpiryState::Stale(old) <span class="kw">if </span>state.invalid() =&gt; state = old,
+            <span class="comment">// If the new state is valid or the old one is expired, always use the new one.
+            </span><span class="kw">_ </span>=&gt; <span class="self">self</span>.state = <span class="prelude-val">Some</span>(state.clone()),
         }
 
-        <span class="comment">// Flush all queued `ValidateEnvelope` messages</span>
-        <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="ident">envelope</span>, <span class="ident">context</span>)) <span class="op">=</span> <span class="self">self</span>.<span class="ident">pending_validations</span>.<span class="ident">pop_front</span>() {
-            <span class="self">self</span>.<span class="ident">flush_validation</span>(<span class="ident">envelope</span>, <span class="ident">context</span>, <span class="ident">state</span>.<span class="ident">clone</span>());
+        <span class="comment">// Flush all queued `ValidateEnvelope` messages
+        </span><span class="kw">while let </span><span class="prelude-val">Some</span>((envelope, context)) = <span class="self">self</span>.pending_validations.pop_front() {
+            <span class="self">self</span>.flush_validation(envelope, context, state.clone());
         }
 
-        <span class="comment">// Flush all queued `AddSamplingState` messages</span>
-        <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">message</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">pending_sampling</span>.<span class="ident">pop_front</span>() {
-            <span class="self">self</span>.<span class="ident">flush_sampling</span>(<span class="ident">message</span>);
+        <span class="comment">// Flush all queued `AddSamplingState` messages
+        </span><span class="kw">while let </span><span class="prelude-val">Some</span>(message) = <span class="self">self</span>.pending_sampling.pop_front() {
+            <span class="self">self</span>.flush_sampling(message);
         }
 
-        <span class="comment">// Flush all waiting recipients.</span>
-        <span class="macro">relay_log::debug!</span>(<span class="string">&quot;project state {} updated&quot;</span>, <span class="self">self</span>.<span class="ident">project_key</span>);
-        <span class="ident">channel</span>.<span class="ident">send</span>(<span class="ident">state</span>);
+        <span class="comment">// Flush all waiting recipients.
+        </span><span class="macro">relay_log::debug!</span>(<span class="string">&quot;project state {} updated&quot;</span>, <span class="self">self</span>.project_key);
+        channel.send(state);
     }
 
-    <span class="kw">fn</span> <span class="ident">fetch_state</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">no_cache</span>: <span class="ident">bool</span>) {
-        <span class="macro">debug_assert!</span>(<span class="self">self</span>.<span class="ident">state_channel</span>.<span class="ident">is_some</span>());
-        <span class="ident">ProjectCache::from_registry</span>().<span class="ident">do_send</span>(<span class="ident">UpdateProjectState::new</span>(<span class="self">self</span>.<span class="ident">project_key</span>, <span class="ident">no_cache</span>));
+    <span class="kw">fn </span>fetch_state(<span class="kw-2">&amp;mut </span><span class="self">self</span>, no_cache: bool) {
+        <span class="macro">debug_assert!</span>(<span class="self">self</span>.state_channel.is_some());
+        ProjectCache::from_registry().do_send(UpdateProjectState::new(<span class="self">self</span>.project_key, no_cache));
     }
 
-    <span class="doccomment">/// Creates `Scoping` for this project if the state is loaded.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Returns `Some` if the project state has been fetched and contains a project identifier,</span>
-    <span class="doccomment">/// otherwise `None`.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// NOTE: This function does not check the expiry of the project state.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">scoping</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Scoping</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">state</span>.<span class="ident">as_deref</span>()<span class="question-mark">?</span>;
-        <span class="prelude-val">Some</span>(<span class="ident">Scoping</span> {
-            <span class="ident">organization_id</span>: <span class="ident">state</span>.<span class="ident">organization_id</span>.<span class="ident">unwrap_or</span>(<span class="number">0</span>),
-            <span class="ident">project_id</span>: <span class="ident">state</span>.<span class="ident">project_id</span><span class="question-mark">?</span>,
-            <span class="ident">project_key</span>: <span class="self">self</span>.<span class="ident">project_key</span>,
-            <span class="ident">key_id</span>: <span class="ident">state</span>
-                .<span class="ident">get_public_key_config</span>()
-                .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">config</span><span class="op">|</span> <span class="ident">config</span>.<span class="ident">numeric_id</span>),
+    <span class="doccomment">/// Creates `Scoping` for this project if the state is loaded.
+    ///
+    /// Returns `Some` if the project state has been fetched and contains a project identifier,
+    /// otherwise `None`.
+    ///
+    /// NOTE: This function does not check the expiry of the project state.
+    </span><span class="kw">pub fn </span>scoping(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Scoping&gt; {
+        <span class="kw">let </span>state = <span class="self">self</span>.state.as_deref()<span class="question-mark">?</span>;
+        <span class="prelude-val">Some</span>(Scoping {
+            organization_id: state.organization_id.unwrap_or(<span class="number">0</span>),
+            project_id: state.project_id<span class="question-mark">?</span>,
+            project_key: <span class="self">self</span>.project_key,
+            key_id: state
+                .get_public_key_config()
+                .and_then(|config| config.numeric_id),
         })
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">check_envelope</span>(
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
-        <span class="kw-2">mut</span> <span class="ident">envelope</span>: <span class="ident">Envelope</span>,
-        <span class="kw-2">mut</span> <span class="ident">envelope_context</span>: <span class="ident">EnvelopeContext</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">CheckedEnvelope</span>, <span class="ident">DiscardReason</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">valid_state</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">scoping</span> <span class="op">=</span> <span class="ident">envelope_context</span>.<span class="ident">scoping</span>();
+    <span class="kw">pub fn </span>check_envelope(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        <span class="kw-2">mut </span>envelope: Envelope,
+        <span class="kw-2">mut </span>envelope_context: EnvelopeContext,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;CheckedEnvelope, DiscardReason&gt; {
+        <span class="kw">let </span>state = <span class="self">self</span>.valid_state();
+        <span class="kw">let </span><span class="kw-2">mut </span>scoping = envelope_context.scoping();
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">state</span>) <span class="op">=</span> <span class="ident">state</span> {
-            <span class="ident">scoping</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">scope_request</span>(<span class="ident">envelope</span>.<span class="ident">meta</span>());
-            <span class="ident">envelope_context</span>.<span class="ident">scope</span>(<span class="ident">scoping</span>);
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>state) = state {
+            scoping = state.scope_request(envelope.meta());
+            envelope_context.scope(scoping);
 
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">reason</span>) <span class="op">=</span> <span class="ident">state</span>.<span class="ident">check_request</span>(<span class="ident">envelope</span>.<span class="ident">meta</span>(), <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>) {
-                <span class="ident">envelope_context</span>.<span class="ident">reject</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">reason</span>));
-                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">reason</span>);
+            <span class="kw">if let </span><span class="prelude-val">Err</span>(reason) = state.check_request(envelope.meta(), <span class="kw-2">&amp;</span><span class="self">self</span>.config) {
+                envelope_context.reject(Outcome::Invalid(reason));
+                <span class="kw">return </span><span class="prelude-val">Err</span>(reason);
             }
         }
 
-        <span class="self">self</span>.<span class="ident">rate_limits</span>.<span class="ident">clean_expired</span>();
+        <span class="self">self</span>.rate_limits.clean_expired();
 
-        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">as_deref</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="kw-2">&amp;</span><span class="ident">s</span>.<span class="ident">config</span>);
-        <span class="kw">let</span> <span class="ident">quotas</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">as_deref</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">get_quotas</span>()).<span class="ident">unwrap_or</span>(<span class="kw-2">&amp;</span>[]);
-        <span class="kw">let</span> <span class="ident">envelope_limiter</span> <span class="op">=</span> <span class="ident">EnvelopeLimiter::new</span>(<span class="ident">config</span>, <span class="op">|</span><span class="ident">item_scoping</span>, <span class="kw">_</span><span class="op">|</span> {
-            <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="ident">rate_limits</span>.<span class="ident">check_with_quotas</span>(<span class="ident">quotas</span>, <span class="ident">item_scoping</span>))
+        <span class="kw">let </span>config = state.as_deref().map(|s| <span class="kw-2">&amp;</span>s.config);
+        <span class="kw">let </span>quotas = state.as_deref().map(|s| s.get_quotas()).unwrap_or(<span class="kw-2">&amp;</span>[]);
+        <span class="kw">let </span>envelope_limiter = EnvelopeLimiter::new(config, |item_scoping, <span class="kw">_</span>| {
+            <span class="prelude-val">Ok</span>(<span class="self">self</span>.rate_limits.check_with_quotas(quotas, item_scoping))
         });
 
-        <span class="kw">let</span> (<span class="ident">enforcement</span>, <span class="ident">rate_limits</span>) <span class="op">=</span> <span class="ident">envelope_limiter</span>.<span class="ident">enforce</span>(<span class="kw-2">&amp;mut</span> <span class="ident">envelope</span>, <span class="kw-2">&amp;</span><span class="ident">scoping</span>)<span class="question-mark">?</span>;
-        <span class="ident">enforcement</span>.<span class="ident">track_outcomes</span>(<span class="kw-2">&amp;</span><span class="ident">envelope</span>, <span class="kw-2">&amp;</span><span class="ident">scoping</span>);
-        <span class="ident">envelope_context</span>.<span class="ident">update</span>(<span class="kw-2">&amp;</span><span class="ident">envelope</span>);
+        <span class="kw">let </span>(enforcement, rate_limits) = envelope_limiter.enforce(<span class="kw-2">&amp;mut </span>envelope, <span class="kw-2">&amp;</span>scoping)<span class="question-mark">?</span>;
+        enforcement.track_outcomes(<span class="kw-2">&amp;</span>envelope, <span class="kw-2">&amp;</span>scoping);
+        envelope_context.update(<span class="kw-2">&amp;</span>envelope);
 
-        <span class="kw">let</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">envelope</span>.<span class="ident">is_empty</span>() {
-            <span class="comment">// Individual rate limits have already been issued above</span>
-            <span class="ident">envelope_context</span>.<span class="ident">reject</span>(<span class="ident">Outcome::RateLimited</span>(<span class="prelude-val">None</span>));
-            <span class="prelude-val">None</span>
-        } <span class="kw">else</span> {
-            <span class="prelude-val">Some</span>((<span class="ident">envelope</span>, <span class="ident">envelope_context</span>))
+        <span class="kw">let </span>envelope = <span class="kw">if </span>envelope.is_empty() {
+            <span class="comment">// Individual rate limits have already been issued above
+            </span>envelope_context.reject(Outcome::RateLimited(<span class="prelude-val">None</span>));
+            <span class="prelude-val">None
+        </span>} <span class="kw">else </span>{
+            <span class="prelude-val">Some</span>((envelope, envelope_context))
         };
 
-        <span class="prelude-val">Ok</span>(<span class="ident">CheckedEnvelope</span> {
-            <span class="ident">envelope</span>,
-            <span class="ident">rate_limits</span>,
+        <span class="prelude-val">Ok</span>(CheckedEnvelope {
+            envelope,
+            rate_limits,
         })
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">Project</span> {
-    <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
-        <span class="kw">let</span> <span class="ident">count</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">pending_validations</span>.<span class="ident">len</span>() <span class="op">+</span> <span class="self">self</span>.<span class="ident">pending_sampling</span>.<span class="ident">len</span>();
-        <span class="kw">if</span> <span class="ident">count</span> <span class="op">&gt;</span> <span class="number">0</span> {
-            <span class="ident">relay_log::with_scope</span>(
-                <span class="op">|</span><span class="ident">scope</span><span class="op">|</span> <span class="ident">scope</span>.<span class="ident">set_tag</span>(<span class="string">&quot;project_key&quot;</span>, <span class="self">self</span>.<span class="ident">project_key</span>),
-                <span class="op">|</span><span class="op">|</span> <span class="macro">relay_log::error!</span>(<span class="string">&quot;dropped project with {} envelopes&quot;</span>, <span class="ident">count</span>),
+<span class="kw">impl </span>Drop <span class="kw">for </span>Project {
+    <span class="kw">fn </span>drop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="kw">let </span>count = <span class="self">self</span>.pending_validations.len() + <span class="self">self</span>.pending_sampling.len();
+        <span class="kw">if </span>count &gt; <span class="number">0 </span>{
+            relay_log::with_scope(
+                |scope| scope.set_tag(<span class="string">&quot;project_key&quot;</span>, <span class="self">self</span>.project_key),
+                || <span class="macro">relay_log::error!</span>(<span class="string">&quot;dropped project with {} envelopes&quot;</span>, count),
             );
         }
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>std::sync::Arc;
 
-    <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">ProjectId</span>, <span class="ident">ProjectKey</span>, <span class="ident">UnixTimestamp</span>};
-    <span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">Bucket</span>, <span class="ident">BucketValue</span>, <span class="ident">Metric</span>, <span class="ident">MetricValue</span>};
-    <span class="kw">use</span> <span class="ident">serde_json::json</span>;
+    <span class="kw">use </span>relay_common::{ProjectId, ProjectKey, UnixTimestamp};
+    <span class="kw">use </span>relay_metrics::{Bucket, BucketValue, Metric, MetricValue};
+    <span class="kw">use </span>serde_json::json;
 
-    <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">Config</span>, <span class="ident">Project</span>, <span class="ident">ProjectState</span>, <span class="ident">StateChannel</span>};
+    <span class="kw">use super</span>::{Config, Project, ProjectState, StateChannel};
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">get_state_expired</span>() {
-        <span class="kw">for</span> <span class="ident">expiry</span> <span class="kw">in</span> [<span class="number">9999</span>, <span class="number">0</span>] {
-            <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">Arc::new</span>(
-                <span class="ident">Config::from_json_value</span>(<span class="macro">json!</span>(
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>get_state_expired() {
+        <span class="kw">for </span>expiry <span class="kw">in </span>[<span class="number">9999</span>, <span class="number">0</span>] {
+            <span class="kw">let </span>config = Arc::new(
+                Config::from_json_value(<span class="macro">json!</span>(
                     {
                         <span class="string">&quot;cache&quot;</span>: {
-                            <span class="string">&quot;project_expiry&quot;</span>: <span class="ident">expiry</span>,
+                            <span class="string">&quot;project_expiry&quot;</span>: expiry,
                             <span class="string">&quot;project_grace_period&quot;</span>: <span class="number">0</span>,
-                            <span class="string">&quot;eviction_interval&quot;</span>: <span class="number">9999</span> <span class="comment">// do not evict</span>
-                        }
+                            <span class="string">&quot;eviction_interval&quot;</span>: <span class="number">9999 </span><span class="comment">// do not evict
+                        </span>}
                     }
                 ))
-                .<span class="ident">unwrap</span>(),
+                .unwrap(),
             );
 
-            <span class="comment">// Initialize project with a state</span>
-            <span class="kw">let</span> <span class="ident">project_key</span> <span class="op">=</span> <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).<span class="ident">unwrap</span>();
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">project_state</span> <span class="op">=</span> <span class="ident">ProjectState::allowed</span>();
-            <span class="ident">project_state</span>.<span class="ident">project_id</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">ProjectId::new</span>(<span class="number">123</span>));
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">project</span> <span class="op">=</span> <span class="ident">Project::new</span>(<span class="ident">project_key</span>, <span class="ident">config</span>.<span class="ident">clone</span>());
-            <span class="ident">project</span>.<span class="ident">state</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">Arc::new</span>(<span class="ident">project_state</span>));
+            <span class="comment">// Initialize project with a state
+            </span><span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap();
+            <span class="kw">let </span><span class="kw-2">mut </span>project_state = ProjectState::allowed();
+            project_state.project_id = <span class="prelude-val">Some</span>(ProjectId::new(<span class="number">123</span>));
+            <span class="kw">let </span><span class="kw-2">mut </span>project = Project::new(project_key, config.clone());
+            project.state = <span class="prelude-val">Some</span>(Arc::new(project_state));
 
-            <span class="comment">// Direct access should always yield a state:</span>
-            <span class="macro">assert!</span>(<span class="ident">project</span>.<span class="ident">state</span>.<span class="ident">is_some</span>());
+            <span class="comment">// Direct access should always yield a state:
+            </span><span class="macro">assert!</span>(project.state.is_some());
 
-            <span class="kw">if</span> <span class="ident">expiry</span> <span class="op">&gt;</span> <span class="number">0</span> {
-                <span class="comment">// With long expiry, should get a state</span>
-                <span class="macro">assert!</span>(<span class="ident">project</span>.<span class="ident">valid_state</span>().<span class="ident">is_some</span>());
-            } <span class="kw">else</span> {
-                <span class="comment">// With 0 expiry, project should expire immediately. No state can be set.</span>
-                <span class="macro">assert!</span>(<span class="ident">project</span>.<span class="ident">valid_state</span>().<span class="ident">is_none</span>());
+            <span class="kw">if </span>expiry &gt; <span class="number">0 </span>{
+                <span class="comment">// With long expiry, should get a state
+                </span><span class="macro">assert!</span>(project.valid_state().is_some());
+            } <span class="kw">else </span>{
+                <span class="comment">// With 0 expiry, project should expire immediately. No state can be set.
+                </span><span class="macro">assert!</span>(project.valid_state().is_none());
             }
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_stale_cache</span>() {
-        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">Arc::new</span>(
-            <span class="ident">Config::from_json_value</span>(<span class="macro">json!</span>(
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_stale_cache() {
+        <span class="kw">let </span>config = Arc::new(
+            Config::from_json_value(<span class="macro">json!</span>(
                 {
                     <span class="string">&quot;cache&quot;</span>: {
                         <span class="string">&quot;project_expiry&quot;</span>: <span class="number">100</span>,
                         <span class="string">&quot;project_grace_period&quot;</span>: <span class="number">0</span>,
-                        <span class="string">&quot;eviction_interval&quot;</span>: <span class="number">9999</span> <span class="comment">// do not evict</span>
-                    }
+                        <span class="string">&quot;eviction_interval&quot;</span>: <span class="number">9999 </span><span class="comment">// do not evict
+                    </span>}
                 }
             ))
-            .<span class="ident">unwrap</span>(),
+            .unwrap(),
         );
 
-        <span class="kw">let</span> <span class="ident">channel</span> <span class="op">=</span> <span class="ident">StateChannel::new</span>();
+        <span class="kw">let </span>channel = StateChannel::new();
 
-        <span class="comment">// Initialize project with a state.</span>
-        <span class="kw">let</span> <span class="ident">project_key</span> <span class="op">=</span> <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">project_state</span> <span class="op">=</span> <span class="ident">ProjectState::allowed</span>();
-        <span class="ident">project_state</span>.<span class="ident">project_id</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">ProjectId::new</span>(<span class="number">123</span>));
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">project</span> <span class="op">=</span> <span class="ident">Project::new</span>(<span class="ident">project_key</span>, <span class="ident">config</span>);
-        <span class="ident">project</span>.<span class="ident">state_channel</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">channel</span>);
-        <span class="ident">project</span>.<span class="ident">state</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">Arc::new</span>(<span class="ident">project_state</span>));
+        <span class="comment">// Initialize project with a state.
+        </span><span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap();
+        <span class="kw">let </span><span class="kw-2">mut </span>project_state = ProjectState::allowed();
+        project_state.project_id = <span class="prelude-val">Some</span>(ProjectId::new(<span class="number">123</span>));
+        <span class="kw">let </span><span class="kw-2">mut </span>project = Project::new(project_key, config);
+        project.state_channel = <span class="prelude-val">Some</span>(channel);
+        project.state = <span class="prelude-val">Some</span>(Arc::new(project_state));
 
-        <span class="comment">// The project ID must be set.</span>
-        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">project</span>.<span class="ident">state</span>.<span class="ident">as_ref</span>().<span class="ident">unwrap</span>().<span class="ident">invalid</span>());
-        <span class="comment">// Try to update project with errored project state.</span>
-        <span class="ident">project</span>.<span class="ident">update_state</span>(<span class="ident">Arc::new</span>(<span class="ident">ProjectState::err</span>()), <span class="bool-val">false</span>);
-        <span class="comment">// Since we got invalid project state we still keep the old one meaning there</span>
-        <span class="comment">// still must be the project id set.</span>
-        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">project</span>.<span class="ident">state</span>.<span class="ident">as_ref</span>().<span class="ident">unwrap</span>().<span class="ident">invalid</span>());
+        <span class="comment">// The project ID must be set.
+        </span><span class="macro">assert!</span>(!project.state.as_ref().unwrap().invalid());
+        <span class="comment">// Try to update project with errored project state.
+        </span>project.update_state(Arc::new(ProjectState::err()), <span class="bool-val">false</span>);
+        <span class="comment">// Since we got invalid project state we still keep the old one meaning there
+        // still must be the project id set.
+        </span><span class="macro">assert!</span>(!project.state.as_ref().unwrap().invalid());
     }
 
-    <span class="kw">fn</span> <span class="ident">create_project</span>(<span class="ident">config</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">serde_json::Value</span><span class="op">&gt;</span>) -&gt; <span class="ident">Project</span> {
-        <span class="kw">let</span> <span class="ident">project_key</span> <span class="op">=</span> <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">project</span> <span class="op">=</span> <span class="ident">Project::new</span>(<span class="ident">project_key</span>, <span class="ident">Arc::new</span>(<span class="ident">Config::default</span>()));
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">project_state</span> <span class="op">=</span> <span class="ident">ProjectState::allowed</span>();
-        <span class="ident">project_state</span>.<span class="ident">project_id</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">ProjectId::new</span>(<span class="number">42</span>));
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">config</span>) <span class="op">=</span> <span class="ident">config</span> {
-            <span class="ident">project_state</span>.<span class="ident">config</span> <span class="op">=</span> <span class="ident">serde_json::from_value</span>(<span class="ident">config</span>).<span class="ident">unwrap</span>();
+    <span class="kw">fn </span>create_project(config: <span class="prelude-ty">Option</span>&lt;serde_json::Value&gt;) -&gt; Project {
+        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap();
+        <span class="kw">let </span><span class="kw-2">mut </span>project = Project::new(project_key, Arc::new(Config::default()));
+        <span class="kw">let </span><span class="kw-2">mut </span>project_state = ProjectState::allowed();
+        project_state.project_id = <span class="prelude-val">Some</span>(ProjectId::new(<span class="number">42</span>));
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(config) = config {
+            project_state.config = serde_json::from_value(config).unwrap();
         }
-        <span class="ident">project</span>.<span class="ident">state</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">Arc::new</span>(<span class="ident">project_state</span>));
-        <span class="ident">project</span>
+        project.state = <span class="prelude-val">Some</span>(Arc::new(project_state));
+        project
     }
 
-    <span class="kw">fn</span> <span class="ident">create_transaction_metric</span>() -&gt; <span class="ident">Metric</span> {
-        <span class="ident">Metric</span> {
-            <span class="ident">name</span>: <span class="string">&quot;d:transactions/foo&quot;</span>.<span class="ident">to_string</span>(),
-            <span class="ident">value</span>: <span class="ident">MetricValue::Counter</span>(<span class="number">1.0</span>),
-            <span class="ident">timestamp</span>: <span class="ident">UnixTimestamp::now</span>(),
-            <span class="ident">tags</span>: <span class="ident">Default::default</span>(),
+    <span class="kw">fn </span>create_transaction_metric() -&gt; Metric {
+        Metric {
+            name: <span class="string">&quot;d:transactions/foo&quot;</span>.to_string(),
+            value: MetricValue::Counter(<span class="number">1.0</span>),
+            timestamp: UnixTimestamp::now(),
+            tags: Default::default(),
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_rate_limit_incoming_metrics</span>() {
-        <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="ident">create_project</span>(<span class="prelude-val">None</span>);
-        <span class="kw">let</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="ident">project</span>.<span class="ident">rate_limit_metrics</span>(<span class="macro">vec!</span>[<span class="ident">create_transaction_metric</span>()]);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_rate_limit_incoming_metrics() {
+        <span class="kw">let </span>project = create_project(<span class="prelude-val">None</span>);
+        <span class="kw">let </span>metrics = project.rate_limit_metrics(<span class="macro">vec!</span>[create_transaction_metric()]);
 
-        <span class="macro">assert!</span>(<span class="ident">metrics</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">1</span>);
+        <span class="macro">assert!</span>(metrics.len() == <span class="number">1</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_rate_limit_incoming_metrics_no_quota</span>() {
-        <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="ident">create_project</span>(<span class="prelude-val">Some</span>(<span class="macro">json!</span>({
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_rate_limit_incoming_metrics_no_quota() {
+        <span class="kw">let </span>project = create_project(<span class="prelude-val">Some</span>(<span class="macro">json!</span>({
             <span class="string">&quot;quotas&quot;</span>: [{
                <span class="string">&quot;id&quot;</span>: <span class="string">&quot;foo&quot;</span>,
                <span class="string">&quot;categories&quot;</span>: [<span class="string">&quot;transaction&quot;</span>],
@@ -2114,32 +2114,32 @@
            }]
         })));
 
-        <span class="kw">let</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="ident">project</span>.<span class="ident">rate_limit_metrics</span>(<span class="macro">vec!</span>[<span class="ident">create_transaction_metric</span>()]);
+        <span class="kw">let </span>metrics = project.rate_limit_metrics(<span class="macro">vec!</span>[create_transaction_metric()]);
 
-        <span class="macro">assert!</span>(<span class="ident">metrics</span>.<span class="ident">is_empty</span>());
+        <span class="macro">assert!</span>(metrics.is_empty());
     }
 
-    <span class="kw">fn</span> <span class="ident">create_transaction_bucket</span>() -&gt; <span class="ident">Bucket</span> {
-        <span class="ident">Bucket</span> {
-            <span class="ident">name</span>: <span class="string">&quot;d:transactions/foo&quot;</span>.<span class="ident">to_string</span>(),
-            <span class="ident">value</span>: <span class="ident">BucketValue::Counter</span>(<span class="number">1.0</span>),
-            <span class="ident">timestamp</span>: <span class="ident">UnixTimestamp::now</span>(),
-            <span class="ident">tags</span>: <span class="ident">Default::default</span>(),
-            <span class="ident">width</span>: <span class="number">10</span>,
+    <span class="kw">fn </span>create_transaction_bucket() -&gt; Bucket {
+        Bucket {
+            name: <span class="string">&quot;d:transactions/foo&quot;</span>.to_string(),
+            value: BucketValue::Counter(<span class="number">1.0</span>),
+            timestamp: UnixTimestamp::now(),
+            tags: Default::default(),
+            width: <span class="number">10</span>,
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_rate_limit_incoming_buckets</span>() {
-        <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="ident">create_project</span>(<span class="prelude-val">None</span>);
-        <span class="kw">let</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="ident">project</span>.<span class="ident">rate_limit_metrics</span>(<span class="macro">vec!</span>[<span class="ident">create_transaction_bucket</span>()]);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_rate_limit_incoming_buckets() {
+        <span class="kw">let </span>project = create_project(<span class="prelude-val">None</span>);
+        <span class="kw">let </span>metrics = project.rate_limit_metrics(<span class="macro">vec!</span>[create_transaction_bucket()]);
 
-        <span class="macro">assert!</span>(<span class="ident">metrics</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">1</span>);
+        <span class="macro">assert!</span>(metrics.len() == <span class="number">1</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_rate_limit_incoming_buckets_no_quota</span>() {
-        <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="ident">create_project</span>(<span class="prelude-val">Some</span>(<span class="macro">json!</span>({
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_rate_limit_incoming_buckets_no_quota() {
+        <span class="kw">let </span>project = create_project(<span class="prelude-val">Some</span>(<span class="macro">json!</span>({
             <span class="string">&quot;quotas&quot;</span>: [{
                <span class="string">&quot;id&quot;</span>: <span class="string">&quot;foo&quot;</span>,
                <span class="string">&quot;categories&quot;</span>: [<span class="string">&quot;transaction&quot;</span>],
@@ -2149,10 +2149,10 @@
            }]
         })));
 
-        <span class="kw">let</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="ident">project</span>.<span class="ident">rate_limit_metrics</span>(<span class="macro">vec!</span>[<span class="ident">create_transaction_bucket</span>()]);
+        <span class="kw">let </span>metrics = project.rate_limit_metrics(<span class="macro">vec!</span>[create_transaction_bucket()]);
 
-        <span class="macro">assert!</span>(<span class="ident">metrics</span>.<span class="ident">is_empty</span>());
+        <span class="macro">assert!</span>(metrics.is_empty());
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

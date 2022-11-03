@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-cabi/src/processing.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>processing.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_cabi/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_cabi/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-cabi/src/processing.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>processing.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_cabi/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_cabi/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_cabi/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -291,296 +291,296 @@
 <span id="289">289</span>
 <span id="290">290</span>
 <span id="291">291</span>
-</pre><pre class="rust"><code><span class="comment">// TODO: Fix casts between RelayGeoIpLookup and GeoIpLookup</span>
-<span class="attribute">#![<span class="ident">allow</span>(<span class="ident">clippy::cast_ptr_alignment</span>)]</span>
-<span class="attribute">#![<span class="ident">deny</span>(<span class="ident">unused_must_use</span>)]</span>
-<span class="attribute">#![<span class="ident">allow</span>(<span class="ident">clippy::derive_partial_eq_without_eq</span>)]</span>
+</pre><pre class="rust"><code><span class="comment">// TODO: Fix casts between RelayGeoIpLookup and GeoIpLookup
+</span><span class="attribute">#![allow(clippy::cast_ptr_alignment)]
+#![deny(unused_must_use)]
+#![allow(clippy::derive_partial_eq_without_eq)]
 
-<span class="kw">use</span> <span class="ident">std::cmp::Ordering</span>;
-<span class="kw">use</span> <span class="ident">std::ffi::CStr</span>;
-<span class="kw">use</span> <span class="ident">std::os::raw::c_char</span>;
-<span class="kw">use</span> <span class="ident">std::slice</span>;
+</span><span class="kw">use </span>std::cmp::Ordering;
+<span class="kw">use </span>std::ffi::CStr;
+<span class="kw">use </span>std::os::raw::c_char;
+<span class="kw">use </span>std::slice;
 
-<span class="kw">use</span> <span class="ident">once_cell::sync::OnceCell</span>;
+<span class="kw">use </span>once_cell::sync::OnceCell;
 
-<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">glob_match_bytes</span>, <span class="ident">GlobOptions</span>};
-<span class="kw">use</span> <span class="ident">relay_general::pii</span>::{
-    <span class="ident">selector_suggestions_from_value</span>, <span class="ident">DataScrubbingConfig</span>, <span class="ident">PiiConfig</span>, <span class="ident">PiiProcessor</span>,
+<span class="kw">use </span>relay_common::{glob_match_bytes, GlobOptions};
+<span class="kw">use </span>relay_general::pii::{
+    selector_suggestions_from_value, DataScrubbingConfig, PiiConfig, PiiProcessor,
 };
-<span class="kw">use</span> <span class="ident">relay_general::processor</span>::{<span class="ident">process_value</span>, <span class="ident">split_chunks</span>, <span class="ident">ProcessingState</span>};
-<span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{<span class="ident">Event</span>, <span class="ident">VALID_PLATFORMS</span>};
-<span class="kw">use</span> <span class="ident">relay_general::store</span>::{
-    <span class="ident">light_normalize_event</span>, <span class="ident">GeoIpLookup</span>, <span class="ident">LightNormalizationConfig</span>, <span class="ident">StoreConfig</span>, <span class="ident">StoreProcessor</span>,
+<span class="kw">use </span>relay_general::processor::{process_value, split_chunks, ProcessingState};
+<span class="kw">use </span>relay_general::protocol::{Event, VALID_PLATFORMS};
+<span class="kw">use </span>relay_general::store::{
+    light_normalize_event, GeoIpLookup, LightNormalizationConfig, StoreConfig, StoreProcessor,
 };
-<span class="kw">use</span> <span class="ident">relay_general::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Remark</span>};
-<span class="kw">use</span> <span class="ident">relay_sampling</span>::{<span class="ident">RuleCondition</span>, <span class="ident">SamplingConfig</span>};
+<span class="kw">use </span>relay_general::types::{Annotated, Remark};
+<span class="kw">use </span>relay_sampling::{RuleCondition, SamplingConfig};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::core</span>::{<span class="ident">RelayBuf</span>, <span class="ident">RelayStr</span>};
+<span class="kw">use </span><span class="kw">crate</span>::core::{RelayBuf, RelayStr};
 
-<span class="doccomment">/// A geo ip lookup helper based on maxmind db files.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RelayGeoIpLookup</span>;
+<span class="doccomment">/// A geo ip lookup helper based on maxmind db files.
+</span><span class="kw">pub struct </span>RelayGeoIpLookup;
 
-<span class="doccomment">/// The processor that normalizes events for store.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RelayStoreNormalizer</span>;
+<span class="doccomment">/// The processor that normalizes events for store.
+</span><span class="kw">pub struct </span>RelayStoreNormalizer;
 
-<span class="doccomment">/// Chunks the given text based on remarks.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_split_chunks</span>(
-    <span class="ident">string</span>: <span class="kw-2">*const</span> <span class="ident">RelayStr</span>,
-    <span class="ident">remarks</span>: <span class="kw-2">*const</span> <span class="ident">RelayStr</span>,
-) -&gt; <span class="ident">RelayStr</span> {
-    <span class="kw">let</span> <span class="ident">remarks</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Remark</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">serde_json::from_str</span>((<span class="kw-2">*</span><span class="ident">remarks</span>).<span class="ident">as_str</span>())<span class="question-mark">?</span>;
-    <span class="kw">let</span> <span class="ident">chunks</span> <span class="op">=</span> <span class="ident">split_chunks</span>((<span class="kw-2">*</span><span class="ident">string</span>).<span class="ident">as_str</span>(), <span class="kw-2">&amp;</span><span class="ident">remarks</span>);
-    <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="ident">serde_json::to_string</span>(<span class="kw-2">&amp;</span><span class="ident">chunks</span>)<span class="question-mark">?</span>;
-    <span class="ident">json</span>.<span class="ident">into</span>()
+<span class="doccomment">/// Chunks the given text based on remarks.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_split_chunks(
+    string: <span class="kw-2">*const </span>RelayStr,
+    remarks: <span class="kw-2">*const </span>RelayStr,
+) -&gt; RelayStr {
+    <span class="kw">let </span>remarks: Vec&lt;Remark&gt; = serde_json::from_str((<span class="kw-2">*</span>remarks).as_str())<span class="question-mark">?</span>;
+    <span class="kw">let </span>chunks = split_chunks((<span class="kw-2">*</span>string).as_str(), <span class="kw-2">&amp;</span>remarks);
+    <span class="kw">let </span>json = serde_json::to_string(<span class="kw-2">&amp;</span>chunks)<span class="question-mark">?</span>;
+    json.into()
 }
 
-<span class="doccomment">/// Opens a maxminddb file by path.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_geoip_lookup_new</span>(<span class="ident">path</span>: <span class="kw-2">*const</span> <span class="ident">c_char</span>) -&gt; <span class="kw-2">*mut</span> <span class="ident">RelayGeoIpLookup</span> {
-    <span class="kw">let</span> <span class="ident">path</span> <span class="op">=</span> <span class="ident">CStr::from_ptr</span>(<span class="ident">path</span>).<span class="ident">to_string_lossy</span>();
-    <span class="kw">let</span> <span class="ident">lookup</span> <span class="op">=</span> <span class="ident">GeoIpLookup::open</span>(<span class="ident">path</span>.<span class="ident">as_ref</span>())<span class="question-mark">?</span>;
-    <span class="ident">Box::into_raw</span>(<span class="ident">Box::new</span>(<span class="ident">lookup</span>)) <span class="kw">as</span> <span class="kw-2">*mut</span> <span class="ident">RelayGeoIpLookup</span>
+<span class="doccomment">/// Opens a maxminddb file by path.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_geoip_lookup_new(path: <span class="kw-2">*const </span>c_char) -&gt; <span class="kw-2">*mut </span>RelayGeoIpLookup {
+    <span class="kw">let </span>path = CStr::from_ptr(path).to_string_lossy();
+    <span class="kw">let </span>lookup = GeoIpLookup::open(path.as_ref())<span class="question-mark">?</span>;
+    Box::into_raw(Box::new(lookup)) <span class="kw">as </span><span class="kw-2">*mut </span>RelayGeoIpLookup
 }
 
-<span class="doccomment">/// Frees a `RelayGeoIpLookup`.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_geoip_lookup_free</span>(<span class="ident">lookup</span>: <span class="kw-2">*mut</span> <span class="ident">RelayGeoIpLookup</span>) {
-    <span class="kw">if</span> <span class="op">!</span><span class="ident">lookup</span>.<span class="ident">is_null</span>() {
-        <span class="kw">let</span> <span class="ident">lookup</span> <span class="op">=</span> <span class="ident">lookup</span> <span class="kw">as</span> <span class="kw-2">*mut</span> <span class="ident">GeoIpLookup</span>;
-        <span class="kw">let</span> <span class="ident">_dropped</span> <span class="op">=</span> <span class="ident">Box::from_raw</span>(<span class="ident">lookup</span>);
+<span class="doccomment">/// Frees a `RelayGeoIpLookup`.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_geoip_lookup_free(lookup: <span class="kw-2">*mut </span>RelayGeoIpLookup) {
+    <span class="kw">if </span>!lookup.is_null() {
+        <span class="kw">let </span>lookup = lookup <span class="kw">as </span><span class="kw-2">*mut </span>GeoIpLookup;
+        <span class="kw">let </span>_dropped = Box::from_raw(lookup);
     }
 }
 
-<span class="doccomment">/// Returns a list of all valid platform identifiers.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_valid_platforms</span>(<span class="ident">size_out</span>: <span class="kw-2">*mut</span> <span class="ident">usize</span>) -&gt; <span class="kw-2">*const</span> <span class="ident">RelayStr</span> {
-    <span class="kw">static</span> <span class="ident">VALID_PLATFORM_STRS</span>: <span class="ident">OnceCell</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">RelayStr</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">OnceCell::new</span>();
-    <span class="kw">let</span> <span class="ident">platforms</span> <span class="op">=</span> <span class="ident">VALID_PLATFORM_STRS</span>
-        .<span class="ident">get_or_init</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">VALID_PLATFORMS</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">RelayStr::new</span>(<span class="ident">s</span>)).<span class="ident">collect</span>());
+<span class="doccomment">/// Returns a list of all valid platform identifiers.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_valid_platforms(size_out: <span class="kw-2">*mut </span>usize) -&gt; <span class="kw-2">*const </span>RelayStr {
+    <span class="kw">static </span>VALID_PLATFORM_STRS: OnceCell&lt;Vec&lt;RelayStr&gt;&gt; = OnceCell::new();
+    <span class="kw">let </span>platforms = VALID_PLATFORM_STRS
+        .get_or_init(|| VALID_PLATFORMS.iter().map(|s| RelayStr::new(s)).collect());
 
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">size_out</span>) <span class="op">=</span> <span class="ident">size_out</span>.<span class="ident">as_mut</span>() {
-        <span class="kw-2">*</span><span class="ident">size_out</span> <span class="op">=</span> <span class="ident">platforms</span>.<span class="ident">len</span>();
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(size_out) = size_out.as_mut() {
+        <span class="kw-2">*</span>size_out = platforms.len();
     }
 
-    <span class="ident">platforms</span>.<span class="ident">as_ptr</span>()
+    platforms.as_ptr()
 }
 
-<span class="doccomment">/// Creates a new normalization processor.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_store_normalizer_new</span>(
-    <span class="ident">config</span>: <span class="kw-2">*const</span> <span class="ident">RelayStr</span>,
-    <span class="ident">geoip_lookup</span>: <span class="kw-2">*const</span> <span class="ident">RelayGeoIpLookup</span>,
-) -&gt; <span class="kw-2">*mut</span> <span class="ident">RelayStoreNormalizer</span> {
-    <span class="kw">let</span> <span class="ident">config</span>: <span class="ident">StoreConfig</span> <span class="op">=</span> <span class="ident">serde_json::from_str</span>((<span class="kw-2">*</span><span class="ident">config</span>).<span class="ident">as_str</span>())<span class="question-mark">?</span>;
-    <span class="kw">let</span> <span class="ident">geoip_lookup</span> <span class="op">=</span> (<span class="ident">geoip_lookup</span> <span class="kw">as</span> <span class="kw-2">*const</span> <span class="ident">GeoIpLookup</span>).<span class="ident">as_ref</span>();
-    <span class="kw">let</span> <span class="ident">normalizer</span> <span class="op">=</span> <span class="ident">StoreProcessor::new</span>(<span class="ident">config</span>, <span class="ident">geoip_lookup</span>);
-    <span class="ident">Box::into_raw</span>(<span class="ident">Box::new</span>(<span class="ident">normalizer</span>)) <span class="kw">as</span> <span class="kw-2">*mut</span> <span class="ident">RelayStoreNormalizer</span>
+<span class="doccomment">/// Creates a new normalization processor.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_store_normalizer_new(
+    config: <span class="kw-2">*const </span>RelayStr,
+    geoip_lookup: <span class="kw-2">*const </span>RelayGeoIpLookup,
+) -&gt; <span class="kw-2">*mut </span>RelayStoreNormalizer {
+    <span class="kw">let </span>config: StoreConfig = serde_json::from_str((<span class="kw-2">*</span>config).as_str())<span class="question-mark">?</span>;
+    <span class="kw">let </span>geoip_lookup = (geoip_lookup <span class="kw">as </span><span class="kw-2">*const </span>GeoIpLookup).as_ref();
+    <span class="kw">let </span>normalizer = StoreProcessor::new(config, geoip_lookup);
+    Box::into_raw(Box::new(normalizer)) <span class="kw">as </span><span class="kw-2">*mut </span>RelayStoreNormalizer
 }
 
-<span class="doccomment">/// Frees a `RelayStoreNormalizer`.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_store_normalizer_free</span>(<span class="ident">normalizer</span>: <span class="kw-2">*mut</span> <span class="ident">RelayStoreNormalizer</span>) {
-    <span class="kw">if</span> <span class="op">!</span><span class="ident">normalizer</span>.<span class="ident">is_null</span>() {
-        <span class="kw">let</span> <span class="ident">normalizer</span> <span class="op">=</span> <span class="ident">normalizer</span> <span class="kw">as</span> <span class="kw-2">*mut</span> <span class="ident">StoreProcessor</span>;
-        <span class="kw">let</span> <span class="ident">_dropped</span> <span class="op">=</span> <span class="ident">Box::from_raw</span>(<span class="ident">normalizer</span>);
+<span class="doccomment">/// Frees a `RelayStoreNormalizer`.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_store_normalizer_free(normalizer: <span class="kw-2">*mut </span>RelayStoreNormalizer) {
+    <span class="kw">if </span>!normalizer.is_null() {
+        <span class="kw">let </span>normalizer = normalizer <span class="kw">as </span><span class="kw-2">*mut </span>StoreProcessor;
+        <span class="kw">let </span>_dropped = Box::from_raw(normalizer);
     }
 }
 
-<span class="doccomment">/// Normalizes the event given as JSON.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_store_normalizer_normalize_event</span>(
-    <span class="ident">normalizer</span>: <span class="kw-2">*mut</span> <span class="ident">RelayStoreNormalizer</span>,
-    <span class="ident">event</span>: <span class="kw-2">*const</span> <span class="ident">RelayStr</span>,
-) -&gt; <span class="ident">RelayStr</span> {
-    <span class="kw">let</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">normalizer</span> <span class="kw">as</span> <span class="kw-2">*mut</span> <span class="ident">StoreProcessor</span>;
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span><span class="ident">::from_json</span>((<span class="kw-2">*</span><span class="ident">event</span>).<span class="ident">as_str</span>())<span class="question-mark">?</span>;
-    <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> (<span class="kw-2">*</span><span class="ident">processor</span>).<span class="ident">config</span>();
-    <span class="kw">let</span> <span class="ident">light_normalization_config</span> <span class="op">=</span> <span class="ident">LightNormalizationConfig</span> {
-        <span class="ident">client_ip</span>: <span class="ident">config</span>.<span class="ident">client_ip</span>.<span class="ident">as_ref</span>(),
-        <span class="ident">user_agent</span>: <span class="ident">config</span>.<span class="ident">user_agent</span>.<span class="ident">as_deref</span>(),
-        <span class="ident">received_at</span>: <span class="ident">config</span>.<span class="ident">received_at</span>,
-        <span class="ident">max_secs_in_past</span>: <span class="ident">config</span>.<span class="ident">max_secs_in_past</span>,
-        <span class="ident">max_secs_in_future</span>: <span class="ident">config</span>.<span class="ident">max_secs_in_future</span>,
-        <span class="ident">measurements_config</span>: <span class="prelude-val">None</span>, <span class="comment">// only supported in relay</span>
-        <span class="ident">breakdowns_config</span>: <span class="prelude-val">None</span>,   <span class="comment">// only supported in relay</span>
-        <span class="ident">normalize_user_agent</span>: <span class="ident">config</span>.<span class="ident">normalize_user_agent</span>,
-        <span class="ident">is_renormalize</span>: <span class="ident">config</span>.<span class="ident">is_renormalize</span>.<span class="ident">unwrap_or</span>(<span class="bool-val">false</span>),
+<span class="doccomment">/// Normalizes the event given as JSON.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_store_normalizer_normalize_event(
+    normalizer: <span class="kw-2">*mut </span>RelayStoreNormalizer,
+    event: <span class="kw-2">*const </span>RelayStr,
+) -&gt; RelayStr {
+    <span class="kw">let </span>processor = normalizer <span class="kw">as </span><span class="kw-2">*mut </span>StoreProcessor;
+    <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json((<span class="kw-2">*</span>event).as_str())<span class="question-mark">?</span>;
+    <span class="kw">let </span>config = (<span class="kw-2">*</span>processor).config();
+    <span class="kw">let </span>light_normalization_config = LightNormalizationConfig {
+        client_ip: config.client_ip.as_ref(),
+        user_agent: config.user_agent.as_deref(),
+        received_at: config.received_at,
+        max_secs_in_past: config.max_secs_in_past,
+        max_secs_in_future: config.max_secs_in_future,
+        measurements_config: <span class="prelude-val">None</span>, <span class="comment">// only supported in relay
+        </span>breakdowns_config: <span class="prelude-val">None</span>,   <span class="comment">// only supported in relay
+        </span>normalize_user_agent: config.normalize_user_agent,
+        is_renormalize: config.is_renormalize.unwrap_or(<span class="bool-val">false</span>),
     };
-    <span class="ident">light_normalize_event</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="ident">light_normalization_config</span>)<span class="question-mark">?</span>;
-    <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="kw-2">*</span><span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>())<span class="question-mark">?</span>;
-    <span class="ident">RelayStr::from_string</span>(<span class="ident">event</span>.<span class="ident">to_json</span>()<span class="question-mark">?</span>)
+    light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>light_normalization_config)<span class="question-mark">?</span>;
+    process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut *</span>processor, ProcessingState::root())<span class="question-mark">?</span>;
+    RelayStr::from_string(event.to_json()<span class="question-mark">?</span>)
 }
 
-<span class="doccomment">/// Replaces invalid JSON generated by Python.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_translate_legacy_python_json</span>(<span class="ident">event</span>: <span class="kw-2">*mut</span> <span class="ident">RelayStr</span>) -&gt; <span class="ident">bool</span> {
-    <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">slice::from_raw_parts_mut</span>((<span class="kw-2">*</span><span class="ident">event</span>).<span class="ident">data</span> <span class="kw">as</span> <span class="kw-2">*mut</span> <span class="ident">u8</span>, (<span class="kw-2">*</span><span class="ident">event</span>).<span class="ident">len</span>);
-    <span class="ident">json_forensics::translate_slice</span>(<span class="ident">data</span>);
-    <span class="bool-val">true</span>
-}
+<span class="doccomment">/// Replaces invalid JSON generated by Python.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_translate_legacy_python_json(event: <span class="kw-2">*mut </span>RelayStr) -&gt; bool {
+    <span class="kw">let </span>data = slice::from_raw_parts_mut((<span class="kw-2">*</span>event).data <span class="kw">as </span><span class="kw-2">*mut </span>u8, (<span class="kw-2">*</span>event).len);
+    json_forensics::translate_slice(data);
+    <span class="bool-val">true
+</span>}
 
-<span class="doccomment">/// Validate a PII config against the schema. Used in project options UI.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_validate_pii_config</span>(<span class="ident">value</span>: <span class="kw-2">*const</span> <span class="ident">RelayStr</span>) -&gt; <span class="ident">RelayStr</span> {
-    <span class="kw">match</span> <span class="ident">serde_json::from_str</span>((<span class="kw-2">*</span><span class="ident">value</span>).<span class="ident">as_str</span>()) {
-        <span class="prelude-val">Ok</span>(<span class="ident">PiiConfig</span> { .. }) =&gt; <span class="ident">RelayStr::new</span>(<span class="string">&quot;&quot;</span>),
-        <span class="prelude-val">Err</span>(<span class="ident">e</span>) =&gt; <span class="ident">RelayStr::from_string</span>(<span class="ident">e</span>.<span class="ident">to_string</span>()),
+<span class="doccomment">/// Validate a PII config against the schema. Used in project options UI.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_validate_pii_config(value: <span class="kw-2">*const </span>RelayStr) -&gt; RelayStr {
+    <span class="kw">match </span>serde_json::from_str((<span class="kw-2">*</span>value).as_str()) {
+        <span class="prelude-val">Ok</span>(PiiConfig { .. }) =&gt; RelayStr::new(<span class="string">&quot;&quot;</span>),
+        <span class="prelude-val">Err</span>(e) =&gt; RelayStr::from_string(e.to_string()),
     }
 }
 
-<span class="doccomment">/// Convert an old datascrubbing config to the new PII config format.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_convert_datascrubbing_config</span>(<span class="ident">config</span>: <span class="kw-2">*const</span> <span class="ident">RelayStr</span>) -&gt; <span class="ident">RelayStr</span> {
-    <span class="kw">let</span> <span class="ident">config</span>: <span class="ident">DataScrubbingConfig</span> <span class="op">=</span> <span class="ident">serde_json::from_str</span>((<span class="kw-2">*</span><span class="ident">config</span>).<span class="ident">as_str</span>())<span class="question-mark">?</span>;
-    <span class="kw">match</span> <span class="ident">config</span>.<span class="ident">pii_config</span>() {
-        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">config</span>)) =&gt; <span class="ident">RelayStr::from_string</span>(<span class="ident">config</span>.<span class="ident">to_json</span>()<span class="question-mark">?</span>),
-        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) =&gt; <span class="ident">RelayStr::new</span>(<span class="string">&quot;{}&quot;</span>),
-        <span class="comment">// NOTE: Callers of this function must be able to handle this error.</span>
-        <span class="prelude-val">Err</span>(<span class="ident">e</span>) =&gt; <span class="ident">RelayStr::from_string</span>(<span class="ident">e</span>.<span class="ident">to_string</span>()),
+<span class="doccomment">/// Convert an old datascrubbing config to the new PII config format.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_convert_datascrubbing_config(config: <span class="kw-2">*const </span>RelayStr) -&gt; RelayStr {
+    <span class="kw">let </span>config: DataScrubbingConfig = serde_json::from_str((<span class="kw-2">*</span>config).as_str())<span class="question-mark">?</span>;
+    <span class="kw">match </span>config.pii_config() {
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(config)) =&gt; RelayStr::from_string(config.to_json()<span class="question-mark">?</span>),
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) =&gt; RelayStr::new(<span class="string">&quot;{}&quot;</span>),
+        <span class="comment">// NOTE: Callers of this function must be able to handle this error.
+        </span><span class="prelude-val">Err</span>(e) =&gt; RelayStr::from_string(e.to_string()),
     }
 }
 
-<span class="doccomment">/// Scrub an event using new PII stripping config.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_pii_strip_event</span>(
-    <span class="ident">config</span>: <span class="kw-2">*const</span> <span class="ident">RelayStr</span>,
-    <span class="ident">event</span>: <span class="kw-2">*const</span> <span class="ident">RelayStr</span>,
-) -&gt; <span class="ident">RelayStr</span> {
-    <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">serde_json::from_str</span>::<span class="op">&lt;</span><span class="ident">PiiConfig</span><span class="op">&gt;</span>((<span class="kw-2">*</span><span class="ident">config</span>).<span class="ident">as_str</span>())<span class="question-mark">?</span>;
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="ident">config</span>.<span class="ident">compiled</span>());
+<span class="doccomment">/// Scrub an event using new PII stripping config.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_pii_strip_event(
+    config: <span class="kw-2">*const </span>RelayStr,
+    event: <span class="kw-2">*const </span>RelayStr,
+) -&gt; RelayStr {
+    <span class="kw">let </span>config = serde_json::from_str::&lt;PiiConfig&gt;((<span class="kw-2">*</span>config).as_str())<span class="question-mark">?</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>processor = PiiProcessor::new(config.compiled());
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span><span class="ident">::from_json</span>((<span class="kw-2">*</span><span class="ident">event</span>).<span class="ident">as_str</span>())<span class="question-mark">?</span>;
-    <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>())<span class="question-mark">?</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json((<span class="kw-2">*</span>event).as_str())<span class="question-mark">?</span>;
+    process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root())<span class="question-mark">?</span>;
 
-    <span class="ident">RelayStr::from_string</span>(<span class="ident">event</span>.<span class="ident">to_json</span>()<span class="question-mark">?</span>)
+    RelayStr::from_string(event.to_json()<span class="question-mark">?</span>)
 }
 
-<span class="doccomment">/// Walk through the event and collect selectors that can be applied to it in a PII config. This</span>
-<span class="doccomment">/// function is used in the UI to provide auto-completion of selectors.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_pii_selector_suggestions_from_event</span>(
-    <span class="ident">event</span>: <span class="kw-2">*const</span> <span class="ident">RelayStr</span>,
-) -&gt; <span class="ident">RelayStr</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span><span class="ident">::from_json</span>((<span class="kw-2">*</span><span class="ident">event</span>).<span class="ident">as_str</span>())<span class="question-mark">?</span>;
-    <span class="kw">let</span> <span class="ident">rv</span> <span class="op">=</span> <span class="ident">selector_suggestions_from_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>);
-    <span class="ident">RelayStr::from_string</span>(<span class="ident">serde_json::to_string</span>(<span class="kw-2">&amp;</span><span class="ident">rv</span>)<span class="question-mark">?</span>)
+<span class="doccomment">/// Walk through the event and collect selectors that can be applied to it in a PII config. This
+/// function is used in the UI to provide auto-completion of selectors.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_pii_selector_suggestions_from_event(
+    event: <span class="kw-2">*const </span>RelayStr,
+) -&gt; RelayStr {
+    <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json((<span class="kw-2">*</span>event).as_str())<span class="question-mark">?</span>;
+    <span class="kw">let </span>rv = selector_suggestions_from_value(<span class="kw-2">&amp;mut </span>event);
+    RelayStr::from_string(serde_json::to_string(<span class="kw-2">&amp;</span>rv)<span class="question-mark">?</span>)
 }
 
-<span class="doccomment">/// A test function that always panics.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_test_panic</span>() -&gt; () {
+<span class="doccomment">/// A test function that always panics.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_test_panic() -&gt; () {
     <span class="macro">panic!</span>(<span class="string">&quot;this is a test panic&quot;</span>)
 }
 
-<span class="doccomment">/// Controls the globbing behaviors.</span>
-<span class="attribute">#[<span class="ident">repr</span>(<span class="ident">u32</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">GlobFlags</span> {
-    <span class="doccomment">/// When enabled `**` matches over path separators and `*` does not.</span>
-    <span class="ident">DoubleStar</span> <span class="op">=</span> <span class="number">1</span>,
-    <span class="doccomment">/// Enables case insensitive path matching.</span>
-    <span class="ident">CaseInsensitive</span> <span class="op">=</span> <span class="number">2</span>,
-    <span class="doccomment">/// Enables path normalization.</span>
-    <span class="ident">PathNormalize</span> <span class="op">=</span> <span class="number">4</span>,
-    <span class="doccomment">/// Allows newlines.</span>
-    <span class="ident">AllowNewline</span> <span class="op">=</span> <span class="number">8</span>,
+<span class="doccomment">/// Controls the globbing behaviors.
+</span><span class="attribute">#[repr(u32)]
+</span><span class="kw">pub enum </span>GlobFlags {
+    <span class="doccomment">/// When enabled `**` matches over path separators and `*` does not.
+    </span>DoubleStar = <span class="number">1</span>,
+    <span class="doccomment">/// Enables case insensitive path matching.
+    </span>CaseInsensitive = <span class="number">2</span>,
+    <span class="doccomment">/// Enables path normalization.
+    </span>PathNormalize = <span class="number">4</span>,
+    <span class="doccomment">/// Allows newlines.
+    </span>AllowNewline = <span class="number">8</span>,
 }
 
-<span class="doccomment">/// Performs a glob operation on bytes.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Returns `true` if the glob matches, `false` otherwise.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_is_glob_match</span>(
-    <span class="ident">value</span>: <span class="kw-2">*const</span> <span class="ident">RelayBuf</span>,
-    <span class="ident">pat</span>: <span class="kw-2">*const</span> <span class="ident">RelayStr</span>,
-    <span class="ident">flags</span>: <span class="ident">GlobFlags</span>,
-) -&gt; <span class="ident">bool</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">options</span> <span class="op">=</span> <span class="ident">GlobOptions::default</span>();
-    <span class="kw">let</span> <span class="ident">flags</span> <span class="op">=</span> <span class="ident">flags</span> <span class="kw">as</span> <span class="ident">u32</span>;
-    <span class="kw">if</span> (<span class="ident">flags</span> <span class="op">&amp;</span> <span class="ident">GlobFlags::DoubleStar</span> <span class="kw">as</span> <span class="ident">u32</span>) <span class="op">!</span><span class="op">=</span> <span class="number">0</span> {
-        <span class="ident">options</span>.<span class="ident">double_star</span> <span class="op">=</span> <span class="bool-val">true</span>;
+<span class="doccomment">/// Performs a glob operation on bytes.
+///
+/// Returns `true` if the glob matches, `false` otherwise.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_is_glob_match(
+    value: <span class="kw-2">*const </span>RelayBuf,
+    pat: <span class="kw-2">*const </span>RelayStr,
+    flags: GlobFlags,
+) -&gt; bool {
+    <span class="kw">let </span><span class="kw-2">mut </span>options = GlobOptions::default();
+    <span class="kw">let </span>flags = flags <span class="kw">as </span>u32;
+    <span class="kw">if </span>(flags &amp; GlobFlags::DoubleStar <span class="kw">as </span>u32) != <span class="number">0 </span>{
+        options.double_star = <span class="bool-val">true</span>;
     }
-    <span class="kw">if</span> (<span class="ident">flags</span> <span class="op">&amp;</span> <span class="ident">GlobFlags::CaseInsensitive</span> <span class="kw">as</span> <span class="ident">u32</span>) <span class="op">!</span><span class="op">=</span> <span class="number">0</span> {
-        <span class="ident">options</span>.<span class="ident">case_insensitive</span> <span class="op">=</span> <span class="bool-val">true</span>;
+    <span class="kw">if </span>(flags &amp; GlobFlags::CaseInsensitive <span class="kw">as </span>u32) != <span class="number">0 </span>{
+        options.case_insensitive = <span class="bool-val">true</span>;
     }
-    <span class="kw">if</span> (<span class="ident">flags</span> <span class="op">&amp;</span> <span class="ident">GlobFlags::PathNormalize</span> <span class="kw">as</span> <span class="ident">u32</span>) <span class="op">!</span><span class="op">=</span> <span class="number">0</span> {
-        <span class="ident">options</span>.<span class="ident">path_normalize</span> <span class="op">=</span> <span class="bool-val">true</span>;
+    <span class="kw">if </span>(flags &amp; GlobFlags::PathNormalize <span class="kw">as </span>u32) != <span class="number">0 </span>{
+        options.path_normalize = <span class="bool-val">true</span>;
     }
-    <span class="kw">if</span> (<span class="ident">flags</span> <span class="op">&amp;</span> <span class="ident">GlobFlags::AllowNewline</span> <span class="kw">as</span> <span class="ident">u32</span>) <span class="op">!</span><span class="op">=</span> <span class="number">0</span> {
-        <span class="ident">options</span>.<span class="ident">allow_newline</span> <span class="op">=</span> <span class="bool-val">true</span>;
+    <span class="kw">if </span>(flags &amp; GlobFlags::AllowNewline <span class="kw">as </span>u32) != <span class="number">0 </span>{
+        options.allow_newline = <span class="bool-val">true</span>;
     }
-    <span class="ident">glob_match_bytes</span>((<span class="kw-2">*</span><span class="ident">value</span>).<span class="ident">as_bytes</span>(), (<span class="kw-2">*</span><span class="ident">pat</span>).<span class="ident">as_str</span>(), <span class="ident">options</span>)
+    glob_match_bytes((<span class="kw-2">*</span>value).as_bytes(), (<span class="kw-2">*</span>pat).as_str(), options)
 }
 
-<span class="doccomment">/// Parse a sentry release structure from a string.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_parse_release</span>(<span class="ident">value</span>: <span class="kw-2">*const</span> <span class="ident">RelayStr</span>) -&gt; <span class="ident">RelayStr</span> {
-    <span class="kw">let</span> <span class="ident">release</span> <span class="op">=</span> <span class="ident">sentry_release_parser::Release::parse</span>((<span class="kw-2">*</span><span class="ident">value</span>).<span class="ident">as_str</span>())<span class="question-mark">?</span>;
-    <span class="ident">RelayStr::from_string</span>(<span class="ident">serde_json::to_string</span>(<span class="kw-2">&amp;</span><span class="ident">release</span>)<span class="question-mark">?</span>)
+<span class="doccomment">/// Parse a sentry release structure from a string.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_parse_release(value: <span class="kw-2">*const </span>RelayStr) -&gt; RelayStr {
+    <span class="kw">let </span>release = sentry_release_parser::Release::parse((<span class="kw-2">*</span>value).as_str())<span class="question-mark">?</span>;
+    RelayStr::from_string(serde_json::to_string(<span class="kw-2">&amp;</span>release)<span class="question-mark">?</span>)
 }
 
-<span class="doccomment">/// Compares two versions.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_compare_versions</span>(<span class="ident">a</span>: <span class="kw-2">*const</span> <span class="ident">RelayStr</span>, <span class="ident">b</span>: <span class="kw-2">*const</span> <span class="ident">RelayStr</span>) -&gt; <span class="ident">i32</span> {
-    <span class="kw">let</span> <span class="ident">ver_a</span> <span class="op">=</span> <span class="ident">sentry_release_parser::Version::parse</span>((<span class="kw-2">*</span><span class="ident">a</span>).<span class="ident">as_str</span>())<span class="question-mark">?</span>;
-    <span class="kw">let</span> <span class="ident">ver_b</span> <span class="op">=</span> <span class="ident">sentry_release_parser::Version::parse</span>((<span class="kw-2">*</span><span class="ident">b</span>).<span class="ident">as_str</span>())<span class="question-mark">?</span>;
-    <span class="kw">match</span> <span class="ident">ver_a</span>.<span class="ident">cmp</span>(<span class="kw-2">&amp;</span><span class="ident">ver_b</span>) {
-        <span class="ident">Ordering::Less</span> =&gt; <span class="op">-</span><span class="number">1</span>,
-        <span class="ident">Ordering::Equal</span> =&gt; <span class="number">0</span>,
-        <span class="ident">Ordering::Greater</span> =&gt; <span class="number">1</span>,
+<span class="doccomment">/// Compares two versions.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_compare_versions(a: <span class="kw-2">*const </span>RelayStr, b: <span class="kw-2">*const </span>RelayStr) -&gt; i32 {
+    <span class="kw">let </span>ver_a = sentry_release_parser::Version::parse((<span class="kw-2">*</span>a).as_str())<span class="question-mark">?</span>;
+    <span class="kw">let </span>ver_b = sentry_release_parser::Version::parse((<span class="kw-2">*</span>b).as_str())<span class="question-mark">?</span>;
+    <span class="kw">match </span>ver_a.cmp(<span class="kw-2">&amp;</span>ver_b) {
+        Ordering::Less =&gt; -<span class="number">1</span>,
+        Ordering::Equal =&gt; <span class="number">0</span>,
+        Ordering::Greater =&gt; <span class="number">1</span>,
     }
 }
 
-<span class="doccomment">/// Validate a sampling rule condition.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_validate_sampling_condition</span>(<span class="ident">value</span>: <span class="kw-2">*const</span> <span class="ident">RelayStr</span>) -&gt; <span class="ident">RelayStr</span> {
-    <span class="kw">let</span> <span class="ident">ret_val</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">serde_json::from_str</span>::<span class="op">&lt;</span><span class="ident">RuleCondition</span><span class="op">&gt;</span>((<span class="kw-2">*</span><span class="ident">value</span>).<span class="ident">as_str</span>()) {
-        <span class="prelude-val">Ok</span>(<span class="ident">condition</span>) =&gt; {
-            <span class="kw">if</span> <span class="ident">condition</span>.<span class="ident">supported</span>() {
-                <span class="string">&quot;&quot;</span>.<span class="ident">to_string</span>()
-            } <span class="kw">else</span> {
-                <span class="string">&quot;unsupported condition&quot;</span>.<span class="ident">to_string</span>()
+<span class="doccomment">/// Validate a sampling rule condition.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_validate_sampling_condition(value: <span class="kw-2">*const </span>RelayStr) -&gt; RelayStr {
+    <span class="kw">let </span>ret_val = <span class="kw">match </span>serde_json::from_str::&lt;RuleCondition&gt;((<span class="kw-2">*</span>value).as_str()) {
+        <span class="prelude-val">Ok</span>(condition) =&gt; {
+            <span class="kw">if </span>condition.supported() {
+                <span class="string">&quot;&quot;</span>.to_string()
+            } <span class="kw">else </span>{
+                <span class="string">&quot;unsupported condition&quot;</span>.to_string()
             }
         }
-        <span class="prelude-val">Err</span>(<span class="ident">e</span>) =&gt; <span class="ident">e</span>.<span class="ident">to_string</span>(),
+        <span class="prelude-val">Err</span>(e) =&gt; e.to_string(),
     };
-    <span class="ident">RelayStr::from_string</span>(<span class="ident">ret_val</span>)
+    RelayStr::from_string(ret_val)
 }
 
-<span class="doccomment">/// Validate whole rule ( this will be also implemented in Sentry for better error messages)</span>
-<span class="doccomment">/// The implementation in relay is just to make sure that the Sentry implementation doesn&#39;t</span>
-<span class="doccomment">/// go out of sync.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_validate_sampling_configuration</span>(<span class="ident">value</span>: <span class="kw-2">*const</span> <span class="ident">RelayStr</span>) -&gt; <span class="ident">RelayStr</span> {
-    <span class="kw">match</span> <span class="ident">serde_json::from_str</span>::<span class="op">&lt;</span><span class="ident">SamplingConfig</span><span class="op">&gt;</span>((<span class="kw-2">*</span><span class="ident">value</span>).<span class="ident">as_str</span>()) {
-        <span class="prelude-val">Ok</span>(<span class="ident">config</span>) =&gt; {
-            <span class="kw">for</span> <span class="ident">rule</span> <span class="kw">in</span> <span class="ident">config</span>.<span class="ident">rules</span> {
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">rule</span>.<span class="ident">condition</span>.<span class="ident">supported</span>() {
-                    <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">RelayStr::new</span>(<span class="string">&quot;unsupported sampling rule&quot;</span>));
+<span class="doccomment">/// Validate whole rule ( this will be also implemented in Sentry for better error messages)
+/// The implementation in relay is just to make sure that the Sentry implementation doesn&#39;t
+/// go out of sync.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_validate_sampling_configuration(value: <span class="kw-2">*const </span>RelayStr) -&gt; RelayStr {
+    <span class="kw">match </span>serde_json::from_str::&lt;SamplingConfig&gt;((<span class="kw-2">*</span>value).as_str()) {
+        <span class="prelude-val">Ok</span>(config) =&gt; {
+            <span class="kw">for </span>rule <span class="kw">in </span>config.rules {
+                <span class="kw">if </span>!rule.condition.supported() {
+                    <span class="kw">return </span><span class="prelude-val">Ok</span>(RelayStr::new(<span class="string">&quot;unsupported sampling rule&quot;</span>));
                 }
             }
-            <span class="ident">RelayStr::default</span>()
+            RelayStr::default()
         }
-        <span class="prelude-val">Err</span>(<span class="ident">e</span>) =&gt; <span class="ident">RelayStr::from_string</span>(<span class="ident">e</span>.<span class="ident">to_string</span>()),
+        <span class="prelude-val">Err</span>(e) =&gt; RelayStr::from_string(e.to_string()),
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_cabi" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_cabi" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

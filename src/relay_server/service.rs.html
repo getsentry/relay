@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/service.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>service.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_server/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/service.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>service.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_server/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_server/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -385,390 +385,390 @@
 <span id="383">383</span>
 <span id="384">384</span>
 <span id="385">385</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
-<span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::sync::Arc;
 
-<span class="kw">use</span> <span class="ident">actix::prelude</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">actix_web</span>::{<span class="ident">server</span>, <span class="ident">App</span>};
-<span class="kw">use</span> <span class="ident">failure</span>::{<span class="ident">Backtrace</span>, <span class="ident">Context</span>, <span class="ident">Fail</span>, <span class="ident">ResultExt</span>};
-<span class="kw">use</span> <span class="ident">listenfd::ListenFd</span>;
-<span class="kw">use</span> <span class="ident">once_cell::race::OnceBox</span>;
+<span class="kw">use </span>actix::prelude::<span class="kw-2">*</span>;
+<span class="kw">use </span>actix_web::{server, App};
+<span class="kw">use </span>failure::{Backtrace, Context, Fail, ResultExt};
+<span class="kw">use </span>listenfd::ListenFd;
+<span class="kw">use </span>once_cell::race::OnceBox;
 
-<span class="kw">use</span> <span class="ident">relay_aws_extension::AwsExtension</span>;
-<span class="kw">use</span> <span class="ident">relay_config::Config</span>;
-<span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">Aggregator</span>, <span class="ident">AggregatorService</span>};
-<span class="kw">use</span> <span class="ident">relay_redis::RedisPool</span>;
-<span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">Addr</span>, <span class="ident">Configure</span>, <span class="ident">Controller</span>, <span class="ident">Service</span>};
+<span class="kw">use </span>relay_aws_extension::AwsExtension;
+<span class="kw">use </span>relay_config::Config;
+<span class="kw">use </span>relay_metrics::{Aggregator, AggregatorService};
+<span class="kw">use </span>relay_redis::RedisPool;
+<span class="kw">use </span>relay_system::{Addr, Configure, Controller, Service};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::envelopes</span>::{<span class="ident">EnvelopeManager</span>, <span class="ident">EnvelopeManagerService</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::health_check</span>::{<span class="ident">HealthCheck</span>, <span class="ident">HealthCheckService</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome</span>::{<span class="ident">OutcomeProducer</span>, <span class="ident">OutcomeProducerService</span>, <span class="ident">TrackOutcome</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome_aggregator::OutcomeAggregator</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::processor</span>::{<span class="ident">EnvelopeProcessor</span>, <span class="ident">EnvelopeProcessorService</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::project_cache::ProjectCache</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::relays</span>::{<span class="ident">RelayCache</span>, <span class="ident">RelayCacheService</span>};
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::store::StoreService</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::test_store</span>::{<span class="ident">TestStore</span>, <span class="ident">TestStoreService</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::upstream::UpstreamRelay</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::middlewares</span>::{
-    <span class="ident">AddCommonHeaders</span>, <span class="ident">ErrorHandlers</span>, <span class="ident">Metrics</span>, <span class="ident">ReadRequestMiddleware</span>, <span class="ident">SentryMiddleware</span>,
+<span class="kw">use </span><span class="kw">crate</span>::actors::envelopes::{EnvelopeManager, EnvelopeManagerService};
+<span class="kw">use </span><span class="kw">crate</span>::actors::health_check::{HealthCheck, HealthCheckService};
+<span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
+<span class="kw">use </span><span class="kw">crate</span>::actors::outcome_aggregator::OutcomeAggregator;
+<span class="kw">use </span><span class="kw">crate</span>::actors::processor::{EnvelopeProcessor, EnvelopeProcessorService};
+<span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::ProjectCache;
+<span class="kw">use </span><span class="kw">crate</span>::actors::relays::{RelayCache, RelayCacheService};
+<span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+</span><span class="kw">use </span><span class="kw">crate</span>::actors::store::StoreService;
+<span class="kw">use </span><span class="kw">crate</span>::actors::test_store::{TestStore, TestStoreService};
+<span class="kw">use </span><span class="kw">crate</span>::actors::upstream::UpstreamRelay;
+<span class="kw">use </span><span class="kw">crate</span>::middlewares::{
+    AddCommonHeaders, ErrorHandlers, Metrics, ReadRequestMiddleware, SentryMiddleware,
 };
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils::BufferGuard</span>;
-<span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">endpoints</span>, <span class="ident">utils</span>};
+<span class="kw">use </span><span class="kw">crate</span>::utils::BufferGuard;
+<span class="kw">use crate</span>::{endpoints, utils};
 
-<span class="kw">pub</span> <span class="kw">static</span> <span class="ident">REGISTRY</span>: <span class="ident">OnceBox</span><span class="op">&lt;</span><span class="ident">Registry</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">OnceBox::new</span>();
+<span class="kw">pub static </span>REGISTRY: OnceBox&lt;Registry&gt; = OnceBox::new();
 
-<span class="doccomment">/// Common error type for the relay server.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ServerError</span> {
-    <span class="ident">inner</span>: <span class="ident">Context</span><span class="op">&lt;</span><span class="ident">ServerErrorKind</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Common error type for the relay server.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>ServerError {
+    inner: Context&lt;ServerErrorKind&gt;,
 }
 
-<span class="doccomment">/// Indicates the type of failure of the server.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Fail</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Hash</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">ServerErrorKind</span> {
-    <span class="doccomment">/// Binding failed.</span>
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;bind to interface failed&quot;</span>)]</span>
-    <span class="ident">BindFailed</span>,
+<span class="doccomment">/// Indicates the type of failure of the server.
+</span><span class="attribute">#[derive(Debug, Fail, Copy, Clone, PartialEq, Eq, Hash)]
+</span><span class="kw">pub enum </span>ServerErrorKind {
+    <span class="doccomment">/// Binding failed.
+    </span><span class="attribute">#[fail(display = <span class="string">&quot;bind to interface failed&quot;</span>)]
+    </span>BindFailed,
 
-    <span class="doccomment">/// Listening on the HTTP socket failed.</span>
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;listening failed&quot;</span>)]</span>
-    <span class="ident">ListenFailed</span>,
+    <span class="doccomment">/// Listening on the HTTP socket failed.
+    </span><span class="attribute">#[fail(display = <span class="string">&quot;listening failed&quot;</span>)]
+    </span>ListenFailed,
 
-    <span class="doccomment">/// A TLS error ocurred.</span>
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;could not initialize the TLS server&quot;</span>)]</span>
-    <span class="ident">TlsInitFailed</span>,
+    <span class="doccomment">/// A TLS error ocurred.
+    </span><span class="attribute">#[fail(display = <span class="string">&quot;could not initialize the TLS server&quot;</span>)]
+    </span>TlsInitFailed,
 
-    <span class="doccomment">/// TLS support was not compiled in.</span>
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;compile with the `ssl` feature to enable SSL support&quot;</span>)]</span>
-    <span class="ident">TlsNotSupported</span>,
+    <span class="doccomment">/// TLS support was not compiled in.
+    </span><span class="attribute">#[fail(display = <span class="string">&quot;compile with the `ssl` feature to enable SSL support&quot;</span>)]
+    </span>TlsNotSupported,
 
-    <span class="doccomment">/// GeoIp construction failed.</span>
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;could not load the Geoip Db&quot;</span>)]</span>
-    <span class="ident">GeoIpError</span>,
+    <span class="doccomment">/// GeoIp construction failed.
+    </span><span class="attribute">#[fail(display = <span class="string">&quot;could not load the Geoip Db&quot;</span>)]
+    </span>GeoIpError,
 
-    <span class="doccomment">/// Configuration failed.</span>
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;configuration error&quot;</span>)]</span>
-    <span class="ident">ConfigError</span>,
+    <span class="doccomment">/// Configuration failed.
+    </span><span class="attribute">#[fail(display = <span class="string">&quot;configuration error&quot;</span>)]
+    </span>ConfigError,
 
-    <span class="doccomment">/// Initializing the Kafka producer failed.</span>
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;could not initialize kafka producer&quot;</span>)]</span>
-    <span class="ident">KafkaError</span>,
+    <span class="doccomment">/// Initializing the Kafka producer failed.
+    </span><span class="attribute">#[fail(display = <span class="string">&quot;could not initialize kafka producer&quot;</span>)]
+    </span>KafkaError,
 
-    <span class="doccomment">/// Initializing the Redis cluster client failed.</span>
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;could not initialize redis cluster client&quot;</span>)]</span>
-    <span class="ident">RedisError</span>,
+    <span class="doccomment">/// Initializing the Redis cluster client failed.
+    </span><span class="attribute">#[fail(display = <span class="string">&quot;could not initialize redis cluster client&quot;</span>)]
+    </span>RedisError,
 }
 
-<span class="kw">impl</span> <span class="ident">Fail</span> <span class="kw">for</span> <span class="ident">ServerError</span> {
-    <span class="kw">fn</span> <span class="ident">cause</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw">dyn</span> <span class="ident">Fail</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">cause</span>()
+<span class="kw">impl </span>Fail <span class="kw">for </span>ServerError {
+    <span class="kw">fn </span>cause(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="kw">dyn </span>Fail&gt; {
+        <span class="self">self</span>.inner.cause()
     }
 
-    <span class="kw">fn</span> <span class="ident">backtrace</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Backtrace</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">backtrace</span>()
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">ServerError</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="ident">fmt::Display::fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">inner</span>, <span class="ident">f</span>)
+    <span class="kw">fn </span>backtrace(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Backtrace&gt; {
+        <span class="self">self</span>.inner.backtrace()
     }
 }
 
-<span class="kw">impl</span> <span class="ident">ServerError</span> {
-    <span class="doccomment">/// Returns the error kind of the error.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">kind</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">ServerErrorKind</span> {
-        <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">get_context</span>()
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>ServerError {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        fmt::Display::fmt(<span class="kw-2">&amp;</span><span class="self">self</span>.inner, f)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">ServerErrorKind</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ServerError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">kind</span>: <span class="ident">ServerErrorKind</span>) -&gt; <span class="ident">ServerError</span> {
-        <span class="ident">ServerError</span> {
-            <span class="ident">inner</span>: <span class="ident">Context::new</span>(<span class="ident">kind</span>),
+<span class="kw">impl </span>ServerError {
+    <span class="doccomment">/// Returns the error kind of the error.
+    </span><span class="kw">pub fn </span>kind(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ServerErrorKind {
+        <span class="kw-2">*</span><span class="self">self</span>.inner.get_context()
+    }
+}
+
+<span class="kw">impl </span>From&lt;ServerErrorKind&gt; <span class="kw">for </span>ServerError {
+    <span class="kw">fn </span>from(kind: ServerErrorKind) -&gt; ServerError {
+        ServerError {
+            inner: Context::new(kind),
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">Context</span><span class="op">&lt;</span><span class="ident">ServerErrorKind</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ServerError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">inner</span>: <span class="ident">Context</span><span class="op">&lt;</span><span class="ident">ServerErrorKind</span><span class="op">&gt;</span>) -&gt; <span class="ident">ServerError</span> {
-        <span class="ident">ServerError</span> { <span class="ident">inner</span> }
+<span class="kw">impl </span>From&lt;Context&lt;ServerErrorKind&gt;&gt; <span class="kw">for </span>ServerError {
+    <span class="kw">fn </span>from(inner: Context&lt;ServerErrorKind&gt;) -&gt; ServerError {
+        ServerError { inner }
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Registry</span> {
-    <span class="kw">pub</span> <span class="ident">aggregator</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">Aggregator</span><span class="op">&gt;</span>,
-    <span class="kw">pub</span> <span class="ident">health_check</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">HealthCheck</span><span class="op">&gt;</span>,
-    <span class="kw">pub</span> <span class="ident">outcome_producer</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">OutcomeProducer</span><span class="op">&gt;</span>,
-    <span class="kw">pub</span> <span class="ident">outcome_aggregator</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">TrackOutcome</span><span class="op">&gt;</span>,
-    <span class="kw">pub</span> <span class="ident">processor</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">EnvelopeProcessor</span><span class="op">&gt;</span>,
-    <span class="kw">pub</span> <span class="ident">envelope_manager</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">EnvelopeManager</span><span class="op">&gt;</span>,
-    <span class="kw">pub</span> <span class="ident">test_store</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">TestStore</span><span class="op">&gt;</span>,
-    <span class="kw">pub</span> <span class="ident">relay_cache</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">RelayCache</span><span class="op">&gt;</span>,
+<span class="attribute">#[derive(Clone)]
+</span><span class="kw">pub struct </span>Registry {
+    <span class="kw">pub </span>aggregator: Addr&lt;Aggregator&gt;,
+    <span class="kw">pub </span>health_check: Addr&lt;HealthCheck&gt;,
+    <span class="kw">pub </span>outcome_producer: Addr&lt;OutcomeProducer&gt;,
+    <span class="kw">pub </span>outcome_aggregator: Addr&lt;TrackOutcome&gt;,
+    <span class="kw">pub </span>processor: Addr&lt;EnvelopeProcessor&gt;,
+    <span class="kw">pub </span>envelope_manager: Addr&lt;EnvelopeManager&gt;,
+    <span class="kw">pub </span>test_store: Addr&lt;TestStore&gt;,
+    <span class="kw">pub </span>relay_cache: Addr&lt;RelayCache&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">Registry</span> {
-    <span class="doccomment">/// Get the [`AggregatorService`] address from the registry.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// TODO(actix): this is temporary solution while migrating `ProjectCache` actor to the new tokio</span>
-    <span class="doccomment">/// runtime and follow up refactoring of the dependencies.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">aggregator</span>() -&gt; <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">Aggregator</span><span class="op">&gt;</span> {
-        <span class="ident">REGISTRY</span>.<span class="ident">get</span>().<span class="ident">unwrap</span>().<span class="ident">aggregator</span>.<span class="ident">clone</span>()
+<span class="kw">impl </span>Registry {
+    <span class="doccomment">/// Get the [`AggregatorService`] address from the registry.
+    ///
+    /// TODO(actix): this is temporary solution while migrating `ProjectCache` actor to the new tokio
+    /// runtime and follow up refactoring of the dependencies.
+    </span><span class="kw">pub fn </span>aggregator() -&gt; Addr&lt;Aggregator&gt; {
+        REGISTRY.get().unwrap().aggregator.clone()
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">Registry</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="ident">f</span>.<span class="ident">debug_struct</span>(<span class="string">&quot;Registry&quot;</span>)
-            .<span class="ident">field</span>(<span class="string">&quot;aggregator&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">aggregator</span>)
-            .<span class="ident">field</span>(<span class="string">&quot;health_check&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">health_check</span>)
-            .<span class="ident">field</span>(<span class="string">&quot;outcome_producer&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">outcome_producer</span>)
-            .<span class="ident">field</span>(<span class="string">&quot;outcome_aggregator&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">outcome_aggregator</span>)
-            .<span class="ident">field</span>(<span class="string">&quot;processor&quot;</span>, <span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">&quot;Addr&lt;Processor&gt;&quot;</span>))
-            .<span class="ident">finish</span>()
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Registry {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        f.debug_struct(<span class="string">&quot;Registry&quot;</span>)
+            .field(<span class="string">&quot;aggregator&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.aggregator)
+            .field(<span class="string">&quot;health_check&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.health_check)
+            .field(<span class="string">&quot;outcome_producer&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.outcome_producer)
+            .field(<span class="string">&quot;outcome_aggregator&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.outcome_aggregator)
+            .field(<span class="string">&quot;processor&quot;</span>, <span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">&quot;Addr&lt;Processor&gt;&quot;</span>))
+            .finish()
     }
 }
 
-<span class="doccomment">/// Server state.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ServiceState</span> {
-    <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
-    <span class="ident">buffer_guard</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">BufferGuard</span><span class="op">&gt;</span>,
-    <span class="ident">_aggregator_runtime</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">tokio::runtime::Runtime</span><span class="op">&gt;</span>,
-    <span class="ident">_outcome_runtime</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">tokio::runtime::Runtime</span><span class="op">&gt;</span>,
-    <span class="ident">_main_runtime</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">tokio::runtime::Runtime</span><span class="op">&gt;</span>,
-    <span class="ident">_store_runtime</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">tokio::runtime::Runtime</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Server state.
+</span><span class="attribute">#[derive(Clone)]
+</span><span class="kw">pub struct </span>ServiceState {
+    config: Arc&lt;Config&gt;,
+    buffer_guard: Arc&lt;BufferGuard&gt;,
+    _aggregator_runtime: Arc&lt;tokio::runtime::Runtime&gt;,
+    _outcome_runtime: Arc&lt;tokio::runtime::Runtime&gt;,
+    _main_runtime: Arc&lt;tokio::runtime::Runtime&gt;,
+    _store_runtime: <span class="prelude-ty">Option</span>&lt;Arc&lt;tokio::runtime::Runtime&gt;&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">ServiceState</span> {
-    <span class="doccomment">/// Starts all services and returns addresses to all of them.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">start</span>(<span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">system</span> <span class="op">=</span> <span class="ident">System::current</span>();
-        <span class="kw">let</span> <span class="ident">registry</span> <span class="op">=</span> <span class="ident">system</span>.<span class="ident">registry</span>();
+<span class="kw">impl </span>ServiceState {
+    <span class="doccomment">/// Starts all services and returns addresses to all of them.
+    </span><span class="kw">pub fn </span>start(config: Arc&lt;Config&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ServerError&gt; {
+        <span class="kw">let </span>system = System::current();
+        <span class="kw">let </span>registry = system.registry();
 
-        <span class="kw">let</span> <span class="ident">main_runtime</span> <span class="op">=</span> <span class="ident">utils::create_runtime</span>(<span class="ident">config</span>.<span class="ident">cpu_concurrency</span>());
-        <span class="kw">let</span> <span class="ident">aggregator_runtime</span> <span class="op">=</span> <span class="ident">utils::create_runtime</span>(<span class="number">1</span>);
-        <span class="kw">let</span> <span class="ident">outcome_runtime</span> <span class="op">=</span> <span class="ident">utils::create_runtime</span>(<span class="number">1</span>);
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">_store_runtime</span> <span class="op">=</span> <span class="prelude-val">None</span>;
+        <span class="kw">let </span>main_runtime = utils::create_runtime(config.cpu_concurrency());
+        <span class="kw">let </span>aggregator_runtime = utils::create_runtime(<span class="number">1</span>);
+        <span class="kw">let </span>outcome_runtime = utils::create_runtime(<span class="number">1</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>_store_runtime = <span class="prelude-val">None</span>;
 
-        <span class="kw">let</span> <span class="ident">upstream_relay</span> <span class="op">=</span> <span class="ident">UpstreamRelay::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>());
-        <span class="ident">registry</span>.<span class="ident">set</span>(<span class="ident">Arbiter::start</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">upstream_relay</span>));
+        <span class="kw">let </span>upstream_relay = UpstreamRelay::new(config.clone());
+        registry.set(Arbiter::start(|<span class="kw">_</span>| upstream_relay));
 
-        <span class="kw">let</span> <span class="ident">guard</span> <span class="op">=</span> <span class="ident">outcome_runtime</span>.<span class="ident">enter</span>();
-        <span class="kw">let</span> <span class="ident">outcome_producer</span> <span class="op">=</span> <span class="ident">OutcomeProducerService::create</span>(<span class="ident">config</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>.<span class="ident">start</span>();
-        <span class="kw">let</span> <span class="ident">outcome_aggregator</span> <span class="op">=</span> <span class="ident">OutcomeAggregator::new</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>, <span class="ident">outcome_producer</span>.<span class="ident">clone</span>()).<span class="ident">start</span>();
-        <span class="ident">drop</span>(<span class="ident">guard</span>);
+        <span class="kw">let </span>guard = outcome_runtime.enter();
+        <span class="kw">let </span>outcome_producer = OutcomeProducerService::create(config.clone())<span class="question-mark">?</span>.start();
+        <span class="kw">let </span>outcome_aggregator = OutcomeAggregator::new(<span class="kw-2">&amp;</span>config, outcome_producer.clone()).start();
+        drop(guard);
 
-        <span class="kw">let</span> <span class="ident">redis_pool</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">config</span>.<span class="ident">redis</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">redis_config</span>) <span class="kw">if</span> <span class="ident">config</span>.<span class="ident">processing_enabled</span>() =&gt; {
-                <span class="prelude-val">Some</span>(<span class="ident">RedisPool::new</span>(<span class="ident">redis_config</span>).<span class="ident">context</span>(<span class="ident">ServerErrorKind::RedisError</span>)<span class="question-mark">?</span>)
+        <span class="kw">let </span>redis_pool = <span class="kw">match </span>config.redis() {
+            <span class="prelude-val">Some</span>(redis_config) <span class="kw">if </span>config.processing_enabled() =&gt; {
+                <span class="prelude-val">Some</span>(RedisPool::new(redis_config).context(ServerErrorKind::RedisError)<span class="question-mark">?</span>)
             }
-            <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         };
 
-        <span class="kw">let</span> <span class="ident">_guard</span> <span class="op">=</span> <span class="ident">main_runtime</span>.<span class="ident">enter</span>();
+        <span class="kw">let </span>_guard = main_runtime.enter();
 
-        <span class="kw">let</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="ident">Arc::new</span>(<span class="ident">BufferGuard::new</span>(<span class="ident">config</span>.<span class="ident">envelope_buffer_size</span>()));
-        <span class="kw">let</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">EnvelopeProcessorService::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>(), <span class="ident">redis_pool</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>.<span class="ident">start</span>();
-        <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unused_mut</span>)]</span>
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">envelope_manager</span> <span class="op">=</span> <span class="ident">EnvelopeManagerService::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>());
+        <span class="kw">let </span>buffer = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
+        <span class="kw">let </span>processor = EnvelopeProcessorService::new(config.clone(), redis_pool.clone())<span class="question-mark">?</span>.start();
+        <span class="attribute">#[allow(unused_mut)]
+        </span><span class="kw">let </span><span class="kw-2">mut </span>envelope_manager = EnvelopeManagerService::new(config.clone());
 
-        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-        <span class="kw">if</span> <span class="ident">config</span>.<span class="ident">processing_enabled</span>() {
-            <span class="kw">let</span> <span class="ident">rt</span> <span class="op">=</span> <span class="ident">utils::create_runtime</span>(<span class="number">1</span>);
-            <span class="kw">let</span> <span class="ident">_guard</span> <span class="op">=</span> <span class="ident">rt</span>.<span class="ident">enter</span>();
-            <span class="kw">let</span> <span class="ident">store</span> <span class="op">=</span> <span class="ident">StoreService::create</span>(<span class="ident">config</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>.<span class="ident">start</span>();
-            <span class="ident">envelope_manager</span>.<span class="ident">set_store_forwarder</span>(<span class="ident">store</span>);
-            <span class="ident">_store_runtime</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">rt</span>);
+        <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+        </span><span class="kw">if </span>config.processing_enabled() {
+            <span class="kw">let </span>rt = utils::create_runtime(<span class="number">1</span>);
+            <span class="kw">let </span>_guard = rt.enter();
+            <span class="kw">let </span>store = StoreService::create(config.clone())<span class="question-mark">?</span>.start();
+            envelope_manager.set_store_forwarder(store);
+            _store_runtime = <span class="prelude-val">Some</span>(rt);
         }
 
-        <span class="kw">let</span> <span class="ident">envelope_manager</span> <span class="op">=</span> <span class="ident">envelope_manager</span>.<span class="ident">start</span>();
-        <span class="kw">let</span> <span class="ident">test_store</span> <span class="op">=</span> <span class="ident">TestStoreService::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>()).<span class="ident">start</span>();
+        <span class="kw">let </span>envelope_manager = envelope_manager.start();
+        <span class="kw">let </span>test_store = TestStoreService::new(config.clone()).start();
 
-        <span class="kw">let</span> <span class="ident">project_cache</span> <span class="op">=</span> <span class="ident">ProjectCache::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>(), <span class="ident">redis_pool</span>);
-        <span class="kw">let</span> <span class="ident">project_cache</span> <span class="op">=</span> <span class="ident">Arbiter::start</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">project_cache</span>);
-        <span class="ident">registry</span>.<span class="ident">set</span>(<span class="ident">project_cache</span>.<span class="ident">clone</span>());
+        <span class="kw">let </span>project_cache = ProjectCache::new(config.clone(), redis_pool);
+        <span class="kw">let </span>project_cache = Arbiter::start(|<span class="kw">_</span>| project_cache);
+        registry.set(project_cache.clone());
 
-        <span class="kw">let</span> <span class="ident">health_check</span> <span class="op">=</span> <span class="ident">HealthCheckService::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>()).<span class="ident">start</span>();
-        <span class="kw">let</span> <span class="ident">relay_cache</span> <span class="op">=</span> <span class="ident">RelayCacheService::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>()).<span class="ident">start</span>();
+        <span class="kw">let </span>health_check = HealthCheckService::new(config.clone()).start();
+        <span class="kw">let </span>relay_cache = RelayCacheService::new(config.clone()).start();
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">aws_api</span>) <span class="op">=</span> <span class="ident">config</span>.<span class="ident">aws_runtime_api</span>() {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">aws_extension</span>) <span class="op">=</span> <span class="ident">AwsExtension::new</span>(<span class="ident">aws_api</span>) {
-                <span class="ident">aws_extension</span>.<span class="ident">start</span>();
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(aws_api) = config.aws_runtime_api() {
+            <span class="kw">if let </span><span class="prelude-val">Ok</span>(aws_extension) = AwsExtension::new(aws_api) {
+                aws_extension.start();
             }
         }
 
-        <span class="kw">let</span> <span class="ident">guard</span> <span class="op">=</span> <span class="ident">aggregator_runtime</span>.<span class="ident">enter</span>();
-        <span class="kw">let</span> <span class="ident">aggregator</span> <span class="op">=</span>
-            <span class="ident">AggregatorService::new</span>(<span class="ident">config</span>.<span class="ident">aggregator_config</span>(), <span class="prelude-val">Some</span>(<span class="ident">project_cache</span>.<span class="ident">recipient</span>()))
-                .<span class="ident">start</span>();
-        <span class="ident">drop</span>(<span class="ident">guard</span>);
+        <span class="kw">let </span>guard = aggregator_runtime.enter();
+        <span class="kw">let </span>aggregator =
+            AggregatorService::new(config.aggregator_config(), <span class="prelude-val">Some</span>(project_cache.recipient()))
+                .start();
+        drop(guard);
 
-        <span class="ident">REGISTRY</span>
-            .<span class="ident">set</span>(<span class="ident">Box::new</span>(<span class="ident">Registry</span> {
-                <span class="ident">aggregator</span>,
-                <span class="ident">processor</span>,
-                <span class="ident">health_check</span>,
-                <span class="ident">outcome_producer</span>,
-                <span class="ident">outcome_aggregator</span>,
-                <span class="ident">envelope_manager</span>,
-                <span class="ident">test_store</span>,
-                <span class="ident">relay_cache</span>,
+        REGISTRY
+            .set(Box::new(Registry {
+                aggregator,
+                processor,
+                health_check,
+                outcome_producer,
+                outcome_aggregator,
+                envelope_manager,
+                test_store,
+                relay_cache,
             }))
-            .<span class="ident">unwrap</span>();
+            .unwrap();
 
-        <span class="prelude-val">Ok</span>(<span class="ident">ServiceState</span> {
-            <span class="ident">buffer_guard</span>: <span class="ident">buffer</span>,
-            <span class="ident">config</span>,
-            <span class="ident">_aggregator_runtime</span>: <span class="ident">Arc::new</span>(<span class="ident">aggregator_runtime</span>),
-            <span class="ident">_outcome_runtime</span>: <span class="ident">Arc::new</span>(<span class="ident">outcome_runtime</span>),
-            <span class="ident">_main_runtime</span>: <span class="ident">Arc::new</span>(<span class="ident">main_runtime</span>),
-            <span class="ident">_store_runtime</span>: <span class="ident">_store_runtime</span>.<span class="ident">map</span>(<span class="ident">Arc::new</span>),
+        <span class="prelude-val">Ok</span>(ServiceState {
+            buffer_guard: buffer,
+            config,
+            _aggregator_runtime: Arc::new(aggregator_runtime),
+            _outcome_runtime: Arc::new(outcome_runtime),
+            _main_runtime: Arc::new(main_runtime),
+            _store_runtime: _store_runtime.map(Arc::new),
         })
     }
 
-    <span class="doccomment">/// Returns an atomically counted reference to the config.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">config</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">clone</span>()
+    <span class="doccomment">/// Returns an atomically counted reference to the config.
+    </span><span class="kw">pub fn </span>config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Arc&lt;Config&gt; {
+        <span class="self">self</span>.config.clone()
     }
 
-    <span class="doccomment">/// Returns a reference to the guard of the envelope buffer.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This can be used to enter new envelopes into the processing queue and reserve a slot in the</span>
-    <span class="doccomment">/// buffer. See [`BufferGuard`] for more information.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">buffer_guard</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">BufferGuard</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">buffer_guard</span>.<span class="ident">clone</span>()
+    <span class="doccomment">/// Returns a reference to the guard of the envelope buffer.
+    ///
+    /// This can be used to enter new envelopes into the processing queue and reserve a slot in the
+    /// buffer. See [`BufferGuard`] for more information.
+    </span><span class="kw">pub fn </span>buffer_guard(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Arc&lt;BufferGuard&gt; {
+        <span class="self">self</span>.buffer_guard.clone()
     }
 }
 
-<span class="doccomment">/// The actix app type for the relay web service.</span>
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">ServiceApp</span> <span class="op">=</span> <span class="ident">App</span><span class="op">&lt;</span><span class="ident">ServiceState</span><span class="op">&gt;</span>;
+<span class="doccomment">/// The actix app type for the relay web service.
+</span><span class="kw">pub type </span>ServiceApp = App&lt;ServiceState&gt;;
 
-<span class="kw">fn</span> <span class="ident">make_app</span>(<span class="ident">state</span>: <span class="ident">ServiceState</span>) -&gt; <span class="ident">ServiceApp</span> {
-    <span class="ident">App::with_state</span>(<span class="ident">state</span>)
-        .<span class="ident">middleware</span>(<span class="ident">SentryMiddleware::new</span>())
-        .<span class="ident">middleware</span>(<span class="ident">Metrics</span>)
-        .<span class="ident">middleware</span>(<span class="ident">AddCommonHeaders</span>)
-        .<span class="ident">middleware</span>(<span class="ident">ErrorHandlers</span>)
-        .<span class="ident">middleware</span>(<span class="ident">ReadRequestMiddleware</span>)
-        .<span class="ident">configure</span>(<span class="ident">endpoints::configure_app</span>)
+<span class="kw">fn </span>make_app(state: ServiceState) -&gt; ServiceApp {
+    App::with_state(state)
+        .middleware(SentryMiddleware::new())
+        .middleware(Metrics)
+        .middleware(AddCommonHeaders)
+        .middleware(ErrorHandlers)
+        .middleware(ReadRequestMiddleware)
+        .configure(endpoints::configure_app)
 }
 
-<span class="kw">fn</span> <span class="ident">dump_listen_infos</span><span class="op">&lt;</span><span class="ident">H</span>, <span class="ident">F</span><span class="op">&gt;</span>(<span class="ident">server</span>: <span class="kw-2">&amp;</span><span class="ident">server::HttpServer</span><span class="op">&lt;</span><span class="ident">H</span>, <span class="ident">F</span><span class="op">&gt;</span>)
-<span class="kw">where</span>
-    <span class="ident">H</span>: <span class="ident">server::IntoHttpHandler</span> <span class="op">+</span> <span class="lifetime">&#39;static</span>,
-    <span class="ident">F</span>: <span class="ident">Fn</span>() -&gt; <span class="ident">H</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Clone</span> <span class="op">+</span> <span class="lifetime">&#39;static</span>,
+<span class="kw">fn </span>dump_listen_infos&lt;H, F&gt;(server: <span class="kw-2">&amp;</span>server::HttpServer&lt;H, F&gt;)
+<span class="kw">where
+    </span>H: server::IntoHttpHandler + <span class="lifetime">&#39;static</span>,
+    F: Fn() -&gt; H + Send + Clone + <span class="lifetime">&#39;static</span>,
 {
     <span class="macro">relay_log::info!</span>(<span class="string">&quot;spawning http server&quot;</span>);
-    <span class="kw">for</span> (<span class="ident">addr</span>, <span class="ident">scheme</span>) <span class="kw">in</span> <span class="ident">server</span>.<span class="ident">addrs_with_scheme</span>() {
-        <span class="macro">relay_log::info!</span>(<span class="string">&quot;  listening on: {}://{}/&quot;</span>, <span class="ident">scheme</span>, <span class="ident">addr</span>);
+    <span class="kw">for </span>(addr, scheme) <span class="kw">in </span>server.addrs_with_scheme() {
+        <span class="macro">relay_log::info!</span>(<span class="string">&quot;  listening on: {}://{}/&quot;</span>, scheme, addr);
     }
 }
 
-<span class="kw">fn</span> <span class="ident">listen</span><span class="op">&lt;</span><span class="ident">H</span>, <span class="ident">F</span><span class="op">&gt;</span>(
-    <span class="ident">server</span>: <span class="ident">server::HttpServer</span><span class="op">&lt;</span><span class="ident">H</span>, <span class="ident">F</span><span class="op">&gt;</span>,
-    <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>,
-) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">server::HttpServer</span><span class="op">&lt;</span><span class="ident">H</span>, <span class="ident">F</span><span class="op">&gt;</span>, <span class="ident">ServerError</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">H</span>: <span class="ident">server::IntoHttpHandler</span> <span class="op">+</span> <span class="lifetime">&#39;static</span>,
-    <span class="ident">F</span>: <span class="ident">Fn</span>() -&gt; <span class="ident">H</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Clone</span> <span class="op">+</span> <span class="lifetime">&#39;static</span>,
+<span class="kw">fn </span>listen&lt;H, F&gt;(
+    server: server::HttpServer&lt;H, F&gt;,
+    config: <span class="kw-2">&amp;</span>Config,
+) -&gt; <span class="prelude-ty">Result</span>&lt;server::HttpServer&lt;H, F&gt;, ServerError&gt;
+<span class="kw">where
+    </span>H: server::IntoHttpHandler + <span class="lifetime">&#39;static</span>,
+    F: Fn() -&gt; H + Send + Clone + <span class="lifetime">&#39;static</span>,
 {
     <span class="prelude-val">Ok</span>(
-        <span class="kw">match</span> <span class="ident">ListenFd::from_env</span>()
-            .<span class="ident">take_tcp_listener</span>(<span class="number">0</span>)
-            .<span class="ident">context</span>(<span class="ident">ServerErrorKind::BindFailed</span>)<span class="question-mark">?</span>
-        {
-            <span class="prelude-val">Some</span>(<span class="ident">listener</span>) =&gt; <span class="ident">server</span>.<span class="ident">listen</span>(<span class="ident">listener</span>),
-            <span class="prelude-val">None</span> =&gt; <span class="ident">server</span>
-                .<span class="ident">bind</span>(<span class="ident">config</span>.<span class="ident">listen_addr</span>())
-                .<span class="ident">context</span>(<span class="ident">ServerErrorKind::BindFailed</span>)<span class="question-mark">?</span>,
+        <span class="kw">match </span>ListenFd::from_env()
+            .take_tcp_listener(<span class="number">0</span>)
+            .context(ServerErrorKind::BindFailed)<span class="question-mark">?
+        </span>{
+            <span class="prelude-val">Some</span>(listener) =&gt; server.listen(listener),
+            <span class="prelude-val">None </span>=&gt; server
+                .bind(config.listen_addr())
+                .context(ServerErrorKind::BindFailed)<span class="question-mark">?</span>,
         },
     )
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;ssl&quot;</span>)]</span>
-<span class="kw">fn</span> <span class="ident">listen_ssl</span><span class="op">&lt;</span><span class="ident">H</span>, <span class="ident">F</span><span class="op">&gt;</span>(
-    <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">server::HttpServer</span><span class="op">&lt;</span><span class="ident">H</span>, <span class="ident">F</span><span class="op">&gt;</span>,
-    <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>,
-) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">server::HttpServer</span><span class="op">&lt;</span><span class="ident">H</span>, <span class="ident">F</span><span class="op">&gt;</span>, <span class="ident">ServerError</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">H</span>: <span class="ident">server::IntoHttpHandler</span> <span class="op">+</span> <span class="lifetime">&#39;static</span>,
-    <span class="ident">F</span>: <span class="ident">Fn</span>() -&gt; <span class="ident">H</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Clone</span> <span class="op">+</span> <span class="lifetime">&#39;static</span>,
+<span class="attribute">#[cfg(feature = <span class="string">&quot;ssl&quot;</span>)]
+</span><span class="kw">fn </span>listen_ssl&lt;H, F&gt;(
+    <span class="kw-2">mut </span>server: server::HttpServer&lt;H, F&gt;,
+    config: <span class="kw-2">&amp;</span>Config,
+) -&gt; <span class="prelude-ty">Result</span>&lt;server::HttpServer&lt;H, F&gt;, ServerError&gt;
+<span class="kw">where
+    </span>H: server::IntoHttpHandler + <span class="lifetime">&#39;static</span>,
+    F: Fn() -&gt; H + Send + Clone + <span class="lifetime">&#39;static</span>,
 {
-    <span class="kw">if</span> <span class="kw">let</span> (<span class="prelude-val">Some</span>(<span class="ident">addr</span>), <span class="prelude-val">Some</span>(<span class="ident">path</span>), <span class="prelude-val">Some</span>(<span class="ident">password</span>)) <span class="op">=</span> (
-        <span class="ident">config</span>.<span class="ident">tls_listen_addr</span>(),
-        <span class="ident">config</span>.<span class="ident">tls_identity_path</span>(),
-        <span class="ident">config</span>.<span class="ident">tls_identity_password</span>(),
+    <span class="kw">if let </span>(<span class="prelude-val">Some</span>(addr), <span class="prelude-val">Some</span>(path), <span class="prelude-val">Some</span>(password)) = (
+        config.tls_listen_addr(),
+        config.tls_identity_path(),
+        config.tls_identity_password(),
     ) {
-        <span class="kw">use</span> <span class="ident">native_tls</span>::{<span class="ident">Identity</span>, <span class="ident">TlsAcceptor</span>};
-        <span class="kw">use</span> <span class="ident">std::fs::File</span>;
-        <span class="kw">use</span> <span class="ident">std::io::Read</span>;
+        <span class="kw">use </span>native_tls::{Identity, TlsAcceptor};
+        <span class="kw">use </span>std::fs::File;
+        <span class="kw">use </span>std::io::Read;
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">file</span> <span class="op">=</span> <span class="ident">File::open</span>(<span class="ident">path</span>).<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="macro">vec!</span>[];
-        <span class="ident">file</span>.<span class="ident">read_to_end</span>(<span class="kw-2">&amp;mut</span> <span class="ident">data</span>).<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="ident">identity</span> <span class="op">=</span>
-            <span class="ident">Identity::from_pkcs12</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>, <span class="ident">password</span>).<span class="ident">context</span>(<span class="ident">ServerErrorKind::TlsInitFailed</span>)<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>file = File::open(path).unwrap();
+        <span class="kw">let </span><span class="kw-2">mut </span>data = <span class="macro">vec!</span>[];
+        file.read_to_end(<span class="kw-2">&amp;mut </span>data).unwrap();
+        <span class="kw">let </span>identity =
+            Identity::from_pkcs12(<span class="kw-2">&amp;</span>data, password).context(ServerErrorKind::TlsInitFailed)<span class="question-mark">?</span>;
 
-        <span class="kw">let</span> <span class="ident">acceptor</span> <span class="op">=</span> <span class="ident">TlsAcceptor::builder</span>(<span class="ident">identity</span>)
-            .<span class="ident">build</span>()
-            .<span class="ident">context</span>(<span class="ident">ServerErrorKind::TlsInitFailed</span>)<span class="question-mark">?</span>;
+        <span class="kw">let </span>acceptor = TlsAcceptor::builder(identity)
+            .build()
+            .context(ServerErrorKind::TlsInitFailed)<span class="question-mark">?</span>;
 
-        <span class="ident">server</span> <span class="op">=</span> <span class="ident">server</span>
-            .<span class="ident">bind_tls</span>(<span class="ident">addr</span>, <span class="ident">acceptor</span>)
-            .<span class="ident">context</span>(<span class="ident">ServerErrorKind::BindFailed</span>)<span class="question-mark">?</span>;
+        server = server
+            .bind_tls(addr, acceptor)
+            .context(ServerErrorKind::BindFailed)<span class="question-mark">?</span>;
     }
 
-    <span class="prelude-val">Ok</span>(<span class="ident">server</span>)
+    <span class="prelude-val">Ok</span>(server)
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;ssl&quot;</span>))]</span>
-<span class="kw">fn</span> <span class="ident">listen_ssl</span><span class="op">&lt;</span><span class="ident">H</span>, <span class="ident">F</span><span class="op">&gt;</span>(
-    <span class="ident">server</span>: <span class="ident">server::HttpServer</span><span class="op">&lt;</span><span class="ident">H</span>, <span class="ident">F</span><span class="op">&gt;</span>,
-    <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>,
-) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">server::HttpServer</span><span class="op">&lt;</span><span class="ident">H</span>, <span class="ident">F</span><span class="op">&gt;</span>, <span class="ident">ServerError</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">H</span>: <span class="ident">server::IntoHttpHandler</span> <span class="op">+</span> <span class="lifetime">&#39;static</span>,
-    <span class="ident">F</span>: <span class="ident">Fn</span>() -&gt; <span class="ident">H</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Clone</span> <span class="op">+</span> <span class="lifetime">&#39;static</span>,
+<span class="attribute">#[cfg(not(feature = <span class="string">&quot;ssl&quot;</span>))]
+</span><span class="kw">fn </span>listen_ssl&lt;H, F&gt;(
+    server: server::HttpServer&lt;H, F&gt;,
+    config: <span class="kw-2">&amp;</span>Config,
+) -&gt; <span class="prelude-ty">Result</span>&lt;server::HttpServer&lt;H, F&gt;, ServerError&gt;
+<span class="kw">where
+    </span>H: server::IntoHttpHandler + <span class="lifetime">&#39;static</span>,
+    F: Fn() -&gt; H + Send + Clone + <span class="lifetime">&#39;static</span>,
 {
-    <span class="kw">if</span> <span class="ident">config</span>.<span class="ident">tls_listen_addr</span>().<span class="ident">is_some</span>()
-        <span class="op">|</span><span class="op">|</span> <span class="ident">config</span>.<span class="ident">tls_identity_path</span>().<span class="ident">is_some</span>()
-        <span class="op">|</span><span class="op">|</span> <span class="ident">config</span>.<span class="ident">tls_identity_password</span>().<span class="ident">is_some</span>()
+    <span class="kw">if </span>config.tls_listen_addr().is_some()
+        || config.tls_identity_path().is_some()
+        || config.tls_identity_password().is_some()
     {
-        <span class="prelude-val">Err</span>(<span class="ident">ServerErrorKind::TlsNotSupported</span>.<span class="ident">into</span>())
-    } <span class="kw">else</span> {
-        <span class="prelude-val">Ok</span>(<span class="ident">server</span>)
+        <span class="prelude-val">Err</span>(ServerErrorKind::TlsNotSupported.into())
+    } <span class="kw">else </span>{
+        <span class="prelude-val">Ok</span>(server)
     }
 }
 
-<span class="doccomment">/// Given a relay config spawns the server together with all actors and lets them run forever.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Effectively this boots the server.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">start</span>(<span class="ident">config</span>: <span class="ident">Config</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Recipient</span><span class="op">&lt;</span><span class="ident">server::StopServer</span><span class="op">&gt;</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">Arc::new</span>(<span class="ident">config</span>);
+<span class="doccomment">/// Given a relay config spawns the server together with all actors and lets them run forever.
+///
+/// Effectively this boots the server.
+</span><span class="kw">pub fn </span>start(config: Config) -&gt; <span class="prelude-ty">Result</span>&lt;Recipient&lt;server::StopServer&gt;, ServerError&gt; {
+    <span class="kw">let </span>config = Arc::new(config);
 
-    <span class="ident">Controller::from_registry</span>().<span class="ident">do_send</span>(<span class="ident">Configure</span> {
-        <span class="ident">shutdown_timeout</span>: <span class="ident">config</span>.<span class="ident">shutdown_timeout</span>(),
+    Controller::from_registry().do_send(Configure {
+        shutdown_timeout: config.shutdown_timeout(),
     });
 
-    <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">ServiceState::start</span>(<span class="ident">config</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>;
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span> <span class="op">=</span> <span class="ident">server::new</span>(<span class="kw">move</span> <span class="op">|</span><span class="op">|</span> <span class="ident">make_app</span>(<span class="ident">state</span>.<span class="ident">clone</span>()));
-    <span class="ident">server</span> <span class="op">=</span> <span class="ident">server</span>
-        .<span class="ident">workers</span>(<span class="ident">config</span>.<span class="ident">cpu_concurrency</span>())
-        .<span class="ident">shutdown_timeout</span>(<span class="ident">config</span>.<span class="ident">shutdown_timeout</span>().<span class="ident">as_secs</span>() <span class="kw">as</span> <span class="ident">u16</span>)
-        .<span class="ident">maxconn</span>(<span class="ident">config</span>.<span class="ident">max_connections</span>())
-        .<span class="ident">maxconnrate</span>(<span class="ident">config</span>.<span class="ident">max_connection_rate</span>())
-        .<span class="ident">backlog</span>(<span class="ident">config</span>.<span class="ident">max_pending_connections</span>())
-        .<span class="ident">disable_signals</span>();
+    <span class="kw">let </span>state = ServiceState::start(config.clone())<span class="question-mark">?</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>server = server::new(<span class="kw">move </span>|| make_app(state.clone()));
+    server = server
+        .workers(config.cpu_concurrency())
+        .shutdown_timeout(config.shutdown_timeout().as_secs() <span class="kw">as </span>u16)
+        .maxconn(config.max_connections())
+        .maxconnrate(config.max_connection_rate())
+        .backlog(config.max_pending_connections())
+        .disable_signals();
 
-    <span class="ident">server</span> <span class="op">=</span> <span class="ident">listen</span>(<span class="ident">server</span>, <span class="kw-2">&amp;</span><span class="ident">config</span>)<span class="question-mark">?</span>;
-    <span class="ident">server</span> <span class="op">=</span> <span class="ident">listen_ssl</span>(<span class="ident">server</span>, <span class="kw-2">&amp;</span><span class="ident">config</span>)<span class="question-mark">?</span>;
+    server = listen(server, <span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
+    server = listen_ssl(server, <span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
 
-    <span class="ident">dump_listen_infos</span>(<span class="kw-2">&amp;</span><span class="ident">server</span>);
-    <span class="prelude-val">Ok</span>(<span class="ident">server</span>.<span class="ident">start</span>().<span class="ident">recipient</span>())
+    dump_listen_infos(<span class="kw-2">&amp;</span>server);
+    <span class="prelude-val">Ok</span>(server.start().recipient())
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

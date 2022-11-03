@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-profiling/src/android.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>android.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_profiling/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_profiling/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_profiling/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-profiling/src/android.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>android.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_profiling/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_profiling/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_profiling/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
 <span id="3">3</span>
 <span id="4">4</span>
@@ -384,391 +384,391 @@
 <span id="384">384</span>
 <span id="385">385</span>
 <span id="386">386</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">HashMap</span>, <span class="ident">HashSet</span>};
-<span class="kw">use</span> <span class="ident">std::time::Duration</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>std::collections::{HashMap, HashSet};
+<span class="kw">use </span>std::time::Duration;
 
-<span class="kw">use</span> <span class="ident">android_trace_log::chrono</span>::{<span class="ident">DateTime</span>, <span class="ident">Utc</span>};
-<span class="kw">use</span> <span class="ident">android_trace_log</span>::{<span class="ident">AndroidTraceLog</span>, <span class="ident">Clock</span>, <span class="ident">Time</span>, <span class="ident">Vm</span>};
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
+<span class="kw">use </span>android_trace_log::chrono::{DateTime, Utc};
+<span class="kw">use </span>android_trace_log::{AndroidTraceLog, Clock, Time, Vm};
+<span class="kw">use </span>serde::{Deserialize, Serialize};
 
-<span class="kw">use</span> <span class="ident">relay_general::protocol::EventId</span>;
+<span class="kw">use </span>relay_general::protocol::EventId;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::measurements::Measurement</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::transaction_metadata::TransactionMetadata</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{<span class="ident">deserialize_number_from_string</span>, <span class="ident">is_zero</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::ProfileError</span>;
+<span class="kw">use </span><span class="kw">crate</span>::measurements::Measurement;
+<span class="kw">use </span><span class="kw">crate</span>::transaction_metadata::TransactionMetadata;
+<span class="kw">use </span><span class="kw">crate</span>::utils::{deserialize_number_from_string, is_zero};
+<span class="kw">use </span><span class="kw">crate</span>::ProfileError;
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Clone</span>)]</span>
-<span class="kw">struct</span> <span class="ident">AndroidProfile</span> {
-    <span class="ident">android_api_level</span>: <span class="ident">u16</span>,
+<span class="attribute">#[derive(Debug, Serialize, Deserialize, Clone)]
+</span><span class="kw">struct </span>AndroidProfile {
+    android_api_level: u16,
 
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;String::is_empty&quot;</span>)]</span>
-    <span class="ident">build_id</span>: <span class="ident">String</span>,
+    <span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;String::is_empty&quot;</span>)]
+    </span>build_id: String,
 
-    <span class="ident">device_cpu_frequencies</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span>,
-    <span class="ident">device_is_emulator</span>: <span class="ident">bool</span>,
-    <span class="ident">device_locale</span>: <span class="ident">String</span>,
-    <span class="ident">device_manufacturer</span>: <span class="ident">String</span>,
-    <span class="ident">device_model</span>: <span class="ident">String</span>,
-    <span class="ident">device_os_name</span>: <span class="ident">String</span>,
-    <span class="ident">device_os_version</span>: <span class="ident">String</span>,
+    device_cpu_frequencies: Vec&lt;u32&gt;,
+    device_is_emulator: bool,
+    device_locale: String,
+    device_manufacturer: String,
+    device_model: String,
+    device_os_name: String,
+    device_os_version: String,
 
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">deserialize_with</span> <span class="op">=</span> <span class="string">&quot;deserialize_number_from_string&quot;</span>)]</span>
-    <span class="ident">device_physical_memory_bytes</span>: <span class="ident">u64</span>,
+    <span class="attribute">#[serde(deserialize_with = <span class="string">&quot;deserialize_number_from_string&quot;</span>)]
+    </span>device_physical_memory_bytes: u64,
 
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;String::is_empty&quot;</span>)]</span>
-    <span class="ident">environment</span>: <span class="ident">String</span>,
+    <span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;String::is_empty&quot;</span>)]
+    </span>environment: String,
 
-    <span class="ident">platform</span>: <span class="ident">String</span>,
-    <span class="ident">profile_id</span>: <span class="ident">EventId</span>,
-    <span class="ident">version_code</span>: <span class="ident">String</span>,
-    <span class="ident">version_name</span>: <span class="ident">String</span>,
+    platform: String,
+    profile_id: EventId,
+    version_code: String,
+    version_name: String,
 
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;EventId::is_nil&quot;</span>)]</span>
-    <span class="ident">transaction_id</span>: <span class="ident">EventId</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;String::is_empty&quot;</span>)]</span>
-    <span class="ident">transaction_name</span>: <span class="ident">String</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;EventId::is_nil&quot;</span>)]</span>
-    <span class="ident">trace_id</span>: <span class="ident">EventId</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(
-        <span class="ident">default</span>,
-        <span class="ident">deserialize_with</span> <span class="op">=</span> <span class="string">&quot;deserialize_number_from_string&quot;</span>,
-        <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;is_zero&quot;</span>
-    )]</span>
-    <span class="ident">duration_ns</span>: <span class="ident">u64</span>,
+    <span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;EventId::is_nil&quot;</span>)]
+    </span>transaction_id: EventId,
+    <span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;String::is_empty&quot;</span>)]
+    </span>transaction_name: String,
+    <span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;EventId::is_nil&quot;</span>)]
+    </span>trace_id: EventId,
+    <span class="attribute">#[serde(
+        default,
+        deserialize_with = <span class="string">&quot;deserialize_number_from_string&quot;</span>,
+        skip_serializing_if = <span class="string">&quot;is_zero&quot;
+    </span>)]
+    </span>duration_ns: u64,
 
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Vec::is_empty&quot;</span>)]</span>
-    <span class="ident">transactions</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TransactionMetadata</span><span class="op">&gt;</span>,
+    <span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
+    </span>transactions: Vec&lt;TransactionMetadata&gt;,
 
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing</span>)]</span>
-    <span class="ident">sampled_profile</span>: <span class="ident">String</span>,
+    <span class="attribute">#[serde(default, skip_serializing)]
+    </span>sampled_profile: String,
 
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span> <span class="op">=</span> <span class="string">&quot;AndroidProfile::default&quot;</span>)]</span>
-    <span class="ident">profile</span>: <span class="ident">AndroidTraceLog</span>,
+    <span class="attribute">#[serde(default = <span class="string">&quot;AndroidProfile::default&quot;</span>)]
+    </span>profile: AndroidTraceLog,
 
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
-    <span class="ident">measurements</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">Measurement</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>measurements: <span class="prelude-ty">Option</span>&lt;HashMap&lt;String, Measurement&gt;&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">AndroidProfile</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="ident">AndroidTraceLog</span> {
-        <span class="ident">AndroidTraceLog</span> {
-            <span class="ident">data_file_overflow</span>: <span class="ident">Default::default</span>(),
-            <span class="ident">clock</span>: <span class="ident">Clock::Global</span>,
-            <span class="ident">elapsed_time</span>: <span class="ident">Default::default</span>(),
-            <span class="ident">total_method_calls</span>: <span class="ident">Default::default</span>(),
-            <span class="ident">clock_call_overhead</span>: <span class="ident">Default::default</span>(),
-            <span class="ident">vm</span>: <span class="ident">Vm::Dalvik</span>,
-            <span class="ident">start_time</span>: <span class="ident">Utc::now</span>(),
-            <span class="ident">pid</span>: <span class="ident">Default::default</span>(),
-            <span class="ident">gc_trace</span>: <span class="ident">Default::default</span>(),
-            <span class="ident">threads</span>: <span class="ident">Default::default</span>(),
-            <span class="ident">methods</span>: <span class="ident">Default::default</span>(),
-            <span class="ident">events</span>: <span class="ident">Default::default</span>(),
+<span class="kw">impl </span>AndroidProfile {
+    <span class="kw">fn </span>default() -&gt; AndroidTraceLog {
+        AndroidTraceLog {
+            data_file_overflow: Default::default(),
+            clock: Clock::Global,
+            elapsed_time: Default::default(),
+            total_method_calls: Default::default(),
+            clock_call_overhead: Default::default(),
+            vm: Vm::Dalvik,
+            start_time: Utc::now(),
+            pid: Default::default(),
+            gc_trace: Default::default(),
+            threads: Default::default(),
+            methods: Default::default(),
+            events: Default::default(),
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">parse</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProfileError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">profile_bytes</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">base64::decode</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">sampled_profile</span>) {
-            <span class="prelude-val">Ok</span>(<span class="ident">profile</span>) =&gt; <span class="ident">profile</span>,
-            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProfileError::InvalidBase64Value</span>),
+    <span class="kw">fn </span>parse(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProfileError&gt; {
+        <span class="kw">let </span>profile_bytes = <span class="kw">match </span>base64::decode(<span class="kw-2">&amp;</span><span class="self">self</span>.sampled_profile) {
+            <span class="prelude-val">Ok</span>(profile) =&gt; profile,
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::InvalidBase64Value),
         };
-        <span class="self">self</span>.<span class="ident">profile</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">android_trace_log::parse</span>(<span class="kw-2">&amp;</span><span class="ident">profile_bytes</span>) {
-            <span class="prelude-val">Ok</span>(<span class="ident">profile</span>) =&gt; <span class="ident">profile</span>,
-            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProfileError::InvalidSampledProfile</span>),
+        <span class="self">self</span>.profile = <span class="kw">match </span>android_trace_log::parse(<span class="kw-2">&amp;</span>profile_bytes) {
+            <span class="prelude-val">Ok</span>(profile) =&gt; profile,
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::InvalidSampledProfile),
         };
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">set_transaction</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">transaction</span>: <span class="kw-2">&amp;</span><span class="ident">TransactionMetadata</span>) {
-        <span class="self">self</span>.<span class="ident">transaction_name</span> <span class="op">=</span> <span class="ident">transaction</span>.<span class="ident">name</span>.<span class="ident">clone</span>();
-        <span class="self">self</span>.<span class="ident">transaction_id</span> <span class="op">=</span> <span class="ident">transaction</span>.<span class="ident">id</span>;
-        <span class="self">self</span>.<span class="ident">trace_id</span> <span class="op">=</span> <span class="ident">transaction</span>.<span class="ident">trace_id</span>;
-        <span class="self">self</span>.<span class="ident">duration_ns</span> <span class="op">=</span> <span class="ident">transaction</span>.<span class="ident">duration_ns</span>();
+    <span class="kw">fn </span>set_transaction(<span class="kw-2">&amp;mut </span><span class="self">self</span>, transaction: <span class="kw-2">&amp;</span>TransactionMetadata) {
+        <span class="self">self</span>.transaction_name = transaction.name.clone();
+        <span class="self">self</span>.transaction_id = transaction.id;
+        <span class="self">self</span>.trace_id = transaction.trace_id;
+        <span class="self">self</span>.duration_ns = transaction.duration_ns();
     }
 
-    <span class="kw">fn</span> <span class="ident">has_transaction_metadata</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="op">!</span><span class="self">self</span>.<span class="ident">transaction_name</span>.<span class="ident">is_empty</span>() <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">duration_ns</span> <span class="op">&gt;</span> <span class="number">0</span>
-    }
+    <span class="kw">fn </span>has_transaction_metadata(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        !<span class="self">self</span>.transaction_name.is_empty() &amp;&amp; <span class="self">self</span>.duration_ns &gt; <span class="number">0
+    </span>}
 
-    <span class="doccomment">/// Removes an event with a duration of 0</span>
-    <span class="kw">fn</span> <span class="ident">remove_events_with_no_duration</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
-        <span class="kw">let</span> <span class="ident">android_trace</span> <span class="op">=</span> <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">profile</span>;
-        <span class="kw">let</span> <span class="ident">events</span> <span class="op">=</span> <span class="kw-2">&amp;mut</span> <span class="ident">android_trace</span>.<span class="ident">events</span>;
-        <span class="kw">let</span> <span class="ident">clock</span> <span class="op">=</span> <span class="ident">android_trace</span>.<span class="ident">clock</span>;
-        <span class="kw">let</span> <span class="ident">start_time</span> <span class="op">=</span> <span class="ident">android_trace</span>.<span class="ident">start_time</span>;
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">timestamps_per_thread_id</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">u16</span>, <span class="ident">HashSet</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">HashMap::new</span>();
+    <span class="doccomment">/// Removes an event with a duration of 0
+    </span><span class="kw">fn </span>remove_events_with_no_duration(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="kw">let </span>android_trace = <span class="kw-2">&amp;mut </span><span class="self">self</span>.profile;
+        <span class="kw">let </span>events = <span class="kw-2">&amp;mut </span>android_trace.events;
+        <span class="kw">let </span>clock = android_trace.clock;
+        <span class="kw">let </span>start_time = android_trace.start_time;
+        <span class="kw">let </span><span class="kw-2">mut </span>timestamps_per_thread_id: HashMap&lt;u16, HashSet&lt;u64&gt;&gt; = HashMap::new();
 
-        <span class="kw">for</span> <span class="ident">event</span> <span class="kw">in</span> <span class="ident">events</span>.<span class="ident">iter</span>() {
-            <span class="kw">let</span> <span class="ident">event_time</span> <span class="op">=</span> <span class="ident">get_timestamp</span>(<span class="ident">clock</span>, <span class="ident">start_time</span>, <span class="ident">event</span>.<span class="ident">time</span>);
-            <span class="ident">timestamps_per_thread_id</span>
-                .<span class="ident">entry</span>(<span class="ident">event</span>.<span class="ident">thread_id</span>)
-                .<span class="ident">or_default</span>()
-                .<span class="ident">insert</span>(<span class="ident">event_time</span>);
+        <span class="kw">for </span>event <span class="kw">in </span>events.iter() {
+            <span class="kw">let </span>event_time = get_timestamp(clock, start_time, event.time);
+            timestamps_per_thread_id
+                .entry(event.thread_id)
+                .or_default()
+                .insert(event_time);
         }
 
-        <span class="ident">timestamps_per_thread_id</span>.<span class="ident">retain</span>(<span class="op">|</span><span class="kw">_</span>, <span class="ident">timestamps</span><span class="op">|</span> <span class="ident">timestamps</span>.<span class="ident">len</span>() <span class="op">&gt;</span> <span class="number">1</span>);
-        <span class="ident">events</span>.<span class="ident">retain</span>(<span class="op">|</span><span class="ident">event</span><span class="op">|</span> <span class="ident">timestamps_per_thread_id</span>.<span class="ident">contains_key</span>(<span class="kw-2">&amp;</span><span class="ident">event</span>.<span class="ident">thread_id</span>));
+        timestamps_per_thread_id.retain(|<span class="kw">_</span>, timestamps| timestamps.len() &gt; <span class="number">1</span>);
+        events.retain(|event| timestamps_per_thread_id.contains_key(<span class="kw-2">&amp;</span>event.thread_id));
     }
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expand_android_profile</span>(<span class="ident">payload</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="ident">ProfileError</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">profile</span> <span class="op">=</span> <span class="ident">parse_android_profile</span>(<span class="ident">payload</span>)<span class="question-mark">?</span>;
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">items</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
+<span class="kw">pub fn </span>expand_android_profile(payload: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Vec&lt;u8&gt;&gt;, ProfileError&gt; {
+    <span class="kw">let </span>profile = parse_android_profile(payload)<span class="question-mark">?</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>items: Vec&lt;Vec&lt;u8&gt;&gt; = Vec::new();
 
-    <span class="kw">if</span> <span class="ident">profile</span>.<span class="ident">transactions</span>.<span class="ident">is_empty</span>() <span class="op">&amp;&amp;</span> <span class="ident">profile</span>.<span class="ident">has_transaction_metadata</span>() {
-        <span class="kw">match</span> <span class="ident">serde_json::to_vec</span>(<span class="kw-2">&amp;</span><span class="ident">profile</span>) {
-            <span class="prelude-val">Ok</span>(<span class="ident">payload</span>) =&gt; <span class="ident">items</span>.<span class="ident">push</span>(<span class="ident">payload</span>),
+    <span class="kw">if </span>profile.transactions.is_empty() &amp;&amp; profile.has_transaction_metadata() {
+        <span class="kw">match </span>serde_json::to_vec(<span class="kw-2">&amp;</span>profile) {
+            <span class="prelude-val">Ok</span>(payload) =&gt; items.push(payload),
             <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProfileError::CannotSerializePayload</span>);
+                <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::CannotSerializePayload);
             }
         };
 
-        <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">items</span>);
+        <span class="kw">return </span><span class="prelude-val">Ok</span>(items);
     }
 
-    <span class="kw">for</span> <span class="ident">transaction</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">profile</span>.<span class="ident">transactions</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">new_profile</span> <span class="op">=</span> <span class="ident">profile</span>.<span class="ident">clone</span>();
+    <span class="kw">for </span>transaction <span class="kw">in </span><span class="kw-2">&amp;</span>profile.transactions {
+        <span class="kw">let </span><span class="kw-2">mut </span>new_profile = profile.clone();
 
-        <span class="ident">new_profile</span>.<span class="ident">profile_id</span> <span class="op">=</span> <span class="ident">EventId::new</span>();
-        <span class="ident">new_profile</span>.<span class="ident">set_transaction</span>(<span class="ident">transaction</span>);
-        <span class="ident">new_profile</span>.<span class="ident">transactions</span>.<span class="ident">clear</span>();
+        new_profile.profile_id = EventId::new();
+        new_profile.set_transaction(transaction);
+        new_profile.transactions.clear();
 
-        <span class="kw">let</span> <span class="ident">clock</span> <span class="op">=</span> <span class="ident">new_profile</span>.<span class="ident">profile</span>.<span class="ident">clock</span>;
-        <span class="kw">let</span> <span class="ident">start_time</span> <span class="op">=</span> <span class="ident">new_profile</span>.<span class="ident">profile</span>.<span class="ident">start_time</span>;
+        <span class="kw">let </span>clock = new_profile.profile.clock;
+        <span class="kw">let </span>start_time = new_profile.profile.start_time;
 
-        <span class="ident">new_profile</span>.<span class="ident">profile</span>.<span class="ident">events</span>.<span class="ident">retain_mut</span>(<span class="op">|</span><span class="ident">event</span><span class="op">|</span> {
-            <span class="kw">let</span> <span class="ident">event_timestamp</span> <span class="op">=</span> <span class="ident">get_timestamp</span>(<span class="ident">clock</span>, <span class="ident">start_time</span>, <span class="ident">event</span>.<span class="ident">time</span>);
-            <span class="kw">if</span> <span class="ident">transaction</span>.<span class="ident">relative_start_ns</span> <span class="op">&lt;</span><span class="op">=</span> <span class="ident">event_timestamp</span>
-                <span class="op">&amp;&amp;</span> <span class="ident">event_timestamp</span> <span class="op">&lt;</span><span class="op">=</span> <span class="ident">transaction</span>.<span class="ident">relative_end_ns</span>
+        new_profile.profile.events.retain_mut(|event| {
+            <span class="kw">let </span>event_timestamp = get_timestamp(clock, start_time, event.time);
+            <span class="kw">if </span>transaction.relative_start_ns &lt;= event_timestamp
+                &amp;&amp; event_timestamp &lt;= transaction.relative_end_ns
             {
-                <span class="kw">let</span> <span class="ident">relative_start</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">clock</span> {
-                    <span class="ident">Clock::Cpu</span> =&gt; <span class="ident">Duration::from_millis</span>(<span class="ident">transaction</span>.<span class="ident">relative_cpu_start_ms</span>),
-                    <span class="ident">Clock::Wall</span> <span class="op">|</span> <span class="ident">Clock::Dual</span> <span class="op">|</span> <span class="ident">Clock::Global</span> =&gt; {
-                        <span class="ident">Duration::from_nanos</span>(<span class="ident">transaction</span>.<span class="ident">relative_start_ns</span>)
+                <span class="kw">let </span>relative_start = <span class="kw">match </span>clock {
+                    Clock::Cpu =&gt; Duration::from_millis(transaction.relative_cpu_start_ms),
+                    Clock::Wall | Clock::Dual | Clock::Global =&gt; {
+                        Duration::from_nanos(transaction.relative_start_ns)
                     }
                 };
-                <span class="ident">event</span>.<span class="ident">time</span> <span class="op">=</span> <span class="ident">substract_to_timestamp</span>(<span class="ident">event</span>.<span class="ident">time</span>, <span class="ident">relative_start</span>);
-                <span class="bool-val">true</span>
-            } <span class="kw">else</span> {
-                <span class="bool-val">false</span>
-            }
+                event.time = substract_to_timestamp(event.time, relative_start);
+                <span class="bool-val">true
+            </span>} <span class="kw">else </span>{
+                <span class="bool-val">false
+            </span>}
         });
 
-        <span class="kw">if</span> <span class="ident">new_profile</span>.<span class="ident">profile</span>.<span class="ident">events</span>.<span class="ident">is_empty</span>() {
+        <span class="kw">if </span>new_profile.profile.events.is_empty() {
             <span class="kw">continue</span>;
         }
 
-        <span class="kw">match</span> <span class="ident">serde_json::to_vec</span>(<span class="kw-2">&amp;</span><span class="ident">new_profile</span>) {
-            <span class="prelude-val">Ok</span>(<span class="ident">payload</span>) =&gt; <span class="ident">items</span>.<span class="ident">push</span>(<span class="ident">payload</span>),
+        <span class="kw">match </span>serde_json::to_vec(<span class="kw-2">&amp;</span>new_profile) {
+            <span class="prelude-val">Ok</span>(payload) =&gt; items.push(payload),
             <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProfileError::CannotSerializePayload</span>);
+                <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::CannotSerializePayload);
             }
         };
     }
 
-    <span class="prelude-val">Ok</span>(<span class="ident">items</span>)
+    <span class="prelude-val">Ok</span>(items)
 }
 
-<span class="kw">fn</span> <span class="ident">substract_to_timestamp</span>(<span class="ident">time</span>: <span class="ident">Time</span>, <span class="ident">duration</span>: <span class="ident">Duration</span>) -&gt; <span class="ident">Time</span> {
-    <span class="kw">match</span> <span class="ident">time</span> {
-        <span class="ident">Time::Global</span>(<span class="ident">time</span>) =&gt; <span class="ident">Time::Global</span>(<span class="ident">time</span> <span class="op">-</span> <span class="ident">duration</span>),
-        <span class="ident">Time::Monotonic</span> {
-            <span class="ident">cpu</span>: <span class="prelude-val">Some</span>(<span class="ident">time</span>),
-            <span class="ident">wall</span>: <span class="prelude-val">None</span>,
-        } =&gt; <span class="ident">Time::Monotonic</span> {
-            <span class="ident">cpu</span>: <span class="ident">time</span>
-                .<span class="ident">checked_sub</span>(<span class="ident">duration</span>)
-                .<span class="ident">or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="prelude-val">Some</span>(<span class="ident">Duration::default</span>())),
-            <span class="ident">wall</span>: <span class="prelude-val">None</span>,
+<span class="kw">fn </span>substract_to_timestamp(time: Time, duration: Duration) -&gt; Time {
+    <span class="kw">match </span>time {
+        Time::Global(time) =&gt; Time::Global(time - duration),
+        Time::Monotonic {
+            cpu: <span class="prelude-val">Some</span>(time),
+            wall: <span class="prelude-val">None</span>,
+        } =&gt; Time::Monotonic {
+            cpu: time
+                .checked_sub(duration)
+                .or_else(|| <span class="prelude-val">Some</span>(Duration::default())),
+            wall: <span class="prelude-val">None</span>,
         },
-        <span class="ident">Time::Monotonic</span> {
-            <span class="ident">wall</span>: <span class="prelude-val">Some</span>(<span class="ident">time</span>),
-            <span class="ident">cpu</span>: <span class="prelude-val">None</span>,
-        } =&gt; <span class="ident">Time::Monotonic</span> {
-            <span class="ident">wall</span>: <span class="ident">time</span>
-                .<span class="ident">checked_sub</span>(<span class="ident">duration</span>)
-                .<span class="ident">or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="prelude-val">Some</span>(<span class="ident">Duration::default</span>())),
-            <span class="ident">cpu</span>: <span class="prelude-val">None</span>,
+        Time::Monotonic {
+            wall: <span class="prelude-val">Some</span>(time),
+            cpu: <span class="prelude-val">None</span>,
+        } =&gt; Time::Monotonic {
+            wall: time
+                .checked_sub(duration)
+                .or_else(|| <span class="prelude-val">Some</span>(Duration::default())),
+            cpu: <span class="prelude-val">None</span>,
         },
-        <span class="ident">Time::Monotonic</span> {
-            <span class="ident">cpu</span>: <span class="prelude-val">Some</span>(<span class="ident">cpu</span>),
-            <span class="ident">wall</span>: <span class="prelude-val">Some</span>(<span class="ident">wall</span>),
-        } =&gt; <span class="ident">Time::Monotonic</span> {
-            <span class="ident">cpu</span>: <span class="ident">cpu</span>
-                .<span class="ident">checked_sub</span>(<span class="ident">duration</span>)
-                .<span class="ident">or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="prelude-val">Some</span>(<span class="ident">Duration::default</span>())),
-            <span class="ident">wall</span>: <span class="ident">wall</span>
-                .<span class="ident">checked_sub</span>(<span class="ident">duration</span>)
-                .<span class="ident">or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="prelude-val">Some</span>(<span class="ident">Duration::default</span>())),
+        Time::Monotonic {
+            cpu: <span class="prelude-val">Some</span>(cpu),
+            wall: <span class="prelude-val">Some</span>(wall),
+        } =&gt; Time::Monotonic {
+            cpu: cpu
+                .checked_sub(duration)
+                .or_else(|| <span class="prelude-val">Some</span>(Duration::default())),
+            wall: wall
+                .checked_sub(duration)
+                .or_else(|| <span class="prelude-val">Some</span>(Duration::default())),
         },
-        <span class="kw">_</span> =&gt; <span class="macro">unimplemented!</span>(),
+        <span class="kw">_ </span>=&gt; <span class="macro">unimplemented!</span>(),
     }
 }
 
-<span class="kw">fn</span> <span class="ident">get_timestamp</span>(<span class="ident">clock</span>: <span class="ident">Clock</span>, <span class="ident">start_time</span>: <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>, <span class="ident">event_time</span>: <span class="ident">Time</span>) -&gt; <span class="ident">u64</span> {
-    <span class="kw">match</span> (<span class="ident">clock</span>, <span class="ident">event_time</span>) {
-        (<span class="ident">Clock::Global</span>, <span class="ident">Time::Global</span>(<span class="ident">time</span>)) =&gt; {
-            <span class="kw">let</span> <span class="ident">time_ns</span> <span class="op">=</span> <span class="ident">time</span>.<span class="ident">as_nanos</span>() <span class="kw">as</span> <span class="ident">u64</span>;
-            <span class="kw">let</span> <span class="ident">start_time_ns</span> <span class="op">=</span> <span class="ident">start_time</span>.<span class="ident">timestamp_nanos</span>() <span class="kw">as</span> <span class="ident">u64</span>;
-            <span class="kw">if</span> <span class="ident">time_ns</span> <span class="op">&gt;</span><span class="op">=</span> <span class="ident">start_time_ns</span> {
-                <span class="ident">time_ns</span> <span class="op">-</span> <span class="ident">start_time_ns</span>
-            } <span class="kw">else</span> {
-                <span class="number">0</span>
-            }
+<span class="kw">fn </span>get_timestamp(clock: Clock, start_time: DateTime&lt;Utc&gt;, event_time: Time) -&gt; u64 {
+    <span class="kw">match </span>(clock, event_time) {
+        (Clock::Global, Time::Global(time)) =&gt; {
+            <span class="kw">let </span>time_ns = time.as_nanos() <span class="kw">as </span>u64;
+            <span class="kw">let </span>start_time_ns = start_time.timestamp_nanos() <span class="kw">as </span>u64;
+            <span class="kw">if </span>time_ns &gt;= start_time_ns {
+                time_ns - start_time_ns
+            } <span class="kw">else </span>{
+                <span class="number">0
+            </span>}
         }
         (
-            <span class="ident">Clock::Cpu</span>,
-            <span class="ident">Time::Monotonic</span> {
-                <span class="ident">cpu</span>: <span class="prelude-val">Some</span>(<span class="ident">cpu</span>),
-                <span class="ident">wall</span>: <span class="prelude-val">None</span>,
+            Clock::Cpu,
+            Time::Monotonic {
+                cpu: <span class="prelude-val">Some</span>(cpu),
+                wall: <span class="prelude-val">None</span>,
             },
-        ) =&gt; <span class="ident">cpu</span>.<span class="ident">as_nanos</span>() <span class="kw">as</span> <span class="ident">u64</span>,
+        ) =&gt; cpu.as_nanos() <span class="kw">as </span>u64,
         (
-            <span class="ident">Clock::Wall</span>,
-            <span class="ident">Time::Monotonic</span> {
-                <span class="ident">cpu</span>: <span class="prelude-val">None</span>,
-                <span class="ident">wall</span>: <span class="prelude-val">Some</span>(<span class="ident">wall</span>),
+            Clock::Wall,
+            Time::Monotonic {
+                cpu: <span class="prelude-val">None</span>,
+                wall: <span class="prelude-val">Some</span>(wall),
             },
-        ) =&gt; <span class="ident">wall</span>.<span class="ident">as_nanos</span>() <span class="kw">as</span> <span class="ident">u64</span>,
+        ) =&gt; wall.as_nanos() <span class="kw">as </span>u64,
         (
-            <span class="ident">Clock::Dual</span>,
-            <span class="ident">Time::Monotonic</span> {
-                <span class="ident">cpu</span>: <span class="prelude-val">Some</span>(<span class="kw">_</span>),
-                <span class="ident">wall</span>: <span class="prelude-val">Some</span>(<span class="ident">wall</span>),
+            Clock::Dual,
+            Time::Monotonic {
+                cpu: <span class="prelude-val">Some</span>(<span class="kw">_</span>),
+                wall: <span class="prelude-val">Some</span>(wall),
             },
-        ) =&gt; <span class="ident">wall</span>.<span class="ident">as_nanos</span>() <span class="kw">as</span> <span class="ident">u64</span>,
-        <span class="kw">_</span> =&gt; <span class="macro">unimplemented!</span>(),
+        ) =&gt; wall.as_nanos() <span class="kw">as </span>u64,
+        <span class="kw">_ </span>=&gt; <span class="macro">unimplemented!</span>(),
     }
 }
 
-<span class="kw">fn</span> <span class="ident">parse_android_profile</span>(<span class="ident">payload</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">AndroidProfile</span>, <span class="ident">ProfileError</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">profile</span>: <span class="ident">AndroidProfile</span> <span class="op">=</span>
-        <span class="ident">serde_json::from_slice</span>(<span class="ident">payload</span>).<span class="ident">map_err</span>(<span class="ident">ProfileError::InvalidJson</span>)<span class="question-mark">?</span>;
+<span class="kw">fn </span>parse_android_profile(payload: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;AndroidProfile, ProfileError&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>profile: AndroidProfile =
+        serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)<span class="question-mark">?</span>;
 
-    <span class="kw">if</span> <span class="ident">profile</span>.<span class="ident">transactions</span>.<span class="ident">is_empty</span>() <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">profile</span>.<span class="ident">has_transaction_metadata</span>() {
-        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProfileError::NoTransactionAssociated</span>);
+    <span class="kw">if </span>profile.transactions.is_empty() &amp;&amp; !profile.has_transaction_metadata() {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::NoTransactionAssociated);
     }
 
-    <span class="kw">for</span> <span class="ident">transaction</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">profile</span>.<span class="ident">transactions</span> {
-        <span class="kw">if</span> <span class="op">!</span><span class="ident">transaction</span>.<span class="ident">valid</span>() {
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProfileError::InvalidTransactionMetadata</span>);
+    <span class="kw">for </span>transaction <span class="kw">in </span><span class="kw-2">&amp;</span>profile.transactions {
+        <span class="kw">if </span>!transaction.valid() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::InvalidTransactionMetadata);
         }
     }
 
-    <span class="kw">if</span> <span class="op">!</span><span class="ident">profile</span>.<span class="ident">sampled_profile</span>.<span class="ident">is_empty</span>() {
-        <span class="ident">profile</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>;
-        <span class="ident">profile</span>.<span class="ident">remove_events_with_no_duration</span>();
+    <span class="kw">if </span>!profile.sampled_profile.is_empty() {
+        profile.parse()<span class="question-mark">?</span>;
+        profile.remove_events_with_no_duration();
     }
 
-    <span class="kw">if</span> <span class="ident">profile</span>.<span class="ident">profile</span>.<span class="ident">events</span>.<span class="ident">is_empty</span>() {
-        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProfileError::NotEnoughSamples</span>);
+    <span class="kw">if </span>profile.profile.events.is_empty() {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::NotEnoughSamples);
     }
 
-    <span class="prelude-val">Ok</span>(<span class="ident">profile</span>)
+    <span class="prelude-val">Ok</span>(profile)
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_roundtrip_android</span>() {
-        <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span> <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/android/roundtrip.json&quot;</span>);
-        <span class="kw">let</span> <span class="ident">profile</span> <span class="op">=</span> <span class="ident">parse_android_profile</span>(<span class="ident">payload</span>);
-        <span class="macro">assert!</span>(<span class="ident">profile</span>.<span class="ident">is_ok</span>());
-        <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">serde_json::to_vec</span>(<span class="kw-2">&amp;</span><span class="ident">profile</span>.<span class="ident">unwrap</span>());
-        <span class="macro">assert!</span>(<span class="ident">parse_android_profile</span>(<span class="kw-2">&amp;</span>(<span class="ident">data</span>.<span class="ident">unwrap</span>())[..]).<span class="ident">is_ok</span>());
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_roundtrip_android() {
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/android/roundtrip.json&quot;</span>);
+        <span class="kw">let </span>profile = parse_android_profile(payload);
+        <span class="macro">assert!</span>(profile.is_ok());
+        <span class="kw">let </span>data = serde_json::to_vec(<span class="kw-2">&amp;</span>profile.unwrap());
+        <span class="macro">assert!</span>(parse_android_profile(<span class="kw-2">&amp;</span>(data.unwrap())[..]).is_ok());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_multiple_transactions</span>() {
-        <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span>
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_multiple_transactions() {
+        <span class="kw">let </span>payload =
             <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/android/multiple_transactions.json&quot;</span>);
-        <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">parse_android_profile</span>(<span class="ident">payload</span>);
-        <span class="macro">assert!</span>(<span class="ident">data</span>.<span class="ident">is_ok</span>());
+        <span class="kw">let </span>data = parse_android_profile(payload);
+        <span class="macro">assert!</span>(data.is_ok());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_no_transaction</span>() {
-        <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span> <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/android/no_transaction.json&quot;</span>);
-        <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">parse_android_profile</span>(<span class="ident">payload</span>);
-        <span class="macro">assert!</span>(<span class="ident">data</span>.<span class="ident">is_err</span>());
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_no_transaction() {
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/android/no_transaction.json&quot;</span>);
+        <span class="kw">let </span>data = parse_android_profile(payload);
+        <span class="macro">assert!</span>(data.is_err());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_remove_invalid_events</span>() {
-        <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span>
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_remove_invalid_events() {
+        <span class="kw">let </span>payload =
             <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/android/remove_invalid_events.json&quot;</span>);
-        <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">parse_android_profile</span>(<span class="ident">payload</span>);
-        <span class="macro">assert!</span>(<span class="ident">data</span>.<span class="ident">is_err</span>());
+        <span class="kw">let </span>data = parse_android_profile(payload);
+        <span class="macro">assert!</span>(data.is_err());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_expand_multiple_transactions</span>() {
-        <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span>
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_expand_multiple_transactions() {
+        <span class="kw">let </span>payload =
             <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/android/multiple_transactions.json&quot;</span>);
-        <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">expand_android_profile</span>(<span class="ident">payload</span>);
-        <span class="macro">assert!</span>(<span class="ident">data</span>.<span class="ident">is_ok</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">data</span>.<span class="ident">as_ref</span>().<span class="ident">unwrap</span>().<span class="ident">len</span>(), <span class="number">3</span>);
+        <span class="kw">let </span>data = expand_android_profile(payload);
+        <span class="macro">assert!</span>(data.is_ok());
+        <span class="macro">assert_eq!</span>(data.as_ref().unwrap().len(), <span class="number">3</span>);
 
-        <span class="kw">let</span> <span class="ident">profile</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">parse_android_profile</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>.<span class="ident">as_ref</span>().<span class="ident">unwrap</span>()[<span class="number">0</span>][..]) {
-            <span class="prelude-val">Err</span>(<span class="ident">err</span>) =&gt; <span class="macro">panic!</span>(<span class="string">&quot;cannot parse profile: {:?}&quot;</span>, <span class="ident">err</span>),
-            <span class="prelude-val">Ok</span>(<span class="ident">profile</span>) =&gt; <span class="ident">profile</span>,
+        <span class="kw">let </span>profile = <span class="kw">match </span>parse_android_profile(<span class="kw-2">&amp;</span>data.as_ref().unwrap()[<span class="number">0</span>][..]) {
+            <span class="prelude-val">Err</span>(err) =&gt; <span class="macro">panic!</span>(<span class="string">&quot;cannot parse profile: {:?}&quot;</span>, err),
+            <span class="prelude-val">Ok</span>(profile) =&gt; profile,
         };
         <span class="macro">assert_eq!</span>(
-            <span class="ident">profile</span>.<span class="ident">transaction_id</span>,
-            <span class="string">&quot;7d6db784355e4d7dbf98671c69cbcc77&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()
+            profile.transaction_id,
+            <span class="string">&quot;7d6db784355e4d7dbf98671c69cbcc77&quot;</span>.parse().unwrap()
         );
-        <span class="macro">assert_eq!</span>(<span class="ident">profile</span>.<span class="ident">duration_ns</span>, <span class="number">1000000000</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">profile</span>.<span class="ident">profile</span>.<span class="ident">events</span>.<span class="ident">len</span>(), <span class="number">8453</span>);
+        <span class="macro">assert_eq!</span>(profile.duration_ns, <span class="number">1000000000</span>);
+        <span class="macro">assert_eq!</span>(profile.profile.events.len(), <span class="number">8453</span>);
 
-        <span class="kw">for</span> <span class="ident">event</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">profile</span>.<span class="ident">profile</span>.<span class="ident">events</span> {
+        <span class="kw">for </span>event <span class="kw">in </span><span class="kw-2">&amp;</span>profile.profile.events {
             <span class="macro">assert!</span>(
-                <span class="ident">get_timestamp</span>(
-                    <span class="ident">profile</span>.<span class="ident">profile</span>.<span class="ident">clock</span>,
-                    <span class="ident">profile</span>.<span class="ident">profile</span>.<span class="ident">start_time</span>,
-                    <span class="ident">event</span>.<span class="ident">time</span>
-                ) <span class="op">&lt;</span> <span class="ident">profile</span>.<span class="ident">duration_ns</span>
+                get_timestamp(
+                    profile.profile.clock,
+                    profile.profile.start_time,
+                    event.time
+                ) &lt; profile.duration_ns
             );
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_substract_to_timestamp</span>() {
-        <span class="kw">let</span> <span class="ident">now</span> <span class="op">=</span> <span class="ident">Utc::now</span>();
-        <span class="kw">let</span> <span class="ident">timestamps</span>: <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="ident">Clock</span>, <span class="ident">Time</span>)<span class="op">&gt;</span> <span class="op">=</span> <span class="macro">vec!</span>[
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_substract_to_timestamp() {
+        <span class="kw">let </span>now = Utc::now();
+        <span class="kw">let </span>timestamps: Vec&lt;(Clock, Time)&gt; = <span class="macro">vec!</span>[
             (
-                <span class="ident">Clock::Global</span>,
-                <span class="ident">Time::Global</span>(<span class="ident">Duration::from_nanos</span>(<span class="ident">now</span>.<span class="ident">timestamp_nanos</span>() <span class="kw">as</span> <span class="ident">u64</span> <span class="op">+</span> <span class="number">100</span>)),
+                Clock::Global,
+                Time::Global(Duration::from_nanos(now.timestamp_nanos() <span class="kw">as </span>u64 + <span class="number">100</span>)),
             ),
             (
-                <span class="ident">Clock::Cpu</span>,
-                <span class="ident">Time::Monotonic</span> {
-                    <span class="ident">cpu</span>: <span class="prelude-val">Some</span>(<span class="ident">Duration::from_nanos</span>(<span class="number">100</span>)),
-                    <span class="ident">wall</span>: <span class="prelude-val">None</span>,
+                Clock::Cpu,
+                Time::Monotonic {
+                    cpu: <span class="prelude-val">Some</span>(Duration::from_nanos(<span class="number">100</span>)),
+                    wall: <span class="prelude-val">None</span>,
                 },
             ),
             (
-                <span class="ident">Clock::Wall</span>,
-                <span class="ident">Time::Monotonic</span> {
-                    <span class="ident">wall</span>: <span class="prelude-val">Some</span>(<span class="ident">Duration::from_nanos</span>(<span class="number">100</span>)),
-                    <span class="ident">cpu</span>: <span class="prelude-val">None</span>,
+                Clock::Wall,
+                Time::Monotonic {
+                    wall: <span class="prelude-val">Some</span>(Duration::from_nanos(<span class="number">100</span>)),
+                    cpu: <span class="prelude-val">None</span>,
                 },
             ),
             (
-                <span class="ident">Clock::Dual</span>,
-                <span class="ident">Time::Monotonic</span> {
-                    <span class="ident">cpu</span>: <span class="prelude-val">Some</span>(<span class="ident">Duration::from_nanos</span>(<span class="number">20</span>)),
-                    <span class="ident">wall</span>: <span class="prelude-val">Some</span>(<span class="ident">Duration::from_nanos</span>(<span class="number">100</span>)),
+                Clock::Dual,
+                Time::Monotonic {
+                    cpu: <span class="prelude-val">Some</span>(Duration::from_nanos(<span class="number">20</span>)),
+                    wall: <span class="prelude-val">Some</span>(Duration::from_nanos(<span class="number">100</span>)),
                 },
             ),
         ];
-        <span class="kw">for</span> (<span class="ident">clock</span>, <span class="ident">timestamp</span>) <span class="kw">in</span> <span class="ident">timestamps</span> {
-            <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">substract_to_timestamp</span>(<span class="ident">timestamp</span>, <span class="ident">Duration::from_nanos</span>(<span class="number">50</span>));
-            <span class="macro">assert_eq!</span>(<span class="ident">get_timestamp</span>(<span class="ident">clock</span>, <span class="ident">now</span>, <span class="ident">result</span>), <span class="number">50</span>);
+        <span class="kw">for </span>(clock, timestamp) <span class="kw">in </span>timestamps {
+            <span class="kw">let </span>result = substract_to_timestamp(timestamp, Duration::from_nanos(<span class="number">50</span>));
+            <span class="macro">assert_eq!</span>(get_timestamp(clock, now, result), <span class="number">50</span>);
         }
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_profiling" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_profiling" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

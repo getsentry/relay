@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/store/normalize/logentry.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>logentry.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../../storage.js"></script><script defer src="../../../../source-script.js"></script><script defer src="../../../../source-files.js"></script><script defer src="../../../../main.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/store/normalize/logentry.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>logentry.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../../normalize.css"><link rel="stylesheet" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../../ayu.css" disabled><link rel="stylesheet" href="../../../../dark.css" disabled><link rel="stylesheet" href="../../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../../storage.js"></script><script defer src="../../../../source-script.js"></script><script defer src="../../../../source-files.js"></script><script defer src="../../../../main.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../../relay_general/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -211,216 +211,216 @@
 <span id="209">209</span>
 <span id="210">210</span>
 <span id="211">211</span>
-</pre><pre class="rust"><code><span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">test</span>, <span class="ident">allow</span>(<span class="ident">unused_must_use</span>))]</span>
+</pre><pre class="rust"><code><span class="attribute">#![cfg_attr(test, allow(unused_must_use))]
 
-<span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
+</span><span class="kw">use </span>std::borrow::Cow;
 
-<span class="kw">use</span> <span class="ident">dynfmt</span>::{<span class="ident">Argument</span>, <span class="ident">Format</span>, <span class="ident">FormatArgs</span>, <span class="ident">PythonFormat</span>, <span class="ident">SimpleCurlyFormat</span>};
+<span class="kw">use </span>dynfmt::{Argument, Format, FormatArgs, PythonFormat, SimpleCurlyFormat};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol::LogEntry</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Empty</span>, <span class="ident">Error</span>, <span class="ident">Meta</span>, <span class="ident">ProcessingAction</span>, <span class="ident">ProcessingResult</span>, <span class="ident">Value</span>};
+<span class="kw">use </span><span class="kw">crate</span>::protocol::LogEntry;
+<span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Empty, Error, Meta, ProcessingAction, ProcessingResult, Value};
 
-<span class="kw">impl</span> <span class="ident">FormatArgs</span> <span class="kw">for</span> <span class="ident">Value</span> {
-    <span class="kw">fn</span> <span class="ident">get_index</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">index</span>: <span class="ident">usize</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Argument</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">Value::Array</span>(<span class="ident">array</span>) =&gt; <span class="prelude-val">Ok</span>(<span class="ident">array</span>
-                .<span class="ident">get</span>(<span class="ident">index</span>)
-                .<span class="ident">and_then</span>(<span class="ident">Annotated::value</span>)
-                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">v</span><span class="op">|</span> <span class="ident">v</span> <span class="kw">as</span> <span class="ident">Argument</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>)),
-            <span class="kw">_</span> =&gt; <span class="prelude-val">Err</span>(()),
+<span class="kw">impl </span>FormatArgs <span class="kw">for </span>Value {
+    <span class="kw">fn </span>get_index(<span class="kw-2">&amp;</span><span class="self">self</span>, index: usize) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Argument&lt;<span class="lifetime">&#39;_</span>&gt;&gt;, ()&gt; {
+        <span class="kw">match </span><span class="self">self </span>{
+            Value::Array(array) =&gt; <span class="prelude-val">Ok</span>(array
+                .get(index)
+                .and_then(Annotated::value)
+                .map(|v| v <span class="kw">as </span>Argument&lt;<span class="lifetime">&#39;_</span>&gt;)),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(()),
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">get_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">key</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Argument</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">Value::Object</span>(<span class="ident">object</span>) =&gt; <span class="prelude-val">Ok</span>(<span class="ident">object</span>
-                .<span class="ident">get</span>(<span class="ident">key</span>)
-                .<span class="ident">and_then</span>(<span class="ident">Annotated::value</span>)
-                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">v</span><span class="op">|</span> <span class="ident">v</span> <span class="kw">as</span> <span class="ident">Argument</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>)),
-            <span class="kw">_</span> =&gt; <span class="prelude-val">Err</span>(()),
+    <span class="kw">fn </span>get_key(<span class="kw-2">&amp;</span><span class="self">self</span>, key: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Argument&lt;<span class="lifetime">&#39;_</span>&gt;&gt;, ()&gt; {
+        <span class="kw">match </span><span class="self">self </span>{
+            Value::Object(object) =&gt; <span class="prelude-val">Ok</span>(object
+                .get(key)
+                .and_then(Annotated::value)
+                .map(|v| v <span class="kw">as </span>Argument&lt;<span class="lifetime">&#39;_</span>&gt;)),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(()),
         }
     }
 }
 
-<span class="kw">fn</span> <span class="ident">format_message</span>(<span class="ident">format</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">params</span>: <span class="kw-2">&amp;</span><span class="ident">Value</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> {
-    <span class="comment">// NB: This currently resembles the historic logic for formatting strings. It could be much more</span>
-    <span class="comment">// lenient however, and try multiple formats one after another without exiting early.</span>
-    <span class="kw">if</span> <span class="ident">format</span>.<span class="ident">contains</span>(<span class="string">&#39;%&#39;</span>) {
-        <span class="ident">PythonFormat</span>
-            .<span class="ident">format</span>(<span class="ident">format</span>, <span class="ident">params</span>)
-            .<span class="ident">ok</span>()
-            .<span class="ident">map</span>(<span class="ident">Cow::into_owned</span>)
-    } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">format</span>.<span class="ident">contains</span>(<span class="string">&#39;{&#39;</span>) {
-        <span class="ident">SimpleCurlyFormat</span>
-            .<span class="ident">format</span>(<span class="ident">format</span>, <span class="ident">params</span>)
-            .<span class="ident">ok</span>()
-            .<span class="ident">map</span>(<span class="ident">Cow::into_owned</span>)
-    } <span class="kw">else</span> {
-        <span class="prelude-val">None</span>
-    }
+<span class="kw">fn </span>format_message(format: <span class="kw-2">&amp;</span>str, params: <span class="kw-2">&amp;</span>Value) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+    <span class="comment">// NB: This currently resembles the historic logic for formatting strings. It could be much more
+    // lenient however, and try multiple formats one after another without exiting early.
+    </span><span class="kw">if </span>format.contains(<span class="string">&#39;%&#39;</span>) {
+        PythonFormat
+            .format(format, params)
+            .ok()
+            .map(Cow::into_owned)
+    } <span class="kw">else if </span>format.contains(<span class="string">&#39;{&#39;</span>) {
+        SimpleCurlyFormat
+            .format(format, params)
+            .ok()
+            .map(Cow::into_owned)
+    } <span class="kw">else </span>{
+        <span class="prelude-val">None
+    </span>}
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">normalize_logentry</span>(<span class="ident">logentry</span>: <span class="kw-2">&amp;mut</span> <span class="ident">LogEntry</span>, <span class="ident">meta</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Meta</span>) -&gt; <span class="ident">ProcessingResult</span> {
-    <span class="comment">// An empty logentry should just be skipped during serialization. No need for an error.</span>
-    <span class="kw">if</span> <span class="ident">logentry</span>.<span class="ident">is_empty</span>() {
-        <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
+<span class="kw">pub fn </span>normalize_logentry(logentry: <span class="kw-2">&amp;mut </span>LogEntry, meta: <span class="kw-2">&amp;mut </span>Meta) -&gt; ProcessingResult {
+    <span class="comment">// An empty logentry should just be skipped during serialization. No need for an error.
+    </span><span class="kw">if </span>logentry.is_empty() {
+        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     }
 
-    <span class="kw">if</span> <span class="ident">logentry</span>.<span class="ident">formatted</span>.<span class="ident">value</span>().<span class="ident">is_none</span>() <span class="op">&amp;&amp;</span> <span class="ident">logentry</span>.<span class="ident">message</span>.<span class="ident">value</span>().<span class="ident">is_none</span>() {
-        <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::invalid</span>(<span class="string">&quot;no message present&quot;</span>));
-        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::DeleteValueSoft</span>);
+    <span class="kw">if </span>logentry.formatted.value().is_none() &amp;&amp; logentry.message.value().is_none() {
+        meta.add_error(Error::invalid(<span class="string">&quot;no message present&quot;</span>));
+        <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::DeleteValueSoft);
     }
 
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">params</span>) <span class="op">=</span> <span class="ident">logentry</span>.<span class="ident">params</span>.<span class="ident">value</span>() {
-        <span class="kw">if</span> <span class="ident">logentry</span>.<span class="ident">formatted</span>.<span class="ident">value</span>().<span class="ident">is_none</span>() {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">message</span>) <span class="op">=</span> <span class="ident">logentry</span>.<span class="ident">message</span>.<span class="ident">value</span>() {
-                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">formatted</span>) <span class="op">=</span> <span class="ident">format_message</span>(<span class="ident">message</span>.<span class="ident">as_ref</span>(), <span class="ident">params</span>) {
-                    <span class="ident">logentry</span>.<span class="ident">formatted</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">formatted</span>.<span class="ident">into</span>());
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(params) = logentry.params.value() {
+        <span class="kw">if </span>logentry.formatted.value().is_none() {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(message) = logentry.message.value() {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(formatted) = format_message(message.as_ref(), params) {
+                    logentry.formatted = Annotated::new(formatted.into());
                 }
             }
         }
     }
 
-    <span class="comment">// Move `message` to `formatted` if they are equal or only message is given. This also</span>
-    <span class="comment">// overwrites the meta data on formatted. However, do not move if both of them are None to</span>
-    <span class="comment">// retain potential meta data on `formatted`.</span>
-    <span class="kw">if</span> <span class="ident">logentry</span>.<span class="ident">formatted</span>.<span class="ident">value</span>().<span class="ident">is_none</span>()
-        <span class="op">|</span><span class="op">|</span> <span class="ident">logentry</span>.<span class="ident">message</span>.<span class="ident">value</span>() <span class="op">==</span> <span class="ident">logentry</span>.<span class="ident">formatted</span>.<span class="ident">value</span>()
+    <span class="comment">// Move `message` to `formatted` if they are equal or only message is given. This also
+    // overwrites the meta data on formatted. However, do not move if both of them are None to
+    // retain potential meta data on `formatted`.
+    </span><span class="kw">if </span>logentry.formatted.value().is_none()
+        || logentry.message.value() == logentry.formatted.value()
     {
-        <span class="ident">logentry</span>.<span class="ident">formatted</span> <span class="op">=</span> <span class="ident">std::mem::take</span>(<span class="kw-2">&amp;mut</span> <span class="ident">logentry</span>.<span class="ident">message</span>);
+        logentry.formatted = std::mem::take(<span class="kw-2">&amp;mut </span>logentry.message);
     }
 
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">similar_asserts::assert_eq</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>similar_asserts::assert_eq;
 
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types::Object</span>;
+    <span class="kw">use </span><span class="kw">crate</span>::types::Object;
 
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_format_python</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">logentry</span> <span class="op">=</span> <span class="ident">LogEntry</span> {
-            <span class="ident">message</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;hello, %s!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-            <span class="ident">params</span>: <span class="ident">Annotated::new</span>(<span class="ident">Value::Array</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(
-                <span class="string">&quot;world&quot;</span>.<span class="ident">to_string</span>(),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_format_python() {
+        <span class="kw">let </span><span class="kw-2">mut </span>logentry = LogEntry {
+            message: Annotated::new(<span class="string">&quot;hello, %s!&quot;</span>.to_string().into()),
+            params: Annotated::new(Value::Array(<span class="macro">vec!</span>[Annotated::new(Value::String(
+                <span class="string">&quot;world&quot;</span>.to_string(),
             ))])),
-            ..<span class="ident">LogEntry::default</span>()
+            ..LogEntry::default()
         };
 
-        <span class="ident">normalize_logentry</span>(<span class="kw-2">&amp;mut</span> <span class="ident">logentry</span>, <span class="kw-2">&amp;mut</span> <span class="ident">Meta::default</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">logentry</span>.<span class="ident">formatted</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;hello, world!&quot;</span>));
+        normalize_logentry(<span class="kw-2">&amp;mut </span>logentry, <span class="kw-2">&amp;mut </span>Meta::default());
+        <span class="macro">assert_eq!</span>(logentry.formatted.as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;hello, world!&quot;</span>));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_format_python_named</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">logentry</span> <span class="op">=</span> <span class="ident">LogEntry</span> {
-            <span class="ident">message</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;hello, %(name)s!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-            <span class="ident">params</span>: <span class="ident">Annotated::new</span>(<span class="ident">Value::Object</span>({
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">object</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                <span class="ident">object</span>.<span class="ident">insert</span>(
-                    <span class="string">&quot;name&quot;</span>.<span class="ident">to_string</span>(),
-                    <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;world&quot;</span>.<span class="ident">to_string</span>())),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_format_python_named() {
+        <span class="kw">let </span><span class="kw-2">mut </span>logentry = LogEntry {
+            message: Annotated::new(<span class="string">&quot;hello, %(name)s!&quot;</span>.to_string().into()),
+            params: Annotated::new(Value::Object({
+                <span class="kw">let </span><span class="kw-2">mut </span>object = Object::new();
+                object.insert(
+                    <span class="string">&quot;name&quot;</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">&quot;world&quot;</span>.to_string())),
                 );
-                <span class="ident">object</span>
+                object
             })),
-            ..<span class="ident">LogEntry::default</span>()
+            ..LogEntry::default()
         };
 
-        <span class="ident">normalize_logentry</span>(<span class="kw-2">&amp;mut</span> <span class="ident">logentry</span>, <span class="kw-2">&amp;mut</span> <span class="ident">Meta::default</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">logentry</span>.<span class="ident">formatted</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;hello, world!&quot;</span>));
+        normalize_logentry(<span class="kw-2">&amp;mut </span>logentry, <span class="kw-2">&amp;mut </span>Meta::default());
+        <span class="macro">assert_eq!</span>(logentry.formatted.as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;hello, world!&quot;</span>));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_format_java</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">logentry</span> <span class="op">=</span> <span class="ident">LogEntry</span> {
-            <span class="ident">message</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;hello, {}!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-            <span class="ident">params</span>: <span class="ident">Annotated::new</span>(<span class="ident">Value::Array</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(
-                <span class="string">&quot;world&quot;</span>.<span class="ident">to_string</span>(),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_format_java() {
+        <span class="kw">let </span><span class="kw-2">mut </span>logentry = LogEntry {
+            message: Annotated::new(<span class="string">&quot;hello, {}!&quot;</span>.to_string().into()),
+            params: Annotated::new(Value::Array(<span class="macro">vec!</span>[Annotated::new(Value::String(
+                <span class="string">&quot;world&quot;</span>.to_string(),
             ))])),
-            ..<span class="ident">LogEntry::default</span>()
+            ..LogEntry::default()
         };
 
-        <span class="ident">normalize_logentry</span>(<span class="kw-2">&amp;mut</span> <span class="ident">logentry</span>, <span class="kw-2">&amp;mut</span> <span class="ident">Meta::default</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">logentry</span>.<span class="ident">formatted</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;hello, world!&quot;</span>));
+        normalize_logentry(<span class="kw-2">&amp;mut </span>logentry, <span class="kw-2">&amp;mut </span>Meta::default());
+        <span class="macro">assert_eq!</span>(logentry.formatted.as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;hello, world!&quot;</span>));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_format_dotnet</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">logentry</span> <span class="op">=</span> <span class="ident">LogEntry</span> {
-            <span class="ident">message</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;hello, {0}!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-            <span class="ident">params</span>: <span class="ident">Annotated::new</span>(<span class="ident">Value::Array</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(
-                <span class="string">&quot;world&quot;</span>.<span class="ident">to_string</span>(),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_format_dotnet() {
+        <span class="kw">let </span><span class="kw-2">mut </span>logentry = LogEntry {
+            message: Annotated::new(<span class="string">&quot;hello, {0}!&quot;</span>.to_string().into()),
+            params: Annotated::new(Value::Array(<span class="macro">vec!</span>[Annotated::new(Value::String(
+                <span class="string">&quot;world&quot;</span>.to_string(),
             ))])),
-            ..<span class="ident">LogEntry::default</span>()
+            ..LogEntry::default()
         };
 
-        <span class="ident">normalize_logentry</span>(<span class="kw-2">&amp;mut</span> <span class="ident">logentry</span>, <span class="kw-2">&amp;mut</span> <span class="ident">Meta::default</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">logentry</span>.<span class="ident">formatted</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;hello, world!&quot;</span>));
+        normalize_logentry(<span class="kw-2">&amp;mut </span>logentry, <span class="kw-2">&amp;mut </span>Meta::default());
+        <span class="macro">assert_eq!</span>(logentry.formatted.as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;hello, world!&quot;</span>));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_format_no_params</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">logentry</span> <span class="op">=</span> <span class="ident">LogEntry</span> {
-            <span class="ident">message</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;hello, %s!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-            ..<span class="ident">LogEntry::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_format_no_params() {
+        <span class="kw">let </span><span class="kw-2">mut </span>logentry = LogEntry {
+            message: Annotated::new(<span class="string">&quot;hello, %s!&quot;</span>.to_string().into()),
+            ..LogEntry::default()
         };
 
-        <span class="ident">normalize_logentry</span>(<span class="kw-2">&amp;mut</span> <span class="ident">logentry</span>, <span class="kw-2">&amp;mut</span> <span class="ident">Meta::default</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">logentry</span>.<span class="ident">formatted</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;hello, %s!&quot;</span>));
+        normalize_logentry(<span class="kw-2">&amp;mut </span>logentry, <span class="kw-2">&amp;mut </span>Meta::default());
+        <span class="macro">assert_eq!</span>(logentry.formatted.as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;hello, %s!&quot;</span>));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_only_message</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">logentry</span> <span class="op">=</span> <span class="ident">LogEntry</span> {
-            <span class="ident">message</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;hello, world!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-            ..<span class="ident">LogEntry::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_only_message() {
+        <span class="kw">let </span><span class="kw-2">mut </span>logentry = LogEntry {
+            message: Annotated::new(<span class="string">&quot;hello, world!&quot;</span>.to_string().into()),
+            ..LogEntry::default()
         };
 
-        <span class="ident">normalize_logentry</span>(<span class="kw-2">&amp;mut</span> <span class="ident">logentry</span>, <span class="kw-2">&amp;mut</span> <span class="ident">Meta::default</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">logentry</span>.<span class="ident">message</span>.<span class="ident">value</span>(), <span class="prelude-val">None</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">logentry</span>.<span class="ident">formatted</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;hello, world!&quot;</span>));
+        normalize_logentry(<span class="kw-2">&amp;mut </span>logentry, <span class="kw-2">&amp;mut </span>Meta::default());
+        <span class="macro">assert_eq!</span>(logentry.message.value(), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(logentry.formatted.as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;hello, world!&quot;</span>));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_message_formatted_equal</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">logentry</span> <span class="op">=</span> <span class="ident">LogEntry</span> {
-            <span class="ident">message</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;hello, world!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-            <span class="ident">formatted</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;hello, world!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-            ..<span class="ident">LogEntry::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_message_formatted_equal() {
+        <span class="kw">let </span><span class="kw-2">mut </span>logentry = LogEntry {
+            message: Annotated::new(<span class="string">&quot;hello, world!&quot;</span>.to_string().into()),
+            formatted: Annotated::new(<span class="string">&quot;hello, world!&quot;</span>.to_string().into()),
+            ..LogEntry::default()
         };
 
-        <span class="ident">normalize_logentry</span>(<span class="kw-2">&amp;mut</span> <span class="ident">logentry</span>, <span class="kw-2">&amp;mut</span> <span class="ident">Meta::default</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">logentry</span>.<span class="ident">message</span>.<span class="ident">value</span>(), <span class="prelude-val">None</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">logentry</span>.<span class="ident">formatted</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;hello, world!&quot;</span>));
+        normalize_logentry(<span class="kw-2">&amp;mut </span>logentry, <span class="kw-2">&amp;mut </span>Meta::default());
+        <span class="macro">assert_eq!</span>(logentry.message.value(), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(logentry.formatted.as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;hello, world!&quot;</span>));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_empty_missing_message</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">logentry</span> <span class="op">=</span> <span class="ident">LogEntry</span> {
-            <span class="ident">params</span>: <span class="ident">Value::U64</span>(<span class="number">0</span>).<span class="ident">into</span>(), <span class="comment">// Ensure the logentry is not empty</span>
-            ..<span class="ident">LogEntry::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_empty_missing_message() {
+        <span class="kw">let </span><span class="kw-2">mut </span>logentry = LogEntry {
+            params: Value::U64(<span class="number">0</span>).into(), <span class="comment">// Ensure the logentry is not empty
+            </span>..LogEntry::default()
         };
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident">Meta::default</span>();
+        <span class="kw">let </span><span class="kw-2">mut </span>meta = Meta::default();
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">normalize_logentry</span>(<span class="kw-2">&amp;mut</span> <span class="ident">logentry</span>, <span class="kw-2">&amp;mut</span> <span class="ident">meta</span>),
-            <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::DeleteValueSoft</span>)
+            normalize_logentry(<span class="kw-2">&amp;mut </span>logentry, <span class="kw-2">&amp;mut </span>meta),
+            <span class="prelude-val">Err</span>(ProcessingAction::DeleteValueSoft)
         );
-        <span class="macro">assert!</span>(<span class="ident">meta</span>.<span class="ident">has_errors</span>());
+        <span class="macro">assert!</span>(meta.has_errors());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_empty_logentry</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">logentry</span> <span class="op">=</span> <span class="ident">LogEntry::default</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident">Meta::default</span>();
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_empty_logentry() {
+        <span class="kw">let </span><span class="kw-2">mut </span>logentry = LogEntry::default();
+        <span class="kw">let </span><span class="kw-2">mut </span>meta = Meta::default();
 
-        <span class="macro">assert_eq!</span>(<span class="ident">normalize_logentry</span>(<span class="kw-2">&amp;mut</span> <span class="ident">logentry</span>, <span class="kw-2">&amp;mut</span> <span class="ident">meta</span>), <span class="prelude-val">Ok</span>(()));
-        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">meta</span>.<span class="ident">has_errors</span>());
+        <span class="macro">assert_eq!</span>(normalize_logentry(<span class="kw-2">&amp;mut </span>logentry, <span class="kw-2">&amp;mut </span>meta), <span class="prelude-val">Ok</span>(()));
+        <span class="macro">assert!</span>(!meta.has_errors());
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

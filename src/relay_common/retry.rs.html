@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-common/src/retry.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>retry.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_common/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_common/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-common/src/retry.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>retry.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_common/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_common/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_common/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -66,71 +66,71 @@
 <span id="64">64</span>
 <span id="65">65</span>
 <span id="66">66</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>};
+</pre><pre class="rust"><code><span class="kw">use </span>std::time::{Duration, Instant};
 
-<span class="kw">use</span> <span class="ident">backoff::backoff::Backoff</span>;
-<span class="kw">use</span> <span class="ident">backoff::ExponentialBackoff</span>;
+<span class="kw">use </span>backoff::backoff::Backoff;
+<span class="kw">use </span>backoff::ExponentialBackoff;
 
-<span class="doccomment">/// Backoff multiplier (1.5 which is 50% increase per backoff).</span>
-<span class="kw">const</span> <span class="ident">DEFAULT_MULTIPLIER</span>: <span class="ident">f64</span> <span class="op">=</span> <span class="number">1.5</span>;
-<span class="doccomment">/// Randomization factor (0 which is no randomization).</span>
-<span class="kw">const</span> <span class="ident">DEFAULT_RANDOMIZATION</span>: <span class="ident">f64</span> <span class="op">=</span> <span class="number">0.0</span>;
-<span class="doccomment">/// Initial interval in milliseconds (1 second).</span>
-<span class="kw">const</span> <span class="ident">INITIAL_INTERVAL</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="number">1000</span>;
+<span class="doccomment">/// Backoff multiplier (1.5 which is 50% increase per backoff).
+</span><span class="kw">const </span>DEFAULT_MULTIPLIER: f64 = <span class="number">1.5</span>;
+<span class="doccomment">/// Randomization factor (0 which is no randomization).
+</span><span class="kw">const </span>DEFAULT_RANDOMIZATION: f64 = <span class="number">0.0</span>;
+<span class="doccomment">/// Initial interval in milliseconds (1 second).
+</span><span class="kw">const </span>INITIAL_INTERVAL: u64 = <span class="number">1000</span>;
 
-<span class="doccomment">/// A retry interval generator that increases timeouts with exponential backoff.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RetryBackoff</span> {
-    <span class="ident">backoff</span>: <span class="ident">ExponentialBackoff</span>,
-    <span class="ident">attempt</span>: <span class="ident">usize</span>,
+<span class="doccomment">/// A retry interval generator that increases timeouts with exponential backoff.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>RetryBackoff {
+    backoff: ExponentialBackoff,
+    attempt: usize,
 }
 
-<span class="kw">impl</span> <span class="ident">RetryBackoff</span> {
-    <span class="doccomment">/// Creates a new retry backoff based on configured thresholds.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">max_interval</span>: <span class="ident">Duration</span>) -&gt; <span class="self">Self</span> {
-        <span class="kw">let</span> <span class="ident">backoff</span> <span class="op">=</span> <span class="ident">ExponentialBackoff</span> {
-            <span class="ident">current_interval</span>: <span class="ident">Duration::from_millis</span>(<span class="ident">INITIAL_INTERVAL</span>),
-            <span class="ident">initial_interval</span>: <span class="ident">Duration::from_millis</span>(<span class="ident">INITIAL_INTERVAL</span>),
-            <span class="ident">randomization_factor</span>: <span class="ident">DEFAULT_RANDOMIZATION</span>,
-            <span class="ident">multiplier</span>: <span class="ident">DEFAULT_MULTIPLIER</span>,
-            <span class="ident">max_interval</span>,
-            <span class="ident">max_elapsed_time</span>: <span class="prelude-val">None</span>,
-            <span class="ident">clock</span>: <span class="ident">Default::default</span>(),
-            <span class="ident">start_time</span>: <span class="ident">Instant::now</span>(),
+<span class="kw">impl </span>RetryBackoff {
+    <span class="doccomment">/// Creates a new retry backoff based on configured thresholds.
+    </span><span class="kw">pub fn </span>new(max_interval: Duration) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>backoff = ExponentialBackoff {
+            current_interval: Duration::from_millis(INITIAL_INTERVAL),
+            initial_interval: Duration::from_millis(INITIAL_INTERVAL),
+            randomization_factor: DEFAULT_RANDOMIZATION,
+            multiplier: DEFAULT_MULTIPLIER,
+            max_interval,
+            max_elapsed_time: <span class="prelude-val">None</span>,
+            clock: Default::default(),
+            start_time: Instant::now(),
         };
 
-        <span class="ident">RetryBackoff</span> {
-            <span class="ident">backoff</span>,
-            <span class="ident">attempt</span>: <span class="number">0</span>,
+        RetryBackoff {
+            backoff,
+            attempt: <span class="number">0</span>,
         }
     }
 
-    <span class="doccomment">/// Resets this backoff to its initial state.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">reset</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
-        <span class="self">self</span>.<span class="ident">backoff</span>.<span class="ident">reset</span>();
-        <span class="self">self</span>.<span class="ident">attempt</span> <span class="op">=</span> <span class="number">0</span>;
+    <span class="doccomment">/// Resets this backoff to its initial state.
+    </span><span class="kw">pub fn </span>reset(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="self">self</span>.backoff.reset();
+        <span class="self">self</span>.attempt = <span class="number">0</span>;
     }
 
-    <span class="doccomment">/// Indicates whether a backoff attempt has started.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">started</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">attempt</span> <span class="op">&gt;</span> <span class="number">0</span>
+    <span class="doccomment">/// Indicates whether a backoff attempt has started.
+    </span><span class="kw">pub fn </span>started(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.attempt &gt; <span class="number">0
+    </span>}
+
+    <span class="doccomment">/// Returns the number of the retry attempt.
+    </span><span class="kw">pub fn </span>attempt(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.attempt
     }
 
-    <span class="doccomment">/// Returns the number of the retry attempt.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">attempt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
-        <span class="self">self</span>.<span class="ident">attempt</span>
-    }
-
-    <span class="doccomment">/// Returns the next backoff duration.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">next_backoff</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="ident">Duration</span> {
-        <span class="kw">let</span> <span class="ident">duration</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">attempt</span> {
-            <span class="number">0</span> =&gt; <span class="ident">Duration::new</span>(<span class="number">0</span>, <span class="number">0</span>),
-            <span class="kw">_</span> =&gt; <span class="self">self</span>.<span class="ident">backoff</span>.<span class="ident">next_backoff</span>().<span class="ident">unwrap</span>(),
+    <span class="doccomment">/// Returns the next backoff duration.
+    </span><span class="kw">pub fn </span>next_backoff(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Duration {
+        <span class="kw">let </span>duration = <span class="kw">match </span><span class="self">self</span>.attempt {
+            <span class="number">0 </span>=&gt; Duration::new(<span class="number">0</span>, <span class="number">0</span>),
+            <span class="kw">_ </span>=&gt; <span class="self">self</span>.backoff.next_backoff().unwrap(),
         };
 
-        <span class="self">self</span>.<span class="ident">attempt</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
-        <span class="ident">duration</span>
+        <span class="self">self</span>.attempt += <span class="number">1</span>;
+        duration
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_common" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_common" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

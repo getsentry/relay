@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_server/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_server/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_server/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -286,291 +286,291 @@
 <span id="284">284</span>
 <span id="285">285</span>
 <span id="286">286</span>
-</pre><pre class="rust"><code><span class="doccomment">//! The Sentry relay server application.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! This module contains the [`run`] function which starts the relay server. It responds on</span>
-<span class="doccomment">//! multiple supported endpoints, serves queries to downstream relays and send received events to</span>
-<span class="doccomment">//! the upstream.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! See the [`Config`] documentation for more information on configuration options.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! # Path of an Event through Relay</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ## Overview</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Simplified overview of event ingestion (ignores snuba/postprocessing):</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ```mermaid</span>
-<span class="doccomment">//! graph LR</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! loadbalancer(Load Balancer)</span>
-<span class="doccomment">//! relay(Relay)</span>
-<span class="doccomment">//! projectconfigs(&quot;Project config endpoint (in Sentry)&quot;)</span>
-<span class="doccomment">//! ingestconsumer(Ingest Consumer)</span>
-<span class="doccomment">//! outcomesconsumer(Outcomes Consumer)</span>
-<span class="doccomment">//! preprocess{&quot;&lt;code&gt;preprocess_event&lt;/code&gt;&lt;br&gt;(just a function call now)&quot;}</span>
-<span class="doccomment">//! process(&lt;code&gt;process_event&lt;/code&gt;)</span>
-<span class="doccomment">//! save(&lt;code&gt;save_event&lt;/code&gt;)</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! loadbalancer--&gt;relay</span>
-<span class="doccomment">//! relay---projectconfigs</span>
-<span class="doccomment">//! relay--&gt;ingestconsumer</span>
-<span class="doccomment">//! relay--&gt;outcomesconsumer</span>
-<span class="doccomment">//! ingestconsumer--&gt;preprocess</span>
-<span class="doccomment">//! preprocess--&gt;process</span>
-<span class="doccomment">//! preprocess--&gt;save</span>
-<span class="doccomment">//! process--&gt;save</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ## Processing enabled vs not?</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Relay can run as part of a Sentry installation, such as within `sentry.io`&#39;s</span>
-<span class="doccomment">//! infrastructure, or next to the application as a forwarding proxy. A lot of</span>
-<span class="doccomment">//! steps described here are skipped or run in a limited form when Relay is *not*</span>
-<span class="doccomment">//! running with processing enabled:</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! *  Event normalization does different (less) things.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! *  In certain modes, project config is not fetched from Sentry at all (but</span>
-<span class="doccomment">//!    rather from disk or filled out with defaults).</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! *  Events are forwarded to an HTTP endpoint instead of being written to Kafka.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! *  Rate limits are not calculated using Redis, instead Relay just honors 429s</span>
-<span class="doccomment">//!    from previously mentioned endpoint.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! *  Filters are not applied at all.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ## Inside the endpoint</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! When an SDK hits `/api/X/store` on Relay, the code in</span>
-<span class="doccomment">//! `server/src/endpoints/store.rs` is called before returning a HTTP response.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! That code looks into an in-memory cache to answer basic information about a project such as:</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! *  Does it exist? Is it suspended/disabled?</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! *  Is it rate limited right now? If so, which key is rate limited?</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! *  Which DSNs are valid for this project?</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Some of the data for this cache is coming from the [projectconfigs</span>
-<span class="doccomment">//! endpoint](https://github.com/getsentry/sentry/blob/c868def30e013177383f8ca5909090c8bdbd8f6f/src/sentry/api/endpoints/relay_projectconfigs.py).</span>
-<span class="doccomment">//! It is refreshed every couple of minutes, depending on configuration (`project_expiry`).</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! If the cache is fresh, we may return a `429` for rate limits or a `4xx` for</span>
-<span class="doccomment">//! invalid auth information.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! That cache might be empty or stale. If that is the case, Relay does not</span>
-<span class="doccomment">//! actually attempt to populate it at this stage. **It just returns a `200` even</span>
-<span class="doccomment">//! though the event might be dropped later.** This implies:</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! *  The first store request that runs into a rate limit doesn&#39;t actually result</span>
-<span class="doccomment">//!    in a `429`, but a subsequent request will (because by that time the project</span>
-<span class="doccomment">//!    cache will have been updated).</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! *  A store request for a non-existent project may result in a `200`, but</span>
-<span class="doccomment">//!    subsequent ones will not.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! *  A store request with wrong auth information may result in a `200`, but</span>
-<span class="doccomment">//!    subsequent ones will not.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! *  Filters are also not applied at this stage, so **a filtered event will</span>
-<span class="doccomment">//!    always result in a `200`**. This matches the Python behavior since [a while</span>
-<span class="doccomment">//!    now](https://github.com/getsentry/sentry/pull/14561).</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! These examples assume that a project receives one event at a time. In practice</span>
-<span class="doccomment">//! one may observe that a highly concurrent burst of store requests for a single</span>
-<span class="doccomment">//! project results in `200 OK`s only. However, a multi-second flood of incoming</span>
-<span class="doccomment">//! events should quickly result in eventually consistent and correct status codes.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! The response is completed at this point. All expensive work (such as talking to</span>
-<span class="doccomment">//! external services) is deferred into a background task. Except for responding to</span>
-<span class="doccomment">//! the HTTP request, there&#39;s no I/O done in the endpoint in any form. We didn&#39;t</span>
-<span class="doccomment">//! even hit Redis to calculate rate limits.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ### Summary</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! The HTTP response returned is just a best-effort guess at what the actual</span>
-<span class="doccomment">//! outcome of the event is going to be. We only return a `4xx` code if we know that</span>
-<span class="doccomment">//! the response will fail (based on cached information), if we don&#39;t we return a</span>
-<span class="doccomment">//! 200 and continue to process the event asynchronously. This asynchronous</span>
-<span class="doccomment">//! processing used to happen synchronously in the Python implementation of</span>
-<span class="doccomment">//! `StoreView`.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! The effect of this is that the server will respond much faster that before but</span>
-<span class="doccomment">//! we might return 200 for events that will ultimately not be accepted.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Generally Relay will return a 200 in many more situations than the old</span>
-<span class="doccomment">//! `StoreView`.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ## The background task</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! The HTTP response is out by now. The rest of what used to happen synchronously in the</span>
-<span class="doccomment">//! Python `StoreView` is done asynchronously, but still in the same process.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! So, now to the real work:</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! 1.  **Project config is fetched.** If the project cache is stale or missing, we</span>
-<span class="doccomment">//!     fetch it. We may wait a couple milliseconds (`batch_interval`) here to be</span>
-<span class="doccomment">//!     able to batch multiple project config fetches into the same HTTP request to</span>
-<span class="doccomment">//!     not overload Sentry too much.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//!     At this stage Relay may drop the event because it realized that the DSN was</span>
-<span class="doccomment">//!     invalid or the project didn&#39;t even exist. The next incoming event will get a</span>
-<span class="doccomment">//!     proper 4xx status code.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! 1.  **The event is parsed.** In the endpoint we only did decompression, a basic</span>
-<span class="doccomment">//!     JSON syntax check, and extraction of the event ID to be able to return it as</span>
-<span class="doccomment">//!     part of the response.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//!     Now we create an `Event` struct, which conceptually is the equivalent to</span>
-<span class="doccomment">//!     parsing it into a Python dictionary: We allocate more memory.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! 1.  **The event is normalized.** Event normalization is probably the most</span>
-<span class="doccomment">//!     CPU-intensive task running in Relay. It discards invalid data, moves data</span>
-<span class="doccomment">//!     from deprecated fields to newer fields and generally just does schema</span>
-<span class="doccomment">//!     validation.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! 1.  **Filters (&quot;inbound filters&quot;) are applied.** Event may be discarded because of IP</span>
-<span class="doccomment">//!     addresses, patterns on the error message or known web crawlers.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! 1.  **Exact rate limits (&quot;quotas&quot;) are applied.** `is_rate_limited.lua` is</span>
-<span class="doccomment">//!     executed on Redis. The input parameters for `is_rate_limited.lua` (&quot;quota</span>
-<span class="doccomment">//!     objects&quot;) are part of the project config. See [this pull</span>
-<span class="doccomment">//!     request](https://github.com/getsentry/sentry/pull/14558) for an explanation</span>
-<span class="doccomment">//!     of what quota objects are.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//!     The event may be discarded here. If so, we write the rate limit info</span>
-<span class="doccomment">//!     (reason and expiration timestamp) into the in-memory project cache so that</span>
-<span class="doccomment">//!     the next store request returns a 429 in the endpoint and doesn&#39;t hit Redis</span>
-<span class="doccomment">//!     at all.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//!     This contraption has the advantage that suspended or permanently</span>
-<span class="doccomment">//!     rate-limited projects are very cheap to handle, and do not involve external</span>
-<span class="doccomment">//!     services (ignoring the polling of the project config every couple of</span>
-<span class="doccomment">//!     minutes).</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! 1.  **The event is datascrubbed.** We have a PII config (new format) and a</span>
-<span class="doccomment">//!     datascrubbing config (old format, converted to new format on the fly) as</span>
-<span class="doccomment">//!     part of the project config fetched from Sentry.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! 1.  **Event is written to Kafka.**</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! **Note:** If we discard an event at any point, an outcome is written to Kafka</span>
-<span class="doccomment">//! if Relay is configured to do so.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ### Summary</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! For events that returned a `200` we spawn an in-process background task</span>
-<span class="doccomment">//! that does the rest of what the old `StoreView` did.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! This task updates in-memory state for rate limits and disabled</span>
-<span class="doccomment">//! projects/keys.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ## The outcomes consumer</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Outcomes are small messages in Kafka that contain an event ID and information</span>
-<span class="doccomment">//! about whether that event was rejected, and if so, why.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! The outcomes consumer is mostly responsible for updating (user-visible)</span>
-<span class="doccomment">//! counters in Sentry (buffers/counters and tsdb, which are two separate systems).</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ## The ingest consumer</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! The ingest consumer reads accepted events from Kafka, and also updates some</span>
-<span class="doccomment">//! stats. Some of *those* stats are billing-relevant.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Its main purpose is to do what `insert_data_to_database` in Python store did:</span>
-<span class="doccomment">//! Call `preprocess_event`, after which comes sourcemap processing, native</span>
-<span class="doccomment">//! symbolication, grouping, snuba and all that other stuff that is of no concern</span>
-<span class="doccomment">//! to Relay.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ## Sequence diagram of components inside Relay</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ```mermaid</span>
-<span class="doccomment">//! sequenceDiagram</span>
-<span class="doccomment">//! participant sdk as SDK</span>
-<span class="doccomment">//! participant endpoint as Endpoint</span>
-<span class="doccomment">//! participant projectcache as ProjectCache</span>
-<span class="doccomment">//! participant envelopemanager as EnvelopeManager</span>
-<span class="doccomment">//! participant cpupool as CPU Pool</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! sdk-&gt;&gt;endpoint:POST /api/42/store</span>
-<span class="doccomment">//! activate endpoint</span>
-<span class="doccomment">//! endpoint-&gt;&gt;projectcache: get project (cached only)</span>
-<span class="doccomment">//! activate projectcache</span>
-<span class="doccomment">//! projectcache--&gt;&gt;endpoint: return project</span>
-<span class="doccomment">//! deactivate projectcache</span>
-<span class="doccomment">//! Note over endpoint: Checking rate limits and auth (fast path)</span>
-<span class="doccomment">//! endpoint-&gt;&gt;envelopemanager: queue event</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! activate envelopemanager</span>
-<span class="doccomment">//! envelopemanager--&gt;&gt;endpoint:event ID</span>
-<span class="doccomment">//! endpoint--&gt;&gt;sdk:200 OK</span>
-<span class="doccomment">//! deactivate endpoint</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! envelopemanager-&gt;&gt;projectcache:fetch project</span>
-<span class="doccomment">//! activate projectcache</span>
-<span class="doccomment">//! Note over envelopemanager,projectcache: web request (batched with other projects)</span>
-<span class="doccomment">//! projectcache--&gt;&gt;envelopemanager: return project</span>
-<span class="doccomment">//! deactivate projectcache</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! envelopemanager-&gt;&gt;cpupool: .</span>
-<span class="doccomment">//! activate cpupool</span>
-<span class="doccomment">//! Note over envelopemanager,cpupool: normalization, datascrubbing, redis rate limits, ...</span>
-<span class="doccomment">//! cpupool--&gt;&gt;envelopemanager: .</span>
-<span class="doccomment">//! deactivate cpupool</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Note over envelopemanager: Send event to kafka</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! deactivate envelopemanager</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! &lt;script src=&quot;https://cdn.jsdelivr.net/npm/mermaid@8.8.4/dist/mermaid.min.js&quot;&gt;&lt;/script&gt;</span>
-<span class="doccomment">//! &lt;script&gt;</span>
-<span class="doccomment">//! mermaid.init({}, &quot;.language-mermaid code&quot;);</span>
-<span class="doccomment">//! // Could not get dark mode in mermaid to work</span>
-<span class="doccomment">//! Array.from(document.getElementsByTagName(&#39;svg&#39;)).map(x =&gt; x.style.background = &quot;white&quot;)</span>
-<span class="doccomment">//! &lt;/script&gt;</span>
-<span class="attribute">#![<span class="ident">warn</span>(<span class="ident">missing_docs</span>)]</span>
-<span class="attribute">#![<span class="ident">doc</span>(
-    <span class="ident">html_logo_url</span> <span class="op">=</span> <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
-    <span class="ident">html_favicon_url</span> <span class="op">=</span> <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>
-)]</span>
-<span class="attribute">#![<span class="ident">allow</span>(<span class="ident">clippy::derive_partial_eq_without_eq</span>)]</span>
+</pre><pre class="rust"><code><span class="doccomment">//! The Sentry relay server application.
+//!
+//! This module contains the [`run`] function which starts the relay server. It responds on
+//! multiple supported endpoints, serves queries to downstream relays and send received events to
+//! the upstream.
+//!
+//! See the [`Config`] documentation for more information on configuration options.
+//!
+//! # Path of an Event through Relay
+//!
+//! ## Overview
+//!
+//! Simplified overview of event ingestion (ignores snuba/postprocessing):
+//!
+//! ```mermaid
+//! graph LR
+//!
+//! loadbalancer(Load Balancer)
+//! relay(Relay)
+//! projectconfigs(&quot;Project config endpoint (in Sentry)&quot;)
+//! ingestconsumer(Ingest Consumer)
+//! outcomesconsumer(Outcomes Consumer)
+//! preprocess{&quot;&lt;code&gt;preprocess_event&lt;/code&gt;&lt;br&gt;(just a function call now)&quot;}
+//! process(&lt;code&gt;process_event&lt;/code&gt;)
+//! save(&lt;code&gt;save_event&lt;/code&gt;)
+//!
+//! loadbalancer--&gt;relay
+//! relay---projectconfigs
+//! relay--&gt;ingestconsumer
+//! relay--&gt;outcomesconsumer
+//! ingestconsumer--&gt;preprocess
+//! preprocess--&gt;process
+//! preprocess--&gt;save
+//! process--&gt;save
+//!
+//! ```
+//!
+//! ## Processing enabled vs not?
+//!
+//! Relay can run as part of a Sentry installation, such as within `sentry.io`&#39;s
+//! infrastructure, or next to the application as a forwarding proxy. A lot of
+//! steps described here are skipped or run in a limited form when Relay is *not*
+//! running with processing enabled:
+//!
+//! *  Event normalization does different (less) things.
+//!
+//! *  In certain modes, project config is not fetched from Sentry at all (but
+//!    rather from disk or filled out with defaults).
+//!
+//! *  Events are forwarded to an HTTP endpoint instead of being written to Kafka.
+//!
+//! *  Rate limits are not calculated using Redis, instead Relay just honors 429s
+//!    from previously mentioned endpoint.
+//!
+//! *  Filters are not applied at all.
+//!
+//! ## Inside the endpoint
+//!
+//! When an SDK hits `/api/X/store` on Relay, the code in
+//! `server/src/endpoints/store.rs` is called before returning a HTTP response.
+//!
+//! That code looks into an in-memory cache to answer basic information about a project such as:
+//!
+//! *  Does it exist? Is it suspended/disabled?
+//!
+//! *  Is it rate limited right now? If so, which key is rate limited?
+//!
+//! *  Which DSNs are valid for this project?
+//!
+//! Some of the data for this cache is coming from the [projectconfigs
+//! endpoint](https://github.com/getsentry/sentry/blob/c868def30e013177383f8ca5909090c8bdbd8f6f/src/sentry/api/endpoints/relay_projectconfigs.py).
+//! It is refreshed every couple of minutes, depending on configuration (`project_expiry`).
+//!
+//! If the cache is fresh, we may return a `429` for rate limits or a `4xx` for
+//! invalid auth information.
+//!
+//! That cache might be empty or stale. If that is the case, Relay does not
+//! actually attempt to populate it at this stage. **It just returns a `200` even
+//! though the event might be dropped later.** This implies:
+//!
+//! *  The first store request that runs into a rate limit doesn&#39;t actually result
+//!    in a `429`, but a subsequent request will (because by that time the project
+//!    cache will have been updated).
+//!
+//! *  A store request for a non-existent project may result in a `200`, but
+//!    subsequent ones will not.
+//!
+//! *  A store request with wrong auth information may result in a `200`, but
+//!    subsequent ones will not.
+//!
+//! *  Filters are also not applied at this stage, so **a filtered event will
+//!    always result in a `200`**. This matches the Python behavior since [a while
+//!    now](https://github.com/getsentry/sentry/pull/14561).
+//!
+//! These examples assume that a project receives one event at a time. In practice
+//! one may observe that a highly concurrent burst of store requests for a single
+//! project results in `200 OK`s only. However, a multi-second flood of incoming
+//! events should quickly result in eventually consistent and correct status codes.
+//!
+//! The response is completed at this point. All expensive work (such as talking to
+//! external services) is deferred into a background task. Except for responding to
+//! the HTTP request, there&#39;s no I/O done in the endpoint in any form. We didn&#39;t
+//! even hit Redis to calculate rate limits.
+//!
+//! ### Summary
+//!
+//! The HTTP response returned is just a best-effort guess at what the actual
+//! outcome of the event is going to be. We only return a `4xx` code if we know that
+//! the response will fail (based on cached information), if we don&#39;t we return a
+//! 200 and continue to process the event asynchronously. This asynchronous
+//! processing used to happen synchronously in the Python implementation of
+//! `StoreView`.
+//!
+//! The effect of this is that the server will respond much faster that before but
+//! we might return 200 for events that will ultimately not be accepted.
+//!
+//! Generally Relay will return a 200 in many more situations than the old
+//! `StoreView`.
+//!
+//! ## The background task
+//!
+//! The HTTP response is out by now. The rest of what used to happen synchronously in the
+//! Python `StoreView` is done asynchronously, but still in the same process.
+//!
+//! So, now to the real work:
+//!
+//! 1.  **Project config is fetched.** If the project cache is stale or missing, we
+//!     fetch it. We may wait a couple milliseconds (`batch_interval`) here to be
+//!     able to batch multiple project config fetches into the same HTTP request to
+//!     not overload Sentry too much.
+//!
+//!     At this stage Relay may drop the event because it realized that the DSN was
+//!     invalid or the project didn&#39;t even exist. The next incoming event will get a
+//!     proper 4xx status code.
+//!
+//! 1.  **The event is parsed.** In the endpoint we only did decompression, a basic
+//!     JSON syntax check, and extraction of the event ID to be able to return it as
+//!     part of the response.
+//!
+//!     Now we create an `Event` struct, which conceptually is the equivalent to
+//!     parsing it into a Python dictionary: We allocate more memory.
+//!
+//! 1.  **The event is normalized.** Event normalization is probably the most
+//!     CPU-intensive task running in Relay. It discards invalid data, moves data
+//!     from deprecated fields to newer fields and generally just does schema
+//!     validation.
+//!
+//! 1.  **Filters (&quot;inbound filters&quot;) are applied.** Event may be discarded because of IP
+//!     addresses, patterns on the error message or known web crawlers.
+//!
+//! 1.  **Exact rate limits (&quot;quotas&quot;) are applied.** `is_rate_limited.lua` is
+//!     executed on Redis. The input parameters for `is_rate_limited.lua` (&quot;quota
+//!     objects&quot;) are part of the project config. See [this pull
+//!     request](https://github.com/getsentry/sentry/pull/14558) for an explanation
+//!     of what quota objects are.
+//!
+//!     The event may be discarded here. If so, we write the rate limit info
+//!     (reason and expiration timestamp) into the in-memory project cache so that
+//!     the next store request returns a 429 in the endpoint and doesn&#39;t hit Redis
+//!     at all.
+//!
+//!     This contraption has the advantage that suspended or permanently
+//!     rate-limited projects are very cheap to handle, and do not involve external
+//!     services (ignoring the polling of the project config every couple of
+//!     minutes).
+//!
+//! 1.  **The event is datascrubbed.** We have a PII config (new format) and a
+//!     datascrubbing config (old format, converted to new format on the fly) as
+//!     part of the project config fetched from Sentry.
+//!
+//! 1.  **Event is written to Kafka.**
+//!
+//! **Note:** If we discard an event at any point, an outcome is written to Kafka
+//! if Relay is configured to do so.
+//!
+//! ### Summary
+//!
+//! For events that returned a `200` we spawn an in-process background task
+//! that does the rest of what the old `StoreView` did.
+//!
+//! This task updates in-memory state for rate limits and disabled
+//! projects/keys.
+//!
+//! ## The outcomes consumer
+//!
+//! Outcomes are small messages in Kafka that contain an event ID and information
+//! about whether that event was rejected, and if so, why.
+//!
+//! The outcomes consumer is mostly responsible for updating (user-visible)
+//! counters in Sentry (buffers/counters and tsdb, which are two separate systems).
+//!
+//! ## The ingest consumer
+//!
+//! The ingest consumer reads accepted events from Kafka, and also updates some
+//! stats. Some of *those* stats are billing-relevant.
+//!
+//! Its main purpose is to do what `insert_data_to_database` in Python store did:
+//! Call `preprocess_event`, after which comes sourcemap processing, native
+//! symbolication, grouping, snuba and all that other stuff that is of no concern
+//! to Relay.
+//!
+//! ## Sequence diagram of components inside Relay
+//!
+//! ```mermaid
+//! sequenceDiagram
+//! participant sdk as SDK
+//! participant endpoint as Endpoint
+//! participant projectcache as ProjectCache
+//! participant envelopemanager as EnvelopeManager
+//! participant cpupool as CPU Pool
+//!
+//! sdk-&gt;&gt;endpoint:POST /api/42/store
+//! activate endpoint
+//! endpoint-&gt;&gt;projectcache: get project (cached only)
+//! activate projectcache
+//! projectcache--&gt;&gt;endpoint: return project
+//! deactivate projectcache
+//! Note over endpoint: Checking rate limits and auth (fast path)
+//! endpoint-&gt;&gt;envelopemanager: queue event
+//!
+//! activate envelopemanager
+//! envelopemanager--&gt;&gt;endpoint:event ID
+//! endpoint--&gt;&gt;sdk:200 OK
+//! deactivate endpoint
+//!
+//! envelopemanager-&gt;&gt;projectcache:fetch project
+//! activate projectcache
+//! Note over envelopemanager,projectcache: web request (batched with other projects)
+//! projectcache--&gt;&gt;envelopemanager: return project
+//! deactivate projectcache
+//!
+//! envelopemanager-&gt;&gt;cpupool: .
+//! activate cpupool
+//! Note over envelopemanager,cpupool: normalization, datascrubbing, redis rate limits, ...
+//! cpupool--&gt;&gt;envelopemanager: .
+//! deactivate cpupool
+//!
+//! Note over envelopemanager: Send event to kafka
+//!
+//! deactivate envelopemanager
+//! ```
+//!
+//! &lt;script src=&quot;https://cdn.jsdelivr.net/npm/mermaid@8.8.4/dist/mermaid.min.js&quot;&gt;&lt;/script&gt;
+//! &lt;script&gt;
+//! mermaid.init({}, &quot;.language-mermaid code&quot;);
+//! // Could not get dark mode in mermaid to work
+//! Array.from(document.getElementsByTagName(&#39;svg&#39;)).map(x =&gt; x.style.background = &quot;white&quot;)
+//! &lt;/script&gt;
+</span><span class="attribute">#![warn(missing_docs)]
+#![doc(
+    html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
+    html_favicon_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;
+</span>)]
+#![allow(clippy::derive_partial_eq_without_eq)]
 
-<span class="kw">mod</span> <span class="ident">actors</span>;
-<span class="kw">mod</span> <span class="ident">body</span>;
-<span class="kw">mod</span> <span class="ident">constants</span>;
-<span class="kw">mod</span> <span class="ident">endpoints</span>;
-<span class="kw">mod</span> <span class="ident">envelope</span>;
-<span class="kw">mod</span> <span class="ident">extractors</span>;
-<span class="kw">mod</span> <span class="ident">http</span>;
-<span class="kw">mod</span> <span class="ident">metrics_extraction</span>;
-<span class="kw">mod</span> <span class="ident">middlewares</span>;
-<span class="kw">mod</span> <span class="ident">service</span>;
-<span class="kw">mod</span> <span class="ident">statsd</span>;
-<span class="kw">mod</span> <span class="ident">utils</span>;
+</span><span class="kw">mod </span>actors;
+<span class="kw">mod </span>body;
+<span class="kw">mod </span>constants;
+<span class="kw">mod </span>endpoints;
+<span class="kw">mod </span>envelope;
+<span class="kw">mod </span>extractors;
+<span class="kw">mod </span>http;
+<span class="kw">mod </span>metrics_extraction;
+<span class="kw">mod </span>middlewares;
+<span class="kw">mod </span>service;
+<span class="kw">mod </span>statsd;
+<span class="kw">mod </span>utils;
 
-<span class="kw">use</span> <span class="ident">relay_config::Config</span>;
-<span class="kw">use</span> <span class="ident">relay_system::Controller</span>;
+<span class="kw">use </span>relay_config::Config;
+<span class="kw">use </span>relay_system::Controller;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::server::Server</span>;
+<span class="kw">use </span><span class="kw">crate</span>::actors::server::Server;
 
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service::ServerError</span>;
+<span class="kw">pub use </span><span class="kw">crate</span>::service::ServerError;
 
-<span class="doccomment">/// Runs a relay web server and spawns all internal worker threads.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This effectively boots the entire server application. It blocks the current thread until a</span>
-<span class="doccomment">/// shutdown signal is received or a fatal error happens. Behavior of the server is determined by</span>
-<span class="doccomment">/// the `config` passed into this funciton.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">run</span>(<span class="ident">config</span>: <span class="ident">Config</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ServerError</span><span class="op">&gt;</span> {
-    <span class="comment">// Run the controller and block until a shutdown signal is sent to this process. This will</span>
-    <span class="comment">// create an actix system, start a web server and run all relevant actors inside. See the</span>
-    <span class="comment">// `actors` module documentation for more information on all actors.</span>
-    <span class="ident">Controller::run</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Server::start</span>(<span class="ident">config</span>))
+<span class="doccomment">/// Runs a relay web server and spawns all internal worker threads.
+///
+/// This effectively boots the entire server application. It blocks the current thread until a
+/// shutdown signal is received or a fatal error happens. Behavior of the server is determined by
+/// the `config` passed into this funciton.
+</span><span class="kw">pub fn </span>run(config: Config) -&gt; <span class="prelude-ty">Result</span>&lt;(), ServerError&gt; {
+    <span class="comment">// Run the controller and block until a shutdown signal is sent to this process. This will
+    // create an actix system, start a web server and run all relevant actors inside. See the
+    // `actors` module documentation for more information on all actors.
+    </span>Controller::run(|| Server::start(config))
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

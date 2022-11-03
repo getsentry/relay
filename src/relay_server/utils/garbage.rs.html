@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/utils/garbage.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>garbage.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/utils/garbage.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>garbage.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_server/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -105,110 +105,110 @@
 <span id="103">103</span>
 <span id="104">104</span>
 <span id="105">105</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::sync::atomic</span>::{<span class="ident">AtomicUsize</span>, <span class="ident">Ordering</span>};
-<span class="kw">use</span> <span class="ident">std::sync</span>::{<span class="ident">mpsc</span>, <span class="ident">Arc</span>};
-<span class="kw">use</span> <span class="ident">std::thread::JoinHandle</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>std::sync::atomic::{AtomicUsize, Ordering};
+<span class="kw">use </span>std::sync::{mpsc, Arc};
+<span class="kw">use </span>std::thread::JoinHandle;
 
-<span class="doccomment">/// Garbage disposal agent.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Spawns a background thread which drops items sent to it via [`GarbageDisposal::dispose`].</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">GarbageDisposal</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
-    <span class="ident">tx</span>: <span class="ident">mpsc::Sender</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
-    <span class="ident">queue_size</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">AtomicUsize</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Garbage disposal agent.
+///
+/// Spawns a background thread which drops items sent to it via [`GarbageDisposal::dispose`].
+</span><span class="kw">pub struct </span>GarbageDisposal&lt;T&gt; {
+    tx: mpsc::Sender&lt;T&gt;,
+    queue_size: Arc&lt;AtomicUsize&gt;,
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;static</span><span class="op">&gt;</span> <span class="ident">GarbageDisposal</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
-    <span class="doccomment">/// Returns a new instance plus a handle to join on the background thread.</span>
-    <span class="doccomment">/// Currently only used in tests.</span>
-    <span class="kw">fn</span> <span class="ident">new_joinable</span>() -&gt; (<span class="self">Self</span>, <span class="ident">JoinHandle</span><span class="op">&lt;</span>()<span class="op">&gt;</span>) {
-        <span class="kw">let</span> (<span class="ident">tx</span>, <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">mpsc::channel</span>();
+<span class="kw">impl</span>&lt;T: Send + <span class="lifetime">&#39;static</span>&gt; GarbageDisposal&lt;T&gt; {
+    <span class="doccomment">/// Returns a new instance plus a handle to join on the background thread.
+    /// Currently only used in tests.
+    </span><span class="kw">fn </span>new_joinable() -&gt; (<span class="self">Self</span>, JoinHandle&lt;()&gt;) {
+        <span class="kw">let </span>(tx, rx) = mpsc::channel();
 
-        <span class="kw">let</span> <span class="ident">queue_size</span> <span class="op">=</span> <span class="ident">Arc::new</span>(<span class="ident">AtomicUsize::new</span>(<span class="number">0</span>));
-        <span class="kw">let</span> <span class="ident">queue_size_clone</span> <span class="op">=</span> <span class="ident">queue_size</span>.<span class="ident">clone</span>();
-        <span class="kw">let</span> <span class="ident">join_handle</span> <span class="op">=</span> <span class="ident">std::thread::spawn</span>(<span class="kw">move</span> <span class="op">|</span><span class="op">|</span> {
+        <span class="kw">let </span>queue_size = Arc::new(AtomicUsize::new(<span class="number">0</span>));
+        <span class="kw">let </span>queue_size_clone = queue_size.clone();
+        <span class="kw">let </span>join_handle = std::thread::spawn(<span class="kw">move </span>|| {
             <span class="macro">relay_log::debug!</span>(<span class="string">&quot;Start garbage collection thread&quot;</span>);
-            <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">object</span>) <span class="op">=</span> <span class="ident">rx</span>.<span class="ident">recv</span>() {
-                <span class="ident">queue_size_clone</span>.<span class="ident">fetch_sub</span>(<span class="number">1</span>, <span class="ident">Ordering::Relaxed</span>); <span class="comment">// Wraps around on overflow</span>
-                <span class="ident">drop</span>(<span class="ident">object</span>);
+            <span class="kw">while let </span><span class="prelude-val">Ok</span>(object) = rx.recv() {
+                queue_size_clone.fetch_sub(<span class="number">1</span>, Ordering::Relaxed); <span class="comment">// Wraps around on overflow
+                </span>drop(object);
             }
             <span class="macro">relay_log::debug!</span>(<span class="string">&quot;Stop garbage collection thread&quot;</span>);
         });
 
-        (<span class="self">Self</span> { <span class="ident">tx</span>, <span class="ident">queue_size</span> }, <span class="ident">join_handle</span>)
+        (<span class="self">Self </span>{ tx, queue_size }, join_handle)
     }
 
-    <span class="doccomment">/// Spawns a new garbage disposal instance.</span>
-    <span class="doccomment">/// Every instance has its own background thread that received items to be dropped via</span>
-    <span class="doccomment">/// [`Self::dispose`].</span>
-    <span class="doccomment">/// When the instance is dropped, the background thread stops automatically.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() -&gt; <span class="self">Self</span> {
-        <span class="kw">let</span> (<span class="ident">instance</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="ident"><span class="self">Self</span>::new_joinable</span>();
-        <span class="ident">instance</span>
+    <span class="doccomment">/// Spawns a new garbage disposal instance.
+    /// Every instance has its own background thread that received items to be dropped via
+    /// [`Self::dispose`].
+    /// When the instance is dropped, the background thread stops automatically.
+    </span><span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>(instance, <span class="kw">_</span>) = <span class="self">Self</span>::new_joinable();
+        instance
     }
 
-    <span class="doccomment">/// Defers dropping an object by sending it to the background thread.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">dispose</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">object</span>: <span class="ident">T</span>) {
-        <span class="self">self</span>.<span class="ident">queue_size</span>.<span class="ident">fetch_add</span>(<span class="number">1</span>, <span class="ident">Ordering::Relaxed</span>);
-        <span class="self">self</span>.<span class="ident">tx</span>
-            .<span class="ident">send</span>(<span class="ident">object</span>)
-            .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> {
+    <span class="doccomment">/// Defers dropping an object by sending it to the background thread.
+    </span><span class="kw">pub fn </span>dispose(<span class="kw-2">&amp;</span><span class="self">self</span>, object: T) {
+        <span class="self">self</span>.queue_size.fetch_add(<span class="number">1</span>, Ordering::Relaxed);
+        <span class="self">self</span>.tx
+            .send(object)
+            .map_err(|e| {
                 <span class="macro">relay_log::error!</span>(<span class="string">&quot;Failed to send object to garbage disposal thread, drop here&quot;</span>);
-                <span class="ident">drop</span>(<span class="ident">e</span>.<span class="number">0</span>);
+                drop(e.<span class="number">0</span>);
             })
-            .<span class="ident">ok</span>();
+            .ok();
     }
 
-    <span class="doccomment">/// Get current queue size.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">queue_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
-        <span class="self">self</span>.<span class="ident">queue_size</span>.<span class="ident">load</span>(<span class="ident">Ordering::Relaxed</span>)
+    <span class="doccomment">/// Get current queue size.
+    </span><span class="kw">pub fn </span>queue_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.queue_size.load(Ordering::Relaxed)
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">std</span>::{
-        <span class="ident">sync</span>::{<span class="ident">Arc</span>, <span class="ident">Mutex</span>},
-        <span class="ident">thread::ThreadId</span>,
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>std::{
+        sync::{Arc, Mutex},
+        thread::ThreadId,
     };
 
-    <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::GarbageDisposal</span>;
+    <span class="kw">use </span><span class="kw">super</span>::GarbageDisposal;
 
-    <span class="kw">struct</span> <span class="ident">SomeStruct</span> {
-        <span class="ident">thread_ids</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Mutex</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">ThreadId</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="kw">struct </span>SomeStruct {
+        thread_ids: Arc&lt;Mutex&lt;Vec&lt;ThreadId&gt;&gt;&gt;,
     }
 
-    <span class="kw">impl</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">SomeStruct</span> {
-        <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
-            <span class="self">self</span>.<span class="ident">thread_ids</span>
-                .<span class="ident">lock</span>()
-                .<span class="ident">unwrap</span>()
-                .<span class="ident">push</span>(<span class="ident">std::thread::current</span>().<span class="ident">id</span>())
+    <span class="kw">impl </span>Drop <span class="kw">for </span>SomeStruct {
+        <span class="kw">fn </span>drop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+            <span class="self">self</span>.thread_ids
+                .lock()
+                .unwrap()
+                .push(std::thread::current().id())
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_garbage_disposal</span>() {
-        <span class="kw">let</span> <span class="ident">thread_ids</span> <span class="op">=</span> <span class="ident">Arc::new</span>(<span class="ident">Mutex::new</span>(<span class="ident">Vec</span>::<span class="op">&lt;</span><span class="ident">ThreadId</span><span class="op">&gt;</span><span class="ident">::new</span>()));
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_garbage_disposal() {
+        <span class="kw">let </span>thread_ids = Arc::new(Mutex::new(Vec::&lt;ThreadId&gt;::new()));
 
-        <span class="kw">let</span> <span class="ident">x1</span> <span class="op">=</span> <span class="ident">SomeStruct</span> {
-            <span class="ident">thread_ids</span>: <span class="ident">thread_ids</span>.<span class="ident">clone</span>(),
+        <span class="kw">let </span>x1 = SomeStruct {
+            thread_ids: thread_ids.clone(),
         };
-        <span class="ident">drop</span>(<span class="ident">x1</span>);
+        drop(x1);
 
-        <span class="kw">let</span> <span class="ident">x2</span> <span class="op">=</span> <span class="ident">SomeStruct</span> {
-            <span class="ident">thread_ids</span>: <span class="ident">thread_ids</span>.<span class="ident">clone</span>(),
+        <span class="kw">let </span>x2 = SomeStruct {
+            thread_ids: thread_ids.clone(),
         };
 
-        <span class="kw">let</span> (<span class="ident">garbage</span>, <span class="ident">join_handle</span>) <span class="op">=</span> <span class="ident">GarbageDisposal::new_joinable</span>();
-        <span class="ident">garbage</span>.<span class="ident">dispose</span>(<span class="ident">x2</span>);
-        <span class="ident">drop</span>(<span class="ident">garbage</span>); <span class="comment">// breaks the while loop by dropping rx</span>
-        <span class="ident">join_handle</span>.<span class="ident">join</span>().<span class="ident">ok</span>(); <span class="comment">// wait for thread to finish its work</span>
+        <span class="kw">let </span>(garbage, join_handle) = GarbageDisposal::new_joinable();
+        garbage.dispose(x2);
+        drop(garbage); <span class="comment">// breaks the while loop by dropping rx
+        </span>join_handle.join().ok(); <span class="comment">// wait for thread to finish its work
 
-        <span class="kw">let</span> <span class="ident">thread_ids</span> <span class="op">=</span> <span class="ident">thread_ids</span>.<span class="ident">lock</span>().<span class="ident">unwrap</span>();
-        <span class="macro">assert_eq!</span>(<span class="ident">thread_ids</span>.<span class="ident">len</span>(), <span class="number">2</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">thread_ids</span>[<span class="number">0</span>], <span class="ident">std::thread::current</span>().<span class="ident">id</span>());
-        <span class="macro">assert!</span>(<span class="ident">thread_ids</span>[<span class="number">0</span>] <span class="op">!</span><span class="op">=</span> <span class="ident">thread_ids</span>[<span class="number">1</span>]);
+        </span><span class="kw">let </span>thread_ids = thread_ids.lock().unwrap();
+        <span class="macro">assert_eq!</span>(thread_ids.len(), <span class="number">2</span>);
+        <span class="macro">assert_eq!</span>(thread_ids[<span class="number">0</span>], std::thread::current().id());
+        <span class="macro">assert!</span>(thread_ids[<span class="number">0</span>] != thread_ids[<span class="number">1</span>]);
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

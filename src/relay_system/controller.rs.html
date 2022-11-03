@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-system/src/controller.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>controller.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_system/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_system/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-system/src/controller.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>controller.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_system/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_system/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_system/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -308,313 +308,313 @@
 <span id="306">306</span>
 <span id="307">307</span>
 <span id="308">308</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
-<span class="kw">use</span> <span class="ident">std::time::Duration</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::time::Duration;
 
-<span class="kw">use</span> <span class="ident">actix::actors::signal</span>;
-<span class="kw">use</span> <span class="ident">actix::fut</span>;
-<span class="kw">use</span> <span class="ident">actix::prelude</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">futures::compat::Future01CompatExt</span>;
-<span class="kw">use</span> <span class="ident">futures01::future</span>;
-<span class="kw">use</span> <span class="ident">futures01::prelude</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">tokio::sync::watch</span>;
+<span class="kw">use </span>actix::actors::signal;
+<span class="kw">use </span>actix::fut;
+<span class="kw">use </span>actix::prelude::<span class="kw-2">*</span>;
+<span class="kw">use </span>futures::compat::Future01CompatExt;
+<span class="kw">use </span>futures01::future;
+<span class="kw">use </span>futures01::prelude::<span class="kw-2">*</span>;
+<span class="kw">use </span>tokio::sync::watch;
 
-<span class="attribute">#[<span class="ident">doc</span>(<span class="ident">inline</span>)]</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">actix::actors::signal</span>::{<span class="ident">Signal</span>, <span class="ident">SignalType</span>};
+<span class="attribute">#[doc(inline)]
+</span><span class="kw">pub use </span>actix::actors::signal::{Signal, SignalType};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::compat</span>;
+<span class="kw">use </span><span class="kw">crate</span>::compat;
 
-<span class="doccomment">/// Actor to start and gracefully stop an actix system.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This actor contains a static `run` method which will run an actix system and block the current</span>
-<span class="doccomment">/// thread until the system shuts down again.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This actor starts with default configuration. To change this configuration, send the</span>
-<span class="doccomment">/// [`Configure`] message.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// To shut down more gracefully, other actors can register with the [`Subscribe`] message. When a</span>
-<span class="doccomment">/// shutdown signal is sent to the process, they will receive a [`Shutdown`] message with an</span>
-<span class="doccomment">/// optional timeout. They can respond with a future, after which they will be stopped. Once all</span>
-<span class="doccomment">/// registered actors have stopped successfully, the entire system will stop.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ### Example</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">/// use actix::prelude::*;</span>
-<span class="doccomment">/// use relay_system::{Controller, Shutdown};</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// struct MyActor;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// impl Actor for MyActor {</span>
-<span class="doccomment">///     type Context = Context&lt;Self&gt;;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">///     fn started(&amp;mut self, context: &amp;mut Self::Context) {</span>
-<span class="doccomment">///         Controller::subscribe(context.address());</span>
-<span class="doccomment">///     }</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// impl Handler&lt;Shutdown&gt; for MyActor {</span>
-<span class="doccomment">///     type Result = Result&lt;(), ()&gt;;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">///     fn handle(&amp;mut self, message: Shutdown, _context: &amp;mut Self::Context) -&gt; Self::Result {</span>
-<span class="doccomment">///         // Implement custom logic here</span>
-<span class="doccomment">///         Ok(())</span>
-<span class="doccomment">///     }</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">///</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Controller::run(|| -&gt; Result&lt;(), ()&gt; {</span>
-<span class="doccomment">///     MyActor.start();</span>
-<span class="doccomment">///     # System::current().stop();</span>
-<span class="doccomment">///     Ok(())</span>
-<span class="doccomment">/// }).unwrap();</span>
-<span class="doccomment">/// ```</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Controller</span> {
-    <span class="doccomment">/// Configured timeout for graceful shutdowns.</span>
-    <span class="ident">timeout</span>: <span class="ident">Duration</span>,
-    <span class="doccomment">/// Subscribed actors for the shutdown message.</span>
-    <span class="ident">subscribers</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Recipient</span><span class="op">&lt;</span><span class="ident">Shutdown</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// Handed out to actors who wish to subscribe to the [`Shutdown`] message.</span>
-    <span class="ident">shutdown_receiver</span>: <span class="ident">watch::Receiver</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Shutdown</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// The sender for the [`Shutdown`] message.</span>
-    <span class="ident">shutdown_sender</span>: <span class="ident">watch::Sender</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Shutdown</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Actor to start and gracefully stop an actix system.
+///
+/// This actor contains a static `run` method which will run an actix system and block the current
+/// thread until the system shuts down again.
+///
+/// This actor starts with default configuration. To change this configuration, send the
+/// [`Configure`] message.
+///
+/// To shut down more gracefully, other actors can register with the [`Subscribe`] message. When a
+/// shutdown signal is sent to the process, they will receive a [`Shutdown`] message with an
+/// optional timeout. They can respond with a future, after which they will be stopped. Once all
+/// registered actors have stopped successfully, the entire system will stop.
+///
+/// ### Example
+///
+/// ```
+/// use actix::prelude::*;
+/// use relay_system::{Controller, Shutdown};
+///
+/// struct MyActor;
+///
+/// impl Actor for MyActor {
+///     type Context = Context&lt;Self&gt;;
+///
+///     fn started(&amp;mut self, context: &amp;mut Self::Context) {
+///         Controller::subscribe(context.address());
+///     }
+/// }
+///
+/// impl Handler&lt;Shutdown&gt; for MyActor {
+///     type Result = Result&lt;(), ()&gt;;
+///
+///     fn handle(&amp;mut self, message: Shutdown, _context: &amp;mut Self::Context) -&gt; Self::Result {
+///         // Implement custom logic here
+///         Ok(())
+///     }
+/// }
+///
+///
+/// Controller::run(|| -&gt; Result&lt;(), ()&gt; {
+///     MyActor.start();
+///     # System::current().stop();
+///     Ok(())
+/// }).unwrap();
+/// ```
+</span><span class="kw">pub struct </span>Controller {
+    <span class="doccomment">/// Configured timeout for graceful shutdowns.
+    </span>timeout: Duration,
+    <span class="doccomment">/// Subscribed actors for the shutdown message.
+    </span>subscribers: Vec&lt;Recipient&lt;Shutdown&gt;&gt;,
+    <span class="doccomment">/// Handed out to actors who wish to subscribe to the [`Shutdown`] message.
+    </span>shutdown_receiver: watch::Receiver&lt;<span class="prelude-ty">Option</span>&lt;Shutdown&gt;&gt;,
+    <span class="doccomment">/// The sender for the [`Shutdown`] message.
+    </span>shutdown_sender: watch::Sender&lt;<span class="prelude-ty">Option</span>&lt;Shutdown&gt;&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">Controller</span> {
-    <span class="doccomment">/// Get actor&#39;s address from system registry.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_registry</span>() -&gt; <span class="ident">Addr</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="ident">SystemService::from_registry</span>()
+<span class="kw">impl </span>Controller {
+    <span class="doccomment">/// Get actor&#39;s address from system registry.
+    </span><span class="kw">pub fn </span>from_registry() -&gt; Addr&lt;<span class="self">Self</span>&gt; {
+        SystemService::from_registry()
     }
 
-    <span class="doccomment">/// Starts an actix system and runs the `factory` to start actors.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The factory may be used to start actors in the actix system before it runs. If the factory</span>
-    <span class="doccomment">/// returns an error, the actix system is not started and instead an error returned. Otherwise,</span>
-    <span class="doccomment">/// the system blocks the current thread until a shutdown signal is sent to the server and all</span>
-    <span class="doccomment">/// actors have completed a graceful shutdown.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">run</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">R</span>, <span class="ident">E</span><span class="op">&gt;</span>(<span class="ident">factory</span>: <span class="ident">F</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">E</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">F</span>: <span class="ident">FnOnce</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">R</span>, <span class="ident">E</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Starts an actix system and runs the `factory` to start actors.
+    ///
+    /// The factory may be used to start actors in the actix system before it runs. If the factory
+    /// returns an error, the actix system is not started and instead an error returned. Otherwise,
+    /// the system blocks the current thread until a shutdown signal is sent to the server and all
+    /// actors have completed a graceful shutdown.
+    </span><span class="kw">pub fn </span>run&lt;F, R, E&gt;(factory: F) -&gt; <span class="prelude-ty">Result</span>&lt;(), E&gt;
+    <span class="kw">where
+        </span>F: FnOnce() -&gt; <span class="prelude-ty">Result</span>&lt;R, E&gt;,
     {
-        <span class="kw">let</span> <span class="ident">sys</span> <span class="op">=</span> <span class="ident">System::new</span>(<span class="string">&quot;relay&quot;</span>);
+        <span class="kw">let </span>sys = System::new(<span class="string">&quot;relay&quot;</span>);
 
-        <span class="ident">compat::init</span>();
+        compat::init();
 
-        <span class="comment">// Run the factory and exit early if an error happens. The return value of the factory is</span>
-        <span class="comment">// discarded for convenience, to allow shorthand notations.</span>
-        <span class="ident">factory</span>()<span class="question-mark">?</span>;
+        <span class="comment">// Run the factory and exit early if an error happens. The return value of the factory is
+        // discarded for convenience, to allow shorthand notations.
+        </span>factory()<span class="question-mark">?</span>;
 
-        <span class="comment">// Ensure that the controller starts if no actor has started it yet. It will register with</span>
-        <span class="comment">// `ProcessSignals` shut down even if no actors have subscribed. If we remove this line, the</span>
-        <span class="comment">// controller will not be instantiated and our system will not listen for signals.</span>
-        <span class="ident">Controller::from_registry</span>();
+        <span class="comment">// Ensure that the controller starts if no actor has started it yet. It will register with
+        // `ProcessSignals` shut down even if no actors have subscribed. If we remove this line, the
+        // controller will not be instantiated and our system will not listen for signals.
+        </span>Controller::from_registry();
 
-        <span class="comment">// All actors have started successfully. Run the system, which blocks the current thread</span>
-        <span class="comment">// until a signal arrives or `Controller::stop` is called.</span>
-        <span class="macro">relay_log::info!</span>(<span class="string">&quot;relay server starting&quot;</span>);
-        <span class="ident">sys</span>.<span class="ident">run</span>();
+        <span class="comment">// All actors have started successfully. Run the system, which blocks the current thread
+        // until a signal arrives or `Controller::stop` is called.
+        </span><span class="macro">relay_log::info!</span>(<span class="string">&quot;relay server starting&quot;</span>);
+        sys.run();
         <span class="macro">relay_log::info!</span>(<span class="string">&quot;relay shutdown complete&quot;</span>);
 
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="doccomment">/// Subscribes the provided actor to the [`Shutdown`] signal of the system controller.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">subscribe</span><span class="op">&lt;</span><span class="ident">A</span><span class="op">&gt;</span>(<span class="ident">addr</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">A</span><span class="op">&gt;</span>)
-    <span class="kw">where</span>
-        <span class="ident">A</span>: <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">Shutdown</span><span class="op">&gt;</span>,
-        <span class="ident">A::Context</span>: <span class="ident">actix::dev::ToEnvelope</span><span class="op">&lt;</span><span class="ident">A</span>, <span class="ident">Shutdown</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Subscribes the provided actor to the [`Shutdown`] signal of the system controller.
+    </span><span class="kw">pub fn </span>subscribe&lt;A&gt;(addr: Addr&lt;A&gt;)
+    <span class="kw">where
+        </span>A: Handler&lt;Shutdown&gt;,
+        A::Context: actix::dev::ToEnvelope&lt;A, Shutdown&gt;,
     {
-        <span class="ident">Controller::from_registry</span>().<span class="ident">do_send</span>(<span class="ident">Subscribe</span>(<span class="ident">addr</span>.<span class="ident">recipient</span>()))
+        Controller::from_registry().do_send(Subscribe(addr.recipient()))
     }
 
-    <span class="doccomment">/// Subscribes to the [`Shutdown`] message to handle graceful shutdown.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Returns a receiver for the [`Shutdown`] message, to be used to gracefully</span>
-    <span class="doccomment">/// shutdown.  This sends a message to the [`Controller`] actor so will</span>
-    <span class="doccomment">/// block until this actor is running.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// TODO(tobias): The receiver of this message can not yet signal they have completed</span>
-    <span class="doccomment">/// shutdown.</span>
-    <span class="kw">pub</span> <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">subscribe_v2</span>() -&gt; <span class="ident">watch::Receiver</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Shutdown</span><span class="op">&gt;</span><span class="op">&gt;</span> {
-        <span class="ident">Controller::from_registry</span>()
-            .<span class="ident">send</span>(<span class="ident">SubscribeV2</span>())
-            .<span class="ident">compat</span>()
-            .<span class="kw">await</span>
-            .<span class="ident">unwrap</span>() <span class="comment">// FIXME: Remove this later</span>
-    }
+    <span class="doccomment">/// Subscribes to the [`Shutdown`] message to handle graceful shutdown.
+    ///
+    /// Returns a receiver for the [`Shutdown`] message, to be used to gracefully
+    /// shutdown.  This sends a message to the [`Controller`] actor so will
+    /// block until this actor is running.
+    ///
+    /// TODO(tobias): The receiver of this message can not yet signal they have completed
+    /// shutdown.
+    </span><span class="kw">pub async fn </span>subscribe_v2() -&gt; watch::Receiver&lt;<span class="prelude-ty">Option</span>&lt;Shutdown&gt;&gt; {
+        Controller::from_registry()
+            .send(SubscribeV2())
+            .compat()
+            .<span class="kw">await
+            </span>.unwrap() <span class="comment">// FIXME: Remove this later
+    </span>}
 
-    <span class="doccomment">/// Performs a graceful shutdown with the given timeout.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This sends a `Shutdown` message to all subscribed actors and waits for them to finish. As</span>
-    <span class="doccomment">/// soon as all actors have completed, `Controller::stop` is called.</span>
-    <span class="kw">fn</span> <span class="ident">shutdown</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">context</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>, <span class="ident">timeout</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Duration</span><span class="op">&gt;</span>) {
-        <span class="comment">// Send a shutdown signal to all registered subscribers (including self). They will report</span>
-        <span class="comment">// when the shutdown has completed. Note that we ignore all errors to make sure that we</span>
-        <span class="comment">// don&#39;t cancel the shutdown of other actors if one actor fails.</span>
-        <span class="self">self</span>.<span class="ident">shutdown_sender</span>.<span class="ident">send</span>(<span class="prelude-val">Some</span>(<span class="ident">Shutdown</span> { <span class="ident">timeout</span> })).<span class="ident">ok</span>();
+    <span class="doccomment">/// Performs a graceful shutdown with the given timeout.
+    ///
+    /// This sends a `Shutdown` message to all subscribed actors and waits for them to finish. As
+    /// soon as all actors have completed, `Controller::stop` is called.
+    </span><span class="kw">fn </span>shutdown(<span class="kw-2">&amp;mut </span><span class="self">self</span>, context: <span class="kw-2">&amp;mut </span>Context&lt;<span class="self">Self</span>&gt;, timeout: <span class="prelude-ty">Option</span>&lt;Duration&gt;) {
+        <span class="comment">// Send a shutdown signal to all registered subscribers (including self). They will report
+        // when the shutdown has completed. Note that we ignore all errors to make sure that we
+        // don&#39;t cancel the shutdown of other actors if one actor fails.
+        </span><span class="self">self</span>.shutdown_sender.send(<span class="prelude-val">Some</span>(Shutdown { timeout })).ok();
 
-        <span class="kw">let</span> <span class="ident">futures</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="self">self</span>
-            .<span class="ident">subscribers</span>
-            .<span class="ident">iter</span>()
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">recipient</span><span class="op">|</span> <span class="ident">recipient</span>.<span class="ident">send</span>(<span class="ident">Shutdown</span> { <span class="ident">timeout</span> }))
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">future</span><span class="op">|</span> <span class="ident">future</span>.<span class="ident">then</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="prelude-val">Ok</span>(())))
-            .<span class="ident">collect</span>();
+        <span class="kw">let </span>futures: Vec&lt;<span class="kw">_</span>&gt; = <span class="self">self
+            </span>.subscribers
+            .iter()
+            .map(|recipient| recipient.send(Shutdown { timeout }))
+            .map(|future| future.then(|<span class="kw">_</span>| <span class="prelude-val">Ok</span>(())))
+            .collect();
 
-        <span class="ident">future::join_all</span>(<span class="ident">futures</span>)
-            .<span class="ident">into_actor</span>(<span class="self">self</span>)
-            .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span><span class="kw">_</span>, <span class="kw">_</span>, <span class="ident">ctx</span><span class="op">|</span> {
-                <span class="comment">// Once all shutdowns have completed, we can schedule a stop of the actix system. It is</span>
-                <span class="comment">// performed with a slight delay to give pending synced futures a chance to perform their</span>
-                <span class="comment">// error handlers.</span>
-                <span class="comment">//</span>
-                <span class="comment">// Delay the shutdown for 100ms to allow synchronized futures to execute their error</span>
-                <span class="comment">// handlers. Once `System::stop` is called, futures won&#39;t be polled anymore and we will not</span>
-                <span class="comment">// be able to print error messages.</span>
-                <span class="kw">let</span> <span class="ident">when</span> <span class="op">=</span>
-                    <span class="ident">timeout</span>.<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Duration::from_secs</span>(<span class="number">0</span>)) <span class="op">+</span> <span class="ident">Duration::from_millis</span>(<span class="number">100</span>);
+        future::join_all(futures)
+            .into_actor(<span class="self">self</span>)
+            .and_then(<span class="kw">move </span>|<span class="kw">_</span>, <span class="kw">_</span>, ctx| {
+                <span class="comment">// Once all shutdowns have completed, we can schedule a stop of the actix system. It is
+                // performed with a slight delay to give pending synced futures a chance to perform their
+                // error handlers.
+                //
+                // Delay the shutdown for 100ms to allow synchronized futures to execute their error
+                // handlers. Once `System::stop` is called, futures won&#39;t be polled anymore and we will not
+                // be able to print error messages.
+                </span><span class="kw">let </span>when =
+                    timeout.unwrap_or_else(|| Duration::from_secs(<span class="number">0</span>)) + Duration::from_millis(<span class="number">100</span>);
 
-                <span class="ident">ctx</span>.<span class="ident">run_later</span>(<span class="ident">when</span>, <span class="op">|</span><span class="kw">_</span>, <span class="kw">_</span><span class="op">|</span> {
-                    <span class="ident">System::current</span>().<span class="ident">stop</span>();
+                ctx.run_later(when, |<span class="kw">_</span>, <span class="kw">_</span>| {
+                    System::current().stop();
                 });
-                <span class="ident">fut::ok</span>(())
+                fut::ok(())
             })
-            .<span class="ident">spawn</span>(<span class="ident">context</span>);
+            .spawn(context);
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">Controller</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
-        <span class="kw">let</span> (<span class="ident">shutdown_sender</span>, <span class="ident">shutdown_receiver</span>) <span class="op">=</span> <span class="ident">watch::channel</span>(<span class="prelude-val">None</span>);
+<span class="kw">impl </span>Default <span class="kw">for </span>Controller {
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>(shutdown_sender, shutdown_receiver) = watch::channel(<span class="prelude-val">None</span>);
 
-        <span class="ident">Controller</span> {
-            <span class="ident">timeout</span>: <span class="ident">Duration::from_secs</span>(<span class="number">0</span>),
-            <span class="ident">subscribers</span>: <span class="ident">Vec::new</span>(),
-            <span class="ident">shutdown_receiver</span>,
-            <span class="ident">shutdown_sender</span>,
+        Controller {
+            timeout: Duration::from_secs(<span class="number">0</span>),
+            subscribers: Vec::new(),
+            shutdown_receiver,
+            shutdown_sender,
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">Controller</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="ident">f</span>.<span class="ident">debug_struct</span>(<span class="string">&quot;Controller&quot;</span>)
-            .<span class="ident">field</span>(<span class="string">&quot;timeout&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">timeout</span>)
-            .<span class="ident">field</span>(<span class="string">&quot;subscribers&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">subscribers</span>.<span class="ident">len</span>())
-            .<span class="ident">finish</span>()
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Controller {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        f.debug_struct(<span class="string">&quot;Controller&quot;</span>)
+            .field(<span class="string">&quot;timeout&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.timeout)
+            .field(<span class="string">&quot;subscribers&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.subscribers.len())
+            .finish()
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Actor</span> <span class="kw">for</span> <span class="ident">Controller</span> {
-    <span class="kw">type</span> <span class="ident">Context</span> <span class="op">=</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>;
+<span class="kw">impl </span>Actor <span class="kw">for </span>Controller {
+    <span class="kw">type </span>Context = Context&lt;<span class="self">Self</span>&gt;;
 
-    <span class="kw">fn</span> <span class="ident">started</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">context</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) {
-        <span class="ident">signal::ProcessSignals::from_registry</span>()
-            .<span class="ident">do_send</span>(<span class="ident">signal::Subscribe</span>(<span class="ident">context</span>.<span class="ident">address</span>().<span class="ident">recipient</span>()));
+    <span class="kw">fn </span>started(<span class="kw-2">&amp;mut </span><span class="self">self</span>, context: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) {
+        signal::ProcessSignals::from_registry()
+            .do_send(signal::Subscribe(context.address().recipient()));
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Supervised</span> <span class="kw">for</span> <span class="ident">Controller</span> {}
+<span class="kw">impl </span>Supervised <span class="kw">for </span>Controller {}
 
-<span class="kw">impl</span> <span class="ident">SystemService</span> <span class="kw">for</span> <span class="ident">Controller</span> {}
+<span class="kw">impl </span>SystemService <span class="kw">for </span>Controller {}
 
-<span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">signal::Signal</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Controller</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
+<span class="kw">impl </span>Handler&lt;signal::Signal&gt; <span class="kw">for </span>Controller {
+    <span class="kw">type </span><span class="prelude-ty">Result </span>= ();
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">signal::Signal</span>, <span class="ident">context</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
-        <span class="kw">match</span> <span class="ident">message</span>.<span class="number">0</span> {
-            <span class="ident">signal::SignalType::Int</span> =&gt; {
+    <span class="kw">fn </span>handle(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: signal::Signal, context: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) -&gt; <span class="self">Self</span>::Result {
+        <span class="kw">match </span>message.<span class="number">0 </span>{
+            signal::SignalType::Int =&gt; {
                 <span class="macro">relay_log::info!</span>(<span class="string">&quot;SIGINT received, exiting&quot;</span>);
-                <span class="self">self</span>.<span class="ident">shutdown</span>(<span class="ident">context</span>, <span class="prelude-val">None</span>);
+                <span class="self">self</span>.shutdown(context, <span class="prelude-val">None</span>);
             }
-            <span class="ident">signal::SignalType::Quit</span> =&gt; {
+            signal::SignalType::Quit =&gt; {
                 <span class="macro">relay_log::info!</span>(<span class="string">&quot;SIGQUIT received, exiting&quot;</span>);
-                <span class="self">self</span>.<span class="ident">shutdown</span>(<span class="ident">context</span>, <span class="prelude-val">None</span>);
+                <span class="self">self</span>.shutdown(context, <span class="prelude-val">None</span>);
             }
-            <span class="ident">signal::SignalType::Term</span> =&gt; {
-                <span class="kw">let</span> <span class="ident">timeout</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">timeout</span>;
-                <span class="macro">relay_log::info!</span>(<span class="string">&quot;SIGTERM received, stopping in {}s&quot;</span>, <span class="ident">timeout</span>.<span class="ident">as_secs</span>());
-                <span class="self">self</span>.<span class="ident">shutdown</span>(<span class="ident">context</span>, <span class="prelude-val">Some</span>(<span class="ident">timeout</span>));
+            signal::SignalType::Term =&gt; {
+                <span class="kw">let </span>timeout = <span class="self">self</span>.timeout;
+                <span class="macro">relay_log::info!</span>(<span class="string">&quot;SIGTERM received, stopping in {}s&quot;</span>, timeout.as_secs());
+                <span class="self">self</span>.shutdown(context, <span class="prelude-val">Some</span>(timeout));
             }
-            <span class="kw">_</span> =&gt; (),
+            <span class="kw">_ </span>=&gt; (),
         }
     }
 }
 
-<span class="doccomment">/// Configures the [`Controller`] with new parameters.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Configure</span> {
-    <span class="doccomment">/// The maximum shutdown timeout before killing actors.</span>
-    <span class="kw">pub</span> <span class="ident">shutdown_timeout</span>: <span class="ident">Duration</span>,
+<span class="doccomment">/// Configures the [`Controller`] with new parameters.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>Configure {
+    <span class="doccomment">/// The maximum shutdown timeout before killing actors.
+    </span><span class="kw">pub </span>shutdown_timeout: Duration,
 }
 
-<span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">Configure</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
+<span class="kw">impl </span>Message <span class="kw">for </span>Configure {
+    <span class="kw">type </span><span class="prelude-ty">Result </span>= ();
 }
 
-<span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">Configure</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Controller</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
+<span class="kw">impl </span>Handler&lt;Configure&gt; <span class="kw">for </span>Controller {
+    <span class="kw">type </span><span class="prelude-ty">Result </span>= ();
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">Configure</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
-        <span class="self">self</span>.<span class="ident">timeout</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">shutdown_timeout</span>;
+    <span class="kw">fn </span>handle(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: Configure, _context: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) -&gt; <span class="self">Self</span>::Result {
+        <span class="self">self</span>.timeout = message.shutdown_timeout;
     }
 }
 
-<span class="doccomment">/// Subscribtion message for [`Shutdown`] events.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Subscribe</span>(<span class="kw">pub</span> <span class="ident">Recipient</span><span class="op">&lt;</span><span class="ident">Shutdown</span><span class="op">&gt;</span>);
+<span class="doccomment">/// Subscribtion message for [`Shutdown`] events.
+</span><span class="kw">pub struct </span>Subscribe(<span class="kw">pub </span>Recipient&lt;Shutdown&gt;);
 
-<span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">Subscribe</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;Subscribe(Shutdown)&quot;</span>)
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Subscribe {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;Subscribe(Shutdown)&quot;</span>)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">Subscribe</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
+<span class="kw">impl </span>Message <span class="kw">for </span>Subscribe {
+    <span class="kw">type </span><span class="prelude-ty">Result </span>= ();
 }
 
-<span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">Subscribe</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Controller</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
+<span class="kw">impl </span>Handler&lt;Subscribe&gt; <span class="kw">for </span>Controller {
+    <span class="kw">type </span><span class="prelude-ty">Result </span>= ();
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">Subscribe</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
-        <span class="self">self</span>.<span class="ident">subscribers</span>.<span class="ident">push</span>(<span class="ident">message</span>.<span class="number">0</span>)
+    <span class="kw">fn </span>handle(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: Subscribe, _context: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) -&gt; <span class="self">Self</span>::Result {
+        <span class="self">self</span>.subscribers.push(message.<span class="number">0</span>)
     }
 }
 
-<span class="doccomment">/// Internal message to handle subscribing to the [`Shutdown`] message.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SubscribeV2</span>();
+<span class="doccomment">/// Internal message to handle subscribing to the [`Shutdown`] message.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>SubscribeV2();
 
-<span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">SubscribeV2</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">watch::Receiver</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Shutdown</span><span class="op">&gt;</span><span class="op">&gt;</span>;
+<span class="kw">impl </span>Message <span class="kw">for </span>SubscribeV2 {
+    <span class="kw">type </span><span class="prelude-ty">Result </span>= watch::Receiver&lt;<span class="prelude-ty">Option</span>&lt;Shutdown&gt;&gt;;
 }
 
-<span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">SubscribeV2</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Controller</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">MessageResult</span><span class="op">&lt;</span><span class="ident">SubscribeV2</span><span class="op">&gt;</span>;
+<span class="kw">impl </span>Handler&lt;SubscribeV2&gt; <span class="kw">for </span>Controller {
+    <span class="kw">type </span><span class="prelude-ty">Result </span>= MessageResult&lt;SubscribeV2&gt;;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="kw">_</span>: <span class="ident">SubscribeV2</span>, <span class="kw">_</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
-        <span class="ident">MessageResult</span>(<span class="self">self</span>.<span class="ident">shutdown_receiver</span>.<span class="ident">clone</span>())
+    <span class="kw">fn </span>handle(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw">_</span>: SubscribeV2, <span class="kw">_</span>: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) -&gt; <span class="self">Self</span>::Result {
+        MessageResult(<span class="self">self</span>.shutdown_receiver.clone())
     }
 }
 
-<span class="doccomment">/// Shutdown request message sent by the [`Controller`] to subscribed actors.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// A handler has to ensure that it doesn&#39;t take longer than `timeout` to resolve the future.</span>
-<span class="doccomment">/// Ideally, open work is persisted or finished in an orderly manner but no new requests are</span>
-<span class="doccomment">/// accepted anymore.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// After the timeout the system will shut down regardless of what the receivers of this message</span>
-<span class="doccomment">/// do.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The return value is fully ignored. It is only `Result` such that futures can be executed inside</span>
-<span class="doccomment">/// a handler.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Shutdown</span> {
-    <span class="doccomment">/// The timeout for this shutdown. `None` indicates an immediate forced shutdown.</span>
-    <span class="kw">pub</span> <span class="ident">timeout</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Duration</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Shutdown request message sent by the [`Controller`] to subscribed actors.
+///
+/// A handler has to ensure that it doesn&#39;t take longer than `timeout` to resolve the future.
+/// Ideally, open work is persisted or finished in an orderly manner but no new requests are
+/// accepted anymore.
+///
+/// After the timeout the system will shut down regardless of what the receivers of this message
+/// do.
+///
+/// The return value is fully ignored. It is only `Result` such that futures can be executed inside
+/// a handler.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>Shutdown {
+    <span class="doccomment">/// The timeout for this shutdown. `None` indicates an immediate forced shutdown.
+    </span><span class="kw">pub </span>timeout: <span class="prelude-ty">Option</span>&lt;Duration&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">Shutdown</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span>;
+<span class="kw">impl </span>Message <span class="kw">for </span>Shutdown {
+    <span class="kw">type </span><span class="prelude-ty">Result </span>= <span class="prelude-ty">Result</span>&lt;(), ()&gt;;
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_system" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_system" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

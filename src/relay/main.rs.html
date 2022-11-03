@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay/src/main.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>main.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay/src/main.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>main.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -114,119 +114,119 @@
 <span id="112">112</span>
 <span id="113">113</span>
 <span id="114">114</span>
-</pre><pre class="rust"><code><span class="doccomment">//! &lt;p align=&quot;center&quot;&gt;</span>
-<span class="doccomment">//!   &lt;img src=&quot;https://github.com/getsentry/relay/blob/master/artwork/relay-logo.png?raw=true&quot; alt=&quot;Relay&quot; width=&quot;480&quot;&gt;</span>
-<span class="doccomment">//! &lt;/p&gt;</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Relay is a standalone service for scrubbing personal information and improving event submission</span>
-<span class="doccomment">//! response time. It acts as a middle layer between your application and Sentry.io. For information</span>
-<span class="doccomment">//! on setting up Relay in front of Sentry, see:</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! [Relay documentation]</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! # Event Ingestion</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Relay is also the primary event ingestion system at Sentry. When compiled with the `processing`</span>
-<span class="doccomment">//! feature and configured for ingestion, Relay ships functionality for:</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//!  - Acknowledging and handling web requests on store endpoints</span>
-<span class="doccomment">//!  - Applying rate limits and inbound data filters</span>
-<span class="doccomment">//!  - Data scrubbing of event payloads and attachments</span>
-<span class="doccomment">//!  - Validation and normalization of malformed or outdated data</span>
-<span class="doccomment">//!  - Forwarding of all information into the event processing pipeline</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! # Feature Flags</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! - `ssl` _(default)_: Enables SSL support using `native-tls`.</span>
-<span class="doccomment">//! - `processing`: Includes event ingestion and processing functionality. This should only be</span>
-<span class="doccomment">//!   specified when compiling Relay as Sentry service. Standalone Relays do not need this feature.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! # Workspace Crates</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Relay is split into the following workspace crates:</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//!  - `relay`: Main entry point and command line interface.</span>
-<span class="doccomment">//!  - [`relay-auth`]: Authentication and crypto.</span>
-<span class="doccomment">//!  - [`relay-aws-extension`]: AWS extension implementation for Sentry&#39;s AWS Lambda layer.</span>
-<span class="doccomment">//!  - [`relay-cabi`]: C-bindings for exposing functionality to Python.</span>
-<span class="doccomment">//!  - [`relay-common`]: Common utilities and crate re-exports.</span>
-<span class="doccomment">//!  - [`relay-config`]: Configuration for the CLI and server.</span>
-<span class="doccomment">//!  - [`relay-crash`]: Crash reporting for the Relay server.</span>
-<span class="doccomment">//!  - [`relay-ffi`]: Utilities for error handling in FFI bindings.</span>
-<span class="doccomment">//!  - [`relay-ffi-macros`]: Macros for error handling in FFI bindings.</span>
-<span class="doccomment">//!  - [`relay-filter`]: Inbound data filters.</span>
-<span class="doccomment">//!  - [`relay-general`]: Event protocol, normalization and data scrubbing.</span>
-<span class="doccomment">//!  - [`relay-log`]: Error reporting and logging.</span>
-<span class="doccomment">//!  - [`relay-metrics`]: Metrics protocol and processing.</span>
-<span class="doccomment">//!  - [`relay-quotas`]: Sentry quotas and rate limiting.</span>
-<span class="doccomment">//!  - [`relay-redis`]: Pooled Redis and Redis cluster abstraction.</span>
-<span class="doccomment">//!  - [`relay-sampling`]: Dynamic sampling functionality.</span>
-<span class="doccomment">//!  - [`relay-statsd`]: High-level StatsD metric client for internal measurements.</span>
-<span class="doccomment">//!  - [`relay-server`]: Endpoints and services.</span>
-<span class="doccomment">//!  - [`relay-system`]: Foundational system components for Relay&#39;s services.</span>
-<span class="doccomment">//!  - [`relay-test`]: Helpers for testing the web server and services.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! # Tools</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Complementary to the Relay binary, the workspace contains a set of tools to interface with some</span>
-<span class="doccomment">//! of Relay&#39;s functionality or to export information:</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//!  - [`document-metrics`]: Generate documentation for metrics.</span>
-<span class="doccomment">//!  - [`generate-schema`]: Generate an event payload schema file.</span>
-<span class="doccomment">//!  - [`process-event`]: Process a Sentry event payload.</span>
-<span class="doccomment">//!  - [`scrub-minidump`]: Scrub PII from a Minidump file.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! [relay documentation]: https://docs.sentry.io/product/relay/</span>
-<span class="doccomment">//! [`relay-auth`]: ../relay_auth/index.html</span>
-<span class="doccomment">//! [`relay-aws-extension`]: ../relay_aws_extension/index.html</span>
-<span class="doccomment">//! [`relay-cabi`]: ../relay_cabi/index.html</span>
-<span class="doccomment">//! [`relay-common`]: ../relay_common/index.html</span>
-<span class="doccomment">//! [`relay-config`]: ../relay_config/index.html</span>
-<span class="doccomment">//! [`relay-crash`]: ../relay_crash/index.html</span>
-<span class="doccomment">//! [`relay-ffi`]: ../relay_ffi/index.html</span>
-<span class="doccomment">//! [`relay-ffi-macros`]: ../relay_ffi_macros/index.html</span>
-<span class="doccomment">//! [`relay-filter`]: ../relay_filter/index.html</span>
-<span class="doccomment">//! [`relay-general`]: ../relay_general/index.html</span>
-<span class="doccomment">//! [`relay-log`]: ../relay_log/index.html</span>
-<span class="doccomment">//! [`relay-metrics`]: ../relay_metrics/index.html</span>
-<span class="doccomment">//! [`relay-quotas`]: ../relay_quotas/index.html</span>
-<span class="doccomment">//! [`relay-redis`]: ../relay_redis/index.html</span>
-<span class="doccomment">//! [`relay-sampling`]: ../relay_sampling/index.html</span>
-<span class="doccomment">//! [`relay-statsd`]: ../relay_statsd/index.html</span>
-<span class="doccomment">//! [`relay-server`]: ../relay_server/index.html</span>
-<span class="doccomment">//! [`relay-system`]: ../relay_system/index.html</span>
-<span class="doccomment">//! [`relay-test`]: ../relay_test/index.html</span>
-<span class="doccomment">//! [`document-metrics`]: ../document_metrics/index.html</span>
-<span class="doccomment">//! [`generate-schema`]: ../generate_schema/index.html</span>
-<span class="doccomment">//! [`process-event`]: ../process_event/index.html</span>
-<span class="doccomment">//! [`scrub-minidump`]: ../scrub_minidump/index.html</span>
+</pre><pre class="rust"><code><span class="doccomment">//! &lt;p align=&quot;center&quot;&gt;
+//!   &lt;img src=&quot;https://github.com/getsentry/relay/blob/master/artwork/relay-logo.png?raw=true&quot; alt=&quot;Relay&quot; width=&quot;480&quot;&gt;
+//! &lt;/p&gt;
+//!
+//! Relay is a standalone service for scrubbing personal information and improving event submission
+//! response time. It acts as a middle layer between your application and Sentry.io. For information
+//! on setting up Relay in front of Sentry, see:
+//!
+//! [Relay documentation]
+//!
+//! # Event Ingestion
+//!
+//! Relay is also the primary event ingestion system at Sentry. When compiled with the `processing`
+//! feature and configured for ingestion, Relay ships functionality for:
+//!
+//!  - Acknowledging and handling web requests on store endpoints
+//!  - Applying rate limits and inbound data filters
+//!  - Data scrubbing of event payloads and attachments
+//!  - Validation and normalization of malformed or outdated data
+//!  - Forwarding of all information into the event processing pipeline
+//!
+//! # Feature Flags
+//!
+//! - `ssl` _(default)_: Enables SSL support using `native-tls`.
+//! - `processing`: Includes event ingestion and processing functionality. This should only be
+//!   specified when compiling Relay as Sentry service. Standalone Relays do not need this feature.
+//!
+//! # Workspace Crates
+//!
+//! Relay is split into the following workspace crates:
+//!
+//!  - `relay`: Main entry point and command line interface.
+//!  - [`relay-auth`]: Authentication and crypto.
+//!  - [`relay-aws-extension`]: AWS extension implementation for Sentry&#39;s AWS Lambda layer.
+//!  - [`relay-cabi`]: C-bindings for exposing functionality to Python.
+//!  - [`relay-common`]: Common utilities and crate re-exports.
+//!  - [`relay-config`]: Configuration for the CLI and server.
+//!  - [`relay-crash`]: Crash reporting for the Relay server.
+//!  - [`relay-ffi`]: Utilities for error handling in FFI bindings.
+//!  - [`relay-ffi-macros`]: Macros for error handling in FFI bindings.
+//!  - [`relay-filter`]: Inbound data filters.
+//!  - [`relay-general`]: Event protocol, normalization and data scrubbing.
+//!  - [`relay-log`]: Error reporting and logging.
+//!  - [`relay-metrics`]: Metrics protocol and processing.
+//!  - [`relay-quotas`]: Sentry quotas and rate limiting.
+//!  - [`relay-redis`]: Pooled Redis and Redis cluster abstraction.
+//!  - [`relay-sampling`]: Dynamic sampling functionality.
+//!  - [`relay-statsd`]: High-level StatsD metric client for internal measurements.
+//!  - [`relay-server`]: Endpoints and services.
+//!  - [`relay-system`]: Foundational system components for Relay&#39;s services.
+//!  - [`relay-test`]: Helpers for testing the web server and services.
+//!
+//! # Tools
+//!
+//! Complementary to the Relay binary, the workspace contains a set of tools to interface with some
+//! of Relay&#39;s functionality or to export information:
+//!
+//!  - [`document-metrics`]: Generate documentation for metrics.
+//!  - [`generate-schema`]: Generate an event payload schema file.
+//!  - [`process-event`]: Process a Sentry event payload.
+//!  - [`scrub-minidump`]: Scrub PII from a Minidump file.
+//!
+//! [relay documentation]: https://docs.sentry.io/product/relay/
+//! [`relay-auth`]: ../relay_auth/index.html
+//! [`relay-aws-extension`]: ../relay_aws_extension/index.html
+//! [`relay-cabi`]: ../relay_cabi/index.html
+//! [`relay-common`]: ../relay_common/index.html
+//! [`relay-config`]: ../relay_config/index.html
+//! [`relay-crash`]: ../relay_crash/index.html
+//! [`relay-ffi`]: ../relay_ffi/index.html
+//! [`relay-ffi-macros`]: ../relay_ffi_macros/index.html
+//! [`relay-filter`]: ../relay_filter/index.html
+//! [`relay-general`]: ../relay_general/index.html
+//! [`relay-log`]: ../relay_log/index.html
+//! [`relay-metrics`]: ../relay_metrics/index.html
+//! [`relay-quotas`]: ../relay_quotas/index.html
+//! [`relay-redis`]: ../relay_redis/index.html
+//! [`relay-sampling`]: ../relay_sampling/index.html
+//! [`relay-statsd`]: ../relay_statsd/index.html
+//! [`relay-server`]: ../relay_server/index.html
+//! [`relay-system`]: ../relay_system/index.html
+//! [`relay-test`]: ../relay_test/index.html
+//! [`document-metrics`]: ../document_metrics/index.html
+//! [`generate-schema`]: ../generate_schema/index.html
+//! [`process-event`]: ../process_event/index.html
+//! [`scrub-minidump`]: ../scrub_minidump/index.html
 
-<span class="attribute">#![<span class="ident">doc</span>(
-    <span class="ident">html_logo_url</span> <span class="op">=</span> <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
-    <span class="ident">html_favicon_url</span> <span class="op">=</span> <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>
-)]</span>
-<span class="attribute">#![<span class="ident">allow</span>(<span class="ident">clippy::derive_partial_eq_without_eq</span>)]</span>
+</span><span class="attribute">#![doc(
+    html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
+    html_favicon_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;
+</span>)]
+#![allow(clippy::derive_partial_eq_without_eq)]
 
-<span class="kw">mod</span> <span class="ident">cli</span>;
-<span class="kw">mod</span> <span class="ident">cliapp</span>;
-<span class="kw">mod</span> <span class="ident">setup</span>;
-<span class="kw">mod</span> <span class="ident">utils</span>;
+</span><span class="kw">mod </span>cli;
+<span class="kw">mod </span>cliapp;
+<span class="kw">mod </span>setup;
+<span class="kw">mod </span>utils;
 
-<span class="kw">use</span> <span class="ident">std::process</span>;
+<span class="kw">use </span>std::process;
 
-<span class="kw">use</span> <span class="ident">relay_log::Hub</span>;
+<span class="kw">use </span>relay_log::Hub;
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">main</span>() {
-    <span class="kw">let</span> <span class="ident">exit_code</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">cli::execute</span>() {
+<span class="kw">pub fn </span>main() {
+    <span class="kw">let </span>exit_code = <span class="kw">match </span>cli::execute() {
         <span class="prelude-val">Ok</span>(()) =&gt; <span class="number">0</span>,
-        <span class="prelude-val">Err</span>(<span class="ident">err</span>) =&gt; {
-            <span class="ident">relay_log::ensure_error</span>(<span class="kw-2">&amp;</span><span class="ident">err</span>);
-            <span class="number">1</span>
-        }
+        <span class="prelude-val">Err</span>(err) =&gt; {
+            relay_log::ensure_error(<span class="kw-2">&amp;</span>err);
+            <span class="number">1
+        </span>}
     };
 
-    <span class="ident">Hub::current</span>().<span class="ident">client</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">close</span>(<span class="prelude-val">None</span>));
-    <span class="ident">process::exit</span>(<span class="ident">exit_code</span>);
+    Hub::current().client().map(|x| x.close(<span class="prelude-val">None</span>));
+    process::exit(exit_code);
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

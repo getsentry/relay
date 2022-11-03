@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/outcome.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>outcome.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/outcome.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>outcome.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_server/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -941,946 +941,946 @@
 <span id="939">939</span>
 <span id="940">940</span>
 <span id="941">941</span>
-</pre><pre class="rust"><code><span class="doccomment">//! This module contains the actor that tracks outcomes.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Outcomes describe the final &quot;fate&quot; of an envelope item. As such, for every item exactly one</span>
-<span class="doccomment">//! outcome must be emitted in the entire ingestion pipeline. Since Relay is only one part in this</span>
-<span class="doccomment">//! pipeline, outcomes may not be emitted if the item is accepted.</span>
+</pre><pre class="rust"><code><span class="doccomment">//! This module contains the actor that tracks outcomes.
+//!
+//! Outcomes describe the final &quot;fate&quot; of an envelope item. As such, for every item exactly one
+//! outcome must be emitted in the entire ingestion pipeline. Since Relay is only one part in this
+//! pipeline, outcomes may not be emitted if the item is accepted.
 
-<span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
-<span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
-<span class="kw">use</span> <span class="ident">std::convert::TryInto</span>;
-<span class="kw">use</span> <span class="ident">std::fmt</span>;
-<span class="kw">use</span> <span class="ident">std::mem</span>;
-<span class="kw">use</span> <span class="ident">std::net::IpAddr</span>;
-<span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
-<span class="kw">use</span> <span class="ident">std::time::Duration</span>;
+</span><span class="kw">use </span>std::borrow::Cow;
+<span class="kw">use </span>std::collections::BTreeMap;
+<span class="kw">use </span>std::convert::TryInto;
+<span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::mem;
+<span class="kw">use </span>std::net::IpAddr;
+<span class="kw">use </span>std::sync::Arc;
+<span class="kw">use </span>std::time::Duration;
 
-<span class="kw">use</span> <span class="ident">actix::prelude::SystemService</span>;
-<span class="kw">use</span> <span class="ident">actix_web::http::Method</span>;
-<span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">DateTime</span>, <span class="ident">SecondsFormat</span>, <span class="ident">Utc</span>};
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident">failure::Fail</span>;
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident">rdkafka::producer::BaseRecord</span>;
-<span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">Interface</span>, <span class="ident">NoResponse</span>};
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
+<span class="kw">use </span>actix::prelude::SystemService;
+<span class="kw">use </span>actix_web::http::Method;
+<span class="kw">use </span>chrono::{DateTime, SecondsFormat, Utc};
+<span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+</span><span class="kw">use </span>failure::Fail;
+<span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+</span><span class="kw">use </span>rdkafka::producer::BaseRecord;
+<span class="kw">use </span>relay_system::{Interface, NoResponse};
+<span class="kw">use </span>serde::{Deserialize, Serialize};
 
-<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">DataCategory</span>, <span class="ident">ProjectId</span>, <span class="ident">UnixTimestamp</span>};
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident">relay_config::KafkaTopic</span>;
-<span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">EmitOutcomes</span>};
-<span class="kw">use</span> <span class="ident">relay_filter::FilterStatKey</span>;
-<span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{<span class="ident">ClientReport</span>, <span class="ident">DiscardedEvent</span>, <span class="ident">EventId</span>};
-<span class="kw">use</span> <span class="ident">relay_log::LogError</span>;
-<span class="kw">use</span> <span class="ident">relay_quotas</span>::{<span class="ident">ReasonCode</span>, <span class="ident">Scoping</span>};
-<span class="kw">use</span> <span class="ident">relay_sampling::RuleId</span>;
-<span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
-<span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">compat</span>, <span class="ident">Addr</span>, <span class="ident">FromMessage</span>, <span class="ident">Service</span>};
+<span class="kw">use </span>relay_common::{DataCategory, ProjectId, UnixTimestamp};
+<span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+</span><span class="kw">use </span>relay_config::KafkaTopic;
+<span class="kw">use </span>relay_config::{Config, EmitOutcomes};
+<span class="kw">use </span>relay_filter::FilterStatKey;
+<span class="kw">use </span>relay_general::protocol::{ClientReport, DiscardedEvent, EventId};
+<span class="kw">use </span>relay_log::LogError;
+<span class="kw">use </span>relay_quotas::{ReasonCode, Scoping};
+<span class="kw">use </span>relay_sampling::RuleId;
+<span class="kw">use </span>relay_statsd::metric;
+<span class="kw">use </span>relay_system::{compat, Addr, FromMessage, Service};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::envelopes</span>::{<span class="ident">EnvelopeManager</span>, <span class="ident">SendClientReports</span>};
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::store</span>::{<span class="self">self</span>, <span class="ident">Producer</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::upstream</span>::{<span class="ident">SendQuery</span>, <span class="ident">UpstreamQuery</span>, <span class="ident">UpstreamRelay</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service::REGISTRY</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd::RelayCounters</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils::SleepHandle</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::ServerError</span>;
+<span class="kw">use </span><span class="kw">crate</span>::actors::envelopes::{EnvelopeManager, SendClientReports};
+<span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+</span><span class="kw">use </span><span class="kw">crate</span>::actors::store::{<span class="self">self</span>, Producer};
+<span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
+<span class="kw">use </span><span class="kw">crate</span>::service::REGISTRY;
+<span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
+<span class="kw">use </span><span class="kw">crate</span>::utils::SleepHandle;
+<span class="kw">use </span><span class="kw">crate</span>::ServerError;
 
-<span class="doccomment">/// Defines the structure of the HTTP outcomes requests</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SendOutcomes</span> {
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">outcomes</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TrackRawOutcome</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Defines the structure of the HTTP outcomes requests
+</span><span class="attribute">#[derive(Debug, Default, Deserialize, Serialize)]
+</span><span class="kw">pub struct </span>SendOutcomes {
+    <span class="attribute">#[serde(default)]
+    </span><span class="kw">pub </span>outcomes: Vec&lt;TrackRawOutcome&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">UpstreamQuery</span> <span class="kw">for</span> <span class="ident">SendOutcomes</span> {
-    <span class="kw">type</span> <span class="ident">Response</span> <span class="op">=</span> <span class="ident">SendOutcomesResponse</span>;
+<span class="kw">impl </span>UpstreamQuery <span class="kw">for </span>SendOutcomes {
+    <span class="kw">type </span>Response = SendOutcomesResponse;
 
-    <span class="kw">fn</span> <span class="ident">method</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Method</span> {
-        <span class="ident">Method::POST</span>
+    <span class="kw">fn </span>method(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Method {
+        Method::POST
     }
 
-    <span class="kw">fn</span> <span class="ident">path</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span>, <span class="ident">str</span><span class="op">&gt;</span> {
-        <span class="ident">Cow::Borrowed</span>(<span class="string">&quot;/api/0/relays/outcomes/&quot;</span>)
+    <span class="kw">fn </span>path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Cow&lt;<span class="lifetime">&#39;static</span>, str&gt; {
+        Cow::Borrowed(<span class="string">&quot;/api/0/relays/outcomes/&quot;</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">retry</span>() -&gt; <span class="ident">bool</span> {
-        <span class="bool-val">true</span>
-    }
+    <span class="kw">fn </span>retry() -&gt; bool {
+        <span class="bool-val">true
+    </span>}
 }
 
-<span class="doccomment">/// Defines the structure of the HTTP outcomes responses for successful requests</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SendOutcomesResponse</span> {
-    <span class="comment">// nothing yet, future features will go here</span>
+<span class="doccomment">/// Defines the structure of the HTTP outcomes responses for successful requests
+</span><span class="attribute">#[derive(Debug, Deserialize, Serialize)]
+</span><span class="kw">pub struct </span>SendOutcomesResponse {
+    <span class="comment">// nothing yet, future features will go here
+</span>}
+
+<span class="doccomment">/// The numerical identifier of the outcome category (Accepted, Filtered, ...)
+</span><span class="attribute">#[derive(Debug, Serialize, Deserialize, Clone, Copy, Eq, PartialEq)]
+</span><span class="kw">pub struct </span>OutcomeId(u8);
+
+<span class="kw">impl </span>OutcomeId {
+    <span class="comment">// This is not an enum because we still want to forward unknown outcome IDs transparently
+    </span><span class="kw">const </span>ACCEPTED: OutcomeId = OutcomeId(<span class="number">0</span>);
+    <span class="kw">const </span>FILTERED: OutcomeId = OutcomeId(<span class="number">1</span>);
+    <span class="kw">const </span>RATE_LIMITED: OutcomeId = OutcomeId(<span class="number">2</span>);
+    <span class="kw">const </span>INVALID: OutcomeId = OutcomeId(<span class="number">3</span>);
+    <span class="kw">const </span>ABUSE: OutcomeId = OutcomeId(<span class="number">4</span>);
+    <span class="kw">const </span>CLIENT_DISCARD: OutcomeId = OutcomeId(<span class="number">5</span>);
 }
 
-<span class="doccomment">/// The numerical identifier of the outcome category (Accepted, Filtered, ...)</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">OutcomeId</span>(<span class="ident">u8</span>);
+<span class="kw">trait </span>TrackOutcomeLike {
+    <span class="doccomment">/// TODO: Doc
+    </span><span class="kw">fn </span>reason(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Cow&lt;str&gt;&gt;;
 
-<span class="kw">impl</span> <span class="ident">OutcomeId</span> {
-    <span class="comment">// This is not an enum because we still want to forward unknown outcome IDs transparently</span>
-    <span class="kw">const</span> <span class="ident">ACCEPTED</span>: <span class="ident">OutcomeId</span> <span class="op">=</span> <span class="ident">OutcomeId</span>(<span class="number">0</span>);
-    <span class="kw">const</span> <span class="ident">FILTERED</span>: <span class="ident">OutcomeId</span> <span class="op">=</span> <span class="ident">OutcomeId</span>(<span class="number">1</span>);
-    <span class="kw">const</span> <span class="ident">RATE_LIMITED</span>: <span class="ident">OutcomeId</span> <span class="op">=</span> <span class="ident">OutcomeId</span>(<span class="number">2</span>);
-    <span class="kw">const</span> <span class="ident">INVALID</span>: <span class="ident">OutcomeId</span> <span class="op">=</span> <span class="ident">OutcomeId</span>(<span class="number">3</span>);
-    <span class="kw">const</span> <span class="ident">ABUSE</span>: <span class="ident">OutcomeId</span> <span class="op">=</span> <span class="ident">OutcomeId</span>(<span class="number">4</span>);
-    <span class="kw">const</span> <span class="ident">CLIENT_DISCARD</span>: <span class="ident">OutcomeId</span> <span class="op">=</span> <span class="ident">OutcomeId</span>(<span class="number">5</span>);
-}
+    <span class="doccomment">/// TODO: Doc
+    </span><span class="kw">fn </span>outcome_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; OutcomeId;
 
-<span class="kw">trait</span> <span class="ident">TrackOutcomeLike</span> {
-    <span class="doccomment">/// TODO: Doc</span>
-    <span class="kw">fn</span> <span class="ident">reason</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span><span class="op">&gt;</span>;
-
-    <span class="doccomment">/// TODO: Doc</span>
-    <span class="kw">fn</span> <span class="ident">outcome_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">OutcomeId</span>;
-
-    <span class="doccomment">/// TODO: Doc</span>
-    <span class="kw">fn</span> <span class="ident">tag_name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
-        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">outcome_id</span>() {
-            <span class="ident">OutcomeId::ACCEPTED</span> =&gt; <span class="string">&quot;accepted&quot;</span>,
-            <span class="ident">OutcomeId::FILTERED</span> =&gt; <span class="string">&quot;filtered&quot;</span>,
-            <span class="ident">OutcomeId::RATE_LIMITED</span> =&gt; <span class="string">&quot;rate_limited&quot;</span>,
-            <span class="ident">OutcomeId::INVALID</span> =&gt; <span class="string">&quot;invalid&quot;</span>,
-            <span class="ident">OutcomeId::ABUSE</span> =&gt; <span class="string">&quot;abuse&quot;</span>,
-            <span class="ident">OutcomeId::CLIENT_DISCARD</span> =&gt; <span class="string">&quot;client_discard&quot;</span>,
-            <span class="kw">_</span> =&gt; <span class="string">&quot;&lt;unknown&gt;&quot;</span>,
+    <span class="doccomment">/// TODO: Doc
+    </span><span class="kw">fn </span>tag_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="kw">match </span><span class="self">self</span>.outcome_id() {
+            OutcomeId::ACCEPTED =&gt; <span class="string">&quot;accepted&quot;</span>,
+            OutcomeId::FILTERED =&gt; <span class="string">&quot;filtered&quot;</span>,
+            OutcomeId::RATE_LIMITED =&gt; <span class="string">&quot;rate_limited&quot;</span>,
+            OutcomeId::INVALID =&gt; <span class="string">&quot;invalid&quot;</span>,
+            OutcomeId::ABUSE =&gt; <span class="string">&quot;abuse&quot;</span>,
+            OutcomeId::CLIENT_DISCARD =&gt; <span class="string">&quot;client_discard&quot;</span>,
+            <span class="kw">_ </span>=&gt; <span class="string">&quot;&lt;unknown&gt;&quot;</span>,
         }
     }
 }
 
-<span class="doccomment">/// Tracks an [`Outcome`] of an Envelope item.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// See the module level documentation for more information.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Hash</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TrackOutcome</span> {
-    <span class="doccomment">/// The timespan of the event outcome.</span>
-    <span class="kw">pub</span> <span class="ident">timestamp</span>: <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// Scoping of the request.</span>
-    <span class="kw">pub</span> <span class="ident">scoping</span>: <span class="ident">Scoping</span>,
-    <span class="doccomment">/// The outcome.</span>
-    <span class="kw">pub</span> <span class="ident">outcome</span>: <span class="ident">Outcome</span>,
-    <span class="doccomment">/// The event id.</span>
-    <span class="kw">pub</span> <span class="ident">event_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">EventId</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// The client ip address.</span>
-    <span class="kw">pub</span> <span class="ident">remote_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// The event&#39;s data category.</span>
-    <span class="kw">pub</span> <span class="ident">category</span>: <span class="ident">DataCategory</span>,
-    <span class="doccomment">/// The number of events or total attachment size in bytes.</span>
-    <span class="kw">pub</span> <span class="ident">quantity</span>: <span class="ident">u32</span>,
+<span class="doccomment">/// Tracks an [`Outcome`] of an Envelope item.
+///
+/// See the module level documentation for more information.
+</span><span class="attribute">#[derive(Clone, Debug, Hash)]
+</span><span class="kw">pub struct </span>TrackOutcome {
+    <span class="doccomment">/// The timespan of the event outcome.
+    </span><span class="kw">pub </span>timestamp: DateTime&lt;Utc&gt;,
+    <span class="doccomment">/// Scoping of the request.
+    </span><span class="kw">pub </span>scoping: Scoping,
+    <span class="doccomment">/// The outcome.
+    </span><span class="kw">pub </span>outcome: Outcome,
+    <span class="doccomment">/// The event id.
+    </span><span class="kw">pub </span>event_id: <span class="prelude-ty">Option</span>&lt;EventId&gt;,
+    <span class="doccomment">/// The client ip address.
+    </span><span class="kw">pub </span>remote_addr: <span class="prelude-ty">Option</span>&lt;IpAddr&gt;,
+    <span class="doccomment">/// The event&#39;s data category.
+    </span><span class="kw">pub </span>category: DataCategory,
+    <span class="doccomment">/// The number of events or total attachment size in bytes.
+    </span><span class="kw">pub </span>quantity: u32,
 }
 
-<span class="kw">impl</span> <span class="ident">TrackOutcome</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_registry</span>() -&gt; <span class="ident">Addr</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="ident">REGISTRY</span>.<span class="ident">get</span>().<span class="ident">unwrap</span>().<span class="ident">outcome_aggregator</span>.<span class="ident">clone</span>()
+<span class="kw">impl </span>TrackOutcome {
+    <span class="kw">pub fn </span>from_registry() -&gt; Addr&lt;<span class="self">Self</span>&gt; {
+        REGISTRY.get().unwrap().outcome_aggregator.clone()
     }
 }
 
-<span class="kw">impl</span> <span class="ident">TrackOutcomeLike</span> <span class="kw">for</span> <span class="ident">TrackOutcome</span> {
-    <span class="kw">fn</span> <span class="ident">reason</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">outcome</span>.<span class="ident">to_reason</span>()
+<span class="kw">impl </span>TrackOutcomeLike <span class="kw">for </span>TrackOutcome {
+    <span class="kw">fn </span>reason(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Cow&lt;str&gt;&gt; {
+        <span class="self">self</span>.outcome.to_reason()
     }
 
-    <span class="kw">fn</span> <span class="ident">outcome_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">OutcomeId</span> {
-        <span class="self">self</span>.<span class="ident">outcome</span>.<span class="ident">to_outcome_id</span>()
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">Interface</span> <span class="kw">for</span> <span class="ident">TrackOutcome</span> {}
-
-<span class="kw">impl</span> <span class="ident">FromMessage</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">TrackOutcome</span> {
-    <span class="kw">type</span> <span class="ident">Response</span> <span class="op">=</span> <span class="ident">NoResponse</span>;
-
-    <span class="kw">fn</span> <span class="ident">from_message</span>(<span class="ident">message</span>: <span class="self">Self</span>, <span class="kw">_</span>: ()) -&gt; <span class="self">Self</span> {
-        <span class="ident">message</span>
+    <span class="kw">fn </span>outcome_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; OutcomeId {
+        <span class="self">self</span>.outcome.to_outcome_id()
     }
 }
 
-<span class="doccomment">/// Defines the possible outcomes from processing an event.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Hash</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Outcome</span> {
-    <span class="comment">// /// The event has been accepted and handled completely.</span>
-    <span class="comment">// ///</span>
-    <span class="comment">// /// This is never emitted by Relay as the event may be discarded by the processing pipeline</span>
-    <span class="comment">// /// after Relay. Only the `save_event` task in Sentry finally accepts an event.</span>
-    <span class="comment">// #[allow(dead_code)]</span>
-    <span class="comment">// Accepted,</span>
-    <span class="doccomment">/// The event has been filtered due to a configured filter.</span>
-    <span class="ident">Filtered</span>(<span class="ident">FilterStatKey</span>),
+<span class="kw">impl </span>Interface <span class="kw">for </span>TrackOutcome {}
 
-    <span class="doccomment">/// The event has been filtered by a Sampling Rule</span>
-    <span class="ident">FilteredSampling</span>(<span class="ident">RuleId</span>),
+<span class="kw">impl </span>FromMessage&lt;<span class="self">Self</span>&gt; <span class="kw">for </span>TrackOutcome {
+    <span class="kw">type </span>Response = NoResponse;
 
-    <span class="doccomment">/// The event has been rate limited.</span>
-    <span class="ident">RateLimited</span>(<span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ReasonCode</span><span class="op">&gt;</span>),
-
-    <span class="doccomment">/// The event has been discarded because of invalid data.</span>
-    <span class="ident">Invalid</span>(<span class="ident">DiscardReason</span>),
-
-    <span class="doccomment">/// Reserved but unused in Relay.</span>
-    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
-    <span class="ident">Abuse</span>,
-
-    <span class="doccomment">/// The event has already been discarded on the client side.</span>
-    <span class="ident">ClientDiscard</span>(<span class="ident">String</span>),
+    <span class="kw">fn </span>from_message(message: <span class="self">Self</span>, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
+        message
+    }
 }
 
-<span class="kw">impl</span> <span class="ident">Outcome</span> {
-    <span class="doccomment">/// Returns the raw numeric value of this outcome for the JSON and Kafka schema.</span>
-    <span class="kw">fn</span> <span class="ident">to_outcome_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">OutcomeId</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">Outcome::Filtered</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">Outcome::FilteredSampling</span>(<span class="kw">_</span>) =&gt; <span class="ident">OutcomeId::FILTERED</span>,
-            <span class="ident">Outcome::RateLimited</span>(<span class="kw">_</span>) =&gt; <span class="ident">OutcomeId::RATE_LIMITED</span>,
-            <span class="ident">Outcome::Invalid</span>(<span class="kw">_</span>) =&gt; <span class="ident">OutcomeId::INVALID</span>,
-            <span class="ident">Outcome::Abuse</span> =&gt; <span class="ident">OutcomeId::ABUSE</span>,
-            <span class="ident">Outcome::ClientDiscard</span>(<span class="kw">_</span>) =&gt; <span class="ident">OutcomeId::CLIENT_DISCARD</span>,
+<span class="doccomment">/// Defines the possible outcomes from processing an event.
+</span><span class="attribute">#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+</span><span class="kw">pub enum </span>Outcome {
+    <span class="comment">// /// The event has been accepted and handled completely.
+    // ///
+    // /// This is never emitted by Relay as the event may be discarded by the processing pipeline
+    // /// after Relay. Only the `save_event` task in Sentry finally accepts an event.
+    // #[allow(dead_code)]
+    // Accepted,
+    </span><span class="doccomment">/// The event has been filtered due to a configured filter.
+    </span>Filtered(FilterStatKey),
+
+    <span class="doccomment">/// The event has been filtered by a Sampling Rule
+    </span>FilteredSampling(RuleId),
+
+    <span class="doccomment">/// The event has been rate limited.
+    </span>RateLimited(<span class="prelude-ty">Option</span>&lt;ReasonCode&gt;),
+
+    <span class="doccomment">/// The event has been discarded because of invalid data.
+    </span>Invalid(DiscardReason),
+
+    <span class="doccomment">/// Reserved but unused in Relay.
+    </span><span class="attribute">#[allow(dead_code)]
+    </span>Abuse,
+
+    <span class="doccomment">/// The event has already been discarded on the client side.
+    </span>ClientDiscard(String),
+}
+
+<span class="kw">impl </span>Outcome {
+    <span class="doccomment">/// Returns the raw numeric value of this outcome for the JSON and Kafka schema.
+    </span><span class="kw">fn </span>to_outcome_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; OutcomeId {
+        <span class="kw">match </span><span class="self">self </span>{
+            Outcome::Filtered(<span class="kw">_</span>) | Outcome::FilteredSampling(<span class="kw">_</span>) =&gt; OutcomeId::FILTERED,
+            Outcome::RateLimited(<span class="kw">_</span>) =&gt; OutcomeId::RATE_LIMITED,
+            Outcome::Invalid(<span class="kw">_</span>) =&gt; OutcomeId::INVALID,
+            Outcome::Abuse =&gt; OutcomeId::ABUSE,
+            Outcome::ClientDiscard(<span class="kw">_</span>) =&gt; OutcomeId::CLIENT_DISCARD,
         }
     }
 
-    <span class="doccomment">/// Returns the `reason` code field of this outcome.</span>
-    <span class="kw">fn</span> <span class="ident">to_reason</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">Outcome::Invalid</span>(<span class="ident">discard_reason</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">Cow::Borrowed</span>(<span class="ident">discard_reason</span>.<span class="ident">name</span>())),
-            <span class="ident">Outcome::Filtered</span>(<span class="ident">filter_key</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">Cow::Borrowed</span>(<span class="ident">filter_key</span>.<span class="ident">name</span>())),
-            <span class="ident">Outcome::FilteredSampling</span>(<span class="ident">rule_id</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">Cow::Owned</span>(<span class="macro">format!</span>(<span class="string">&quot;Sampled:{}&quot;</span>, <span class="ident">rule_id</span>))),
-            <span class="comment">//TODO can we do better ? (not re copying the string )</span>
-            <span class="ident">Outcome::RateLimited</span>(<span class="ident">code_opt</span>) =&gt; <span class="ident">code_opt</span>
-                .<span class="ident">as_ref</span>()
-                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">code</span><span class="op">|</span> <span class="ident">Cow::Owned</span>(<span class="ident">code</span>.<span class="ident">as_str</span>().<span class="ident">into</span>())),
-            <span class="ident">Outcome::ClientDiscard</span>(<span class="kw-2">ref</span> <span class="ident">discard_reason</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">Cow::Borrowed</span>(<span class="ident">discard_reason</span>)),
-            <span class="ident">Outcome::Abuse</span> =&gt; <span class="prelude-val">None</span>,
-        }
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">Outcome</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">Outcome::Filtered</span>(<span class="ident">key</span>) =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;filtered by {}&quot;</span>, <span class="ident">key</span>),
-            <span class="ident">Outcome::FilteredSampling</span>(<span class="ident">rule</span>) =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;sampling rule {}&quot;</span>, <span class="ident">rule</span>),
-            <span class="ident">Outcome::RateLimited</span>(<span class="prelude-val">None</span>) =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;rate limited&quot;</span>),
-            <span class="ident">Outcome::RateLimited</span>(<span class="prelude-val">Some</span>(<span class="ident">reason</span>)) =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;rate limited with reason {}&quot;</span>, <span class="ident">reason</span>),
-            <span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::Internal</span>) =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;internal error&quot;</span>),
-            <span class="ident">Outcome::Invalid</span>(<span class="ident">reason</span>) =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;invalid data ({})&quot;</span>, <span class="ident">reason</span>),
-            <span class="ident">Outcome::Abuse</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;abuse limit reached&quot;</span>),
-            <span class="ident">Outcome::ClientDiscard</span>(<span class="ident">reason</span>) =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;discarded by client ({})&quot;</span>, <span class="ident">reason</span>),
+    <span class="doccomment">/// Returns the `reason` code field of this outcome.
+    </span><span class="kw">fn </span>to_reason(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Cow&lt;str&gt;&gt; {
+        <span class="kw">match </span><span class="self">self </span>{
+            Outcome::Invalid(discard_reason) =&gt; <span class="prelude-val">Some</span>(Cow::Borrowed(discard_reason.name())),
+            Outcome::Filtered(filter_key) =&gt; <span class="prelude-val">Some</span>(Cow::Borrowed(filter_key.name())),
+            Outcome::FilteredSampling(rule_id) =&gt; <span class="prelude-val">Some</span>(Cow::Owned(<span class="macro">format!</span>(<span class="string">&quot;Sampled:{}&quot;</span>, rule_id))),
+            <span class="comment">//TODO can we do better ? (not re copying the string )
+            </span>Outcome::RateLimited(code_opt) =&gt; code_opt
+                .as_ref()
+                .map(|code| Cow::Owned(code.as_str().into())),
+            Outcome::ClientDiscard(<span class="kw-2">ref </span>discard_reason) =&gt; <span class="prelude-val">Some</span>(Cow::Borrowed(discard_reason)),
+            Outcome::Abuse =&gt; <span class="prelude-val">None</span>,
         }
     }
 }
 
-<span class="doccomment">/// Reason for a discarded invalid event.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Used in `Outcome::Invalid`. Synchronize overlap with Sentry.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
-<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">DiscardReason</span> {
-    <span class="doccomment">/// (Post Processing) An event with the same id has already been processed for this project.</span>
-    <span class="doccomment">/// Sentry does not allow duplicate events and only stores the first one.</span>
-    <span class="ident">Duplicate</span>,
-
-    <span class="doccomment">/// (Relay) There was no valid project id in the request or the required project does not exist.</span>
-    <span class="ident">ProjectId</span>,
-
-    <span class="doccomment">/// (Relay) The protocol version sent by the SDK is not supported and parts of the payload may</span>
-    <span class="doccomment">/// be invalid.</span>
-    <span class="ident">AuthVersion</span>,
-
-    <span class="doccomment">/// (Legacy) The SDK did not send a client identifier.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// In Relay, this is no longer required.</span>
-    <span class="ident">AuthClient</span>,
-
-    <span class="doccomment">/// (Relay) The store request was missing an event payload.</span>
-    <span class="ident">NoData</span>,
-
-    <span class="doccomment">/// (Relay) The envelope contains no items.</span>
-    <span class="ident">EmptyEnvelope</span>,
-
-    <span class="doccomment">/// (Relay) The event payload exceeds the maximum size limit for the respective endpoint.</span>
-    <span class="ident">TooLarge</span>,
-
-    <span class="doccomment">/// (Legacy) A store request was received with an invalid method.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This outcome is no longer emitted by Relay, as HTTP method validation occurs before an event</span>
-    <span class="doccomment">/// id or project id are extracted for a request.</span>
-    <span class="ident">DisallowedMethod</span>,
-
-    <span class="doccomment">/// (Relay) The content type for a specific endpoint was not allowed.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// While the standard store endpoint allows all content types, other endpoints may have</span>
-    <span class="doccomment">/// stricter requirements.</span>
-    <span class="ident">ContentType</span>,
-
-    <span class="doccomment">/// (Legacy) The project id in the URL does not match the one specified for the public key.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This outcome is no longer emitted by Relay. Instead, Relay will emit a standard `ProjectId`</span>
-    <span class="doccomment">/// since it resolves the project first, and then checks for the valid project key.</span>
-    <span class="ident">MultiProjectId</span>,
-
-    <span class="doccomment">/// (Relay) A minidump file was missing for the minidump endpoint.</span>
-    <span class="ident">MissingMinidumpUpload</span>,
-
-    <span class="doccomment">/// (Relay) The file submitted as minidump is not a valid minidump file.</span>
-    <span class="ident">InvalidMinidump</span>,
-
-    <span class="doccomment">/// (Relay) The security report was not recognized due to missing data.</span>
-    <span class="ident">SecurityReportType</span>,
-
-    <span class="doccomment">/// (Relay) The security report did not pass schema validation.</span>
-    <span class="ident">SecurityReport</span>,
-
-    <span class="doccomment">/// (Relay) The request origin is not allowed for the project.</span>
-    <span class="ident">Cors</span>,
-
-    <span class="doccomment">/// (Relay) Reading or decoding the payload from the socket failed for any reason.</span>
-    <span class="ident">Payload</span>,
-
-    <span class="doccomment">/// (Relay) Parsing the event JSON payload failed due to a syntax error.</span>
-    <span class="ident">InvalidJson</span>,
-
-    <span class="doccomment">/// (Relay) Parsing the event msgpack payload failed due to a syntax error.</span>
-    <span class="ident">InvalidMsgpack</span>,
-
-    <span class="doccomment">/// (Relay) Parsing a multipart form-data request failed.</span>
-    <span class="ident">InvalidMultipart</span>,
-
-    <span class="doccomment">/// (Relay) The event is parseable but semantically invalid. This should only happen with</span>
-    <span class="doccomment">/// transaction events.</span>
-    <span class="ident">InvalidTransaction</span>,
-
-    <span class="doccomment">/// (Relay) Parsing an event envelope failed (likely missing a required header).</span>
-    <span class="ident">InvalidEnvelope</span>,
-
-    <span class="doccomment">/// (Relay) The payload had an invalid compression stream.</span>
-    <span class="ident">InvalidCompression</span>,
-
-    <span class="doccomment">/// (Relay) A project state returned by the upstream could not be parsed.</span>
-    <span class="ident">ProjectState</span>,
-
-    <span class="doccomment">/// (Relay) A project state returned by the upstream contained datascrubbing settings</span>
-    <span class="doccomment">/// that could not be converted to PII config.</span>
-    <span class="ident">ProjectStatePii</span>,
-
-    <span class="doccomment">/// (Relay) An envelope was submitted with two items that need to be unique.</span>
-    <span class="ident">DuplicateItem</span>,
-
-    <span class="doccomment">/// (Relay) An event envelope was submitted but no payload could be extracted.</span>
-    <span class="ident">NoEventPayload</span>,
-
-    <span class="doccomment">/// (All) An error in Relay caused event ingestion to fail. This is the catch-all and usually</span>
-    <span class="doccomment">/// indicates bugs in Relay, rather than an expected failure.</span>
-    <span class="ident">Internal</span>,
-
-    <span class="doccomment">/// (Relay) Symbolic failed to extract an Unreal Crash report from a request sent to the</span>
-    <span class="doccomment">/// Unreal endpoint</span>
-    <span class="ident">ProcessUnreal</span>,
-
-    <span class="doccomment">/// (Relay) The envelope, which contained only a transaction, was discarded by the</span>
-    <span class="doccomment">/// dynamic sampling rules.</span>
-    <span class="ident">TransactionSampled</span>,
-
-    <span class="doccomment">/// (Relay) We failed to parse the profile so we discard the profile.</span>
-    <span class="ident">ProcessProfile</span>,
-
-    <span class="doccomment">/// (Relay) The profile is parseable but semantically invalid. This could happen if</span>
-    <span class="doccomment">/// profiles lack sufficient samples.</span>
-    <span class="ident">InvalidProfile</span>,
-
-    <span class="comment">// (Relay) We failed to parse the replay so we discard it.</span>
-    <span class="ident">InvalidReplayEvent</span>,
-}
-
-<span class="kw">impl</span> <span class="ident">DiscardReason</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">name</span>(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">DiscardReason::Duplicate</span> =&gt; <span class="string">&quot;duplicate&quot;</span>,
-            <span class="ident">DiscardReason::ProjectId</span> =&gt; <span class="string">&quot;project_id&quot;</span>,
-            <span class="ident">DiscardReason::AuthVersion</span> =&gt; <span class="string">&quot;auth_version&quot;</span>,
-            <span class="ident">DiscardReason::AuthClient</span> =&gt; <span class="string">&quot;auth_client&quot;</span>,
-            <span class="ident">DiscardReason::NoData</span> =&gt; <span class="string">&quot;no_data&quot;</span>,
-            <span class="ident">DiscardReason::TooLarge</span> =&gt; <span class="string">&quot;too_large&quot;</span>,
-            <span class="ident">DiscardReason::DisallowedMethod</span> =&gt; <span class="string">&quot;disallowed_method&quot;</span>,
-            <span class="ident">DiscardReason::ContentType</span> =&gt; <span class="string">&quot;content_type&quot;</span>,
-            <span class="ident">DiscardReason::MultiProjectId</span> =&gt; <span class="string">&quot;multi_project_id&quot;</span>,
-            <span class="ident">DiscardReason::MissingMinidumpUpload</span> =&gt; <span class="string">&quot;missing_minidump_upload&quot;</span>,
-            <span class="ident">DiscardReason::InvalidMinidump</span> =&gt; <span class="string">&quot;invalid_minidump&quot;</span>,
-            <span class="ident">DiscardReason::SecurityReportType</span> =&gt; <span class="string">&quot;security_report_type&quot;</span>,
-            <span class="ident">DiscardReason::SecurityReport</span> =&gt; <span class="string">&quot;security_report&quot;</span>,
-            <span class="ident">DiscardReason::Cors</span> =&gt; <span class="string">&quot;cors&quot;</span>,
-            <span class="ident">DiscardReason::ProcessUnreal</span> =&gt; <span class="string">&quot;process_unreal&quot;</span>,
-            <span class="ident">DiscardReason::ProcessProfile</span> =&gt; <span class="string">&quot;process_profile&quot;</span>,
-
-            <span class="comment">// Relay specific reasons (not present in Sentry)</span>
-            <span class="ident">DiscardReason::Payload</span> =&gt; <span class="string">&quot;payload&quot;</span>,
-            <span class="ident">DiscardReason::InvalidJson</span> =&gt; <span class="string">&quot;invalid_json&quot;</span>,
-            <span class="ident">DiscardReason::InvalidMultipart</span> =&gt; <span class="string">&quot;invalid_multipart&quot;</span>,
-            <span class="ident">DiscardReason::InvalidMsgpack</span> =&gt; <span class="string">&quot;invalid_msgpack&quot;</span>,
-            <span class="ident">DiscardReason::InvalidTransaction</span> =&gt; <span class="string">&quot;invalid_transaction&quot;</span>,
-            <span class="ident">DiscardReason::InvalidEnvelope</span> =&gt; <span class="string">&quot;invalid_envelope&quot;</span>,
-            <span class="ident">DiscardReason::InvalidCompression</span> =&gt; <span class="string">&quot;invalid_compression&quot;</span>,
-            <span class="ident">DiscardReason::ProjectState</span> =&gt; <span class="string">&quot;project_state&quot;</span>,
-            <span class="ident">DiscardReason::ProjectStatePii</span> =&gt; <span class="string">&quot;project_state_pii&quot;</span>,
-            <span class="ident">DiscardReason::DuplicateItem</span> =&gt; <span class="string">&quot;duplicate_item&quot;</span>,
-            <span class="ident">DiscardReason::NoEventPayload</span> =&gt; <span class="string">&quot;no_event_payload&quot;</span>,
-            <span class="ident">DiscardReason::Internal</span> =&gt; <span class="string">&quot;internal&quot;</span>,
-            <span class="ident">DiscardReason::TransactionSampled</span> =&gt; <span class="string">&quot;transaction_sampled&quot;</span>,
-            <span class="ident">DiscardReason::EmptyEnvelope</span> =&gt; <span class="string">&quot;empty_envelope&quot;</span>,
-            <span class="ident">DiscardReason::InvalidProfile</span> =&gt; <span class="string">&quot;invalid_profile&quot;</span>,
-            <span class="ident">DiscardReason::InvalidReplayEvent</span> =&gt; <span class="string">&quot;invalid_replay&quot;</span>,
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>Outcome {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">match </span><span class="self">self </span>{
+            Outcome::Filtered(key) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;filtered by {}&quot;</span>, key),
+            Outcome::FilteredSampling(rule) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;sampling rule {}&quot;</span>, rule),
+            Outcome::RateLimited(<span class="prelude-val">None</span>) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;rate limited&quot;</span>),
+            Outcome::RateLimited(<span class="prelude-val">Some</span>(reason)) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;rate limited with reason {}&quot;</span>, reason),
+            Outcome::Invalid(DiscardReason::Internal) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;internal error&quot;</span>),
+            Outcome::Invalid(reason) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;invalid data ({})&quot;</span>, reason),
+            Outcome::Abuse =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;abuse limit reached&quot;</span>),
+            Outcome::ClientDiscard(reason) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;discarded by client ({})&quot;</span>, reason),
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">DiscardReason</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.<span class="ident">name</span>())
+<span class="doccomment">/// Reason for a discarded invalid event.
+///
+/// Used in `Outcome::Invalid`. Synchronize overlap with Sentry.
+</span><span class="attribute">#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[allow(dead_code)]
+</span><span class="kw">pub enum </span>DiscardReason {
+    <span class="doccomment">/// (Post Processing) An event with the same id has already been processed for this project.
+    /// Sentry does not allow duplicate events and only stores the first one.
+    </span>Duplicate,
+
+    <span class="doccomment">/// (Relay) There was no valid project id in the request or the required project does not exist.
+    </span>ProjectId,
+
+    <span class="doccomment">/// (Relay) The protocol version sent by the SDK is not supported and parts of the payload may
+    /// be invalid.
+    </span>AuthVersion,
+
+    <span class="doccomment">/// (Legacy) The SDK did not send a client identifier.
+    ///
+    /// In Relay, this is no longer required.
+    </span>AuthClient,
+
+    <span class="doccomment">/// (Relay) The store request was missing an event payload.
+    </span>NoData,
+
+    <span class="doccomment">/// (Relay) The envelope contains no items.
+    </span>EmptyEnvelope,
+
+    <span class="doccomment">/// (Relay) The event payload exceeds the maximum size limit for the respective endpoint.
+    </span>TooLarge,
+
+    <span class="doccomment">/// (Legacy) A store request was received with an invalid method.
+    ///
+    /// This outcome is no longer emitted by Relay, as HTTP method validation occurs before an event
+    /// id or project id are extracted for a request.
+    </span>DisallowedMethod,
+
+    <span class="doccomment">/// (Relay) The content type for a specific endpoint was not allowed.
+    ///
+    /// While the standard store endpoint allows all content types, other endpoints may have
+    /// stricter requirements.
+    </span>ContentType,
+
+    <span class="doccomment">/// (Legacy) The project id in the URL does not match the one specified for the public key.
+    ///
+    /// This outcome is no longer emitted by Relay. Instead, Relay will emit a standard `ProjectId`
+    /// since it resolves the project first, and then checks for the valid project key.
+    </span>MultiProjectId,
+
+    <span class="doccomment">/// (Relay) A minidump file was missing for the minidump endpoint.
+    </span>MissingMinidumpUpload,
+
+    <span class="doccomment">/// (Relay) The file submitted as minidump is not a valid minidump file.
+    </span>InvalidMinidump,
+
+    <span class="doccomment">/// (Relay) The security report was not recognized due to missing data.
+    </span>SecurityReportType,
+
+    <span class="doccomment">/// (Relay) The security report did not pass schema validation.
+    </span>SecurityReport,
+
+    <span class="doccomment">/// (Relay) The request origin is not allowed for the project.
+    </span>Cors,
+
+    <span class="doccomment">/// (Relay) Reading or decoding the payload from the socket failed for any reason.
+    </span>Payload,
+
+    <span class="doccomment">/// (Relay) Parsing the event JSON payload failed due to a syntax error.
+    </span>InvalidJson,
+
+    <span class="doccomment">/// (Relay) Parsing the event msgpack payload failed due to a syntax error.
+    </span>InvalidMsgpack,
+
+    <span class="doccomment">/// (Relay) Parsing a multipart form-data request failed.
+    </span>InvalidMultipart,
+
+    <span class="doccomment">/// (Relay) The event is parseable but semantically invalid. This should only happen with
+    /// transaction events.
+    </span>InvalidTransaction,
+
+    <span class="doccomment">/// (Relay) Parsing an event envelope failed (likely missing a required header).
+    </span>InvalidEnvelope,
+
+    <span class="doccomment">/// (Relay) The payload had an invalid compression stream.
+    </span>InvalidCompression,
+
+    <span class="doccomment">/// (Relay) A project state returned by the upstream could not be parsed.
+    </span>ProjectState,
+
+    <span class="doccomment">/// (Relay) A project state returned by the upstream contained datascrubbing settings
+    /// that could not be converted to PII config.
+    </span>ProjectStatePii,
+
+    <span class="doccomment">/// (Relay) An envelope was submitted with two items that need to be unique.
+    </span>DuplicateItem,
+
+    <span class="doccomment">/// (Relay) An event envelope was submitted but no payload could be extracted.
+    </span>NoEventPayload,
+
+    <span class="doccomment">/// (All) An error in Relay caused event ingestion to fail. This is the catch-all and usually
+    /// indicates bugs in Relay, rather than an expected failure.
+    </span>Internal,
+
+    <span class="doccomment">/// (Relay) Symbolic failed to extract an Unreal Crash report from a request sent to the
+    /// Unreal endpoint
+    </span>ProcessUnreal,
+
+    <span class="doccomment">/// (Relay) The envelope, which contained only a transaction, was discarded by the
+    /// dynamic sampling rules.
+    </span>TransactionSampled,
+
+    <span class="doccomment">/// (Relay) We failed to parse the profile so we discard the profile.
+    </span>ProcessProfile,
+
+    <span class="doccomment">/// (Relay) The profile is parseable but semantically invalid. This could happen if
+    /// profiles lack sufficient samples.
+    </span>InvalidProfile,
+
+    <span class="comment">// (Relay) We failed to parse the replay so we discard it.
+    </span>InvalidReplayEvent,
+}
+
+<span class="kw">impl </span>DiscardReason {
+    <span class="kw">pub fn </span>name(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            DiscardReason::Duplicate =&gt; <span class="string">&quot;duplicate&quot;</span>,
+            DiscardReason::ProjectId =&gt; <span class="string">&quot;project_id&quot;</span>,
+            DiscardReason::AuthVersion =&gt; <span class="string">&quot;auth_version&quot;</span>,
+            DiscardReason::AuthClient =&gt; <span class="string">&quot;auth_client&quot;</span>,
+            DiscardReason::NoData =&gt; <span class="string">&quot;no_data&quot;</span>,
+            DiscardReason::TooLarge =&gt; <span class="string">&quot;too_large&quot;</span>,
+            DiscardReason::DisallowedMethod =&gt; <span class="string">&quot;disallowed_method&quot;</span>,
+            DiscardReason::ContentType =&gt; <span class="string">&quot;content_type&quot;</span>,
+            DiscardReason::MultiProjectId =&gt; <span class="string">&quot;multi_project_id&quot;</span>,
+            DiscardReason::MissingMinidumpUpload =&gt; <span class="string">&quot;missing_minidump_upload&quot;</span>,
+            DiscardReason::InvalidMinidump =&gt; <span class="string">&quot;invalid_minidump&quot;</span>,
+            DiscardReason::SecurityReportType =&gt; <span class="string">&quot;security_report_type&quot;</span>,
+            DiscardReason::SecurityReport =&gt; <span class="string">&quot;security_report&quot;</span>,
+            DiscardReason::Cors =&gt; <span class="string">&quot;cors&quot;</span>,
+            DiscardReason::ProcessUnreal =&gt; <span class="string">&quot;process_unreal&quot;</span>,
+            DiscardReason::ProcessProfile =&gt; <span class="string">&quot;process_profile&quot;</span>,
+
+            <span class="comment">// Relay specific reasons (not present in Sentry)
+            </span>DiscardReason::Payload =&gt; <span class="string">&quot;payload&quot;</span>,
+            DiscardReason::InvalidJson =&gt; <span class="string">&quot;invalid_json&quot;</span>,
+            DiscardReason::InvalidMultipart =&gt; <span class="string">&quot;invalid_multipart&quot;</span>,
+            DiscardReason::InvalidMsgpack =&gt; <span class="string">&quot;invalid_msgpack&quot;</span>,
+            DiscardReason::InvalidTransaction =&gt; <span class="string">&quot;invalid_transaction&quot;</span>,
+            DiscardReason::InvalidEnvelope =&gt; <span class="string">&quot;invalid_envelope&quot;</span>,
+            DiscardReason::InvalidCompression =&gt; <span class="string">&quot;invalid_compression&quot;</span>,
+            DiscardReason::ProjectState =&gt; <span class="string">&quot;project_state&quot;</span>,
+            DiscardReason::ProjectStatePii =&gt; <span class="string">&quot;project_state_pii&quot;</span>,
+            DiscardReason::DuplicateItem =&gt; <span class="string">&quot;duplicate_item&quot;</span>,
+            DiscardReason::NoEventPayload =&gt; <span class="string">&quot;no_event_payload&quot;</span>,
+            DiscardReason::Internal =&gt; <span class="string">&quot;internal&quot;</span>,
+            DiscardReason::TransactionSampled =&gt; <span class="string">&quot;transaction_sampled&quot;</span>,
+            DiscardReason::EmptyEnvelope =&gt; <span class="string">&quot;empty_envelope&quot;</span>,
+            DiscardReason::InvalidProfile =&gt; <span class="string">&quot;invalid_profile&quot;</span>,
+            DiscardReason::InvalidReplayEvent =&gt; <span class="string">&quot;invalid_replay&quot;</span>,
+        }
     }
 }
 
-<span class="doccomment">/// Raw representation of an outcome for serialization.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The JSON serialization of this structure is placed on the Kafka topic and used in the HTTP</span>
-<span class="doccomment">/// endpoints. To create a new outcome, use [`TrackOutcome`], instead.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TrackRawOutcome</span> {
-    <span class="doccomment">/// The timespan of the event outcome.</span>
-    <span class="ident">timestamp</span>: <span class="ident">String</span>,
-    <span class="doccomment">/// Organization id.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
-    <span class="ident">org_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// Project id.</span>
-    <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
-    <span class="doccomment">/// The DSN project key id.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
-    <span class="ident">key_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// The outcome.</span>
-    <span class="ident">outcome</span>: <span class="ident">OutcomeId</span>,
-    <span class="doccomment">/// Reason for the outcome.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
-    <span class="ident">reason</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// The event id.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
-    <span class="ident">event_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">EventId</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// The client ip address.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
-    <span class="ident">remote_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// The source of the outcome (which Relay sent it)</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
-    <span class="ident">source</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// The event&#39;s data category.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">category</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// The number of events or total attachment size in bytes.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">quantity</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span>,
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>DiscardReason {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.name())
+    }
 }
 
-<span class="kw">impl</span> <span class="ident">TrackRawOutcome</span> {
-    <span class="kw">fn</span> <span class="ident">from_outcome</span>(<span class="ident">msg</span>: <span class="ident">TrackOutcome</span>, <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) -&gt; <span class="self">Self</span> {
-        <span class="kw">let</span> <span class="ident">reason</span> <span class="op">=</span> <span class="ident">msg</span>.<span class="ident">outcome</span>.<span class="ident">to_reason</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">reason</span><span class="op">|</span> <span class="ident">reason</span>.<span class="ident">to_string</span>());
+<span class="doccomment">/// Raw representation of an outcome for serialization.
+///
+/// The JSON serialization of this structure is placed on the Kafka topic and used in the HTTP
+/// endpoints. To create a new outcome, use [`TrackOutcome`], instead.
+</span><span class="attribute">#[derive(Debug, Serialize, Deserialize, Clone)]
+</span><span class="kw">pub struct </span>TrackRawOutcome {
+    <span class="doccomment">/// The timespan of the event outcome.
+    </span>timestamp: String,
+    <span class="doccomment">/// Organization id.
+    </span><span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>org_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+    <span class="doccomment">/// Project id.
+    </span>project_id: ProjectId,
+    <span class="doccomment">/// The DSN project key id.
+    </span><span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>key_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+    <span class="doccomment">/// The outcome.
+    </span>outcome: OutcomeId,
+    <span class="doccomment">/// Reason for the outcome.
+    </span><span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>reason: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    <span class="doccomment">/// The event id.
+    </span><span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>event_id: <span class="prelude-ty">Option</span>&lt;EventId&gt;,
+    <span class="doccomment">/// The client ip address.
+    </span><span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>remote_addr: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    <span class="doccomment">/// The source of the outcome (which Relay sent it)
+    </span><span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>source: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    <span class="doccomment">/// The event&#39;s data category.
+    </span><span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="kw">pub </span>category: <span class="prelude-ty">Option</span>&lt;u8&gt;,
+    <span class="doccomment">/// The number of events or total attachment size in bytes.
+    </span><span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="kw">pub </span>quantity: <span class="prelude-ty">Option</span>&lt;u32&gt;,
+}
 
-        <span class="comment">// convert to a RFC 3339 formatted date with the shape YYYY-MM-DDTHH:MM:SS.mmmmmmZ</span>
-        <span class="comment">// e.g. something like: &quot;2019-09-29T09:46:40.123456Z&quot;</span>
-        <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">msg</span>.<span class="ident">timestamp</span>.<span class="ident">to_rfc3339_opts</span>(<span class="ident">SecondsFormat::Micros</span>, <span class="bool-val">true</span>);
+<span class="kw">impl </span>TrackRawOutcome {
+    <span class="kw">fn </span>from_outcome(msg: TrackOutcome, config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>reason = msg.outcome.to_reason().map(|reason| reason.to_string());
 
-        <span class="kw">let</span> <span class="ident">org_id</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">msg</span>.<span class="ident">scoping</span>.<span class="ident">organization_id</span> {
-            <span class="number">0</span> =&gt; <span class="prelude-val">None</span>,
-            <span class="ident">id</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">id</span>),
+        <span class="comment">// convert to a RFC 3339 formatted date with the shape YYYY-MM-DDTHH:MM:SS.mmmmmmZ
+        // e.g. something like: &quot;2019-09-29T09:46:40.123456Z&quot;
+        </span><span class="kw">let </span>timestamp = msg.timestamp.to_rfc3339_opts(SecondsFormat::Micros, <span class="bool-val">true</span>);
+
+        <span class="kw">let </span>org_id = <span class="kw">match </span>msg.scoping.organization_id {
+            <span class="number">0 </span>=&gt; <span class="prelude-val">None</span>,
+            id =&gt; <span class="prelude-val">Some</span>(id),
         };
 
-        <span class="comment">// since TrackOutcome objects come only from this Relay (and not any downstream</span>
-        <span class="comment">// Relays), set the source to whatever our current outcome source is.</span>
-        <span class="kw">let</span> <span class="ident">source</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">outcome_source</span>().<span class="ident">map</span>(<span class="ident">str::to_owned</span>);
+        <span class="comment">// since TrackOutcome objects come only from this Relay (and not any downstream
+        // Relays), set the source to whatever our current outcome source is.
+        </span><span class="kw">let </span>source = config.outcome_source().map(str::to_owned);
 
-        <span class="ident">TrackRawOutcome</span> {
-            <span class="ident">timestamp</span>,
-            <span class="ident">org_id</span>,
-            <span class="ident">project_id</span>: <span class="ident">msg</span>.<span class="ident">scoping</span>.<span class="ident">project_id</span>,
-            <span class="ident">key_id</span>: <span class="ident">msg</span>.<span class="ident">scoping</span>.<span class="ident">key_id</span>,
-            <span class="ident">outcome</span>: <span class="ident">msg</span>.<span class="ident">outcome</span>.<span class="ident">to_outcome_id</span>(),
-            <span class="ident">reason</span>,
-            <span class="ident">event_id</span>: <span class="ident">msg</span>.<span class="ident">event_id</span>,
-            <span class="ident">remote_addr</span>: <span class="ident">msg</span>.<span class="ident">remote_addr</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">addr</span><span class="op">|</span> <span class="ident">addr</span>.<span class="ident">to_string</span>()),
-            <span class="ident">source</span>,
-            <span class="ident">category</span>: <span class="ident">msg</span>.<span class="ident">category</span>.<span class="ident">value</span>(),
-            <span class="ident">quantity</span>: <span class="prelude-val">Some</span>(<span class="ident">msg</span>.<span class="ident">quantity</span>),
+        TrackRawOutcome {
+            timestamp,
+            org_id,
+            project_id: msg.scoping.project_id,
+            key_id: msg.scoping.key_id,
+            outcome: msg.outcome.to_outcome_id(),
+            reason,
+            event_id: msg.event_id,
+            remote_addr: msg.remote_addr.map(|addr| addr.to_string()),
+            source,
+            category: msg.category.value(),
+            quantity: <span class="prelude-val">Some</span>(msg.quantity),
         }
     }
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="kw">fn</span> <span class="ident">is_billing</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="macro">matches!</span>(<span class="self">self</span>.<span class="ident">outcome</span>, <span class="ident">OutcomeId::ACCEPTED</span> <span class="op">|</span> <span class="ident">OutcomeId::RATE_LIMITED</span>)
+    <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span><span class="kw">fn </span>is_billing(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>.outcome, OutcomeId::ACCEPTED | OutcomeId::RATE_LIMITED)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">TrackOutcomeLike</span> <span class="kw">for</span> <span class="ident">TrackRawOutcome</span> {
-    <span class="kw">fn</span> <span class="ident">reason</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">reason</span>.<span class="ident">as_ref</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">into</span>())
+<span class="kw">impl </span>TrackOutcomeLike <span class="kw">for </span>TrackRawOutcome {
+    <span class="kw">fn </span>reason(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Cow&lt;str&gt;&gt; {
+        <span class="self">self</span>.reason.as_ref().map(|s| s.into())
     }
 
-    <span class="kw">fn</span> <span class="ident">outcome_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">OutcomeId</span> {
-        <span class="self">self</span>.<span class="ident">outcome</span>
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">Interface</span> <span class="kw">for</span> <span class="ident">TrackRawOutcome</span> {}
-
-<span class="kw">impl</span> <span class="ident">FromMessage</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">TrackRawOutcome</span> {
-    <span class="kw">type</span> <span class="ident">Response</span> <span class="op">=</span> <span class="ident">NoResponse</span>;
-
-    <span class="kw">fn</span> <span class="ident">from_message</span>(<span class="ident">message</span>: <span class="self">Self</span>, <span class="kw">_</span>: ()) -&gt; <span class="self">Self</span> {
-        <span class="ident">message</span>
+    <span class="kw">fn </span>outcome_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; OutcomeId {
+        <span class="self">self</span>.outcome
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>, <span class="ident">derive</span>(<span class="ident">Fail</span>))]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">OutcomeError</span> {
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;failed to send kafka message&quot;</span>)]</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="ident">SendFailed</span>(<span class="ident">rdkafka::error::KafkaError</span>),
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;failed to get Kafka producer&quot;</span>)]</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="ident">InvalidKafkaProducer</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">store::StoreError</span>),
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;json serialization error&quot;</span>)]</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="ident">SerializationError</span>(<span class="ident">serde_json::Error</span>),
+<span class="kw">impl </span>Interface <span class="kw">for </span>TrackRawOutcome {}
+
+<span class="kw">impl </span>FromMessage&lt;<span class="self">Self</span>&gt; <span class="kw">for </span>TrackRawOutcome {
+    <span class="kw">type </span>Response = NoResponse;
+
+    <span class="kw">fn </span>from_message(message: <span class="self">Self</span>, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
+        message
+    }
 }
 
-<span class="doccomment">/// Outcome producer backend via HTTP as [`TrackRawOutcome`].</span>
-<span class="kw">struct</span> <span class="ident">HttpOutcomeProducer</span> {
-    <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
-    <span class="ident">unsent_outcomes</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TrackRawOutcome</span><span class="op">&gt;</span>,
-    <span class="ident">flush_handle</span>: <span class="ident">SleepHandle</span>,
+<span class="attribute">#[derive(Debug)]
+#[cfg_attr(feature = <span class="string">&quot;processing&quot;</span>, derive(Fail))]
+</span><span class="kw">pub enum </span>OutcomeError {
+    <span class="attribute">#[fail(display = <span class="string">&quot;failed to send kafka message&quot;</span>)]
+    #[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span>SendFailed(rdkafka::error::KafkaError),
+    <span class="attribute">#[fail(display = <span class="string">&quot;failed to get Kafka producer&quot;</span>)]
+    #[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span>InvalidKafkaProducer(<span class="attribute">#[cause] </span>store::StoreError),
+    <span class="attribute">#[fail(display = <span class="string">&quot;json serialization error&quot;</span>)]
+    #[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span>SerializationError(serde_json::Error),
 }
 
-<span class="kw">impl</span> <span class="ident">HttpOutcomeProducer</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create</span>(<span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
-        <span class="prelude-val">Ok</span>(<span class="self">Self</span> {
-            <span class="ident">config</span>,
-            <span class="ident">unsent_outcomes</span>: <span class="ident">Vec::new</span>(),
-            <span class="ident">flush_handle</span>: <span class="ident">SleepHandle::idle</span>(),
+<span class="doccomment">/// Outcome producer backend via HTTP as [`TrackRawOutcome`].
+</span><span class="kw">struct </span>HttpOutcomeProducer {
+    config: Arc&lt;Config&gt;,
+    unsent_outcomes: Vec&lt;TrackRawOutcome&gt;,
+    flush_handle: SleepHandle,
+}
+
+<span class="kw">impl </span>HttpOutcomeProducer {
+    <span class="kw">pub fn </span>create(config: Arc&lt;Config&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ServerError&gt; {
+        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
+            config,
+            unsent_outcomes: Vec::new(),
+            flush_handle: SleepHandle::idle(),
         })
     }
 
-    <span class="kw">fn</span> <span class="ident">send_batch</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
-        <span class="self">self</span>.<span class="ident">flush_handle</span>.<span class="ident">reset</span>();
+    <span class="kw">fn </span>send_batch(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="self">self</span>.flush_handle.reset();
 
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">unsent_outcomes</span>.<span class="ident">is_empty</span>() {
+        <span class="kw">if </span><span class="self">self</span>.unsent_outcomes.is_empty() {
             <span class="macro">relay_log::warn!</span>(<span class="string">&quot;unexpected send_batch scheduled with no outcomes to send.&quot;</span>);
             <span class="kw">return</span>;
-        } <span class="kw">else</span> {
+        } <span class="kw">else </span>{
             <span class="macro">relay_log::trace!</span>(
                 <span class="string">&quot;sending outcome batch of size:{}&quot;</span>,
-                <span class="self">self</span>.<span class="ident">unsent_outcomes</span>.<span class="ident">len</span>()
+                <span class="self">self</span>.unsent_outcomes.len()
             );
         }
 
-        <span class="kw">let</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">SendOutcomes</span> {
-            <span class="ident">outcomes</span>: <span class="ident">mem::take</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">unsent_outcomes</span>),
+        <span class="kw">let </span>request = SendOutcomes {
+            outcomes: mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.unsent_outcomes),
         };
 
-        <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
-            <span class="kw">match</span> <span class="ident">compat::send</span>(<span class="ident">UpstreamRelay::from_registry</span>(), <span class="ident">SendQuery</span>(<span class="ident">request</span>)).<span class="kw">await</span> {
+        tokio::spawn(<span class="kw">async move </span>{
+            <span class="kw">match </span>compat::send(UpstreamRelay::from_registry(), SendQuery(request)).<span class="kw">await </span>{
                 <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="macro">relay_log::trace!</span>(<span class="string">&quot;outcome batch sent.&quot;</span>),
-                <span class="prelude-val">Err</span>(<span class="ident">error</span>) =&gt; {
-                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;outcome batch sending failed with: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>))
+                <span class="prelude-val">Err</span>(error) =&gt; {
+                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;outcome batch sending failed with: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error))
                 }
             }
         });
     }
 
-    <span class="kw">fn</span> <span class="ident">handle_message</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">TrackRawOutcome</span>) {
+    <span class="kw">fn </span>handle_message(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: TrackRawOutcome) {
         <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Batching outcome&quot;</span>);
-        <span class="self">self</span>.<span class="ident">unsent_outcomes</span>.<span class="ident">push</span>(<span class="ident">message</span>);
+        <span class="self">self</span>.unsent_outcomes.push(message);
 
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">unsent_outcomes</span>.<span class="ident">len</span>() <span class="op">&gt;</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">outcome_batch_size</span>() {
-            <span class="self">self</span>.<span class="ident">send_batch</span>();
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">flush_handle</span>.<span class="ident">is_idle</span>() {
-            <span class="self">self</span>.<span class="ident">flush_handle</span>.<span class="ident">set</span>(<span class="self">self</span>.<span class="ident">config</span>.<span class="ident">outcome_batch_interval</span>());
+        <span class="kw">if </span><span class="self">self</span>.unsent_outcomes.len() &gt;= <span class="self">self</span>.config.outcome_batch_size() {
+            <span class="self">self</span>.send_batch();
+        } <span class="kw">else if </span><span class="self">self</span>.flush_handle.is_idle() {
+            <span class="self">self</span>.flush_handle.set(<span class="self">self</span>.config.outcome_batch_interval());
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Service</span> <span class="kw">for</span> <span class="ident">HttpOutcomeProducer</span> {
-    <span class="kw">type</span> <span class="ident">Interface</span> <span class="op">=</span> <span class="ident">TrackRawOutcome</span>;
+<span class="kw">impl </span>Service <span class="kw">for </span>HttpOutcomeProducer {
+    <span class="kw">type </span>Interface = TrackRawOutcome;
 
-    <span class="kw">fn</span> <span class="ident">spawn_handler</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">rx</span>: <span class="ident">relay_system::Receiver</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Interface</span><span class="op">&gt;</span>) {
-        <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
-            <span class="kw">loop</span> {
-                <span class="macro">tokio::select!</span> {
-                    <span class="comment">// Prioritize flush over receiving messages to prevent starving.</span>
-                    <span class="ident">biased</span>;
+    <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+        tokio::spawn(<span class="kw">async move </span>{
+            <span class="kw">loop </span>{
+                <span class="macro">tokio::select! </span>{
+                    <span class="comment">// Prioritize flush over receiving messages to prevent starving.
+                    </span>biased;
 
-                    () <span class="op">=</span> <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">flush_handle</span> =&gt; <span class="self">self</span>.<span class="ident">send_batch</span>(),
-                    <span class="prelude-val">Some</span>(<span class="ident">message</span>) <span class="op">=</span> <span class="ident">rx</span>.<span class="ident">recv</span>() =&gt; <span class="self">self</span>.<span class="ident">handle_message</span>(<span class="ident">message</span>),
-                    <span class="kw">else</span> =&gt; <span class="kw">break</span>,
+                    () = <span class="kw-2">&amp;mut </span><span class="self">self</span>.flush_handle =&gt; <span class="self">self</span>.send_batch(),
+                    <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; <span class="self">self</span>.handle_message(message),
+                    <span class="kw">else </span>=&gt; <span class="kw">break</span>,
                 }
             }
         });
     }
 }
 
-<span class="doccomment">/// Outcome producer backend via HTTP as [`ClientReport`].</span>
-<span class="kw">struct</span> <span class="ident">ClientReportOutcomeProducer</span> {
-    <span class="ident">flush_interval</span>: <span class="ident">Duration</span>,
-    <span class="ident">unsent_reports</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">Scoping</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">ClientReport</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-    <span class="ident">flush_handle</span>: <span class="ident">SleepHandle</span>,
+<span class="doccomment">/// Outcome producer backend via HTTP as [`ClientReport`].
+</span><span class="kw">struct </span>ClientReportOutcomeProducer {
+    flush_interval: Duration,
+    unsent_reports: BTreeMap&lt;Scoping, Vec&lt;ClientReport&gt;&gt;,
+    flush_handle: SleepHandle,
 }
 
-<span class="kw">impl</span> <span class="ident">ClientReportOutcomeProducer</span> {
-    <span class="kw">fn</span> <span class="ident">create</span>(<span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> {
-            <span class="comment">// Use same batch interval as outcome aggregator</span>
-            <span class="ident">flush_interval</span>: <span class="ident">Duration::from_secs</span>(<span class="ident">config</span>.<span class="ident">outcome_aggregator</span>().<span class="ident">flush_interval</span>),
-            <span class="ident">unsent_reports</span>: <span class="ident">BTreeMap::new</span>(),
-            <span class="ident">flush_handle</span>: <span class="ident">SleepHandle::idle</span>(),
+<span class="kw">impl </span>ClientReportOutcomeProducer {
+    <span class="kw">fn </span>create(config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            <span class="comment">// Use same batch interval as outcome aggregator
+            </span>flush_interval: Duration::from_secs(config.outcome_aggregator().flush_interval),
+            unsent_reports: BTreeMap::new(),
+            flush_handle: SleepHandle::idle(),
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">flush</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
+    <span class="kw">fn </span>flush(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Flushing client reports&quot;</span>);
-        <span class="self">self</span>.<span class="ident">flush_handle</span>.<span class="ident">reset</span>();
+        <span class="self">self</span>.flush_handle.reset();
 
-        <span class="kw">let</span> <span class="ident">unsent_reports</span> <span class="op">=</span> <span class="ident">mem::take</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">unsent_reports</span>);
-        <span class="kw">let</span> <span class="ident">envelope_manager</span> <span class="op">=</span> <span class="ident">EnvelopeManager::from_registry</span>();
-        <span class="kw">for</span> (<span class="ident">scoping</span>, <span class="ident">client_reports</span>) <span class="kw">in</span> <span class="ident">unsent_reports</span>.<span class="ident">into_iter</span>() {
-            <span class="ident">envelope_manager</span>.<span class="ident">send</span>(<span class="ident">SendClientReports</span> {
-                <span class="ident">client_reports</span>,
-                <span class="ident">scoping</span>,
+        <span class="kw">let </span>unsent_reports = mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.unsent_reports);
+        <span class="kw">let </span>envelope_manager = EnvelopeManager::from_registry();
+        <span class="kw">for </span>(scoping, client_reports) <span class="kw">in </span>unsent_reports.into_iter() {
+            envelope_manager.send(SendClientReports {
+                client_reports,
+                scoping,
             });
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">handle_message</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">msg</span>: <span class="ident">TrackOutcome</span>) {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">client_report</span> <span class="op">=</span> <span class="ident">ClientReport</span> {
-            <span class="ident">timestamp</span>: <span class="prelude-val">Some</span>(<span class="ident">UnixTimestamp::from_secs</span>(
-                <span class="ident">msg</span>.<span class="ident">timestamp</span>.<span class="ident">timestamp</span>().<span class="ident">try_into</span>().<span class="ident">unwrap_or</span>(<span class="number">0</span>),
+    <span class="kw">fn </span>handle_message(<span class="kw-2">&amp;mut </span><span class="self">self</span>, msg: TrackOutcome) {
+        <span class="kw">let </span><span class="kw-2">mut </span>client_report = ClientReport {
+            timestamp: <span class="prelude-val">Some</span>(UnixTimestamp::from_secs(
+                msg.timestamp.timestamp().try_into().unwrap_or(<span class="number">0</span>),
             )),
-            ..<span class="ident">Default::default</span>()
+            ..Default::default()
         };
 
-        <span class="comment">// The outcome type determines what field to place the outcome in:</span>
-        <span class="kw">let</span> <span class="ident">discarded_events</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">msg</span>.<span class="ident">outcome</span> {
-            <span class="ident">Outcome::Filtered</span>(<span class="kw">_</span>) =&gt; <span class="kw-2">&amp;mut</span> <span class="ident">client_report</span>.<span class="ident">filtered_events</span>,
-            <span class="ident">Outcome::FilteredSampling</span>(<span class="kw">_</span>) =&gt; <span class="kw-2">&amp;mut</span> <span class="ident">client_report</span>.<span class="ident">filtered_sampling_events</span>,
-            <span class="ident">Outcome::RateLimited</span>(<span class="kw">_</span>) =&gt; <span class="kw-2">&amp;mut</span> <span class="ident">client_report</span>.<span class="ident">rate_limited_events</span>,
-            <span class="kw">_</span> =&gt; {
-                <span class="comment">// Cannot convert this outcome to a client report.</span>
-                <span class="kw">return</span>;
+        <span class="comment">// The outcome type determines what field to place the outcome in:
+        </span><span class="kw">let </span>discarded_events = <span class="kw">match </span>msg.outcome {
+            Outcome::Filtered(<span class="kw">_</span>) =&gt; <span class="kw-2">&amp;mut </span>client_report.filtered_events,
+            Outcome::FilteredSampling(<span class="kw">_</span>) =&gt; <span class="kw-2">&amp;mut </span>client_report.filtered_sampling_events,
+            Outcome::RateLimited(<span class="kw">_</span>) =&gt; <span class="kw-2">&amp;mut </span>client_report.rate_limited_events,
+            <span class="kw">_ </span>=&gt; {
+                <span class="comment">// Cannot convert this outcome to a client report.
+                </span><span class="kw">return</span>;
             }
         };
 
-        <span class="comment">// Now that we know where to put it, let&#39;s create a DiscardedEvent</span>
-        <span class="kw">let</span> <span class="ident">discarded_event</span> <span class="op">=</span> <span class="ident">DiscardedEvent</span> {
-            <span class="ident">reason</span>: <span class="ident">msg</span>.<span class="ident">outcome</span>.<span class="ident">to_reason</span>().<span class="ident">unwrap_or_default</span>().<span class="ident">to_string</span>(),
-            <span class="ident">category</span>: <span class="ident">msg</span>.<span class="ident">category</span>,
-            <span class="ident">quantity</span>: <span class="ident">msg</span>.<span class="ident">quantity</span>,
+        <span class="comment">// Now that we know where to put it, let&#39;s create a DiscardedEvent
+        </span><span class="kw">let </span>discarded_event = DiscardedEvent {
+            reason: msg.outcome.to_reason().unwrap_or_default().to_string(),
+            category: msg.category,
+            quantity: msg.quantity,
         };
-        <span class="ident">discarded_events</span>.<span class="ident">push</span>(<span class="ident">discarded_event</span>);
+        discarded_events.push(discarded_event);
 
-        <span class="self">self</span>.<span class="ident">unsent_reports</span>
-            .<span class="ident">entry</span>(<span class="ident">msg</span>.<span class="ident">scoping</span>)
-            .<span class="ident">or_default</span>()
-            .<span class="ident">push</span>(<span class="ident">client_report</span>);
+        <span class="self">self</span>.unsent_reports
+            .entry(msg.scoping)
+            .or_default()
+            .push(client_report);
 
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">flush_interval</span> <span class="op">==</span> <span class="ident">Duration::ZERO</span> {
-            <span class="comment">// Flush immediately. Useful for integration tests.</span>
-            <span class="self">self</span>.<span class="ident">flush</span>();
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">flush_handle</span>.<span class="ident">is_idle</span>() {
-            <span class="self">self</span>.<span class="ident">flush_handle</span>.<span class="ident">set</span>(<span class="self">self</span>.<span class="ident">flush_interval</span>);
+        <span class="kw">if </span><span class="self">self</span>.flush_interval == Duration::ZERO {
+            <span class="comment">// Flush immediately. Useful for integration tests.
+            </span><span class="self">self</span>.flush();
+        } <span class="kw">else if </span><span class="self">self</span>.flush_handle.is_idle() {
+            <span class="self">self</span>.flush_handle.set(<span class="self">self</span>.flush_interval);
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Service</span> <span class="kw">for</span> <span class="ident">ClientReportOutcomeProducer</span> {
-    <span class="kw">type</span> <span class="ident">Interface</span> <span class="op">=</span> <span class="ident">TrackOutcome</span>;
+<span class="kw">impl </span>Service <span class="kw">for </span>ClientReportOutcomeProducer {
+    <span class="kw">type </span>Interface = TrackOutcome;
 
-    <span class="kw">fn</span> <span class="ident">spawn_handler</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">rx</span>: <span class="ident">relay_system::Receiver</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Interface</span><span class="op">&gt;</span>) {
-        <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
-            <span class="kw">loop</span> {
-                <span class="macro">tokio::select!</span> {
-                    <span class="comment">// Prioritize flush over receiving messages to prevent starving.</span>
-                    <span class="ident">biased</span>;
+    <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+        tokio::spawn(<span class="kw">async move </span>{
+            <span class="kw">loop </span>{
+                <span class="macro">tokio::select! </span>{
+                    <span class="comment">// Prioritize flush over receiving messages to prevent starving.
+                    </span>biased;
 
-                    () <span class="op">=</span> <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">flush_handle</span> =&gt; <span class="self">self</span>.<span class="ident">flush</span>(),
-                    <span class="prelude-val">Some</span>(<span class="ident">message</span>) <span class="op">=</span> <span class="ident">rx</span>.<span class="ident">recv</span>() =&gt; <span class="self">self</span>.<span class="ident">handle_message</span>(<span class="ident">message</span>),
-                    <span class="kw">else</span> =&gt; <span class="kw">break</span>,
+                    () = <span class="kw-2">&amp;mut </span><span class="self">self</span>.flush_handle =&gt; <span class="self">self</span>.flush(),
+                    <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; <span class="self">self</span>.handle_message(message),
+                    <span class="kw">else </span>=&gt; <span class="kw">break</span>,
                 }
             }
         });
     }
 }
 
-<span class="doccomment">/// Outcomes producer backend for Kafka.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Internally, this type creates at least one Kafka producer for the cluster of the `outcomes`</span>
-<span class="doccomment">/// topic assignment. If the `outcomes-billing` topic specifies a different cluster, it creates a</span>
-<span class="doccomment">/// second producer.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Use `KafkaOutcomesProducer::billing` for outcomes that are critical to billing (see</span>
-<span class="doccomment">/// `is_billing`), otherwise use `KafkaOutcomesProducer::default`. This will return the correct</span>
-<span class="doccomment">/// producer instance internally.</span>
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-<span class="kw">struct</span> <span class="ident">KafkaOutcomesProducer</span> {
-    <span class="ident">default</span>: <span class="ident">Producer</span>,
-    <span class="ident">billing</span>: <span class="ident">Producer</span>,
+<span class="doccomment">/// Outcomes producer backend for Kafka.
+///
+/// Internally, this type creates at least one Kafka producer for the cluster of the `outcomes`
+/// topic assignment. If the `outcomes-billing` topic specifies a different cluster, it creates a
+/// second producer.
+///
+/// Use `KafkaOutcomesProducer::billing` for outcomes that are critical to billing (see
+/// `is_billing`), otherwise use `KafkaOutcomesProducer::default`. This will return the correct
+/// producer instance internally.
+</span><span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+</span><span class="kw">struct </span>KafkaOutcomesProducer {
+    default: Producer,
+    billing: Producer,
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-<span class="kw">impl</span> <span class="ident">KafkaOutcomesProducer</span> {
-    <span class="doccomment">/// Creates and connects the Kafka producers.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// If the given Kafka configuration parameters are invalid, or an error happens during</span>
-    <span class="doccomment">/// connecting during the broker, an error is returned.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create</span>(<span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">reused_producers</span> <span class="op">=</span> <span class="ident">BTreeMap::new</span>();
-        <span class="kw">let</span> <span class="ident">producers</span> <span class="op">=</span> <span class="ident">KafkaOutcomesProducer</span> {
-            <span class="ident">default</span>: <span class="ident">store::make_producer</span>(<span class="ident">config</span>, <span class="kw-2">&amp;mut</span> <span class="ident">reused_producers</span>, <span class="ident">KafkaTopic::Outcomes</span>)<span class="question-mark">?</span>,
-            <span class="ident">billing</span>: <span class="ident">store::make_producer</span>(
-                <span class="ident">config</span>,
-                <span class="kw-2">&amp;mut</span> <span class="ident">reused_producers</span>,
-                <span class="ident">KafkaTopic::OutcomesBilling</span>,
+<span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+</span><span class="kw">impl </span>KafkaOutcomesProducer {
+    <span class="doccomment">/// Creates and connects the Kafka producers.
+    ///
+    /// If the given Kafka configuration parameters are invalid, or an error happens during
+    /// connecting during the broker, an error is returned.
+    </span><span class="kw">pub fn </span>create(config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ServerError&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>reused_producers = BTreeMap::new();
+        <span class="kw">let </span>producers = KafkaOutcomesProducer {
+            default: store::make_producer(config, <span class="kw-2">&amp;mut </span>reused_producers, KafkaTopic::Outcomes)<span class="question-mark">?</span>,
+            billing: store::make_producer(
+                config,
+                <span class="kw-2">&amp;mut </span>reused_producers,
+                KafkaTopic::OutcomesBilling,
             )<span class="question-mark">?</span>,
         };
 
-        <span class="prelude-val">Ok</span>(<span class="ident">producers</span>)
+        <span class="prelude-val">Ok</span>(producers)
     }
 
-    <span class="doccomment">/// Returns the producer for default outcomes.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">default</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">Producer</span> {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">default</span>
+    <span class="doccomment">/// Returns the producer for default outcomes.
+    </span><span class="kw">pub fn </span>default(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Producer {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.default
     }
 
-    <span class="doccomment">/// Returns the producer for billing outcomes.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Note that this may return the same producer instance as [`default`](Self::default) depending</span>
-    <span class="doccomment">/// on the configuration.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">billing</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">Producer</span> {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">billing</span>
-    }
-}
-
-<span class="kw">enum</span> <span class="ident">ProducerInner</span> {
-    <span class="ident">AsClientReports</span>(<span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">TrackOutcome</span><span class="op">&gt;</span>),
-    <span class="ident">AsHttpOutcomes</span>(<span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">TrackRawOutcome</span><span class="op">&gt;</span>),
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="ident">AsKafkaOutcomes</span>(<span class="ident">KafkaOutcomesProducer</span>),
-    <span class="ident">Disabled</span>,
-}
-
-<span class="doccomment">/// Produces [`Outcome`]s to a configurable backend.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// There are two variants based on the source of outcomes. When logging outcomes, [`TrackOutcome`]</span>
-<span class="doccomment">/// should be heavily preferred. When processing outcomes from endpoints, [`TrackRawOutcome`] can be</span>
-<span class="doccomment">/// used instead.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The backend is configured through the `outcomes` configuration object and can be:</span>
-<span class="doccomment">///</span>
-<span class="doccomment">///  1. Kafka in processing mode</span>
-<span class="doccomment">///  2. Upstream Relay via batch HTTP request in point-of-presence configuration</span>
-<span class="doccomment">///  3. Upstream Relay via client reports in external configuration</span>
-<span class="doccomment">///  4. (default) Disabled</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">OutcomeProducer</span> {
-    <span class="ident">TrackOutcome</span>(<span class="ident">TrackOutcome</span>),
-    <span class="ident">TrackRawOutcome</span>(<span class="ident">TrackRawOutcome</span>),
-}
-
-<span class="kw">impl</span> <span class="ident">OutcomeProducer</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_registry</span>() -&gt; <span class="ident">Addr</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="ident">REGISTRY</span>.<span class="ident">get</span>().<span class="ident">unwrap</span>().<span class="ident">outcome_producer</span>.<span class="ident">clone</span>()
+    <span class="doccomment">/// Returns the producer for billing outcomes.
+    ///
+    /// Note that this may return the same producer instance as [`default`](Self::default) depending
+    /// on the configuration.
+    </span><span class="kw">pub fn </span>billing(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Producer {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.billing
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Interface</span> <span class="kw">for</span> <span class="ident">OutcomeProducer</span> {}
+<span class="kw">enum </span>ProducerInner {
+    AsClientReports(Addr&lt;TrackOutcome&gt;),
+    AsHttpOutcomes(Addr&lt;TrackRawOutcome&gt;),
+    <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span>AsKafkaOutcomes(KafkaOutcomesProducer),
+    Disabled,
+}
 
-<span class="kw">impl</span> <span class="ident">FromMessage</span><span class="op">&lt;</span><span class="ident">TrackOutcome</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">OutcomeProducer</span> {
-    <span class="kw">type</span> <span class="ident">Response</span> <span class="op">=</span> <span class="ident">NoResponse</span>;
+<span class="doccomment">/// Produces [`Outcome`]s to a configurable backend.
+///
+/// There are two variants based on the source of outcomes. When logging outcomes, [`TrackOutcome`]
+/// should be heavily preferred. When processing outcomes from endpoints, [`TrackRawOutcome`] can be
+/// used instead.
+///
+/// The backend is configured through the `outcomes` configuration object and can be:
+///
+///  1. Kafka in processing mode
+///  2. Upstream Relay via batch HTTP request in point-of-presence configuration
+///  3. Upstream Relay via client reports in external configuration
+///  4. (default) Disabled
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub enum </span>OutcomeProducer {
+    TrackOutcome(TrackOutcome),
+    TrackRawOutcome(TrackRawOutcome),
+}
 
-    <span class="kw">fn</span> <span class="ident">from_message</span>(<span class="ident">message</span>: <span class="ident">TrackOutcome</span>, <span class="kw">_</span>: ()) -&gt; <span class="self">Self</span> {
-        <span class="ident"><span class="self">Self</span>::TrackOutcome</span>(<span class="ident">message</span>)
+<span class="kw">impl </span>OutcomeProducer {
+    <span class="kw">pub fn </span>from_registry() -&gt; Addr&lt;<span class="self">Self</span>&gt; {
+        REGISTRY.get().unwrap().outcome_producer.clone()
     }
 }
 
-<span class="kw">impl</span> <span class="ident">FromMessage</span><span class="op">&lt;</span><span class="ident">TrackRawOutcome</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">OutcomeProducer</span> {
-    <span class="kw">type</span> <span class="ident">Response</span> <span class="op">=</span> <span class="ident">NoResponse</span>;
+<span class="kw">impl </span>Interface <span class="kw">for </span>OutcomeProducer {}
 
-    <span class="kw">fn</span> <span class="ident">from_message</span>(<span class="ident">message</span>: <span class="ident">TrackRawOutcome</span>, <span class="kw">_</span>: ()) -&gt; <span class="self">Self</span> {
-        <span class="ident"><span class="self">Self</span>::TrackRawOutcome</span>(<span class="ident">message</span>)
+<span class="kw">impl </span>FromMessage&lt;TrackOutcome&gt; <span class="kw">for </span>OutcomeProducer {
+    <span class="kw">type </span>Response = NoResponse;
+
+    <span class="kw">fn </span>from_message(message: TrackOutcome, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::TrackOutcome(message)
     }
 }
 
-<span class="doccomment">/// Service implementing the [`OutcomeProducer`] interface.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">OutcomeProducerService</span> {
-    <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
-    <span class="ident">producer</span>: <span class="ident">ProducerInner</span>,
+<span class="kw">impl </span>FromMessage&lt;TrackRawOutcome&gt; <span class="kw">for </span>OutcomeProducer {
+    <span class="kw">type </span>Response = NoResponse;
+
+    <span class="kw">fn </span>from_message(message: TrackRawOutcome, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::TrackRawOutcome(message)
+    }
 }
 
-<span class="kw">impl</span> <span class="ident">OutcomeProducerService</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create</span>(<span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">producer</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">config</span>.<span class="ident">emit_outcomes</span>() {
-            <span class="ident">EmitOutcomes::AsOutcomes</span> =&gt; {
-                <span class="comment">// We emit outcomes as raw outcomes, and accept raw outcomes emitted by downstream</span>
-                <span class="comment">// relays.</span>
-                <span class="kw">if</span> <span class="ident">config</span>.<span class="ident">processing_enabled</span>() {
-                    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-                    {
-                        <span class="ident">ProducerInner::AsKafkaOutcomes</span>(<span class="ident">KafkaOutcomesProducer::create</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>)<span class="question-mark">?</span>)
+<span class="doccomment">/// Service implementing the [`OutcomeProducer`] interface.
+</span><span class="kw">pub struct </span>OutcomeProducerService {
+    config: Arc&lt;Config&gt;,
+    producer: ProducerInner,
+}
+
+<span class="kw">impl </span>OutcomeProducerService {
+    <span class="kw">pub fn </span>create(config: Arc&lt;Config&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ServerError&gt; {
+        <span class="kw">let </span>producer = <span class="kw">match </span>config.emit_outcomes() {
+            EmitOutcomes::AsOutcomes =&gt; {
+                <span class="comment">// We emit outcomes as raw outcomes, and accept raw outcomes emitted by downstream
+                // relays.
+                </span><span class="kw">if </span>config.processing_enabled() {
+                    <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+                    </span>{
+                        ProducerInner::AsKafkaOutcomes(KafkaOutcomesProducer::create(<span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>)
                     }
 
-                    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>))]</span>
-                    <span class="macro">unreachable!</span>(<span class="string">&quot;config parsing should have failed&quot;</span>)
-                } <span class="kw">else</span> {
+                    <span class="attribute">#[cfg(not(feature = <span class="string">&quot;processing&quot;</span>))]
+                    </span><span class="macro">unreachable!</span>(<span class="string">&quot;config parsing should have failed&quot;</span>)
+                } <span class="kw">else </span>{
                     <span class="macro">relay_log::info!</span>(<span class="string">&quot;Configured to emit outcomes via http&quot;</span>);
-                    <span class="ident">ProducerInner::AsHttpOutcomes</span>(
-                        <span class="ident">HttpOutcomeProducer::create</span>(<span class="ident">Arc::clone</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>))<span class="question-mark">?</span>.<span class="ident">start</span>(),
+                    ProducerInner::AsHttpOutcomes(
+                        HttpOutcomeProducer::create(Arc::clone(<span class="kw-2">&amp;</span>config))<span class="question-mark">?</span>.start(),
                     )
                 }
             }
-            <span class="ident">EmitOutcomes::AsClientReports</span> =&gt; {
-                <span class="comment">// We emit outcomes as client reports, and we do not</span>
-                <span class="comment">// accept any raw outcomes</span>
-                <span class="macro">relay_log::info!</span>(<span class="string">&quot;Configured to emit outcomes as client reports&quot;</span>);
-                <span class="ident">ProducerInner::AsClientReports</span>(<span class="ident">ClientReportOutcomeProducer::create</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>).<span class="ident">start</span>())
+            EmitOutcomes::AsClientReports =&gt; {
+                <span class="comment">// We emit outcomes as client reports, and we do not
+                // accept any raw outcomes
+                </span><span class="macro">relay_log::info!</span>(<span class="string">&quot;Configured to emit outcomes as client reports&quot;</span>);
+                ProducerInner::AsClientReports(ClientReportOutcomeProducer::create(<span class="kw-2">&amp;</span>config).start())
             }
-            <span class="ident">EmitOutcomes::None</span> =&gt; {
+            EmitOutcomes::None =&gt; {
                 <span class="macro">relay_log::info!</span>(<span class="string">&quot;Configured to drop all outcomes&quot;</span>);
-                <span class="ident">ProducerInner::Disabled</span>
+                ProducerInner::Disabled
             }
         };
 
-        <span class="prelude-val">Ok</span>(<span class="self">Self</span> { <span class="ident">config</span>, <span class="ident">producer</span> })
+        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ config, producer })
     }
 
-    <span class="kw">fn</span> <span class="ident">handle_message</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">OutcomeProducer</span>) {
-        <span class="kw">match</span> <span class="ident">message</span> {
-            <span class="ident">OutcomeProducer::TrackOutcome</span>(<span class="ident">msg</span>) =&gt; <span class="self">self</span>.<span class="ident">handle_track_outcome</span>(<span class="ident">msg</span>),
-            <span class="ident">OutcomeProducer::TrackRawOutcome</span>(<span class="ident">msg</span>) =&gt; <span class="self">self</span>.<span class="ident">handle_track_raw_outcome</span>(<span class="ident">msg</span>),
+    <span class="kw">fn </span>handle_message(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: OutcomeProducer) {
+        <span class="kw">match </span>message {
+            OutcomeProducer::TrackOutcome(msg) =&gt; <span class="self">self</span>.handle_track_outcome(msg),
+            OutcomeProducer::TrackRawOutcome(msg) =&gt; <span class="self">self</span>.handle_track_raw_outcome(msg),
         }
     }
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="kw">fn</span> <span class="ident">send_kafka_message</span>(
+    <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span><span class="kw">fn </span>send_kafka_message(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">producer</span>: <span class="kw-2">&amp;</span><span class="ident">KafkaOutcomesProducer</span>,
-        <span class="ident">organization_id</span>: <span class="ident">u64</span>,
-        <span class="ident">message</span>: <span class="ident">TrackRawOutcome</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">OutcomeError</span><span class="op">&gt;</span> {
-        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Tracking kafka outcome: {:?}&quot;</span>, <span class="ident">message</span>);
+        producer: <span class="kw-2">&amp;</span>KafkaOutcomesProducer,
+        organization_id: u64,
+        message: TrackRawOutcome,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), OutcomeError&gt; {
+        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Tracking kafka outcome: {:?}&quot;</span>, message);
 
-        <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span> <span class="ident">serde_json::to_string</span>(<span class="kw-2">&amp;</span><span class="ident">message</span>).<span class="ident">map_err</span>(<span class="ident">OutcomeError::SerializationError</span>)<span class="question-mark">?</span>;
+        <span class="kw">let </span>payload = serde_json::to_string(<span class="kw-2">&amp;</span>message).map_err(OutcomeError::SerializationError)<span class="question-mark">?</span>;
 
-        <span class="comment">// At the moment, we support outcomes with optional EventId.</span>
-        <span class="comment">// Here we create a fake EventId, when we don&#39;t have the real one, so that we can</span>
-        <span class="comment">// create a kafka message key that spreads the events nicely over all the</span>
-        <span class="comment">// kafka consumer groups.</span>
-        <span class="kw">let</span> <span class="ident">key</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">event_id</span>.<span class="ident">unwrap_or_else</span>(<span class="ident">EventId::new</span>).<span class="number">0</span>;
+        <span class="comment">// At the moment, we support outcomes with optional EventId.
+        // Here we create a fake EventId, when we don&#39;t have the real one, so that we can
+        // create a kafka message key that spreads the events nicely over all the
+        // kafka consumer groups.
+        </span><span class="kw">let </span>key = message.event_id.unwrap_or_else(EventId::new).<span class="number">0</span>;
 
-        <span class="comment">// Dispatch to the correct topic and cluster based on the kind of outcome.</span>
-        <span class="kw">let</span> (<span class="ident">_topic</span>, <span class="ident">producer</span>) <span class="op">=</span> <span class="kw">if</span> <span class="ident">message</span>.<span class="ident">is_billing</span>() {
-            (<span class="ident">KafkaTopic::OutcomesBilling</span>, <span class="ident">producer</span>.<span class="ident">billing</span>())
-        } <span class="kw">else</span> {
-            (<span class="ident">KafkaTopic::Outcomes</span>, <span class="ident">producer</span>.<span class="ident">default</span>())
+        <span class="comment">// Dispatch to the correct topic and cluster based on the kind of outcome.
+        </span><span class="kw">let </span>(_topic, producer) = <span class="kw">if </span>message.is_billing() {
+            (KafkaTopic::OutcomesBilling, producer.billing())
+        } <span class="kw">else </span>{
+            (KafkaTopic::Outcomes, producer.default())
         };
 
-        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">producer</span> {
-            <span class="ident">Producer::Single</span> {
-                <span class="ident">topic_name</span>,
-                <span class="ident">producer</span>,
+        <span class="kw">let </span>result = <span class="kw">match </span>producer {
+            Producer::Single {
+                topic_name,
+                producer,
             } =&gt; {
-                <span class="kw">let</span> <span class="ident">record</span> <span class="op">=</span> <span class="ident">BaseRecord::to</span>(<span class="ident">topic_name</span>)
-                    .<span class="ident">payload</span>(<span class="kw-2">&amp;</span><span class="ident">payload</span>)
-                    .<span class="ident">key</span>(<span class="ident">key</span>.<span class="ident">as_bytes</span>().<span class="ident">as_ref</span>());
+                <span class="kw">let </span>record = BaseRecord::to(topic_name)
+                    .payload(<span class="kw-2">&amp;</span>payload)
+                    .key(key.as_bytes().as_ref());
 
-                <span class="ident">producer</span>.<span class="ident">send</span>(<span class="ident">record</span>)
+                producer.send(record)
             }
 
-            <span class="ident">Producer::Sharded</span>(<span class="ident">sharded</span>) =&gt; {
-                <span class="kw">let</span> (<span class="ident">topic_name</span>, <span class="ident">producer</span>) <span class="op">=</span> <span class="ident">sharded</span>
-                    .<span class="ident">get_producer</span>(<span class="ident">organization_id</span>)
-                    .<span class="ident">map_err</span>(<span class="ident">OutcomeError::InvalidKafkaProducer</span>)<span class="question-mark">?</span>;
-                <span class="kw">let</span> <span class="ident">record</span> <span class="op">=</span> <span class="ident">BaseRecord::to</span>(<span class="ident">topic_name</span>)
-                    .<span class="ident">payload</span>(<span class="kw-2">&amp;</span><span class="ident">payload</span>)
-                    .<span class="ident">key</span>(<span class="ident">key</span>.<span class="ident">as_bytes</span>().<span class="ident">as_ref</span>());
-                <span class="ident">producer</span>.<span class="ident">send</span>(<span class="ident">record</span>)
+            Producer::Sharded(sharded) =&gt; {
+                <span class="kw">let </span>(topic_name, producer) = sharded
+                    .get_producer(organization_id)
+                    .map_err(OutcomeError::InvalidKafkaProducer)<span class="question-mark">?</span>;
+                <span class="kw">let </span>record = BaseRecord::to(topic_name)
+                    .payload(<span class="kw-2">&amp;</span>payload)
+                    .key(key.as_bytes().as_ref());
+                producer.send(record)
             }
         };
 
-        <span class="kw">match</span> <span class="ident">result</span> {
+        <span class="kw">match </span>result {
             <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(()),
-            <span class="prelude-val">Err</span>((<span class="ident">kafka_error</span>, <span class="ident">_message</span>)) =&gt; <span class="prelude-val">Err</span>(<span class="ident">OutcomeError::SendFailed</span>(<span class="ident">kafka_error</span>)),
+            <span class="prelude-val">Err</span>((kafka_error, _message)) =&gt; <span class="prelude-val">Err</span>(OutcomeError::SendFailed(kafka_error)),
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">send_outcome_metric</span>(<span class="ident">message</span>: <span class="kw-2">&amp;</span><span class="kw">impl</span> <span class="ident">TrackOutcomeLike</span>, <span class="ident">to</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>) {
+    <span class="kw">fn </span>send_outcome_metric(message: <span class="kw-2">&amp;</span><span class="kw">impl </span>TrackOutcomeLike, to: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str) {
         <span class="macro">metric!</span>(
-            <span class="ident">counter</span>(<span class="ident">RelayCounters::Outcomes</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
-            <span class="ident">reason</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">reason</span>().<span class="ident">as_deref</span>().<span class="ident">unwrap_or</span>(<span class="string">&quot;&quot;</span>),
-            <span class="ident">outcome</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">tag_name</span>(),
-            <span class="ident">to</span> <span class="op">=</span> <span class="ident">to</span>,
+            counter(RelayCounters::Outcomes) += <span class="number">1</span>,
+            reason = message.reason().as_deref().unwrap_or(<span class="string">&quot;&quot;</span>),
+            outcome = message.tag_name(),
+            to = to,
         );
     }
 
-    <span class="kw">fn</span> <span class="ident">handle_track_outcome</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">TrackOutcome</span>) {
-        <span class="kw">match</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">producer</span> {
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident">ProducerInner::AsKafkaOutcomes</span>(<span class="kw-2">ref</span> <span class="ident">kafka_producer</span>) =&gt; {
-                <span class="ident"><span class="self">Self</span>::send_outcome_metric</span>(<span class="kw-2">&amp;</span><span class="ident">message</span>, <span class="string">&quot;kafka&quot;</span>);
-                <span class="kw">let</span> <span class="ident">organization_id</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">scoping</span>.<span class="ident">organization_id</span>;
-                <span class="kw">let</span> <span class="ident">raw_message</span> <span class="op">=</span> <span class="ident">TrackRawOutcome::from_outcome</span>(<span class="ident">message</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>);
-                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span>
-                    <span class="self">self</span>.<span class="ident">send_kafka_message</span>(<span class="ident">kafka_producer</span>, <span class="ident">organization_id</span>, <span class="ident">raw_message</span>)
+    <span class="kw">fn </span>handle_track_outcome(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: TrackOutcome) {
+        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.producer {
+            <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span>ProducerInner::AsKafkaOutcomes(<span class="kw-2">ref </span>kafka_producer) =&gt; {
+                <span class="self">Self</span>::send_outcome_metric(<span class="kw-2">&amp;</span>message, <span class="string">&quot;kafka&quot;</span>);
+                <span class="kw">let </span>organization_id = message.scoping.organization_id;
+                <span class="kw">let </span>raw_message = TrackRawOutcome::from_outcome(message, <span class="kw-2">&amp;</span><span class="self">self</span>.config);
+                <span class="kw">if let </span><span class="prelude-val">Err</span>(error) =
+                    <span class="self">self</span>.send_kafka_message(kafka_producer, organization_id, raw_message)
                 {
-                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to produce outcome: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>));
+                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to produce outcome: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error));
                 }
             }
-            <span class="ident">ProducerInner::AsClientReports</span>(<span class="kw-2">ref</span> <span class="ident">producer</span>) =&gt; {
-                <span class="ident"><span class="self">Self</span>::send_outcome_metric</span>(<span class="kw-2">&amp;</span><span class="ident">message</span>, <span class="string">&quot;client_report&quot;</span>);
-                <span class="ident">producer</span>.<span class="ident">send</span>(<span class="ident">message</span>);
+            ProducerInner::AsClientReports(<span class="kw-2">ref </span>producer) =&gt; {
+                <span class="self">Self</span>::send_outcome_metric(<span class="kw-2">&amp;</span>message, <span class="string">&quot;client_report&quot;</span>);
+                producer.send(message);
             }
-            <span class="ident">ProducerInner::AsHttpOutcomes</span>(<span class="kw-2">ref</span> <span class="ident">producer</span>) =&gt; {
-                <span class="ident"><span class="self">Self</span>::send_outcome_metric</span>(<span class="kw-2">&amp;</span><span class="ident">message</span>, <span class="string">&quot;http&quot;</span>);
-                <span class="ident">producer</span>.<span class="ident">send</span>(<span class="ident">TrackRawOutcome::from_outcome</span>(<span class="ident">message</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>));
+            ProducerInner::AsHttpOutcomes(<span class="kw-2">ref </span>producer) =&gt; {
+                <span class="self">Self</span>::send_outcome_metric(<span class="kw-2">&amp;</span>message, <span class="string">&quot;http&quot;</span>);
+                producer.send(TrackRawOutcome::from_outcome(message, <span class="kw-2">&amp;</span><span class="self">self</span>.config));
             }
-            <span class="ident">ProducerInner::Disabled</span> =&gt; (),
+            ProducerInner::Disabled =&gt; (),
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">handle_track_raw_outcome</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">TrackRawOutcome</span>) {
-        <span class="kw">match</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">producer</span> {
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident">ProducerInner::AsKafkaOutcomes</span>(<span class="kw-2">ref</span> <span class="ident">kafka_producer</span>) =&gt; {
-                <span class="ident"><span class="self">Self</span>::send_outcome_metric</span>(<span class="kw-2">&amp;</span><span class="ident">message</span>, <span class="string">&quot;kafka&quot;</span>);
-                <span class="kw">let</span> <span class="ident">sharding_id</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">org_id</span>.<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">message</span>.<span class="ident">project_id</span>.<span class="ident">value</span>());
-                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">send_kafka_message</span>(<span class="ident">kafka_producer</span>, <span class="ident">sharding_id</span>, <span class="ident">message</span>) {
-                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to produce outcome: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>));
+    <span class="kw">fn </span>handle_track_raw_outcome(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: TrackRawOutcome) {
+        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.producer {
+            <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span>ProducerInner::AsKafkaOutcomes(<span class="kw-2">ref </span>kafka_producer) =&gt; {
+                <span class="self">Self</span>::send_outcome_metric(<span class="kw-2">&amp;</span>message, <span class="string">&quot;kafka&quot;</span>);
+                <span class="kw">let </span>sharding_id = message.org_id.unwrap_or_else(|| message.project_id.value());
+                <span class="kw">if let </span><span class="prelude-val">Err</span>(error) = <span class="self">self</span>.send_kafka_message(kafka_producer, sharding_id, message) {
+                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to produce outcome: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error));
                 }
             }
-            <span class="ident">ProducerInner::AsHttpOutcomes</span>(<span class="kw-2">ref</span> <span class="ident">producer</span>) =&gt; {
-                <span class="ident"><span class="self">Self</span>::send_outcome_metric</span>(<span class="kw-2">&amp;</span><span class="ident">message</span>, <span class="string">&quot;http&quot;</span>);
-                <span class="ident">producer</span>.<span class="ident">send</span>(<span class="ident">message</span>);
+            ProducerInner::AsHttpOutcomes(<span class="kw-2">ref </span>producer) =&gt; {
+                <span class="self">Self</span>::send_outcome_metric(<span class="kw-2">&amp;</span>message, <span class="string">&quot;http&quot;</span>);
+                producer.send(message);
             }
-            <span class="ident">ProducerInner::AsClientReports</span>(<span class="kw">_</span>) =&gt; (),
-            <span class="ident">ProducerInner::Disabled</span> =&gt; (),
+            ProducerInner::AsClientReports(<span class="kw">_</span>) =&gt; (),
+            ProducerInner::Disabled =&gt; (),
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Service</span> <span class="kw">for</span> <span class="ident">OutcomeProducerService</span> {
-    <span class="kw">type</span> <span class="ident">Interface</span> <span class="op">=</span> <span class="ident">OutcomeProducer</span>;
+<span class="kw">impl </span>Service <span class="kw">for </span>OutcomeProducerService {
+    <span class="kw">type </span>Interface = OutcomeProducer;
 
-    <span class="kw">fn</span> <span class="ident">spawn_handler</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">rx</span>: <span class="ident">relay_system::Receiver</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Interface</span><span class="op">&gt;</span>) {
-        <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
+    <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+        tokio::spawn(<span class="kw">async move </span>{
             <span class="macro">relay_log::info!</span>(<span class="string">&quot;OutcomeProducer started.&quot;</span>);
-            <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">message</span>) <span class="op">=</span> <span class="ident">rx</span>.<span class="ident">recv</span>().<span class="kw">await</span> {
-                <span class="self">self</span>.<span class="ident">handle_message</span>(<span class="ident">message</span>);
+            <span class="kw">while let </span><span class="prelude-val">Some</span>(message) = rx.recv().<span class="kw">await </span>{
+                <span class="self">self</span>.handle_message(message);
             }
             <span class="macro">relay_log::info!</span>(<span class="string">&quot;OutcomeProducer stopped.&quot;</span>);
         });
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

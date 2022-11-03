@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-metrics/src/statsd.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>statsd.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_metrics/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_metrics/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-metrics/src/statsd.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>statsd.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_metrics/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_metrics/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_metrics/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -150,155 +150,155 @@
 <span id="148">148</span>
 <span id="149">149</span>
 <span id="150">150</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">relay_statsd</span>::{<span class="ident">CounterMetric</span>, <span class="ident">GaugeMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">SetMetric</span>, <span class="ident">TimerMetric</span>};
+</pre><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, SetMetric, TimerMetric};
 
-<span class="doccomment">/// Set metrics for Relay Metrics.</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">MetricSets</span> {
-    <span class="doccomment">/// Count the number of unique buckets created.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This is a set of bucketing keys. The metric is basically equivalent to</span>
-    <span class="doccomment">/// `metrics.buckets.merge.miss` for a single Relay, but could be useful to determine how much</span>
-    <span class="doccomment">/// duplicate buckets there are when multiple instances are running.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The hashing is platform-dependent at the moment, so all your relays that send this metric</span>
-    <span class="doccomment">/// should run on the same CPU architecture, otherwise this metric is not reliable.</span>
-    <span class="ident">UniqueBucketsCreated</span>,
+<span class="doccomment">/// Set metrics for Relay Metrics.
+</span><span class="kw">pub enum </span>MetricSets {
+    <span class="doccomment">/// Count the number of unique buckets created.
+    ///
+    /// This is a set of bucketing keys. The metric is basically equivalent to
+    /// `metrics.buckets.merge.miss` for a single Relay, but could be useful to determine how much
+    /// duplicate buckets there are when multiple instances are running.
+    ///
+    /// The hashing is platform-dependent at the moment, so all your relays that send this metric
+    /// should run on the same CPU architecture, otherwise this metric is not reliable.
+    </span>UniqueBucketsCreated,
 }
 
-<span class="kw">impl</span> <span class="ident">SetMetric</span> <span class="kw">for</span> <span class="ident">MetricSets</span> {
-    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
-        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident"><span class="self">Self</span>::UniqueBucketsCreated</span> =&gt; <span class="string">&quot;metrics.buckets.created.unique&quot;</span>,
+<span class="kw">impl </span>SetMetric <span class="kw">for </span>MetricSets {
+    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
+            <span class="self">Self</span>::UniqueBucketsCreated =&gt; <span class="string">&quot;metrics.buckets.created.unique&quot;</span>,
         }
     }
 }
 
-<span class="doccomment">/// Counter metrics for Relay Metrics.</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">MetricCounters</span> {
-    <span class="doccomment">/// Incremented for every metric that is inserted.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Tagged by metric type and name.</span>
-    <span class="ident">InsertMetric</span>,
+<span class="doccomment">/// Counter metrics for Relay Metrics.
+</span><span class="kw">pub enum </span>MetricCounters {
+    <span class="doccomment">/// Incremented for every metric that is inserted.
+    ///
+    /// Tagged by metric type and name.
+    </span>InsertMetric,
 
-    <span class="doccomment">/// Incremented every time two buckets or two metrics are merged.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Tagged by metric type and name.</span>
-    <span class="ident">MergeHit</span>,
+    <span class="doccomment">/// Incremented every time two buckets or two metrics are merged.
+    ///
+    /// Tagged by metric type and name.
+    </span>MergeHit,
 
-    <span class="doccomment">/// Incremented every time a bucket is created.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Tagged by metric type and name.</span>
-    <span class="ident">MergeMiss</span>,
+    <span class="doccomment">/// Incremented every time a bucket is created.
+    ///
+    /// Tagged by metric type and name.
+    </span>MergeMiss,
 
-    <span class="doccomment">/// Incremented every time a bucket is dropped.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This should only happen when a project state is invalid during graceful shutdown.</span>
-    <span class="ident">BucketsDropped</span>,
+    <span class="doccomment">/// Incremented every time a bucket is dropped.
+    ///
+    /// This should only happen when a project state is invalid during graceful shutdown.
+    </span>BucketsDropped,
 }
 
-<span class="kw">impl</span> <span class="ident">CounterMetric</span> <span class="kw">for</span> <span class="ident">MetricCounters</span> {
-    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
-        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident"><span class="self">Self</span>::InsertMetric</span> =&gt; <span class="string">&quot;metrics.insert&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::MergeHit</span> =&gt; <span class="string">&quot;metrics.buckets.merge.hit&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::MergeMiss</span> =&gt; <span class="string">&quot;metrics.buckets.merge.miss&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::BucketsDropped</span> =&gt; <span class="string">&quot;metrics.buckets.dropped&quot;</span>,
+<span class="kw">impl </span>CounterMetric <span class="kw">for </span>MetricCounters {
+    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
+            <span class="self">Self</span>::InsertMetric =&gt; <span class="string">&quot;metrics.insert&quot;</span>,
+            <span class="self">Self</span>::MergeHit =&gt; <span class="string">&quot;metrics.buckets.merge.hit&quot;</span>,
+            <span class="self">Self</span>::MergeMiss =&gt; <span class="string">&quot;metrics.buckets.merge.miss&quot;</span>,
+            <span class="self">Self</span>::BucketsDropped =&gt; <span class="string">&quot;metrics.buckets.dropped&quot;</span>,
         }
     }
 }
 
-<span class="doccomment">/// Timer metrics for Relay Metrics.</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">MetricTimers</span> {
-    <span class="doccomment">/// Time in milliseconds spent scanning metric buckets to flush.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Relay scans metric buckets in regular intervals and flushes expired buckets. This timer</span>
-    <span class="doccomment">/// shows the time it takes to perform this scan and remove the buckets from the internal cache.</span>
-    <span class="doccomment">/// Sending the metric buckets to upstream is outside of this timer.</span>
-    <span class="ident">BucketsScanDuration</span>,
+<span class="doccomment">/// Timer metrics for Relay Metrics.
+</span><span class="kw">pub enum </span>MetricTimers {
+    <span class="doccomment">/// Time in milliseconds spent scanning metric buckets to flush.
+    ///
+    /// Relay scans metric buckets in regular intervals and flushes expired buckets. This timer
+    /// shows the time it takes to perform this scan and remove the buckets from the internal cache.
+    /// Sending the metric buckets to upstream is outside of this timer.
+    </span>BucketsScanDuration,
 }
 
-<span class="kw">impl</span> <span class="ident">TimerMetric</span> <span class="kw">for</span> <span class="ident">MetricTimers</span> {
-    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
-        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident"><span class="self">Self</span>::BucketsScanDuration</span> =&gt; <span class="string">&quot;metrics.buckets.scan_duration&quot;</span>,
+<span class="kw">impl </span>TimerMetric <span class="kw">for </span>MetricTimers {
+    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
+            <span class="self">Self</span>::BucketsScanDuration =&gt; <span class="string">&quot;metrics.buckets.scan_duration&quot;</span>,
         }
     }
 }
 
-<span class="doccomment">/// Histogram metrics for Relay Metrics.</span>
-<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::enum_variant_names</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">MetricHistograms</span> {
-    <span class="doccomment">/// The total number of metric buckets flushed in a cycle across all projects.</span>
-    <span class="ident">BucketsFlushed</span>,
+<span class="doccomment">/// Histogram metrics for Relay Metrics.
+</span><span class="attribute">#[allow(clippy::enum_variant_names)]
+</span><span class="kw">pub enum </span>MetricHistograms {
+    <span class="doccomment">/// The total number of metric buckets flushed in a cycle across all projects.
+    </span>BucketsFlushed,
 
-    <span class="doccomment">/// The number of metric buckets flushed in a cycle for each project.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Relay scans metric buckets in regular intervals and flushes expired buckets. This histogram</span>
-    <span class="doccomment">/// is logged for each project that is being flushed. The count of the histogram values is</span>
-    <span class="doccomment">/// equivalent to the number of projects being flushed.</span>
-    <span class="ident">BucketsFlushedPerProject</span>,
+    <span class="doccomment">/// The number of metric buckets flushed in a cycle for each project.
+    ///
+    /// Relay scans metric buckets in regular intervals and flushes expired buckets. This histogram
+    /// is logged for each project that is being flushed. The count of the histogram values is
+    /// equivalent to the number of projects being flushed.
+    </span>BucketsFlushedPerProject,
 
-    <span class="doccomment">/// The reporting delay at which a bucket arrives in Relay.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// A positive delay indicates the bucket arrives after its stated timestamp. Large delays</span>
-    <span class="doccomment">/// indicate backdating, particularly all delays larger than `bucket_interval + initial_delay`.</span>
-    <span class="doccomment">/// Negative delays indicate that the bucket is dated into the future, likely due to clock drift</span>
-    <span class="doccomment">/// on the client.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This metric is tagged with:</span>
-    <span class="doccomment">///  - `backdated`: A flag indicating whether the metric was reported within the `initial_delay`</span>
-    <span class="doccomment">///    time period (`false`) or after the initial delay has expired (`true`).</span>
-    <span class="ident">BucketsDelay</span>,
+    <span class="doccomment">/// The reporting delay at which a bucket arrives in Relay.
+    ///
+    /// A positive delay indicates the bucket arrives after its stated timestamp. Large delays
+    /// indicate backdating, particularly all delays larger than `bucket_interval + initial_delay`.
+    /// Negative delays indicate that the bucket is dated into the future, likely due to clock drift
+    /// on the client.
+    ///
+    /// This metric is tagged with:
+    ///  - `backdated`: A flag indicating whether the metric was reported within the `initial_delay`
+    ///    time period (`false`) or after the initial delay has expired (`true`).
+    </span>BucketsDelay,
 
-    <span class="doccomment">/// The number of batches emitted per partition by [`crate::aggregation::Aggregator`].</span>
-    <span class="ident">BatchesPerPartition</span>,
+    <span class="doccomment">/// The number of batches emitted per partition by [`crate::aggregation::Aggregator`].
+    </span>BatchesPerPartition,
 
-    <span class="doccomment">/// The number of buckets in a batch emitted by [`crate::aggregation::Aggregator`].</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This corresponds to the number of buckets that will end up in an envelope.</span>
-    <span class="ident">BucketsPerBatch</span>,
+    <span class="doccomment">/// The number of buckets in a batch emitted by [`crate::aggregation::Aggregator`].
+    ///
+    /// This corresponds to the number of buckets that will end up in an envelope.
+    </span>BucketsPerBatch,
 
-    <span class="doccomment">/// Distribution of flush buckets over partition keys.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The distribution of buckets should be even.</span>
-    <span class="doccomment">/// If it is not, this metric should expose it.</span>
-    <span class="ident">PartitionKeys</span>,
+    <span class="doccomment">/// Distribution of flush buckets over partition keys.
+    ///
+    /// The distribution of buckets should be even.
+    /// If it is not, this metric should expose it.
+    </span>PartitionKeys,
 
-    <span class="doccomment">/// Distribution of invalid bucket timestamps observed, relative to the time of observation.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This is a temporary metric to better understand why we see so many invalid timestamp errors.</span>
-    <span class="ident">InvalidBucketTimestamp</span>,
+    <span class="doccomment">/// Distribution of invalid bucket timestamps observed, relative to the time of observation.
+    ///
+    /// This is a temporary metric to better understand why we see so many invalid timestamp errors.
+    </span>InvalidBucketTimestamp,
 }
 
-<span class="kw">impl</span> <span class="ident">HistogramMetric</span> <span class="kw">for</span> <span class="ident">MetricHistograms</span> {
-    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
-        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident"><span class="self">Self</span>::BucketsFlushed</span> =&gt; <span class="string">&quot;metrics.buckets.flushed&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::BucketsFlushedPerProject</span> =&gt; <span class="string">&quot;metrics.buckets.flushed_per_project&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::BucketsDelay</span> =&gt; <span class="string">&quot;metrics.buckets.delay&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::BatchesPerPartition</span> =&gt; <span class="string">&quot;metrics.buckets.batches_per_partition&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::BucketsPerBatch</span> =&gt; <span class="string">&quot;metrics.buckets.per_batch&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::PartitionKeys</span> =&gt; <span class="string">&quot;metrics.buckets.partition_keys&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::InvalidBucketTimestamp</span> =&gt; <span class="string">&quot;metrics.buckets.invalid_timestamp&quot;</span>,
+<span class="kw">impl </span>HistogramMetric <span class="kw">for </span>MetricHistograms {
+    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
+            <span class="self">Self</span>::BucketsFlushed =&gt; <span class="string">&quot;metrics.buckets.flushed&quot;</span>,
+            <span class="self">Self</span>::BucketsFlushedPerProject =&gt; <span class="string">&quot;metrics.buckets.flushed_per_project&quot;</span>,
+            <span class="self">Self</span>::BucketsDelay =&gt; <span class="string">&quot;metrics.buckets.delay&quot;</span>,
+            <span class="self">Self</span>::BatchesPerPartition =&gt; <span class="string">&quot;metrics.buckets.batches_per_partition&quot;</span>,
+            <span class="self">Self</span>::BucketsPerBatch =&gt; <span class="string">&quot;metrics.buckets.per_batch&quot;</span>,
+            <span class="self">Self</span>::PartitionKeys =&gt; <span class="string">&quot;metrics.buckets.partition_keys&quot;</span>,
+            <span class="self">Self</span>::InvalidBucketTimestamp =&gt; <span class="string">&quot;metrics.buckets.invalid_timestamp&quot;</span>,
         }
     }
 }
 
-<span class="doccomment">/// Gauge metrics for Relay Metrics.</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">MetricGauges</span> {
-    <span class="doccomment">/// The total number of metric buckets in Relay&#39;s metrics aggregator.</span>
-    <span class="ident">Buckets</span>,
-    <span class="doccomment">/// The total storage cost of metric buckets in Relay&#39;s metrics aggregator.</span>
-    <span class="ident">BucketsCost</span>,
+<span class="doccomment">/// Gauge metrics for Relay Metrics.
+</span><span class="kw">pub enum </span>MetricGauges {
+    <span class="doccomment">/// The total number of metric buckets in Relay&#39;s metrics aggregator.
+    </span>Buckets,
+    <span class="doccomment">/// The total storage cost of metric buckets in Relay&#39;s metrics aggregator.
+    </span>BucketsCost,
 }
 
-<span class="kw">impl</span> <span class="ident">GaugeMetric</span> <span class="kw">for</span> <span class="ident">MetricGauges</span> {
-    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
-        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident"><span class="self">Self</span>::Buckets</span> =&gt; <span class="string">&quot;metrics.buckets&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::BucketsCost</span> =&gt; <span class="string">&quot;metrics.buckets.cost&quot;</span>,
+<span class="kw">impl </span>GaugeMetric <span class="kw">for </span>MetricGauges {
+    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
+            <span class="self">Self</span>::Buckets =&gt; <span class="string">&quot;metrics.buckets&quot;</span>,
+            <span class="self">Self</span>::BucketsCost =&gt; <span class="string">&quot;metrics.buckets.cost&quot;</span>,
         }
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_metrics" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_metrics" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

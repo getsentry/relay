@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/pii/regexes.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>regexes.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/pii/regexes.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>regexes.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_general/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -274,112 +274,112 @@
 <span id="272">272</span>
 <span id="273">273</span>
 <span id="274">274</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">once_cell::sync::Lazy</span>;
-<span class="kw">use</span> <span class="ident">regex::Regex</span>;
-<span class="kw">use</span> <span class="ident">smallvec</span>::{<span class="ident">smallvec</span>, <span class="ident">SmallVec</span>};
+</pre><pre class="rust"><code><span class="kw">use </span>once_cell::sync::Lazy;
+<span class="kw">use </span>regex::Regex;
+<span class="kw">use </span>smallvec::{smallvec, SmallVec};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::pii::RuleType</span>;
+<span class="kw">use </span><span class="kw">crate</span>::pii::RuleType;
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">PatternType</span> {
-    <span class="doccomment">/// Pattern-match on key and value</span>
-    <span class="ident">KeyValue</span>,
-    <span class="doccomment">/// Pattern-match on value only</span>
-    <span class="ident">Value</span>,
+<span class="attribute">#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+</span><span class="kw">pub enum </span>PatternType {
+    <span class="doccomment">/// Pattern-match on key and value
+    </span>KeyValue,
+    <span class="doccomment">/// Pattern-match on value only
+    </span>Value,
 }
 
-<span class="doccomment">/// What to do with regex matches once found.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">ReplaceBehavior</span> {
-    <span class="doccomment">/// Replace the entire string value (or just more than the match, depending on context).</span>
-    <span class="ident">Value</span>,
+<span class="doccomment">/// What to do with regex matches once found.
+</span><span class="attribute">#[derive(Clone, Debug, Eq, PartialEq)]
+</span><span class="kw">pub enum </span>ReplaceBehavior {
+    <span class="doccomment">/// Replace the entire string value (or just more than the match, depending on context).
+    </span>Value,
 
-    <span class="doccomment">/// Replace the following specific regex groups.</span>
-    <span class="ident">Groups</span>(<span class="ident">SmallVec</span><span class="op">&lt;</span>[<span class="ident">u8</span>; <span class="number">1</span>]<span class="op">&gt;</span>),
+    <span class="doccomment">/// Replace the following specific regex groups.
+    </span>Groups(SmallVec&lt;[u8; <span class="number">1</span>]&gt;),
 }
 
-<span class="kw">impl</span> <span class="ident">ReplaceBehavior</span> {
-    <span class="doccomment">/// Replace the entire string value (or just more than the match, depending on context).</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">replace_value</span>() -&gt; <span class="self">Self</span> {
-        <span class="ident">ReplaceBehavior::Value</span>
+<span class="kw">impl </span>ReplaceBehavior {
+    <span class="doccomment">/// Replace the entire string value (or just more than the match, depending on context).
+    </span><span class="kw">pub fn </span>replace_value() -&gt; <span class="self">Self </span>{
+        ReplaceBehavior::Value
     }
 
-    <span class="doccomment">/// Replace the entire match, equivalent to `ReplaceBehavior::Groups([0])`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">replace_match</span>() -&gt; <span class="self">Self</span> {
-        <span class="ident">ReplaceBehavior::replace_group</span>(<span class="number">0</span>)
+    <span class="doccomment">/// Replace the entire match, equivalent to `ReplaceBehavior::Groups([0])`.
+    </span><span class="kw">pub fn </span>replace_match() -&gt; <span class="self">Self </span>{
+        ReplaceBehavior::replace_group(<span class="number">0</span>)
     }
 
-    <span class="doccomment">/// Replace the following singular regex group.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">replace_group</span>(<span class="ident">g</span>: <span class="ident">u8</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">ReplaceBehavior::Groups</span>(<span class="macro">smallvec!</span>[<span class="ident">g</span>])
+    <span class="doccomment">/// Replace the following singular regex group.
+    </span><span class="kw">pub fn </span>replace_group(g: u8) -&gt; <span class="self">Self </span>{
+        ReplaceBehavior::Groups(<span class="macro">smallvec!</span>[g])
     }
 
-    <span class="doccomment">/// Replace the following specific regex groups.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">replace_groups</span>(<span class="ident">gs</span>: <span class="ident">SmallVec</span><span class="op">&lt;</span>[<span class="ident">u8</span>; <span class="number">1</span>]<span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">ReplaceBehavior::Groups</span>(<span class="ident">gs</span>)
+    <span class="doccomment">/// Replace the following specific regex groups.
+    </span><span class="kw">pub fn </span>replace_groups(gs: SmallVec&lt;[u8; <span class="number">1</span>]&gt;) -&gt; <span class="self">Self </span>{
+        ReplaceBehavior::Groups(gs)
     }
 }
 
-<span class="doccomment">/// Return a list of regexes to apply for the given rule type.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_regex_for_rule_type</span>(
-    <span class="ident">ty</span>: <span class="kw-2">&amp;</span><span class="ident">RuleType</span>,
-) -&gt; <span class="ident">SmallVec</span><span class="op">&lt;</span>[(<span class="ident">PatternType</span>, <span class="kw-2">&amp;</span><span class="ident">Regex</span>, <span class="ident">ReplaceBehavior</span>); <span class="number">2</span>]<span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">v</span> <span class="op">=</span> <span class="ident">PatternType::Value</span>;
-    <span class="kw">let</span> <span class="ident">kv</span> <span class="op">=</span> <span class="ident">PatternType::KeyValue</span>;
+<span class="doccomment">/// Return a list of regexes to apply for the given rule type.
+</span><span class="kw">pub fn </span>get_regex_for_rule_type(
+    ty: <span class="kw-2">&amp;</span>RuleType,
+) -&gt; SmallVec&lt;[(PatternType, <span class="kw-2">&amp;</span>Regex, ReplaceBehavior); <span class="number">2</span>]&gt; {
+    <span class="kw">let </span>v = PatternType::Value;
+    <span class="kw">let </span>kv = PatternType::KeyValue;
 
-    <span class="kw">match</span> <span class="ident">ty</span> {
-        <span class="ident">RuleType::RedactPair</span>(<span class="kw-2">ref</span> <span class="ident">redact_pair</span>) =&gt; <span class="macro">smallvec!</span>[(
-            <span class="ident">kv</span>,
-            <span class="kw-2">&amp;</span><span class="ident">redact_pair</span>.<span class="ident">key_pattern</span>.<span class="number">0</span>,
-            <span class="ident">ReplaceBehavior::replace_value</span>()
+    <span class="kw">match </span>ty {
+        RuleType::RedactPair(<span class="kw-2">ref </span>redact_pair) =&gt; <span class="macro">smallvec!</span>[(
+            kv,
+            <span class="kw-2">&amp;</span>redact_pair.key_pattern.<span class="number">0</span>,
+            ReplaceBehavior::replace_value()
         )],
-        <span class="ident">RuleType::Password</span> =&gt; {
-            <span class="macro">smallvec!</span>[(<span class="ident">kv</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">PASSWORD_KEY_REGEX</span>, <span class="ident">ReplaceBehavior::replace_value</span>())]
+        RuleType::Password =&gt; {
+            <span class="macro">smallvec!</span>[(kv, <span class="kw-2">&amp;*</span>PASSWORD_KEY_REGEX, ReplaceBehavior::replace_value())]
         }
-        <span class="ident">RuleType::Anything</span> =&gt; <span class="macro">smallvec!</span>[(<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">ANYTHING_REGEX</span>, <span class="ident">ReplaceBehavior::replace_match</span>())],
-        <span class="ident">RuleType::Pattern</span>(<span class="kw-2">ref</span> <span class="ident">r</span>) =&gt; {
-            <span class="kw">let</span> <span class="ident">replace_behavior</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">r</span>.<span class="ident">replace_groups</span> {
-                <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">groups</span>) =&gt; {
-                    <span class="ident">ReplaceBehavior::replace_groups</span>(<span class="ident">groups</span>.<span class="ident">iter</span>().<span class="ident">copied</span>().<span class="ident">collect</span>())
+        RuleType::Anything =&gt; <span class="macro">smallvec!</span>[(v, <span class="kw-2">&amp;*</span>ANYTHING_REGEX, ReplaceBehavior::replace_match())],
+        RuleType::Pattern(<span class="kw-2">ref </span>r) =&gt; {
+            <span class="kw">let </span>replace_behavior = <span class="kw">match </span>r.replace_groups {
+                <span class="prelude-val">Some</span>(<span class="kw-2">ref </span>groups) =&gt; {
+                    ReplaceBehavior::replace_groups(groups.iter().copied().collect())
                 }
-                <span class="prelude-val">None</span> =&gt; <span class="ident">ReplaceBehavior::replace_match</span>(),
+                <span class="prelude-val">None </span>=&gt; ReplaceBehavior::replace_match(),
             };
 
-            <span class="macro">smallvec!</span>[(<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="ident">r</span>.<span class="ident">pattern</span>.<span class="number">0</span>, <span class="ident">replace_behavior</span>)]
+            <span class="macro">smallvec!</span>[(v, <span class="kw-2">&amp;</span>r.pattern.<span class="number">0</span>, replace_behavior)]
         }
 
-        <span class="ident">RuleType::Imei</span> =&gt; <span class="macro">smallvec!</span>[(<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">IMEI_REGEX</span>, <span class="ident">ReplaceBehavior::replace_match</span>())],
-        <span class="ident">RuleType::Mac</span> =&gt; <span class="macro">smallvec!</span>[(<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">MAC_REGEX</span>, <span class="ident">ReplaceBehavior::replace_match</span>())],
-        <span class="ident">RuleType::Uuid</span> =&gt; <span class="macro">smallvec!</span>[(<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">UUID_REGEX</span>, <span class="ident">ReplaceBehavior::replace_match</span>())],
-        <span class="ident">RuleType::Email</span> =&gt; <span class="macro">smallvec!</span>[(<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">EMAIL_REGEX</span>, <span class="ident">ReplaceBehavior::replace_match</span>())],
-        <span class="ident">RuleType::Ip</span> =&gt; <span class="macro">smallvec!</span>[
-            (<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">IPV4_REGEX</span>, <span class="ident">ReplaceBehavior::replace_match</span>()),
-            (<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">IPV6_REGEX</span>, <span class="ident">ReplaceBehavior::replace_group</span>(<span class="number">1</span>)),
+        RuleType::Imei =&gt; <span class="macro">smallvec!</span>[(v, <span class="kw-2">&amp;*</span>IMEI_REGEX, ReplaceBehavior::replace_match())],
+        RuleType::Mac =&gt; <span class="macro">smallvec!</span>[(v, <span class="kw-2">&amp;*</span>MAC_REGEX, ReplaceBehavior::replace_match())],
+        RuleType::Uuid =&gt; <span class="macro">smallvec!</span>[(v, <span class="kw-2">&amp;*</span>UUID_REGEX, ReplaceBehavior::replace_match())],
+        RuleType::Email =&gt; <span class="macro">smallvec!</span>[(v, <span class="kw-2">&amp;*</span>EMAIL_REGEX, ReplaceBehavior::replace_match())],
+        RuleType::Ip =&gt; <span class="macro">smallvec!</span>[
+            (v, <span class="kw-2">&amp;*</span>IPV4_REGEX, ReplaceBehavior::replace_match()),
+            (v, <span class="kw-2">&amp;*</span>IPV6_REGEX, ReplaceBehavior::replace_group(<span class="number">1</span>)),
         ],
-        <span class="ident">RuleType::Creditcard</span> =&gt; {
-            <span class="macro">smallvec!</span>[(<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">CREDITCARD_REGEX</span>, <span class="ident">ReplaceBehavior::replace_match</span>())]
+        RuleType::Creditcard =&gt; {
+            <span class="macro">smallvec!</span>[(v, <span class="kw-2">&amp;*</span>CREDITCARD_REGEX, ReplaceBehavior::replace_match())]
         }
-        <span class="ident">RuleType::Pemkey</span> =&gt; <span class="macro">smallvec!</span>[(<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">PEM_KEY_REGEX</span>, <span class="ident">ReplaceBehavior::replace_group</span>(<span class="number">1</span>))],
-        <span class="ident">RuleType::UrlAuth</span> =&gt; <span class="macro">smallvec!</span>[(<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">URL_AUTH_REGEX</span>, <span class="ident">ReplaceBehavior::replace_group</span>(<span class="number">1</span>))],
-        <span class="ident">RuleType::UsSsn</span> =&gt; <span class="macro">smallvec!</span>[(<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">US_SSN_REGEX</span>, <span class="ident">ReplaceBehavior::replace_match</span>())],
-        <span class="ident">RuleType::Userpath</span> =&gt; <span class="macro">smallvec!</span>[(<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">PATH_REGEX</span>, <span class="ident">ReplaceBehavior::replace_group</span>(<span class="number">1</span>))],
+        RuleType::Pemkey =&gt; <span class="macro">smallvec!</span>[(v, <span class="kw-2">&amp;*</span>PEM_KEY_REGEX, ReplaceBehavior::replace_group(<span class="number">1</span>))],
+        RuleType::UrlAuth =&gt; <span class="macro">smallvec!</span>[(v, <span class="kw-2">&amp;*</span>URL_AUTH_REGEX, ReplaceBehavior::replace_group(<span class="number">1</span>))],
+        RuleType::UsSsn =&gt; <span class="macro">smallvec!</span>[(v, <span class="kw-2">&amp;*</span>US_SSN_REGEX, ReplaceBehavior::replace_match())],
+        RuleType::Userpath =&gt; <span class="macro">smallvec!</span>[(v, <span class="kw-2">&amp;*</span>PATH_REGEX, ReplaceBehavior::replace_group(<span class="number">1</span>))],
 
-        <span class="comment">// These ought to have been resolved in CompiledConfig</span>
-        <span class="ident">RuleType::Alias</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">RuleType::Multiple</span>(<span class="kw">_</span>) =&gt; <span class="macro">smallvec!</span>[],
+        <span class="comment">// These ought to have been resolved in CompiledConfig
+        </span>RuleType::Alias(<span class="kw">_</span>) | RuleType::Multiple(<span class="kw">_</span>) =&gt; <span class="macro">smallvec!</span>[],
     }
 }
 
-<span class="attribute">#[<span class="ident">rustfmt::skip</span>]</span>
-<span class="macro">macro_rules!</span> <span class="ident">ip</span> {
-    (<span class="ident">v4s</span>) =&gt; { <span class="string">&quot;(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)&quot;</span> };
-    (<span class="ident">v4a</span>) =&gt; { <span class="macro">concat!</span>(<span class="macro">ip!</span>(<span class="ident">v4s</span>), <span class="string">&quot;\\.&quot;</span>, <span class="macro">ip!</span>(<span class="ident">v4s</span>), <span class="string">&quot;\\.&quot;</span>, <span class="macro">ip!</span>(<span class="ident">v4s</span>), <span class="string">&quot;\\.&quot;</span>, <span class="macro">ip!</span>(<span class="ident">v4s</span>)) };
-    (<span class="ident">v6s</span>) =&gt; { <span class="string">&quot;[0-9a-fA-F]{1,4}&quot;</span> };
+<span class="attribute">#[rustfmt::skip]
+</span><span class="macro">macro_rules! </span>ip {
+    (v4s) =&gt; { <span class="string">&quot;(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)&quot; </span>};
+    (v4a) =&gt; { <span class="macro">concat!</span>(<span class="macro">ip!</span>(v4s), <span class="string">&quot;\\.&quot;</span>, <span class="macro">ip!</span>(v4s), <span class="string">&quot;\\.&quot;</span>, <span class="macro">ip!</span>(v4s), <span class="string">&quot;\\.&quot;</span>, <span class="macro">ip!</span>(v4s)) };
+    (v6s) =&gt; { <span class="string">&quot;[0-9a-fA-F]{1,4}&quot; </span>};
 }
 
-<span class="kw">pub</span> <span class="kw">static</span> <span class="ident">ANYTHING_REGEX</span>: <span class="ident">Lazy</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Lazy::new</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Regex::new</span>(<span class="string">&quot;.*&quot;</span>).<span class="ident">unwrap</span>());
+<span class="kw">pub static </span>ANYTHING_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| Regex::new(<span class="string">&quot;.*&quot;</span>).unwrap());
 
-<span class="kw">static</span> <span class="ident">IMEI_REGEX</span>: <span class="ident">Lazy</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Lazy::new</span>(<span class="op">|</span><span class="op">|</span> {
-    <span class="ident">Regex::new</span>(
+<span class="kw">static </span>IMEI_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
+    Regex::new(
         <span class="string">r#&quot;(?x)
             \b
                 (\d{2}-?
@@ -389,20 +389,20 @@
             \b
         &quot;#</span>,
     )
-    .<span class="ident">unwrap</span>()
+    .unwrap()
 });
 
-<span class="kw">static</span> <span class="ident">MAC_REGEX</span>: <span class="ident">Lazy</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Lazy::new</span>(<span class="op">|</span><span class="op">|</span> {
-    <span class="ident">Regex::new</span>(
+<span class="kw">static </span>MAC_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
+    Regex::new(
         <span class="string">r#&quot;(?x)
             \b([[:xdigit:]]{2}[:-]){5}[[:xdigit:]]{2}\b
         &quot;#</span>,
     )
-    .<span class="ident">unwrap</span>()
+    .unwrap()
 });
 
-<span class="kw">static</span> <span class="ident">UUID_REGEX</span>: <span class="ident">Lazy</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Lazy::new</span>(<span class="op">|</span><span class="op">|</span> {
-    <span class="ident">Regex::new</span>(
+<span class="kw">static </span>UUID_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
+    Regex::new(
         <span class="string">r#&quot;(?ix)
             \b
             [a-z0-9]{8}-?
@@ -413,11 +413,11 @@
             \b
         &quot;#</span>,
     )
-    .<span class="ident">unwrap</span>()
+    .unwrap()
 });
 
-<span class="kw">static</span> <span class="ident">EMAIL_REGEX</span>: <span class="ident">Lazy</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Lazy::new</span>(<span class="op">|</span><span class="op">|</span> {
-    <span class="ident">Regex::new</span>(
+<span class="kw">static </span>EMAIL_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
+    Regex::new(
         <span class="string">r#&quot;(?x)
             \b
                 [a-zA-Z0-9.!\#$%&amp;&#39;*+/=?^_`{|}~-]+
@@ -426,40 +426,40 @@
             \b
         &quot;#</span>,
     )
-    .<span class="ident">unwrap</span>()
+    .unwrap()
 });
 
-<span class="kw">static</span> <span class="ident">IPV4_REGEX</span>: <span class="ident">Lazy</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Lazy::new</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Regex::new</span>(<span class="macro">concat!</span>(<span class="string">&quot;\\b&quot;</span>, <span class="macro">ip!</span>(<span class="ident">v4a</span>), <span class="string">&quot;\\b&quot;</span>)).<span class="ident">unwrap</span>());
+<span class="kw">static </span>IPV4_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| Regex::new(<span class="macro">concat!</span>(<span class="string">&quot;\\b&quot;</span>, <span class="macro">ip!</span>(v4a), <span class="string">&quot;\\b&quot;</span>)).unwrap());
 
-<span class="attribute">#[<span class="ident">rustfmt::skip</span>]</span>
-<span class="kw">static</span>  <span class="ident">IPV6_REGEX</span>: <span class="ident">Lazy</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Lazy::new</span>(<span class="op">|</span><span class="op">|</span> {
-    <span class="ident">Regex::new</span>(
+<span class="attribute">#[rustfmt::skip]
+</span><span class="kw">static  </span>IPV6_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
+    Regex::new(
         <span class="macro">concat!</span>(
             <span class="string">&quot;(?i)(?:[\\s]|[[:punct:]]|^)(&quot;</span>,
-                <span class="string">&quot;(&quot;</span>, <span class="macro">ip!</span>(<span class="ident">v6s</span>), <span class="string">&quot;:){7}&quot;</span>, <span class="macro">ip!</span>(<span class="ident">v6s</span>), <span class="string">&quot;|&quot;</span>,
-                <span class="string">&quot;(&quot;</span>, <span class="macro">ip!</span>(<span class="ident">v6s</span>), <span class="string">&quot;:){1,7}:|&quot;</span>,
-                <span class="string">&quot;(&quot;</span>, <span class="macro">ip!</span>(<span class="ident">v6s</span>), <span class="string">&quot;:){1,6}::&quot;</span>, <span class="macro">ip!</span>(<span class="ident">v6s</span>), <span class="string">&quot;|&quot;</span>,
-                <span class="string">&quot;(&quot;</span>, <span class="macro">ip!</span>(<span class="ident">v6s</span>), <span class="string">&quot;:){1,5}:(:&quot;</span>, <span class="macro">ip!</span>(<span class="ident">v6s</span>), <span class="string">&quot;){1,2}|&quot;</span>,
-                <span class="string">&quot;(&quot;</span>, <span class="macro">ip!</span>(<span class="ident">v6s</span>), <span class="string">&quot;:){1,4}:(:&quot;</span>, <span class="macro">ip!</span>(<span class="ident">v6s</span>), <span class="string">&quot;){1,3}|&quot;</span>,
-                <span class="string">&quot;(&quot;</span>, <span class="macro">ip!</span>(<span class="ident">v6s</span>), <span class="string">&quot;:){1,3}:(:&quot;</span>, <span class="macro">ip!</span>(<span class="ident">v6s</span>), <span class="string">&quot;){1,4}|&quot;</span>,
-                <span class="string">&quot;(&quot;</span>, <span class="macro">ip!</span>(<span class="ident">v6s</span>), <span class="string">&quot;:){1,2}:(:&quot;</span>, <span class="macro">ip!</span>(<span class="ident">v6s</span>), <span class="string">&quot;){1,5}|&quot;</span>,
-                <span class="macro">ip!</span>(<span class="ident">v6s</span>), <span class="string">&quot;:((:&quot;</span>, <span class="macro">ip!</span>(<span class="ident">v6s</span>), <span class="string">&quot;){1,6})|&quot;</span>,
-                <span class="string">&quot;:((:&quot;</span>, <span class="macro">ip!</span>(<span class="ident">v6s</span>), <span class="string">&quot;){1,7}|:)|&quot;</span>,
-                <span class="string">&quot;fe80:(:&quot;</span>, <span class="macro">ip!</span>(<span class="ident">v6s</span>), <span class="string">&quot;){0,4}%[0-9a-zA-Z]{1,}&quot;</span>,
-                <span class="string">&quot;::(ffff(:0{1,4}){0,1}:){0,1}&quot;</span>, <span class="macro">ip!</span>(<span class="ident">v4a</span>), <span class="string">&quot;|&quot;</span>,
-                <span class="string">&quot;(&quot;</span>, <span class="macro">ip!</span>(<span class="ident">v6s</span>), <span class="string">&quot;:){1,4}:&quot;</span>, <span class="macro">ip!</span>(<span class="ident">v4a</span>),
+                <span class="string">&quot;(&quot;</span>, <span class="macro">ip!</span>(v6s), <span class="string">&quot;:){7}&quot;</span>, <span class="macro">ip!</span>(v6s), <span class="string">&quot;|&quot;</span>,
+                <span class="string">&quot;(&quot;</span>, <span class="macro">ip!</span>(v6s), <span class="string">&quot;:){1,7}:|&quot;</span>,
+                <span class="string">&quot;(&quot;</span>, <span class="macro">ip!</span>(v6s), <span class="string">&quot;:){1,6}::&quot;</span>, <span class="macro">ip!</span>(v6s), <span class="string">&quot;|&quot;</span>,
+                <span class="string">&quot;(&quot;</span>, <span class="macro">ip!</span>(v6s), <span class="string">&quot;:){1,5}:(:&quot;</span>, <span class="macro">ip!</span>(v6s), <span class="string">&quot;){1,2}|&quot;</span>,
+                <span class="string">&quot;(&quot;</span>, <span class="macro">ip!</span>(v6s), <span class="string">&quot;:){1,4}:(:&quot;</span>, <span class="macro">ip!</span>(v6s), <span class="string">&quot;){1,3}|&quot;</span>,
+                <span class="string">&quot;(&quot;</span>, <span class="macro">ip!</span>(v6s), <span class="string">&quot;:){1,3}:(:&quot;</span>, <span class="macro">ip!</span>(v6s), <span class="string">&quot;){1,4}|&quot;</span>,
+                <span class="string">&quot;(&quot;</span>, <span class="macro">ip!</span>(v6s), <span class="string">&quot;:){1,2}:(:&quot;</span>, <span class="macro">ip!</span>(v6s), <span class="string">&quot;){1,5}|&quot;</span>,
+                <span class="macro">ip!</span>(v6s), <span class="string">&quot;:((:&quot;</span>, <span class="macro">ip!</span>(v6s), <span class="string">&quot;){1,6})|&quot;</span>,
+                <span class="string">&quot;:((:&quot;</span>, <span class="macro">ip!</span>(v6s), <span class="string">&quot;){1,7}|:)|&quot;</span>,
+                <span class="string">&quot;fe80:(:&quot;</span>, <span class="macro">ip!</span>(v6s), <span class="string">&quot;){0,4}%[0-9a-zA-Z]{1,}&quot;</span>,
+                <span class="string">&quot;::(ffff(:0{1,4}){0,1}:){0,1}&quot;</span>, <span class="macro">ip!</span>(v4a), <span class="string">&quot;|&quot;</span>,
+                <span class="string">&quot;(&quot;</span>, <span class="macro">ip!</span>(v6s), <span class="string">&quot;:){1,4}:&quot;</span>, <span class="macro">ip!</span>(v4a),
             <span class="string">&quot;)([\\s]|[[:punct:]]|$)&quot;</span>,
         )
-    ).<span class="ident">unwrap</span>()
+    ).unwrap()
 });
 
-<span class="comment">// http://www.richardsramblings.com/regex/credit-card-numbers/</span>
-<span class="comment">// Re-formatted with comments and dashes support</span>
-<span class="comment">//</span>
-<span class="comment">// Why so complicated? Because creditcard numbers are variable length and we do not want to</span>
-<span class="comment">// strip any number that just happens to have the same length.</span>
-<span class="kw">static</span> <span class="ident">CREDITCARD_REGEX</span>: <span class="ident">Lazy</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Lazy::new</span>(<span class="op">|</span><span class="op">|</span> {
-    <span class="ident">Regex::new</span>(
+<span class="comment">// http://www.richardsramblings.com/regex/credit-card-numbers/
+// Re-formatted with comments and dashes support
+//
+// Why so complicated? Because creditcard numbers are variable length and we do not want to
+// strip any number that just happens to have the same length.
+</span><span class="kw">static </span>CREDITCARD_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
+    Regex::new(
         <span class="string">r#&quot;(?x)
         \b(
             (?:  # vendor specific prefixes
@@ -475,11 +475,11 @@
         )\b
         &quot;#</span>,
     )
-    .<span class="ident">unwrap</span>()
+    .unwrap()
 });
 
-<span class="kw">static</span> <span class="ident">PATH_REGEX</span>: <span class="ident">Lazy</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Lazy::new</span>(<span class="op">|</span><span class="op">|</span> {
-    <span class="ident">Regex::new</span>(
+<span class="kw">static </span>PATH_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
+    Regex::new(
         <span class="string">r#&quot;(?ix)
             (?:
                 (?:
@@ -494,11 +494,11 @@
             )
         &quot;#</span>,
     )
-    .<span class="ident">unwrap</span>()
+    .unwrap()
 });
 
-<span class="kw">static</span> <span class="ident">PEM_KEY_REGEX</span>: <span class="ident">Lazy</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Lazy::new</span>(<span class="op">|</span><span class="op">|</span> {
-    <span class="ident">Regex::new</span>(
+<span class="kw">static </span>PEM_KEY_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
+    Regex::new(
         <span class="string">r#&quot;(?sx)
             (?:
                 -----
@@ -515,11 +515,11 @@
             )
         &quot;#</span>,
     )
-    .<span class="ident">unwrap</span>()
+    .unwrap()
 });
 
-<span class="kw">static</span> <span class="ident">URL_AUTH_REGEX</span>: <span class="ident">Lazy</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Lazy::new</span>(<span class="op">|</span><span class="op">|</span> {
-    <span class="ident">Regex::new</span>(
+<span class="kw">static </span>URL_AUTH_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
+    Regex::new(
         <span class="string">r#&quot;(?x)
             \b(?:
                 (?:[a-z0-9+-]+:)?//
@@ -527,11 +527,11 @@
             )@
         &quot;#</span>,
     )
-    .<span class="ident">unwrap</span>()
+    .unwrap()
 });
 
-<span class="kw">static</span> <span class="ident">US_SSN_REGEX</span>: <span class="ident">Lazy</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Lazy::new</span>(<span class="op">|</span><span class="op">|</span> {
-    <span class="ident">Regex::new</span>(
+<span class="kw">static </span>US_SSN_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
+    Regex::new(
         <span class="string">r#&quot;(?x)
             \b(
                 [0-9]{3}-
@@ -540,13 +540,13 @@
             )\b
         &quot;#</span>,
     )
-    .<span class="ident">unwrap</span>()
+    .unwrap()
 });
 
-<span class="kw">static</span> <span class="ident">PASSWORD_KEY_REGEX</span>: <span class="ident">Lazy</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Lazy::new</span>(<span class="op">|</span><span class="op">|</span> {
-    <span class="ident">Regex::new</span>(
-        <span class="string">r&quot;(?i)(password|secret|passwd|api_key|apikey|auth|credentials|mysql_pwd|privatekey|private_key|token)&quot;</span>
-    ).<span class="ident">unwrap</span>()
+<span class="kw">static </span>PASSWORD_KEY_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
+    Regex::new(
+        <span class="string">r&quot;(?i)(password|secret|passwd|api_key|apikey|auth|credentials|mysql_pwd|privatekey|private_key|token)&quot;
+    </span>).unwrap()
 });
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

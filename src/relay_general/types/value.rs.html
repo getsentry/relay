@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/types/value.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>value.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/types/value.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>value.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_general/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -333,338 +333,338 @@
 <span id="331">331</span>
 <span id="332">332</span>
 <span id="333">333</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
-<span class="kw">use</span> <span class="ident">std::fmt</span>;
-<span class="kw">use</span> <span class="ident">std::str</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
+<span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::str;
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident">schemars::gen::SchemaGenerator</span>;
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident">schemars::schema::Schema</span>;
+<span class="attribute">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+</span><span class="kw">use </span>schemars::gen::SchemaGenerator;
+<span class="attribute">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+</span><span class="kw">use </span>schemars::schema::Schema;
 
-<span class="kw">use</span> <span class="ident">serde::de</span>::{<span class="ident">Deserialize</span>, <span class="ident">MapAccess</span>, <span class="ident">SeqAccess</span>, <span class="ident">Visitor</span>};
-<span class="kw">use</span> <span class="ident">serde::ser</span>::{<span class="ident">Serialize</span>, <span class="ident">SerializeMap</span>, <span class="ident">SerializeSeq</span>, <span class="ident">Serializer</span>};
+<span class="kw">use </span>serde::de::{Deserialize, MapAccess, SeqAccess, Visitor};
+<span class="kw">use </span>serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Meta</span>};
+<span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Meta};
 
-<span class="doccomment">/// Alias for typed arrays.</span>
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">Array</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span><span class="op">&gt;</span>;
+<span class="doccomment">/// Alias for typed arrays.
+</span><span class="kw">pub type </span>Array&lt;T&gt; = Vec&lt;Annotated&lt;T&gt;&gt;;
 
-<span class="doccomment">/// Alias for maps.</span>
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">Map</span><span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">T</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">T</span><span class="op">&gt;</span>;
+<span class="doccomment">/// Alias for maps.
+</span><span class="kw">pub type </span>Map&lt;K, T&gt; = BTreeMap&lt;K, T&gt;;
 
-<span class="doccomment">/// Alias for typed objects.</span>
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Map</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span><span class="op">&gt;</span>;
+<span class="doccomment">/// Alias for typed objects.
+</span><span class="kw">pub type </span>Object&lt;T&gt; = Map&lt;String, Annotated&lt;T&gt;&gt;;
 
-<span class="doccomment">/// Represents a boxed value.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">PartialEq</span>, <span class="ident">ProcessValue</span>)]</span>
-<span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">process_func</span> <span class="op">=</span> <span class="string">&quot;process_value&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Value</span> {
-    <span class="ident">Bool</span>(<span class="ident">bool</span>),
-    <span class="ident">I64</span>(<span class="ident">i64</span>),
-    <span class="ident">U64</span>(<span class="ident">u64</span>),
-    <span class="ident">F64</span>(<span class="ident">f64</span>),
-    <span class="ident">String</span>(<span class="ident">String</span>),
-    <span class="ident">Array</span>(<span class="ident">Array</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>),
-    <span class="ident">Object</span>(<span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>),
+<span class="doccomment">/// Represents a boxed value.
+</span><span class="attribute">#[derive(Debug, Clone, PartialEq, ProcessValue)]
+#[metastructure(process_func = <span class="string">&quot;process_value&quot;</span>)]
+</span><span class="kw">pub enum </span>Value {
+    Bool(bool),
+    I64(i64),
+    U64(u64),
+    F64(f64),
+    String(String),
+    Array(Array&lt;Value&gt;),
+    Object(Object&lt;Value&gt;),
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>)]</span>
-<span class="kw">impl</span> <span class="ident">schemars::JsonSchema</span> <span class="kw">for</span> <span class="ident">Value</span> {
-    <span class="kw">fn</span> <span class="ident">schema_name</span>() -&gt; <span class="ident">String</span> {
-        <span class="string">&quot;Value&quot;</span>.<span class="ident">to_owned</span>()
+<span class="attribute">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+</span><span class="kw">impl </span>schemars::JsonSchema <span class="kw">for </span>Value {
+    <span class="kw">fn </span>schema_name() -&gt; String {
+        <span class="string">&quot;Value&quot;</span>.to_owned()
     }
 
-    <span class="kw">fn</span> <span class="ident">json_schema</span>(<span class="ident">_gen</span>: <span class="kw-2">&amp;mut</span> <span class="ident">SchemaGenerator</span>) -&gt; <span class="ident">Schema</span> {
-        <span class="ident">Schema::Bool</span>(<span class="bool-val">true</span>)
+    <span class="kw">fn </span>json_schema(_gen: <span class="kw-2">&amp;mut </span>SchemaGenerator) -&gt; Schema {
+        Schema::Bool(<span class="bool-val">true</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">is_referenceable</span>() -&gt; <span class="ident">bool</span> {
-        <span class="bool-val">false</span>
-    }
+    <span class="kw">fn </span>is_referenceable() -&gt; bool {
+        <span class="bool-val">false
+    </span>}
 }
 
-<span class="doccomment">/// Helper type that renders out a description of the value.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ValueDescription</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Value</span>);
+<span class="doccomment">/// Helper type that renders out a description of the value.
+</span><span class="kw">pub struct </span>ValueDescription&lt;<span class="lifetime">&#39;a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Value);
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">ValueDescription</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="number">0</span> {
-            <span class="ident">Value::Bool</span>(<span class="bool-val">true</span>) =&gt; <span class="ident">f</span>.<span class="ident">pad</span>(<span class="string">&quot;true&quot;</span>),
-            <span class="ident">Value::Bool</span>(<span class="bool-val">false</span>) =&gt; <span class="ident">f</span>.<span class="ident">pad</span>(<span class="string">&quot;false&quot;</span>),
-            <span class="ident">Value::I64</span>(<span class="ident">val</span>) =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;integer {}&quot;</span>, <span class="ident">val</span>),
-            <span class="ident">Value::U64</span>(<span class="ident">val</span>) =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;integer {}&quot;</span>, <span class="ident">val</span>),
-            <span class="ident">Value::F64</span>(<span class="ident">val</span>) =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;float {}&quot;</span>, <span class="ident">val</span>),
-            <span class="ident">Value::String</span>(<span class="kw-2">ref</span> <span class="ident">val</span>) =&gt; <span class="ident">f</span>.<span class="ident">pad</span>(<span class="ident">val</span>),
-            <span class="ident">Value::Array</span>(<span class="kw">_</span>) =&gt; <span class="ident">f</span>.<span class="ident">pad</span>(<span class="string">&quot;an array&quot;</span>),
-            <span class="ident">Value::Object</span>(<span class="kw">_</span>) =&gt; <span class="ident">f</span>.<span class="ident">pad</span>(<span class="string">&quot;an object&quot;</span>),
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; fmt::Display <span class="kw">for </span>ValueDescription&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">match </span><span class="kw-2">*</span><span class="self">self</span>.<span class="number">0 </span>{
+            Value::Bool(<span class="bool-val">true</span>) =&gt; f.pad(<span class="string">&quot;true&quot;</span>),
+            Value::Bool(<span class="bool-val">false</span>) =&gt; f.pad(<span class="string">&quot;false&quot;</span>),
+            Value::I64(val) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;integer {}&quot;</span>, val),
+            Value::U64(val) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;integer {}&quot;</span>, val),
+            Value::F64(val) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;float {}&quot;</span>, val),
+            Value::String(<span class="kw-2">ref </span>val) =&gt; f.pad(val),
+            Value::Array(<span class="kw">_</span>) =&gt; f.pad(<span class="string">&quot;an array&quot;</span>),
+            Value::Object(<span class="kw">_</span>) =&gt; f.pad(<span class="string">&quot;an object&quot;</span>),
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Value</span> {
-    <span class="doccomment">/// Returns a formattable that gives a helper description of the value.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">describe</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">ValueDescription</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span> {
-        <span class="ident">ValueDescription</span>(<span class="self">self</span>)
+<span class="kw">impl </span>Value {
+    <span class="doccomment">/// Returns a formattable that gives a helper description of the value.
+    </span><span class="kw">pub fn </span>describe(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ValueDescription&lt;<span class="lifetime">&#39;_</span>&gt; {
+        ValueDescription(<span class="self">self</span>)
     }
 
-    <span class="doccomment">/// Returns the string if this value is a string, otherwise `None`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">Value::String</span>(<span class="ident">string</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">string</span>.<span class="ident">as_str</span>()),
-            <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
+    <span class="doccomment">/// Returns the string if this value is a string, otherwise `None`.
+    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
+        <span class="kw">match </span><span class="self">self </span>{
+            Value::String(string) =&gt; <span class="prelude-val">Some</span>(string.as_str()),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         }
     }
 
-    <span class="doccomment">/// Constructs a `Value` from a `serde_json::Value` object.</span>
-    <span class="kw">fn</span> <span class="ident">from_json</span>(<span class="ident">value</span>: <span class="ident">serde_json::Value</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="prelude-val">Some</span>(<span class="kw">match</span> <span class="ident">value</span> {
-            <span class="ident">serde_json::Value::Null</span> =&gt; <span class="kw">return</span> <span class="prelude-val">None</span>,
-            <span class="ident">serde_json::Value::Bool</span>(<span class="ident">value</span>) =&gt; <span class="ident">Value::Bool</span>(<span class="ident">value</span>),
-            <span class="ident">serde_json::Value::Number</span>(<span class="ident">num</span>) =&gt; {
-                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">val</span>) <span class="op">=</span> <span class="ident">num</span>.<span class="ident">as_i64</span>() {
-                    <span class="ident">Value::I64</span>(<span class="ident">val</span>)
-                } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">val</span>) <span class="op">=</span> <span class="ident">num</span>.<span class="ident">as_u64</span>() {
-                    <span class="ident">Value::U64</span>(<span class="ident">val</span>)
-                } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">val</span>) <span class="op">=</span> <span class="ident">num</span>.<span class="ident">as_f64</span>() {
-                    <span class="ident">Value::F64</span>(<span class="ident">val</span>)
-                } <span class="kw">else</span> {
-                    <span class="comment">// NB: Without the &quot;arbitrary_precision&quot; feature, serde_json&#39;s number will</span>
-                    <span class="comment">// always be one of the above.</span>
-                    <span class="macro">unreachable!</span>()
+    <span class="doccomment">/// Constructs a `Value` from a `serde_json::Value` object.
+    </span><span class="kw">fn </span>from_json(value: serde_json::Value) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
+        <span class="prelude-val">Some</span>(<span class="kw">match </span>value {
+            serde_json::Value::Null =&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
+            serde_json::Value::Bool(value) =&gt; Value::Bool(value),
+            serde_json::Value::Number(num) =&gt; {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(val) = num.as_i64() {
+                    Value::I64(val)
+                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(val) = num.as_u64() {
+                    Value::U64(val)
+                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(val) = num.as_f64() {
+                    Value::F64(val)
+                } <span class="kw">else </span>{
+                    <span class="comment">// NB: Without the &quot;arbitrary_precision&quot; feature, serde_json&#39;s number will
+                    // always be one of the above.
+                    </span><span class="macro">unreachable!</span>()
                 }
             }
-            <span class="ident">serde_json::Value::String</span>(<span class="ident">val</span>) =&gt; <span class="ident">Value::String</span>(<span class="ident">val</span>),
-            <span class="ident">serde_json::Value::Array</span>(<span class="ident">items</span>) =&gt; {
-                <span class="ident">Value::Array</span>(<span class="ident">items</span>.<span class="ident">into_iter</span>().<span class="ident">map</span>(<span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span><span class="ident">::from</span>).<span class="ident">collect</span>())
+            serde_json::Value::String(val) =&gt; Value::String(val),
+            serde_json::Value::Array(items) =&gt; {
+                Value::Array(items.into_iter().map(Annotated::&lt;Value&gt;::from).collect())
             }
-            <span class="ident">serde_json::Value::Object</span>(<span class="ident">items</span>) =&gt; <span class="ident">Value::Object</span>(
-                <span class="ident">items</span>
-                    .<span class="ident">into_iter</span>()
-                    .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">k</span>, <span class="ident">v</span>)<span class="op">|</span> (<span class="ident">k</span>, <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span><span class="ident">::from</span>(<span class="ident">v</span>)))
-                    .<span class="ident">collect</span>(),
+            serde_json::Value::Object(items) =&gt; Value::Object(
+                items
+                    .into_iter()
+                    .map(|(k, v)| (k, Annotated::&lt;Value&gt;::from(v)))
+                    .collect(),
             ),
         })
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">Value</span> {
-    <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">S</span>: <span class="ident">Serializer</span>,
+<span class="kw">impl </span>Serialize <span class="kw">for </span>Value {
+    <span class="kw">fn </span>serialize&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
+    <span class="kw">where
+        </span>S: Serializer,
     {
-        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">Value::Bool</span>(<span class="ident">val</span>) =&gt; <span class="ident">serializer</span>.<span class="ident">serialize_bool</span>(<span class="ident">val</span>),
-            <span class="ident">Value::I64</span>(<span class="ident">val</span>) =&gt; <span class="ident">serializer</span>.<span class="ident">serialize_i64</span>(<span class="ident">val</span>),
-            <span class="ident">Value::U64</span>(<span class="ident">val</span>) =&gt; <span class="ident">serializer</span>.<span class="ident">serialize_u64</span>(<span class="ident">val</span>),
-            <span class="ident">Value::F64</span>(<span class="ident">val</span>) =&gt; <span class="ident">serializer</span>.<span class="ident">serialize_f64</span>(<span class="ident">val</span>),
-            <span class="ident">Value::String</span>(<span class="kw-2">ref</span> <span class="ident">val</span>) =&gt; <span class="ident">serializer</span>.<span class="ident">serialize_str</span>(<span class="ident">val</span>),
-            <span class="ident">Value::Array</span>(<span class="kw-2">ref</span> <span class="ident">items</span>) =&gt; {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">seq_ser</span> <span class="op">=</span> <span class="ident">serializer</span>.<span class="ident">serialize_seq</span>(<span class="prelude-val">Some</span>(<span class="ident">items</span>.<span class="ident">len</span>()))<span class="question-mark">?</span>;
-                <span class="kw">for</span> <span class="ident">item</span> <span class="kw">in</span> <span class="ident">items</span> {
-                    <span class="kw">match</span> <span class="ident">item</span> {
-                        <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">val</span>), <span class="kw">_</span>) =&gt; <span class="ident">seq_ser</span>.<span class="ident">serialize_element</span>(<span class="ident">val</span>)<span class="question-mark">?</span>,
-                        <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="kw">_</span>) =&gt; <span class="ident">seq_ser</span>.<span class="ident">serialize_element</span>(<span class="kw-2">&amp;</span>())<span class="question-mark">?</span>,
+        <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
+            Value::Bool(val) =&gt; serializer.serialize_bool(val),
+            Value::I64(val) =&gt; serializer.serialize_i64(val),
+            Value::U64(val) =&gt; serializer.serialize_u64(val),
+            Value::F64(val) =&gt; serializer.serialize_f64(val),
+            Value::String(<span class="kw-2">ref </span>val) =&gt; serializer.serialize_str(val),
+            Value::Array(<span class="kw-2">ref </span>items) =&gt; {
+                <span class="kw">let </span><span class="kw-2">mut </span>seq_ser = serializer.serialize_seq(<span class="prelude-val">Some</span>(items.len()))<span class="question-mark">?</span>;
+                <span class="kw">for </span>item <span class="kw">in </span>items {
+                    <span class="kw">match </span>item {
+                        Annotated(<span class="prelude-val">Some</span>(val), <span class="kw">_</span>) =&gt; seq_ser.serialize_element(val)<span class="question-mark">?</span>,
+                        Annotated(<span class="prelude-val">None</span>, <span class="kw">_</span>) =&gt; seq_ser.serialize_element(<span class="kw-2">&amp;</span>())<span class="question-mark">?</span>,
                     }
                 }
-                <span class="ident">seq_ser</span>.<span class="ident">end</span>()
+                seq_ser.end()
             }
-            <span class="ident">Value::Object</span>(<span class="kw-2">ref</span> <span class="ident">items</span>) =&gt; {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map_ser</span> <span class="op">=</span> <span class="ident">serializer</span>.<span class="ident">serialize_map</span>(<span class="prelude-val">Some</span>(<span class="ident">items</span>.<span class="ident">len</span>()))<span class="question-mark">?</span>;
-                <span class="kw">for</span> (<span class="ident">key</span>, <span class="ident">value</span>) <span class="kw">in</span> <span class="ident">items</span> {
-                    <span class="ident">map_ser</span>.<span class="ident">serialize_key</span>(<span class="ident">key</span>)<span class="question-mark">?</span>;
-                    <span class="kw">match</span> <span class="ident">value</span> {
-                        <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">val</span>), <span class="kw">_</span>) =&gt; <span class="ident">map_ser</span>.<span class="ident">serialize_value</span>(<span class="ident">val</span>)<span class="question-mark">?</span>,
-                        <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="kw">_</span>) =&gt; <span class="ident">map_ser</span>.<span class="ident">serialize_value</span>(<span class="kw-2">&amp;</span>())<span class="question-mark">?</span>,
+            Value::Object(<span class="kw-2">ref </span>items) =&gt; {
+                <span class="kw">let </span><span class="kw-2">mut </span>map_ser = serializer.serialize_map(<span class="prelude-val">Some</span>(items.len()))<span class="question-mark">?</span>;
+                <span class="kw">for </span>(key, value) <span class="kw">in </span>items {
+                    map_ser.serialize_key(key)<span class="question-mark">?</span>;
+                    <span class="kw">match </span>value {
+                        Annotated(<span class="prelude-val">Some</span>(val), <span class="kw">_</span>) =&gt; map_ser.serialize_value(val)<span class="question-mark">?</span>,
+                        Annotated(<span class="prelude-val">None</span>, <span class="kw">_</span>) =&gt; map_ser.serialize_value(<span class="kw-2">&amp;</span>())<span class="question-mark">?</span>,
                     }
                 }
-                <span class="ident">map_ser</span>.<span class="ident">end</span>()
+                map_ser.end()
             }
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">serde_json::Value</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">value</span>: <span class="ident">serde_json::Value</span>) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span> {
-        <span class="ident">Annotated::from</span>(<span class="ident">Value::from_json</span>(<span class="ident">value</span>))
+<span class="kw">impl </span>From&lt;serde_json::Value&gt; <span class="kw">for </span>Annotated&lt;Value&gt; {
+    <span class="kw">fn </span>from(value: serde_json::Value) -&gt; Annotated&lt;Value&gt; {
+        Annotated::from(Value::from_json(value))
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">serde_json::Value</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">value</span>: <span class="ident">Value</span>) -&gt; <span class="ident">serde_json::Value</span> {
-        <span class="kw">match</span> <span class="ident">value</span> {
-            <span class="ident">Value::Bool</span>(<span class="ident">value</span>) =&gt; <span class="ident">serde_json::Value::Bool</span>(<span class="ident">value</span>),
-            <span class="ident">Value::I64</span>(<span class="ident">value</span>) =&gt; <span class="ident">serde_json::Value::Number</span>(<span class="ident">value</span>.<span class="ident">into</span>()),
-            <span class="ident">Value::U64</span>(<span class="ident">value</span>) =&gt; <span class="ident">serde_json::Value::Number</span>(<span class="ident">value</span>.<span class="ident">into</span>()),
-            <span class="ident">Value::F64</span>(<span class="ident">value</span>) =&gt; <span class="ident">serde_json::Number::from_f64</span>(<span class="ident">value</span>)
-                .<span class="ident">map</span>(<span class="ident">serde_json::Value::Number</span>)
-                .<span class="ident">unwrap_or</span>(<span class="ident">serde_json::Value::Null</span>),
-            <span class="ident">Value::String</span>(<span class="ident">val</span>) =&gt; <span class="ident">serde_json::Value::String</span>(<span class="ident">val</span>),
-            <span class="ident">Value::Array</span>(<span class="ident">items</span>) =&gt; {
-                <span class="ident">serde_json::Value::Array</span>(<span class="ident">items</span>.<span class="ident">into_iter</span>().<span class="ident">map</span>(<span class="ident">serde_json::Value::from</span>).<span class="ident">collect</span>())
+<span class="kw">impl </span>From&lt;Value&gt; <span class="kw">for </span>serde_json::Value {
+    <span class="kw">fn </span>from(value: Value) -&gt; serde_json::Value {
+        <span class="kw">match </span>value {
+            Value::Bool(value) =&gt; serde_json::Value::Bool(value),
+            Value::I64(value) =&gt; serde_json::Value::Number(value.into()),
+            Value::U64(value) =&gt; serde_json::Value::Number(value.into()),
+            Value::F64(value) =&gt; serde_json::Number::from_f64(value)
+                .map(serde_json::Value::Number)
+                .unwrap_or(serde_json::Value::Null),
+            Value::String(val) =&gt; serde_json::Value::String(val),
+            Value::Array(items) =&gt; {
+                serde_json::Value::Array(items.into_iter().map(serde_json::Value::from).collect())
             }
-            <span class="ident">Value::Object</span>(<span class="ident">items</span>) =&gt; <span class="ident">serde_json::Value::Object</span>(
-                <span class="ident">items</span>
-                    .<span class="ident">into_iter</span>()
-                    .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">k</span>, <span class="ident">v</span>)<span class="op">|</span> (<span class="ident">k</span>, <span class="ident">serde_json::Value::from</span>(<span class="ident">v</span>)))
-                    .<span class="ident">collect</span>(),
+            Value::Object(items) =&gt; serde_json::Value::Object(
+                items
+                    .into_iter()
+                    .map(|(k, v)| (k, serde_json::Value::from(v)))
+                    .collect(),
             ),
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">serde_json::Value</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) -&gt; <span class="ident">serde_json::Value</span> {
-        <span class="ident">value</span>
-            .<span class="number">0</span>
-            .<span class="ident">map</span>(<span class="ident">serde_json::Value::from</span>)
-            .<span class="ident">unwrap_or</span>(<span class="ident">serde_json::Value::Null</span>)
+<span class="kw">impl </span>From&lt;Annotated&lt;Value&gt;&gt; <span class="kw">for </span>serde_json::Value {
+    <span class="kw">fn </span>from(value: Annotated&lt;Value&gt;) -&gt; serde_json::Value {
+        value
+            .<span class="number">0
+            </span>.map(serde_json::Value::from)
+            .unwrap_or(serde_json::Value::Null)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Value</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">value</span>: <span class="ident">bool</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">Value::Bool</span>(<span class="ident">value</span>)
+<span class="kw">impl </span>From&lt;bool&gt; <span class="kw">for </span>Value {
+    <span class="kw">fn </span>from(value: bool) -&gt; <span class="self">Self </span>{
+        Value::Bool(value)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Value</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">value</span>: <span class="ident">i64</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">Value::I64</span>(<span class="ident">value</span>)
+<span class="kw">impl </span>From&lt;i64&gt; <span class="kw">for </span>Value {
+    <span class="kw">fn </span>from(value: i64) -&gt; <span class="self">Self </span>{
+        Value::I64(value)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Value</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">value</span>: <span class="ident">u64</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">Value::U64</span>(<span class="ident">value</span>)
+<span class="kw">impl </span>From&lt;u64&gt; <span class="kw">for </span>Value {
+    <span class="kw">fn </span>from(value: u64) -&gt; <span class="self">Self </span>{
+        Value::U64(value)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Value</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">value</span>: <span class="ident">f64</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">Value::F64</span>(<span class="ident">value</span>)
+<span class="kw">impl </span>From&lt;f64&gt; <span class="kw">for </span>Value {
+    <span class="kw">fn </span>from(value: f64) -&gt; <span class="self">Self </span>{
+        Value::F64(value)
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Value</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">Value::String</span>(<span class="ident">value</span>.<span class="ident">to_string</span>())
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt; <span class="kw">for </span>Value {
+    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str) -&gt; <span class="self">Self </span>{
+        Value::String(value.to_string())
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Value</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">value</span>: <span class="ident">String</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">Value::String</span>(<span class="ident">value</span>)
+<span class="kw">impl </span>From&lt;String&gt; <span class="kw">for </span>Value {
+    <span class="kw">fn </span>from(value: String) -&gt; <span class="self">Self </span>{
+        Value::String(value)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">Array</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Value</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">value</span>: <span class="ident">Array</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">Value::Array</span>(<span class="ident">value</span>)
+<span class="kw">impl </span>From&lt;Array&lt;Value&gt;&gt; <span class="kw">for </span>Value {
+    <span class="kw">fn </span>from(value: Array&lt;Value&gt;) -&gt; <span class="self">Self </span>{
+        Value::Array(value)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Value</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">value</span>: <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">Value::Object</span>(<span class="ident">value</span>)
+<span class="kw">impl </span>From&lt;Object&lt;Value&gt;&gt; <span class="kw">for </span>Value {
+    <span class="kw">fn </span>from(value: Object&lt;Value&gt;) -&gt; <span class="self">Self </span>{
+        Value::Object(value)
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Value</span> {
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Value</span>, <span class="ident">D::Error</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">D</span>: <span class="ident">serde::Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>Value {
+    <span class="attribute">#[inline]
+    </span><span class="kw">fn </span>deserialize&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;Value, D::Error&gt;
+    <span class="kw">where
+        </span>D: serde::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
     {
-        <span class="kw">struct</span> <span class="ident">ValueVisitor</span>;
+        <span class="kw">struct </span>ValueVisitor;
 
-        <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ValueVisitor</span> {
-            <span class="kw">type</span> <span class="ident">Value</span> <span class="op">=</span> <span class="ident">Value</span>;
+        <span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; Visitor&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>ValueVisitor {
+            <span class="kw">type </span>Value = Value;
 
-            <span class="kw">fn</span> <span class="ident">expecting</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">formatter</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-                <span class="ident">formatter</span>.<span class="ident">write_str</span>(<span class="string">&quot;any valid JSON value&quot;</span>)
+            <span class="kw">fn </span>expecting(<span class="kw-2">&amp;</span><span class="self">self</span>, formatter: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+                formatter.write_str(<span class="string">&quot;any valid JSON value&quot;</span>)
             }
 
-            <span class="attribute">#[<span class="ident">inline</span>]</span>
-            <span class="kw">fn</span> <span class="ident">visit_bool</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">value</span>: <span class="ident">bool</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Value</span>, <span class="ident">E</span><span class="op">&gt;</span> {
-                <span class="prelude-val">Ok</span>(<span class="ident">Value::Bool</span>(<span class="ident">value</span>))
+            <span class="attribute">#[inline]
+            </span><span class="kw">fn </span>visit_bool&lt;E&gt;(<span class="self">self</span>, value: bool) -&gt; <span class="prelude-ty">Result</span>&lt;Value, E&gt; {
+                <span class="prelude-val">Ok</span>(Value::Bool(value))
             }
 
-            <span class="attribute">#[<span class="ident">inline</span>]</span>
-            <span class="kw">fn</span> <span class="ident">visit_i64</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">value</span>: <span class="ident">i64</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Value</span>, <span class="ident">E</span><span class="op">&gt;</span> {
-                <span class="prelude-val">Ok</span>(<span class="ident">Value::I64</span>(<span class="ident">value</span>))
+            <span class="attribute">#[inline]
+            </span><span class="kw">fn </span>visit_i64&lt;E&gt;(<span class="self">self</span>, value: i64) -&gt; <span class="prelude-ty">Result</span>&lt;Value, E&gt; {
+                <span class="prelude-val">Ok</span>(Value::I64(value))
             }
 
-            <span class="attribute">#[<span class="ident">inline</span>]</span>
-            <span class="kw">fn</span> <span class="ident">visit_u64</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">value</span>: <span class="ident">u64</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Value</span>, <span class="ident">E</span><span class="op">&gt;</span> {
-                <span class="kw">let</span> <span class="ident">signed_value</span> <span class="op">=</span> <span class="ident">value</span> <span class="kw">as</span> <span class="ident">i64</span>;
-                <span class="kw">if</span> <span class="ident">signed_value</span> <span class="kw">as</span> <span class="ident">u64</span> <span class="op">==</span> <span class="ident">value</span> {
-                    <span class="prelude-val">Ok</span>(<span class="ident">Value::I64</span>(<span class="ident">signed_value</span>))
-                } <span class="kw">else</span> {
-                    <span class="prelude-val">Ok</span>(<span class="ident">Value::U64</span>(<span class="ident">value</span>))
+            <span class="attribute">#[inline]
+            </span><span class="kw">fn </span>visit_u64&lt;E&gt;(<span class="self">self</span>, value: u64) -&gt; <span class="prelude-ty">Result</span>&lt;Value, E&gt; {
+                <span class="kw">let </span>signed_value = value <span class="kw">as </span>i64;
+                <span class="kw">if </span>signed_value <span class="kw">as </span>u64 == value {
+                    <span class="prelude-val">Ok</span>(Value::I64(signed_value))
+                } <span class="kw">else </span>{
+                    <span class="prelude-val">Ok</span>(Value::U64(value))
                 }
             }
 
-            <span class="attribute">#[<span class="ident">inline</span>]</span>
-            <span class="kw">fn</span> <span class="ident">visit_f64</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">value</span>: <span class="ident">f64</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Value</span>, <span class="ident">E</span><span class="op">&gt;</span> {
-                <span class="prelude-val">Ok</span>(<span class="ident">Value::F64</span>(<span class="ident">value</span>))
+            <span class="attribute">#[inline]
+            </span><span class="kw">fn </span>visit_f64&lt;E&gt;(<span class="self">self</span>, value: f64) -&gt; <span class="prelude-ty">Result</span>&lt;Value, E&gt; {
+                <span class="prelude-val">Ok</span>(Value::F64(value))
             }
 
-            <span class="attribute">#[<span class="ident">inline</span>]</span>
-            <span class="kw">fn</span> <span class="ident">visit_str</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Value</span>, <span class="ident">E</span><span class="op">&gt;</span>
-            <span class="kw">where</span>
-                <span class="ident">E</span>: <span class="ident">serde::de::Error</span>,
+            <span class="attribute">#[inline]
+            </span><span class="kw">fn </span>visit_str&lt;E&gt;(<span class="self">self</span>, value: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;Value, E&gt;
+            <span class="kw">where
+                </span>E: serde::de::Error,
             {
-                <span class="self">self</span>.<span class="ident">visit_string</span>(<span class="ident">String::from</span>(<span class="ident">value</span>))
+                <span class="self">self</span>.visit_string(String::from(value))
             }
 
-            <span class="attribute">#[<span class="ident">inline</span>]</span>
-            <span class="kw">fn</span> <span class="ident">visit_string</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">value</span>: <span class="ident">String</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Value</span>, <span class="ident">E</span><span class="op">&gt;</span> {
-                <span class="prelude-val">Ok</span>(<span class="ident">Value::String</span>(<span class="ident">value</span>))
+            <span class="attribute">#[inline]
+            </span><span class="kw">fn </span>visit_string&lt;E&gt;(<span class="self">self</span>, value: String) -&gt; <span class="prelude-ty">Result</span>&lt;Value, E&gt; {
+                <span class="prelude-val">Ok</span>(Value::String(value))
             }
 
-            <span class="attribute">#[<span class="ident">inline</span>]</span>
-            <span class="kw">fn</span> <span class="ident">visit_some</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">deserializer</span>: <span class="ident">D</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Value</span>, <span class="ident">D::Error</span><span class="op">&gt;</span>
-            <span class="kw">where</span>
-                <span class="ident">D</span>: <span class="ident">serde::Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+            <span class="attribute">#[inline]
+            </span><span class="kw">fn </span>visit_some&lt;D&gt;(<span class="self">self</span>, deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;Value, D::Error&gt;
+            <span class="kw">where
+                </span>D: serde::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
             {
-                <span class="ident">Deserialize::deserialize</span>(<span class="ident">deserializer</span>)
+                Deserialize::deserialize(deserializer)
             }
 
-            <span class="attribute">#[<span class="ident">inline</span>]</span>
-            <span class="kw">fn</span> <span class="ident">visit_seq</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">visitor</span>: <span class="ident">V</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Value</span>, <span class="ident">V::Error</span><span class="op">&gt;</span>
-            <span class="kw">where</span>
-                <span class="ident">V</span>: <span class="ident">SeqAccess</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+            <span class="attribute">#[inline]
+            </span><span class="kw">fn </span>visit_seq&lt;V&gt;(<span class="self">self</span>, <span class="kw-2">mut </span>visitor: V) -&gt; <span class="prelude-ty">Result</span>&lt;Value, V::Error&gt;
+            <span class="kw">where
+                </span>V: SeqAccess&lt;<span class="lifetime">&#39;de</span>&gt;,
             {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">vec</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
-                <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">elem</span>) <span class="op">=</span> <span class="ident">visitor</span>.<span class="ident">next_element</span>()<span class="question-mark">?</span> {
-                    <span class="ident">vec</span>.<span class="ident">push</span>(<span class="ident">Annotated</span>(<span class="ident">elem</span>, <span class="ident">Meta::default</span>()));
+                <span class="kw">let </span><span class="kw-2">mut </span>vec = Vec::new();
+                <span class="kw">while let </span><span class="prelude-val">Some</span>(elem) = visitor.next_element()<span class="question-mark">? </span>{
+                    vec.push(Annotated(elem, Meta::default()));
                 }
-                <span class="prelude-val">Ok</span>(<span class="ident">Value::Array</span>(<span class="ident">vec</span>))
+                <span class="prelude-val">Ok</span>(Value::Array(vec))
             }
 
-            <span class="kw">fn</span> <span class="ident">visit_map</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">visitor</span>: <span class="ident">V</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Value</span>, <span class="ident">V::Error</span><span class="op">&gt;</span>
-            <span class="kw">where</span>
-                <span class="ident">V</span>: <span class="ident">MapAccess</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+            <span class="kw">fn </span>visit_map&lt;V&gt;(<span class="self">self</span>, <span class="kw-2">mut </span>visitor: V) -&gt; <span class="prelude-ty">Result</span>&lt;Value, V::Error&gt;
+            <span class="kw">where
+                </span>V: MapAccess&lt;<span class="lifetime">&#39;de</span>&gt;,
             {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">values</span> <span class="op">=</span> <span class="ident">Map::new</span>();
-                <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="ident">key</span>, <span class="ident">value</span>)) <span class="op">=</span> <span class="ident">visitor</span>.<span class="ident">next_entry</span>()<span class="question-mark">?</span> {
-                    <span class="ident">values</span>.<span class="ident">insert</span>(<span class="ident">key</span>, <span class="ident">Annotated</span>(<span class="ident">value</span>, <span class="ident">Meta::default</span>()));
+                <span class="kw">let </span><span class="kw-2">mut </span>values = Map::new();
+                <span class="kw">while let </span><span class="prelude-val">Some</span>((key, value)) = visitor.next_entry()<span class="question-mark">? </span>{
+                    values.insert(key, Annotated(value, Meta::default()));
                 }
-                <span class="prelude-val">Ok</span>(<span class="ident">Value::Object</span>(<span class="ident">values</span>))
+                <span class="prelude-val">Ok</span>(Value::Object(values))
             }
         }
 
-        <span class="ident">deserializer</span>.<span class="ident">deserialize_any</span>(<span class="ident">ValueVisitor</span>)
+        deserializer.deserialize_any(ValueVisitor)
     }
 }
 
-<span class="doccomment">/// Convert `T` into a `Value`.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_value</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>, <span class="ident">serde_json::Error</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">T</span>: <span class="ident">Serialize</span>,
+<span class="doccomment">/// Convert `T` into a `Value`.
+</span><span class="kw">pub fn </span>to_value&lt;T&gt;(value: <span class="kw-2">&amp;</span>T) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Value&gt;, serde_json::Error&gt;
+<span class="kw">where
+    </span>T: Serialize,
 {
-    <span class="ident">serde_json::to_value</span>(<span class="ident">value</span>).<span class="ident">map</span>(<span class="ident">Value::from_json</span>)
+    serde_json::to_value(value).map(Value::from_json)
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

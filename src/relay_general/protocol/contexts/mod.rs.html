@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/protocol/contexts/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../../storage.js"></script><script defer src="../../../../source-script.js"></script><script defer src="../../../../source-files.js"></script><script defer src="../../../../main.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/protocol/contexts/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../../normalize.css"><link rel="stylesheet" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../../ayu.css" disabled><link rel="stylesheet" href="../../../../dark.css" disabled><link rel="stylesheet" href="../../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../../storage.js"></script><script defer src="../../../../source-script.js"></script><script defer src="../../../../source-files.js"></script><script defer src="../../../../main.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../../relay_general/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -295,300 +295,300 @@
 <span id="293">293</span>
 <span id="294">294</span>
 <span id="295">295</span>
-</pre><pre class="rust"><code><span class="kw">mod</span> <span class="ident">app</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">app</span>::<span class="kw-2">*</span>;
-<span class="kw">mod</span> <span class="ident">browser</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">browser</span>::<span class="kw-2">*</span>;
-<span class="kw">mod</span> <span class="ident">device</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">device</span>::<span class="kw-2">*</span>;
-<span class="kw">mod</span> <span class="ident">gpu</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">gpu</span>::<span class="kw-2">*</span>;
-<span class="kw">mod</span> <span class="ident">monitor</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">monitor</span>::<span class="kw-2">*</span>;
-<span class="kw">mod</span> <span class="ident">os</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">os</span>::<span class="kw-2">*</span>;
-<span class="kw">mod</span> <span class="ident">reprocessing</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">reprocessing</span>::<span class="kw-2">*</span>;
-<span class="kw">mod</span> <span class="ident">response</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">response</span>::<span class="kw-2">*</span>;
-<span class="kw">mod</span> <span class="ident">runtime</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">runtime</span>::<span class="kw-2">*</span>;
-<span class="kw">mod</span> <span class="ident">trace</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">trace</span>::<span class="kw-2">*</span>;
+</pre><pre class="rust"><code><span class="kw">mod </span>app;
+<span class="kw">pub use </span>app::<span class="kw-2">*</span>;
+<span class="kw">mod </span>browser;
+<span class="kw">pub use </span>browser::<span class="kw-2">*</span>;
+<span class="kw">mod </span>device;
+<span class="kw">pub use </span>device::<span class="kw-2">*</span>;
+<span class="kw">mod </span>gpu;
+<span class="kw">pub use </span>gpu::<span class="kw-2">*</span>;
+<span class="kw">mod </span>monitor;
+<span class="kw">pub use </span>monitor::<span class="kw-2">*</span>;
+<span class="kw">mod </span>os;
+<span class="kw">pub use </span>os::<span class="kw-2">*</span>;
+<span class="kw">mod </span>reprocessing;
+<span class="kw">pub use </span>reprocessing::<span class="kw-2">*</span>;
+<span class="kw">mod </span>response;
+<span class="kw">pub use </span>response::<span class="kw-2">*</span>;
+<span class="kw">mod </span>runtime;
+<span class="kw">pub use </span>runtime::<span class="kw-2">*</span>;
+<span class="kw">mod </span>trace;
+<span class="kw">pub use </span>trace::<span class="kw-2">*</span>;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Annotated</span>, <span class="ident">FromValue</span>, <span class="ident">Object</span>, <span class="ident">Value</span>};
+<span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, FromValue, Object, Value};
 
-<span class="doccomment">/// Operation type such as `db.statement` for database queries or `http` for external HTTP calls.</span>
-<span class="doccomment">/// Tries to follow OpenCensus/OpenTracing&#39;s span types.</span>
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">OperationType</span> <span class="op">=</span> <span class="ident">String</span>;
+<span class="doccomment">/// Operation type such as `db.statement` for database queries or `http` for external HTTP calls.
+/// Tries to follow OpenCensus/OpenTracing&#39;s span types.
+</span><span class="kw">pub type </span>OperationType = String;
 
-<span class="doccomment">/// A context describes environment info (e.g. device, os or browser).</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>)]</span>
-<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
-<span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">process_func</span> <span class="op">=</span> <span class="string">&quot;process_context&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Context</span> {
-    <span class="doccomment">/// Device information.</span>
-    <span class="ident">Device</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">DeviceContext</span><span class="op">&gt;</span>),
-    <span class="doccomment">/// Operating system information.</span>
-    <span class="ident">Os</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">OsContext</span><span class="op">&gt;</span>),
-    <span class="doccomment">/// Runtime information.</span>
-    <span class="ident">Runtime</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">RuntimeContext</span><span class="op">&gt;</span>),
-    <span class="doccomment">/// Application information.</span>
-    <span class="ident">App</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">AppContext</span><span class="op">&gt;</span>),
-    <span class="doccomment">/// Web browser information.</span>
-    <span class="ident">Browser</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">BrowserContext</span><span class="op">&gt;</span>),
-    <span class="doccomment">/// Information about device&#39;s GPU.</span>
-    <span class="ident">Gpu</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">GpuContext</span><span class="op">&gt;</span>),
-    <span class="doccomment">/// Information related to Tracing.</span>
-    <span class="ident">Trace</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">TraceContext</span><span class="op">&gt;</span>),
-    <span class="doccomment">/// Information related to Monitors feature.</span>
-    <span class="ident">Monitor</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">MonitorContext</span><span class="op">&gt;</span>),
-    <span class="doccomment">/// Auxilliary information for reprocessing.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">omit_from_schema</span>)]</span>
-    <span class="ident">Reprocessing</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">ReprocessingContext</span><span class="op">&gt;</span>),
-    <span class="doccomment">/// Response information.</span>
-    <span class="ident">Response</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">ResponseContext</span><span class="op">&gt;</span>),
-    <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">fallback_variant</span>)]</span>
-    <span class="ident">Other</span>(<span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>)]</span> <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>),
+<span class="doccomment">/// A context describes environment info (e.g. device, os or browser).
+</span><span class="attribute">#[derive(Clone, Debug, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[metastructure(process_func = <span class="string">&quot;process_context&quot;</span>)]
+</span><span class="kw">pub enum </span>Context {
+    <span class="doccomment">/// Device information.
+    </span>Device(Box&lt;DeviceContext&gt;),
+    <span class="doccomment">/// Operating system information.
+    </span>Os(Box&lt;OsContext&gt;),
+    <span class="doccomment">/// Runtime information.
+    </span>Runtime(Box&lt;RuntimeContext&gt;),
+    <span class="doccomment">/// Application information.
+    </span>App(Box&lt;AppContext&gt;),
+    <span class="doccomment">/// Web browser information.
+    </span>Browser(Box&lt;BrowserContext&gt;),
+    <span class="doccomment">/// Information about device&#39;s GPU.
+    </span>Gpu(Box&lt;GpuContext&gt;),
+    <span class="doccomment">/// Information related to Tracing.
+    </span>Trace(Box&lt;TraceContext&gt;),
+    <span class="doccomment">/// Information related to Monitors feature.
+    </span>Monitor(Box&lt;MonitorContext&gt;),
+    <span class="doccomment">/// Auxilliary information for reprocessing.
+    </span><span class="attribute">#[metastructure(omit_from_schema)]
+    </span>Reprocessing(Box&lt;ReprocessingContext&gt;),
+    <span class="doccomment">/// Response information.
+    </span>Response(Box&lt;ResponseContext&gt;),
+    <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
+    </span><span class="attribute">#[metastructure(fallback_variant)]
+    </span>Other(<span class="attribute">#[metastructure(pii = <span class="string">&quot;true&quot;</span>)] </span>Object&lt;Value&gt;),
 }
 
-<span class="kw">impl</span> <span class="ident">Context</span> {
-    <span class="doccomment">/// Represents the key under which a particular context type will be inserted in a Contexts object</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// See [`Contexts::add`]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">default_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="kw-2">&amp;</span><span class="self">self</span> {
-            <span class="ident">Context::Device</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">DeviceContext::default_key</span>()),
-            <span class="ident">Context::Os</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">OsContext::default_key</span>()),
-            <span class="ident">Context::Runtime</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">RuntimeContext::default_key</span>()),
-            <span class="ident">Context::App</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">AppContext::default_key</span>()),
-            <span class="ident">Context::Browser</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">BrowserContext::default_key</span>()),
-            <span class="ident">Context::Reprocessing</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">ReprocessingContext::default_key</span>()),
-            <span class="ident">Context::Gpu</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">GpuContext::default_key</span>()),
-            <span class="ident">Context::Trace</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">TraceContext::default_key</span>()),
-            <span class="ident">Context::Monitor</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">MonitorContext::default_key</span>()),
-            <span class="ident">Context::Response</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">ResponseContext::default_key</span>()),
-            <span class="ident">Context::Other</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
+<span class="kw">impl </span>Context {
+    <span class="doccomment">/// Represents the key under which a particular context type will be inserted in a Contexts object
+    ///
+    /// See [`Contexts::add`]
+    </span><span class="kw">pub fn </span>default_key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str&gt; {
+        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self </span>{
+            Context::Device(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(DeviceContext::default_key()),
+            Context::Os(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(OsContext::default_key()),
+            Context::Runtime(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(RuntimeContext::default_key()),
+            Context::App(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(AppContext::default_key()),
+            Context::Browser(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(BrowserContext::default_key()),
+            Context::Reprocessing(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(ReprocessingContext::default_key()),
+            Context::Gpu(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(GpuContext::default_key()),
+            Context::Trace(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(TraceContext::default_key()),
+            Context::Monitor(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(MonitorContext::default_key()),
+            Context::Response(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(ResponseContext::default_key()),
+            Context::Other(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
         }
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>)]</span>
-<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ContextInner</span>(<span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">bag_size</span> <span class="op">=</span> <span class="string">&quot;large&quot;</span>)]</span> <span class="kw">pub</span> <span class="ident">Context</span>);
+<span class="attribute">#[derive(Clone, Debug, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+</span><span class="kw">pub struct </span>ContextInner(<span class="attribute">#[metastructure(bag_size = <span class="string">&quot;large&quot;</span>)] </span><span class="kw">pub </span>Context);
 
-<span class="kw">impl</span> <span class="ident">std::ops::Deref</span> <span class="kw">for</span> <span class="ident">ContextInner</span> {
-    <span class="kw">type</span> <span class="ident">Target</span> <span class="op">=</span> <span class="ident">Context</span>;
+<span class="kw">impl </span>std::ops::Deref <span class="kw">for </span>ContextInner {
+    <span class="kw">type </span>Target = Context;
 
-    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident"><span class="self">Self</span>::Target</span> {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>
+    <span class="kw">fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Target {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0
+    </span>}
+}
+
+<span class="kw">impl </span>std::ops::DerefMut <span class="kw">for </span>ContextInner {
+    <span class="kw">fn </span>deref_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Target {
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>.<span class="number">0
+    </span>}
+}
+
+<span class="kw">impl </span>From&lt;Context&gt; <span class="kw">for </span>ContextInner {
+    <span class="kw">fn </span>from(c: Context) -&gt; ContextInner {
+        ContextInner(c)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">std::ops::DerefMut</span> <span class="kw">for</span> <span class="ident">ContextInner</span> {
-    <span class="kw">fn</span> <span class="ident">deref_mut</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Target</span> {
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="number">0</span>
-    }
-}
+<span class="doccomment">/// The Contexts Interface provides additional context data. Typically, this is data related to the
+/// current user and the environment. For example, the device or application version. Its canonical
+/// name is `contexts`.
+///
+/// The `contexts` type can be used to define arbitrary contextual data on the event. It accepts an
+/// object of key/value pairs. The key is the “alias” of the context and can be freely chosen.
+/// However, as per policy, it should match the type of the context unless there are two values for
+/// a type. You can omit `type` if the key name is the type.
+///
+/// Unknown data for the contexts is rendered as a key/value list.
+///
+/// For more details about sending additional data with your event, see the [full documentation on
+/// Additional Data](https://docs.sentry.io/enriching-error-data/additional-data/).
+</span><span class="attribute">#[derive(Clone, Debug, PartialEq, Empty, IntoValue, ProcessValue, Default)]
+#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[metastructure(process_func = <span class="string">&quot;process_contexts&quot;</span>)]
+</span><span class="kw">pub struct </span>Contexts(<span class="kw">pub </span>Object&lt;ContextInner&gt;);
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">Context</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ContextInner</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">c</span>: <span class="ident">Context</span>) -&gt; <span class="ident">ContextInner</span> {
-        <span class="ident">ContextInner</span>(<span class="ident">c</span>)
-    }
-}
-
-<span class="doccomment">/// The Contexts Interface provides additional context data. Typically, this is data related to the</span>
-<span class="doccomment">/// current user and the environment. For example, the device or application version. Its canonical</span>
-<span class="doccomment">/// name is `contexts`.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The `contexts` type can be used to define arbitrary contextual data on the event. It accepts an</span>
-<span class="doccomment">/// object of key/value pairs. The key is the “alias” of the context and can be freely chosen.</span>
-<span class="doccomment">/// However, as per policy, it should match the type of the context unless there are two values for</span>
-<span class="doccomment">/// a type. You can omit `type` if the key name is the type.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Unknown data for the contexts is rendered as a key/value list.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// For more details about sending additional data with your event, see the [full documentation on</span>
-<span class="doccomment">/// Additional Data](https://docs.sentry.io/enriching-error-data/additional-data/).</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>, <span class="ident">Default</span>)]</span>
-<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
-<span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">process_func</span> <span class="op">=</span> <span class="string">&quot;process_contexts&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Contexts</span>(<span class="kw">pub</span> <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">ContextInner</span><span class="op">&gt;</span>);
-
-<span class="kw">impl</span> <span class="ident">Contexts</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() -&gt; <span class="ident">Contexts</span> {
-        <span class="ident">Contexts</span>(<span class="ident">Object</span>::<span class="op">&lt;</span><span class="ident">ContextInner</span><span class="op">&gt;</span><span class="ident">::new</span>())
+<span class="kw">impl </span>Contexts {
+    <span class="kw">pub fn </span>new() -&gt; Contexts {
+        Contexts(Object::&lt;ContextInner&gt;::new())
     }
 
-    <span class="doccomment">/// Adds a context to self under the default key for the Context</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">add</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">context</span>: <span class="ident">Context</span>) {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">key</span>) <span class="op">=</span> <span class="ident">context</span>.<span class="ident">default_key</span>() {
-            <span class="self">self</span>.<span class="ident">insert</span>(<span class="ident">key</span>.<span class="ident">to_owned</span>(), <span class="ident">Annotated::new</span>(<span class="ident">ContextInner</span>(<span class="ident">context</span>)));
+    <span class="doccomment">/// Adds a context to self under the default key for the Context
+    </span><span class="kw">pub fn </span>add(<span class="kw-2">&amp;mut </span><span class="self">self</span>, context: Context) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(key) = context.default_key() {
+            <span class="self">self</span>.insert(key.to_owned(), Annotated::new(ContextInner(context)));
         }
     }
 
-    <span class="doccomment">/// Returns the context at the specified key or constructs it if not present.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_or_insert_with</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">key</span>: <span class="ident">S</span>, <span class="ident">context_builder</span>: <span class="ident">F</span>) -&gt; <span class="kw-2">&amp;mut</span> <span class="ident">Context</span>
-    <span class="kw">where</span>
-        <span class="ident">F</span>: <span class="ident">FnOnce</span>() -&gt; <span class="ident">Context</span>,
-        <span class="ident">S</span>: <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Returns the context at the specified key or constructs it if not present.
+    </span><span class="kw">pub fn </span>get_or_insert_with&lt;F, S&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, key: S, context_builder: F) -&gt; <span class="kw-2">&amp;mut </span>Context
+    <span class="kw">where
+        </span>F: FnOnce() -&gt; Context,
+        S: Into&lt;String&gt;,
     {
-        <span class="kw-2">&amp;mut</span> <span class="kw-2">*</span><span class="self">self</span>
-            .<span class="ident">entry</span>(<span class="ident">key</span>.<span class="ident">into</span>())
-            .<span class="ident">or_insert_with</span>(<span class="ident">Annotated::empty</span>)
-            .<span class="ident">value_mut</span>()
-            .<span class="ident">get_or_insert_with</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">ContextInner</span>(<span class="ident">context_builder</span>()))
+        <span class="kw-2">&amp;mut *</span><span class="self">self
+            </span>.entry(key.into())
+            .or_insert_with(Annotated::empty)
+            .value_mut()
+            .get_or_insert_with(|| ContextInner(context_builder()))
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_context_mut</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">key</span>: <span class="ident">S</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;mut</span> <span class="ident">Context</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">S</span>: <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span>,
+    <span class="kw">pub fn </span>get_context_mut&lt;S&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, key: S) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span>Context&gt;
+    <span class="kw">where
+        </span>S: AsRef&lt;str&gt;,
     {
-        <span class="prelude-val">Some</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">get_mut</span>(<span class="ident">key</span>.<span class="ident">as_ref</span>())<span class="question-mark">?</span>.<span class="ident">value_mut</span>().<span class="ident">as_mut</span>()<span class="question-mark">?</span>.<span class="number">0</span>)
+        <span class="prelude-val">Some</span>(<span class="kw-2">&amp;mut </span><span class="self">self</span>.get_mut(key.as_ref())<span class="question-mark">?</span>.value_mut().as_mut()<span class="question-mark">?</span>.<span class="number">0</span>)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">std::ops::Deref</span> <span class="kw">for</span> <span class="ident">Contexts</span> {
-    <span class="kw">type</span> <span class="ident">Target</span> <span class="op">=</span> <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">ContextInner</span><span class="op">&gt;</span>;
+<span class="kw">impl </span>std::ops::Deref <span class="kw">for </span>Contexts {
+    <span class="kw">type </span>Target = Object&lt;ContextInner&gt;;
 
-    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident"><span class="self">Self</span>::Target</span> {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>
-    }
+    <span class="kw">fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Target {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0
+    </span>}
 }
 
-<span class="kw">impl</span> <span class="ident">std::ops::DerefMut</span> <span class="kw">for</span> <span class="ident">Contexts</span> {
-    <span class="kw">fn</span> <span class="ident">deref_mut</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Target</span> {
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="number">0</span>
-    }
+<span class="kw">impl </span>std::ops::DerefMut <span class="kw">for </span>Contexts {
+    <span class="kw">fn </span>deref_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Target {
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>.<span class="number">0
+    </span>}
 }
 
-<span class="kw">impl</span> <span class="ident">FromValue</span> <span class="kw">for</span> <span class="ident">Contexts</span> {
-    <span class="kw">fn</span> <span class="ident">from_value</span>(<span class="kw-2">mut</span> <span class="ident">annotated</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value::Object</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">items</span>)), <span class="kw">_</span>) <span class="op">=</span> <span class="ident">annotated</span> {
-            <span class="kw">for</span> (<span class="ident">key</span>, <span class="ident">value</span>) <span class="kw">in</span> <span class="ident">items</span>.<span class="ident">iter_mut</span>() {
-                <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value::Object</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">items</span>)), <span class="kw">_</span>) <span class="op">=</span> <span class="ident">value</span> {
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">items</span>.<span class="ident">contains_key</span>(<span class="string">&quot;type&quot;</span>) {
-                        <span class="ident">items</span>.<span class="ident">insert</span>(
-                            <span class="string">&quot;type&quot;</span>.<span class="ident">to_string</span>(),
-                            <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="ident">key</span>.<span class="ident">to_string</span>())),
+<span class="kw">impl </span>FromValue <span class="kw">for </span>Contexts {
+    <span class="kw">fn </span>from_value(<span class="kw-2">mut </span>annotated: Annotated&lt;Value&gt;) -&gt; Annotated&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">if let </span>Annotated(<span class="prelude-val">Some</span>(Value::Object(<span class="kw-2">ref mut </span>items)), <span class="kw">_</span>) = annotated {
+            <span class="kw">for </span>(key, value) <span class="kw">in </span>items.iter_mut() {
+                <span class="kw">if let </span>Annotated(<span class="prelude-val">Some</span>(Value::Object(<span class="kw-2">ref mut </span>items)), <span class="kw">_</span>) = value {
+                    <span class="kw">if </span>!items.contains_key(<span class="string">&quot;type&quot;</span>) {
+                        items.insert(
+                            <span class="string">&quot;type&quot;</span>.to_string(),
+                            Annotated::new(Value::String(key.to_string())),
                         );
                     }
                 }
             }
         }
-        <span class="ident">FromValue::from_value</span>(<span class="ident">annotated</span>).<span class="ident">map_value</span>(<span class="ident">Contexts</span>)
+        FromValue::from_value(annotated).map_value(Contexts)
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor</span>::{<span class="ident">ProcessingState</span>, <span class="ident">Processor</span>};
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol::Event</span>;
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Map</span>, <span class="ident">Meta</span>, <span class="ident">ProcessingResult</span>};
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span><span class="kw">crate</span>::processor::{ProcessingState, Processor};
+    <span class="kw">use </span><span class="kw">crate</span>::protocol::Event;
+    <span class="kw">use </span><span class="kw">crate</span>::types::{Map, Meta, ProcessingResult};
 
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_other_context_roundtrip</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;other&quot;:&quot;value&quot;,&quot;type&quot;:&quot;mytype&quot;}&quot;#</span>;
-        <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Context::Other</span>({
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Map::new</span>();
-            <span class="ident">map</span>.<span class="ident">insert</span>(
-                <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_other_context_roundtrip() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{&quot;other&quot;:&quot;value&quot;,&quot;type&quot;:&quot;mytype&quot;}&quot;#</span>;
+        <span class="kw">let </span>context = Annotated::new(Context::Other({
+            <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
+            map.insert(
+                <span class="string">&quot;other&quot;</span>.to_string(),
+                Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
             );
-            <span class="ident">map</span>.<span class="ident">insert</span>(
-                <span class="string">&quot;type&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;mytype&quot;</span>.<span class="ident">to_string</span>())),
+            map.insert(
+                <span class="string">&quot;type&quot;</span>.to_string(),
+                Annotated::new(Value::String(<span class="string">&quot;mytype&quot;</span>.to_string())),
             );
-            <span class="ident">map</span>
+            map
         }));
 
-        <span class="macro">assert_eq!</span>(<span class="ident">context</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">context</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(context, Annotated::from_json(json).unwrap());
+        <span class="macro">assert_eq!</span>(json, context.to_json().unwrap());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_untagged_context_deserialize</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;os&quot;: {&quot;name&quot;: &quot;Linux&quot;}}&quot;#</span>;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_untagged_context_deserialize() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{&quot;os&quot;: {&quot;name&quot;: &quot;Linux&quot;}}&quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">os_context</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Os</span>(<span class="ident">Box::new</span>(<span class="ident">OsContext</span> {
-            <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Linux&quot;</span>.<span class="ident">to_string</span>()),
-            ..<span class="ident">Default::default</span>()
+        <span class="kw">let </span>os_context = Annotated::new(ContextInner(Context::Os(Box::new(OsContext {
+            name: Annotated::new(<span class="string">&quot;Linux&quot;</span>.to_string()),
+            ..Default::default()
         }))));
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-        <span class="ident">map</span>.<span class="ident">insert</span>(<span class="string">&quot;os&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">os_context</span>);
-        <span class="kw">let</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Contexts</span>(<span class="ident">map</span>));
+        <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
+        map.insert(<span class="string">&quot;os&quot;</span>.to_string(), os_context);
+        <span class="kw">let </span>contexts = Annotated::new(Contexts(map));
 
-        <span class="macro">assert_eq!</span>(<span class="ident">contexts</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(contexts, Annotated::from_json(json).unwrap());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_multiple_contexts_roundtrip</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span>
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_multiple_contexts_roundtrip() {
+        <span class="kw">let </span>json =
             <span class="string">r#&quot;{&quot;os&quot;:{&quot;name&quot;:&quot;Linux&quot;,&quot;type&quot;:&quot;os&quot;},&quot;runtime&quot;:{&quot;name&quot;:&quot;rustc&quot;,&quot;type&quot;:&quot;runtime&quot;}}&quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">os_context</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Os</span>(<span class="ident">Box::new</span>(<span class="ident">OsContext</span> {
-            <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Linux&quot;</span>.<span class="ident">to_string</span>()),
-            ..<span class="ident">Default::default</span>()
+        <span class="kw">let </span>os_context = Annotated::new(ContextInner(Context::Os(Box::new(OsContext {
+            name: Annotated::new(<span class="string">&quot;Linux&quot;</span>.to_string()),
+            ..Default::default()
         }))));
 
-        <span class="kw">let</span> <span class="ident">runtime_context</span> <span class="op">=</span>
-            <span class="ident">Annotated::new</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Runtime</span>(<span class="ident">Box::new</span>(<span class="ident">RuntimeContext</span> {
-                <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;rustc&quot;</span>.<span class="ident">to_string</span>()),
-                ..<span class="ident">Default::default</span>()
+        <span class="kw">let </span>runtime_context =
+            Annotated::new(ContextInner(Context::Runtime(Box::new(RuntimeContext {
+                name: Annotated::new(<span class="string">&quot;rustc&quot;</span>.to_string()),
+                ..Default::default()
             }))));
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-        <span class="ident">map</span>.<span class="ident">insert</span>(<span class="string">&quot;os&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">os_context</span>);
-        <span class="ident">map</span>.<span class="ident">insert</span>(<span class="string">&quot;runtime&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">runtime_context</span>);
-        <span class="kw">let</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Contexts</span>(<span class="ident">map</span>));
+        <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
+        map.insert(<span class="string">&quot;os&quot;</span>.to_string(), os_context);
+        map.insert(<span class="string">&quot;runtime&quot;</span>.to_string(), runtime_context);
+        <span class="kw">let </span>contexts = Annotated::new(Contexts(map));
 
-        <span class="macro">assert_eq!</span>(<span class="ident">contexts</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">contexts</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(contexts, Annotated::from_json(json).unwrap());
+        <span class="macro">assert_eq!</span>(json, contexts.to_json().unwrap());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_context_processing</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">contexts</span>: <span class="ident">Annotated::new</span>(<span class="ident">Contexts</span>({
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                <span class="ident">contexts</span>.<span class="ident">insert</span>(
-                    <span class="string">&quot;runtime&quot;</span>.<span class="ident">to_owned</span>(),
-                    <span class="ident">Annotated::new</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Runtime</span>(<span class="ident">Box::new</span>(<span class="ident">RuntimeContext</span> {
-                        <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;php&quot;</span>.<span class="ident">to_owned</span>()),
-                        <span class="ident">version</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;7.1.20-1+ubuntu16.04.1+deb.sury.org+1&quot;</span>.<span class="ident">to_owned</span>()),
-                        ..<span class="ident">Default::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_context_processing() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
+            contexts: Annotated::new(Contexts({
+                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
+                contexts.insert(
+                    <span class="string">&quot;runtime&quot;</span>.to_owned(),
+                    Annotated::new(ContextInner(Context::Runtime(Box::new(RuntimeContext {
+                        name: Annotated::new(<span class="string">&quot;php&quot;</span>.to_owned()),
+                        version: Annotated::new(<span class="string">&quot;7.1.20-1+ubuntu16.04.1+deb.sury.org+1&quot;</span>.to_owned()),
+                        ..Default::default()
                     })))),
                 );
-                <span class="ident">contexts</span>
+                contexts
             })),
-            ..<span class="ident">Default::default</span>()
+            ..Default::default()
         });
 
-        <span class="kw">struct</span> <span class="ident">FooProcessor</span> {
-            <span class="ident">called</span>: <span class="ident">bool</span>,
+        <span class="kw">struct </span>FooProcessor {
+            called: bool,
         }
 
-        <span class="kw">impl</span> <span class="ident">Processor</span> <span class="kw">for</span> <span class="ident">FooProcessor</span> {
-            <span class="attribute">#[<span class="ident">inline</span>]</span>
-            <span class="kw">fn</span> <span class="ident">process_context</span>(
-                <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
-                <span class="ident">_value</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Context</span>,
-                <span class="ident">_meta</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Meta</span>,
-                <span class="ident">_state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-            ) -&gt; <span class="ident">ProcessingResult</span> {
-                <span class="self">self</span>.<span class="ident">called</span> <span class="op">=</span> <span class="bool-val">true</span>;
+        <span class="kw">impl </span>Processor <span class="kw">for </span>FooProcessor {
+            <span class="attribute">#[inline]
+            </span><span class="kw">fn </span>process_context(
+                <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+                _value: <span class="kw-2">&amp;mut </span>Context,
+                _meta: <span class="kw-2">&amp;mut </span>Meta,
+                _state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+            ) -&gt; ProcessingResult {
+                <span class="self">self</span>.called = <span class="bool-val">true</span>;
                 <span class="prelude-val">Ok</span>(())
             }
         }
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">FooProcessor</span> { <span class="ident">called</span>: <span class="bool-val">false</span> };
-        <span class="ident"><span class="kw">crate</span>::processor::process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>())
-            .<span class="ident">unwrap</span>();
-        <span class="macro">assert!</span>(<span class="ident">processor</span>.<span class="ident">called</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>processor = FooProcessor { called: <span class="bool-val">false </span>};
+        <span class="kw">crate</span>::processor::process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root())
+            .unwrap();
+        <span class="macro">assert!</span>(processor.called);
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

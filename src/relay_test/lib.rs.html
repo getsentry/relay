@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-test/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_test/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_test/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-test/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_test/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_test/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_test/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -164,169 +164,169 @@
 <span id="162">162</span>
 <span id="163">163</span>
 <span id="164">164</span>
-</pre><pre class="rust"><code><span class="doccomment">//! Helpers for testing the web server and services.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! When writing tests, keep the following points in mind:</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//!  - In every test, call [`setup`]. This will set up the logger so that all console output is</span>
-<span class="doccomment">//!    captured by the test runner. All logs emitted with [`relay_log`] will show up for test</span>
-<span class="doccomment">//!    failures or when run with `--nocapture`.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//!  - Wrap all code that spawns futures into [`block_fn`]. This ensures the actix system is both</span>
-<span class="doccomment">//!    registered and running.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//! relay_test::setup();</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! // Access to the actix System is possible outside of `block_fn`.</span>
-<span class="doccomment">//! let system = actix::System::current();</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! relay_test::block_fn(|| {</span>
-<span class="doccomment">//!     // `actix::spawn` can be called in here.</span>
-<span class="doccomment">//!     Ok::&lt;(), ()&gt;(())</span>
-<span class="doccomment">//! });</span>
-<span class="doccomment">//! ```</span>
+</pre><pre class="rust"><code><span class="doccomment">//! Helpers for testing the web server and services.
+//!
+//! When writing tests, keep the following points in mind:
+//!
+//!  - In every test, call [`setup`]. This will set up the logger so that all console output is
+//!    captured by the test runner. All logs emitted with [`relay_log`] will show up for test
+//!    failures or when run with `--nocapture`.
+//!
+//!  - Wrap all code that spawns futures into [`block_fn`]. This ensures the actix system is both
+//!    registered and running.
+//!
+//! ```
+//! relay_test::setup();
+//!
+//! // Access to the actix System is possible outside of `block_fn`.
+//! let system = actix::System::current();
+//!
+//! relay_test::block_fn(|| {
+//!     // `actix::spawn` can be called in here.
+//!     Ok::&lt;(), ()&gt;(())
+//! });
+//! ```
 
-<span class="attribute">#![<span class="ident">doc</span>(
-    <span class="ident">html_logo_url</span> <span class="op">=</span> <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
-    <span class="ident">html_favicon_url</span> <span class="op">=</span> <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>
-)]</span>
-<span class="attribute">#![<span class="ident">allow</span>(<span class="ident">clippy::derive_partial_eq_without_eq</span>)]</span>
+</span><span class="attribute">#![doc(
+    html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
+    html_favicon_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;
+</span>)]
+#![allow(clippy::derive_partial_eq_without_eq)]
 
-<span class="kw">use</span> <span class="ident">std</span>::{
-    <span class="ident">cell::RefCell</span>,
-    <span class="ident">future::Future</span>,
-    <span class="ident">time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>},
+</span><span class="kw">use </span>std::{
+    cell::RefCell,
+    future::Future,
+    time::{Duration, Instant},
 };
 
-<span class="kw">use</span> <span class="ident">actix</span>::{<span class="ident">System</span>, <span class="ident">SystemRunner</span>};
-<span class="kw">use</span> <span class="ident">futures01</span>::{<span class="ident">future</span>, <span class="ident">IntoFuture</span>};
+<span class="kw">use </span>actix::{System, SystemRunner};
+<span class="kw">use </span>futures01::{future, IntoFuture};
 
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">actix_web::test</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">tokio_timer::Delay</span>;
+<span class="kw">pub use </span>actix_web::test::<span class="kw-2">*</span>;
+<span class="kw">use </span>tokio_timer::Delay;
 
-<span class="macro">thread_local!</span> {
-    <span class="kw">static</span> <span class="ident">SYSTEM</span>: <span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">Inner</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">RefCell::new</span>(<span class="ident">Inner::new</span>());
+<span class="macro">thread_local! </span>{
+    <span class="kw">static </span>SYSTEM: RefCell&lt;Inner&gt; = RefCell::new(Inner::new());
 }
 
-<span class="kw">struct</span> <span class="ident">Inner</span> {
-    <span class="ident">system</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">System</span><span class="op">&gt;</span>,
-    <span class="ident">runner</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SystemRunner</span><span class="op">&gt;</span>,
+<span class="kw">struct </span>Inner {
+    system: <span class="prelude-ty">Option</span>&lt;System&gt;,
+    runner: <span class="prelude-ty">Option</span>&lt;SystemRunner&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">Inner</span> {
-    <span class="kw">fn</span> <span class="ident">new</span>() -&gt; <span class="self">Self</span> {
-        <span class="kw">let</span> <span class="ident">runner</span> <span class="op">=</span> <span class="ident">System::new</span>(<span class="string">&quot;relay tests&quot;</span>);
-        <span class="kw">let</span> <span class="ident">system</span> <span class="op">=</span> <span class="ident">System::current</span>();
+<span class="kw">impl </span>Inner {
+    <span class="kw">fn </span>new() -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>runner = System::new(<span class="string">&quot;relay tests&quot;</span>);
+        <span class="kw">let </span>system = System::current();
 
-        <span class="self">Self</span> {
-            <span class="ident">system</span>: <span class="prelude-val">Some</span>(<span class="ident">system</span>),
-            <span class="ident">runner</span>: <span class="prelude-val">Some</span>(<span class="ident">runner</span>),
+        <span class="self">Self </span>{
+            system: <span class="prelude-val">Some</span>(system),
+            runner: <span class="prelude-val">Some</span>(runner),
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">set_current</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) {
-        <span class="ident">System::set_current</span>(<span class="self">self</span>.<span class="ident">system</span>.<span class="ident">clone</span>().<span class="ident">unwrap</span>());
+    <span class="kw">fn </span>set_current(<span class="kw-2">&amp;</span><span class="self">self</span>) {
+        System::set_current(<span class="self">self</span>.system.clone().unwrap());
     }
 
-    <span class="kw">fn</span> <span class="ident">runner</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut</span> <span class="ident">SystemRunner</span> {
-        <span class="self">self</span>.<span class="ident">runner</span>.<span class="ident">as_mut</span>().<span class="ident">unwrap</span>()
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">Inner</span> {
-    <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
-        <span class="self">self</span>.<span class="ident">system</span>.<span class="ident">take</span>();
-        <span class="ident">std::mem::forget</span>(<span class="self">self</span>.<span class="ident">runner</span>.<span class="ident">take</span>().<span class="ident">unwrap</span>())
+    <span class="kw">fn </span>runner(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span>SystemRunner {
+        <span class="self">self</span>.runner.as_mut().unwrap()
     }
 }
 
-<span class="doccomment">/// Setup the test environment.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">///  - Initializes logs: The logger only captures logs from this crate and mutes all other logs.</span>
-<span class="doccomment">///  - Initializes an actix actor system and registers it as current. This allows to call</span>
-<span class="doccomment">///    `System::current`.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">setup</span>() {
+<span class="kw">impl </span>Drop <span class="kw">for </span>Inner {
+    <span class="kw">fn </span>drop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="self">self</span>.system.take();
+        std::mem::forget(<span class="self">self</span>.runner.take().unwrap())
+    }
+}
+
+<span class="doccomment">/// Setup the test environment.
+///
+///  - Initializes logs: The logger only captures logs from this crate and mutes all other logs.
+///  - Initializes an actix actor system and registers it as current. This allows to call
+///    `System::current`.
+</span><span class="kw">pub fn </span>setup() {
     <span class="macro">relay_log::init_test!</span>();
 
-    <span class="comment">// Force initialization of the actix system</span>
-    <span class="ident">SYSTEM</span>.<span class="ident">with</span>(<span class="op">|</span><span class="ident">_sys</span><span class="op">|</span> ());
+    <span class="comment">// Force initialization of the actix system
+    </span>SYSTEM.with(|_sys| ());
 }
 
-<span class="doccomment">/// Runs the provided function, blocking the current thread until the result future completes.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This function can be used to synchronously block the current thread until the provided `future`</span>
-<span class="doccomment">/// has resolved either successfully or with an error. The result of the future is then returned</span>
-<span class="doccomment">/// from this function call.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This is provided rather than a `block_on`-like interface to avoid accidentally calling a</span>
-<span class="doccomment">/// function which spawns before creating a future, which would attempt to spawn before actix is</span>
-<span class="doccomment">/// initialised.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Note that this function is intended to be used only for testing purpose.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// # Panics</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This function panics on nested call.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">block_fn</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">R</span><span class="op">&gt;</span>(<span class="ident">future</span>: <span class="ident">F</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">R::Item</span>, <span class="ident">R::Error</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">F</span>: <span class="ident">FnOnce</span>() -&gt; <span class="ident">R</span>,
-    <span class="ident">R</span>: <span class="ident">IntoFuture</span>,
+<span class="doccomment">/// Runs the provided function, blocking the current thread until the result future completes.
+///
+/// This function can be used to synchronously block the current thread until the provided `future`
+/// has resolved either successfully or with an error. The result of the future is then returned
+/// from this function call.
+///
+/// This is provided rather than a `block_on`-like interface to avoid accidentally calling a
+/// function which spawns before creating a future, which would attempt to spawn before actix is
+/// initialised.
+///
+/// Note that this function is intended to be used only for testing purpose.
+///
+/// # Panics
+///
+/// This function panics on nested call.
+</span><span class="kw">pub fn </span>block_fn&lt;F, R&gt;(future: F) -&gt; <span class="prelude-ty">Result</span>&lt;R::Item, R::Error&gt;
+<span class="kw">where
+    </span>F: FnOnce() -&gt; R,
+    R: IntoFuture,
 {
-    <span class="ident">SYSTEM</span>.<span class="ident">with</span>(<span class="op">|</span><span class="ident">cell</span><span class="op">|</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">inner</span> <span class="op">=</span> <span class="ident">cell</span>.<span class="ident">borrow_mut</span>();
-        <span class="ident">inner</span>.<span class="ident">set_current</span>();
-        <span class="ident">inner</span>.<span class="ident">runner</span>().<span class="ident">block_on</span>(<span class="ident">future::lazy</span>(<span class="ident">future</span>))
+    SYSTEM.with(|cell| {
+        <span class="kw">let </span><span class="kw-2">mut </span>inner = cell.borrow_mut();
+        inner.set_current();
+        inner.runner().block_on(future::lazy(future))
     })
 }
 
-<span class="doccomment">/// Runs the provided function with an active actix system.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This function otherwise functions exactly as [`block_fn`].</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_system</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">R</span><span class="op">&gt;</span>(<span class="ident">func</span>: <span class="ident">F</span>) -&gt; <span class="ident">R</span>
-<span class="kw">where</span>
-    <span class="ident">F</span>: <span class="ident">FnOnce</span>() -&gt; <span class="ident">R</span>,
+<span class="doccomment">/// Runs the provided function with an active actix system.
+///
+/// This function otherwise functions exactly as [`block_fn`].
+</span><span class="kw">pub fn </span>with_system&lt;F, R&gt;(func: F) -&gt; R
+<span class="kw">where
+    </span>F: FnOnce() -&gt; R,
 {
-    <span class="ident">block_fn</span>(<span class="kw">move</span> <span class="op">|</span><span class="op">|</span> <span class="ident">future::ok</span>::<span class="op">&lt;</span><span class="kw">_</span>, ()<span class="op">&gt;</span>(<span class="ident">func</span>())).<span class="ident">unwrap</span>()
+    block_fn(<span class="kw">move </span>|| future::ok::&lt;<span class="kw">_</span>, ()&gt;(func())).unwrap()
 }
 
-<span class="doccomment">/// Returns a future which completes after the requested delay.</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">/// use std::time::Duration;</span>
-<span class="doccomment">/// use futures01::future::Future;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// relay_test::setup();</span>
-<span class="doccomment">/// relay_test::block_fn(|| {</span>
-<span class="doccomment">///     relay_test::delay(Duration::from_millis(1000)).and_then(|_| {</span>
-<span class="doccomment">///         println!(&quot;One second has passed.&quot;);</span>
-<span class="doccomment">///         Ok(())</span>
-<span class="doccomment">///     })</span>
-<span class="doccomment">/// });</span>
-<span class="doccomment">/// ```</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">delay</span>(<span class="ident">timeout</span>: <span class="ident">Duration</span>) -&gt; <span class="ident">Delay</span> {
-    <span class="ident">Delay::new</span>(<span class="ident">Instant::now</span>() <span class="op">+</span> <span class="ident">timeout</span>)
+<span class="doccomment">/// Returns a future which completes after the requested delay.
+/// ```
+/// use std::time::Duration;
+/// use futures01::future::Future;
+///
+/// relay_test::setup();
+/// relay_test::block_fn(|| {
+///     relay_test::delay(Duration::from_millis(1000)).and_then(|_| {
+///         println!(&quot;One second has passed.&quot;);
+///         Ok(())
+///     })
+/// });
+/// ```
+</span><span class="kw">pub fn </span>delay(timeout: Duration) -&gt; Delay {
+    Delay::new(Instant::now() + timeout)
 }
 
-<span class="doccomment">/// Creates a new runtime for the future to run on, and also keeps [`actix::System`] around for</span>
-<span class="doccomment">/// things which are still depend on it.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">block_with_actix</span>(<span class="ident">f</span>: <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> ()<span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;static</span>) {
-    <span class="kw">let</span> <span class="ident">system</span> <span class="op">=</span> <span class="ident">actix::System::current</span>();
-    <span class="kw">let</span> (<span class="ident">tx</span>, <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">futures01::sync::oneshot::channel</span>();
+<span class="doccomment">/// Creates a new runtime for the future to run on, and also keeps [`actix::System`] around for
+/// things which are still depend on it.
+</span><span class="kw">pub fn </span>block_with_actix(f: <span class="kw">impl </span>Future&lt;Output = ()&gt; + Send + <span class="lifetime">&#39;static</span>) {
+    <span class="kw">let </span>system = actix::System::current();
+    <span class="kw">let </span>(tx, rx) = futures01::sync::oneshot::channel();
 
-    <span class="kw">let</span> <span class="ident">rt</span> <span class="op">=</span> <span class="ident">tokio::runtime::Builder::new_multi_thread</span>()
-        .<span class="ident">worker_threads</span>(<span class="number">1</span>)
-        .<span class="ident">enable_all</span>()
-        .<span class="ident">build</span>()
-        .<span class="ident">unwrap</span>();
+    <span class="kw">let </span>rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(<span class="number">1</span>)
+        .enable_all()
+        .build()
+        .unwrap();
 
-    <span class="ident">rt</span>.<span class="ident">spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
-        <span class="ident">actix::System::set_current</span>(<span class="ident">system</span>);
-        <span class="ident">f</span>.<span class="kw">await</span>;
-        <span class="ident">tx</span>.<span class="ident">send</span>(()).<span class="ident">ok</span>();
+    rt.spawn(<span class="kw">async move </span>{
+        actix::System::set_current(system);
+        f.<span class="kw">await</span>;
+        tx.send(()).ok();
     });
 
-    <span class="comment">// Note that this also resolves with error if `f` panics.</span>
-    <span class="ident">block_fn</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">rx</span>).<span class="ident">unwrap</span>()
+    <span class="comment">// Note that this also resolves with error if `f` panics.
+    </span>block_fn(|| rx).unwrap()
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_test" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_test" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

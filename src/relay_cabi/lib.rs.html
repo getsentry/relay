@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-cabi/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_cabi/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_cabi/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-cabi/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_cabi/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_cabi/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_cabi/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -110,115 +110,115 @@
 <span id="108">108</span>
 <span id="109">109</span>
 <span id="110">110</span>
-</pre><pre class="rust"><code><span class="doccomment">//! This package contains the C-ABI of Relay. It builds a C header file and</span>
-<span class="doccomment">//! associated library that can be linked to any C or C++ program. Note that the</span>
-<span class="doccomment">//! header is C only. Primarily, this package is meant to be consumed by</span>
-<span class="doccomment">//! higher-level wrappers in other languages, such as the</span>
-<span class="doccomment">//! [`sentry-relay`](https://pypi.org/project/sentry-relay/) Python package.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! # Building</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Building the dynamic library has the same requirements as building the</span>
-<span class="doccomment">//! `relay` crate:</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! - Latest stable Rust and Cargo</span>
-<span class="doccomment">//! - A checkout of this repository and all its GIT submodules</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! To build, run `make release` in this directory. This creates a release build of</span>
-<span class="doccomment">//! the dynamic library in `target/release/librelay_cabi.*`.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! # Usage</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! The header comes packaged in the `include/` directory. It does not have any</span>
-<span class="doccomment">//! dependencies other than standard C headers. Then, include it in sources and use</span>
-<span class="doccomment">//! like this:</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ```c</span>
-<span class="doccomment">//! #include &quot;relay.h&quot;</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! int main() {</span>
-<span class="doccomment">//!     RelayUuid uuid = relay_generate_relay_id();</span>
-<span class="doccomment">//!     // use uuid</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//!     return 0;</span>
-<span class="doccomment">//! }</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! In your application, point to the Relay include directory and specify the</span>
-<span class="doccomment">//! `relay` library:</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ```bash</span>
-<span class="doccomment">//! $(CC) -Irelay-cabi/include -Ltarget/release -lrelay -o myprogram main.c</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! # Development</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ## Requirements</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! In addition to the build requirements, development requires a recent version</span>
-<span class="doccomment">//! of the the `cbindgen` tool. To set this up, run:</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ```bash</span>
-<span class="doccomment">//! cargo install cbindgen</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! If your machine already has `cbindgen` installed, check the header of</span>
-<span class="doccomment">//! [`include/relay.h`] for the minimum version required. This can be verified by</span>
-<span class="doccomment">//! running `cbindgen --version`. It is generally advisable to keep `cbindgen`</span>
-<span class="doccomment">//! updated to its latest version, and always check in cbindgen updates separate</span>
-<span class="doccomment">//! from changes to the public interface.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ## Makefile</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! This package contains the Rust crate `relay-cabi` that exposes a public FFI</span>
-<span class="doccomment">//! interface. There are additional build steps involved in generating the header</span>
-<span class="doccomment">//! file located at `include/relay.h`. To aid development, there is a _Makefile_</span>
-<span class="doccomment">//! that exposes all relevant commands for building:</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! - `make build`: Builds the library using `cargo`.</span>
-<span class="doccomment">//! - `make header`: Updates the header file based on the public interface.</span>
-<span class="doccomment">//! - `make clean`: Removes all build artifacts but leaves the header.</span>
-<span class="doccomment">//! - `make`: Builds the library and the header.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! For ease of development, the header is always checked into the repository. After</span>
-<span class="doccomment">//! making changes, do not forget to run at least `make header` to ensure the header</span>
-<span class="doccomment">//! is in sync with the library.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ## Development Flow</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! 1. Make changes to the `relay` crates and add tests.</span>
-<span class="doccomment">//! 2. Update `relay-cabi` and add, remove or update functions as needed.</span>
-<span class="doccomment">//! 3. Regenerate the header by running `make header` in the `relay-cabi/` directory.</span>
-<span class="doccomment">//! 4. Go to the Python package in the `py/` folder and update the high-level wrappers.</span>
-<span class="doccomment">//! 5. Consider whether this changeset requires a major version bump.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! The general rule for major versions is:</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! - If everything is backward compatible, do **not major** bump.</span>
-<span class="doccomment">//! - If the C interface breaks compatibility but high-level wrappers are still</span>
-<span class="doccomment">//!   backwards compatible, do **not major** bump. The C interface is currently</span>
-<span class="doccomment">//!   viewed as an implementation detail.</span>
-<span class="doccomment">//! - If high-level wrappers are no longer backwards compatible or there are</span>
-<span class="doccomment">//!   breaking changes in the `relay` crate itself, **do major** bump.</span>
+</pre><pre class="rust"><code><span class="doccomment">//! This package contains the C-ABI of Relay. It builds a C header file and
+//! associated library that can be linked to any C or C++ program. Note that the
+//! header is C only. Primarily, this package is meant to be consumed by
+//! higher-level wrappers in other languages, such as the
+//! [`sentry-relay`](https://pypi.org/project/sentry-relay/) Python package.
+//!
+//! # Building
+//!
+//! Building the dynamic library has the same requirements as building the
+//! `relay` crate:
+//!
+//! - Latest stable Rust and Cargo
+//! - A checkout of this repository and all its GIT submodules
+//!
+//! To build, run `make release` in this directory. This creates a release build of
+//! the dynamic library in `target/release/librelay_cabi.*`.
+//!
+//! # Usage
+//!
+//! The header comes packaged in the `include/` directory. It does not have any
+//! dependencies other than standard C headers. Then, include it in sources and use
+//! like this:
+//!
+//! ```c
+//! #include &quot;relay.h&quot;
+//!
+//! int main() {
+//!     RelayUuid uuid = relay_generate_relay_id();
+//!     // use uuid
+//!
+//!     return 0;
+//! }
+//! ```
+//!
+//! In your application, point to the Relay include directory and specify the
+//! `relay` library:
+//!
+//! ```bash
+//! $(CC) -Irelay-cabi/include -Ltarget/release -lrelay -o myprogram main.c
+//! ```
+//!
+//! # Development
+//!
+//! ## Requirements
+//!
+//! In addition to the build requirements, development requires a recent version
+//! of the the `cbindgen` tool. To set this up, run:
+//!
+//! ```bash
+//! cargo install cbindgen
+//! ```
+//!
+//! If your machine already has `cbindgen` installed, check the header of
+//! [`include/relay.h`] for the minimum version required. This can be verified by
+//! running `cbindgen --version`. It is generally advisable to keep `cbindgen`
+//! updated to its latest version, and always check in cbindgen updates separate
+//! from changes to the public interface.
+//!
+//! ## Makefile
+//!
+//! This package contains the Rust crate `relay-cabi` that exposes a public FFI
+//! interface. There are additional build steps involved in generating the header
+//! file located at `include/relay.h`. To aid development, there is a _Makefile_
+//! that exposes all relevant commands for building:
+//!
+//! - `make build`: Builds the library using `cargo`.
+//! - `make header`: Updates the header file based on the public interface.
+//! - `make clean`: Removes all build artifacts but leaves the header.
+//! - `make`: Builds the library and the header.
+//!
+//! For ease of development, the header is always checked into the repository. After
+//! making changes, do not forget to run at least `make header` to ensure the header
+//! is in sync with the library.
+//!
+//! ## Development Flow
+//!
+//! 1. Make changes to the `relay` crates and add tests.
+//! 2. Update `relay-cabi` and add, remove or update functions as needed.
+//! 3. Regenerate the header by running `make header` in the `relay-cabi/` directory.
+//! 4. Go to the Python package in the `py/` folder and update the high-level wrappers.
+//! 5. Consider whether this changeset requires a major version bump.
+//!
+//! The general rule for major versions is:
+//!
+//! - If everything is backward compatible, do **not major** bump.
+//! - If the C interface breaks compatibility but high-level wrappers are still
+//!   backwards compatible, do **not major** bump. The C interface is currently
+//!   viewed as an implementation detail.
+//! - If high-level wrappers are no longer backwards compatible or there are
+//!   breaking changes in the `relay` crate itself, **do major** bump.
 
-<span class="attribute">#![<span class="ident">allow</span>(<span class="ident">clippy::missing_safety_doc</span>)]</span>
-<span class="attribute">#![<span class="ident">warn</span>(<span class="ident">missing_docs</span>)]</span>
-<span class="attribute">#![<span class="ident">doc</span>(
-    <span class="ident">html_logo_url</span> <span class="op">=</span> <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
-    <span class="ident">html_favicon_url</span> <span class="op">=</span> <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>
-)]</span>
-<span class="attribute">#![<span class="ident">allow</span>(<span class="ident">clippy::derive_partial_eq_without_eq</span>)]</span>
+</span><span class="attribute">#![allow(clippy::missing_safety_doc)]
+#![warn(missing_docs)]
+#![doc(
+    html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
+    html_favicon_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;
+</span>)]
+#![allow(clippy::derive_partial_eq_without_eq)]
 
-<span class="kw">mod</span> <span class="ident">auth</span>;
-<span class="kw">mod</span> <span class="ident">constants</span>;
-<span class="kw">mod</span> <span class="ident">core</span>;
-<span class="kw">mod</span> <span class="ident">ffi</span>;
-<span class="kw">mod</span> <span class="ident">processing</span>;
+</span><span class="kw">mod </span>auth;
+<span class="kw">mod </span>constants;
+<span class="kw">mod </span>core;
+<span class="kw">mod </span>ffi;
+<span class="kw">mod </span>processing;
 
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::auth</span>::<span class="kw-2">*</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::constants</span>::<span class="kw-2">*</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::core</span>::<span class="kw-2">*</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::ffi</span>::<span class="kw-2">*</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processing</span>::<span class="kw-2">*</span>;
+<span class="kw">pub use </span><span class="kw">crate</span>::auth::<span class="kw-2">*</span>;
+<span class="kw">pub use </span><span class="kw">crate</span>::constants::<span class="kw-2">*</span>;
+<span class="kw">pub use </span><span class="kw">crate</span>::core::<span class="kw-2">*</span>;
+<span class="kw">pub use </span><span class="kw">crate</span>::ffi::<span class="kw-2">*</span>;
+<span class="kw">pub use </span><span class="kw">crate</span>::processing::<span class="kw-2">*</span>;
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_cabi" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_cabi" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

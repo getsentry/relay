@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/protocol/contexts/device.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>device.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../../storage.js"></script><script defer src="../../../../source-script.js"></script><script defer src="../../../../source-files.js"></script><script defer src="../../../../main.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/protocol/contexts/device.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>device.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../../normalize.css"><link rel="stylesheet" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../../ayu.css" disabled><link rel="stylesheet" href="../../../../dark.css" disabled><link rel="stylesheet" href="../../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../../storage.js"></script><script defer src="../../../../source-script.js"></script><script defer src="../../../../source-files.js"></script><script defer src="../../../../main.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../../relay_general/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -264,180 +264,180 @@
 <span id="262">262</span>
 <span id="263">263</span>
 <span id="264">264</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Object</span>, <span class="ident">Value</span>};
+</pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Object, Value};
 
-<span class="doccomment">/// Device information.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Device context describes the device that caused the event. This is most appropriate for mobile</span>
-<span class="doccomment">/// applications.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>)]</span>
-<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">DeviceContext</span> {
-    <span class="doccomment">/// Name of the device.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">name</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Device information.
+///
+/// Device context describes the device that caused the event. This is most appropriate for mobile
+/// applications.
+</span><span class="attribute">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+</span><span class="kw">pub struct </span>DeviceContext {
+    <span class="doccomment">/// Name of the device.
+    </span><span class="attribute">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="kw">pub </span>name: Annotated&lt;String&gt;,
 
-    <span class="doccomment">/// Family of the device model.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This is usually the common part of model names across generations. For instance, `iPhone`</span>
-    <span class="doccomment">/// would be a reasonable family, so would be `Samsung Galaxy`.</span>
-    <span class="kw">pub</span> <span class="ident">family</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Family of the device model.
+    ///
+    /// This is usually the common part of model names across generations. For instance, `iPhone`
+    /// would be a reasonable family, so would be `Samsung Galaxy`.
+    </span><span class="kw">pub </span>family: Annotated&lt;String&gt;,
 
-    <span class="doccomment">/// Device model.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This, for example, can be `Samsung Galaxy S3`.</span>
-    <span class="kw">pub</span> <span class="ident">model</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Device model.
+    ///
+    /// This, for example, can be `Samsung Galaxy S3`.
+    </span><span class="kw">pub </span>model: Annotated&lt;String&gt;,
 
-    <span class="doccomment">/// Device model (internal identifier).</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// An internal hardware revision to identify the device exactly.</span>
-    <span class="kw">pub</span> <span class="ident">model_id</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Device model (internal identifier).
+    ///
+    /// An internal hardware revision to identify the device exactly.
+    </span><span class="kw">pub </span>model_id: Annotated&lt;String&gt;,
 
-    <span class="doccomment">/// Native cpu architecture of the device.</span>
-    <span class="kw">pub</span> <span class="ident">arch</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Native cpu architecture of the device.
+    </span><span class="kw">pub </span>arch: Annotated&lt;String&gt;,
 
-    <span class="doccomment">/// Current battery level in %.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// If the device has a battery, this can be a floating point value defining the battery level</span>
-    <span class="doccomment">/// (in the range 0-100).</span>
-    <span class="kw">pub</span> <span class="ident">battery_level</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Current battery level in %.
+    ///
+    /// If the device has a battery, this can be a floating point value defining the battery level
+    /// (in the range 0-100).
+    </span><span class="kw">pub </span>battery_level: Annotated&lt;f64&gt;,
 
-    <span class="doccomment">/// Current screen orientation.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This can be a string `portrait` or `landscape` to define the orientation of a device.</span>
-    <span class="kw">pub</span> <span class="ident">orientation</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Current screen orientation.
+    ///
+    /// This can be a string `portrait` or `landscape` to define the orientation of a device.
+    </span><span class="kw">pub </span>orientation: Annotated&lt;String&gt;,
 
-    <span class="doccomment">/// Manufacturer of the device.</span>
-    <span class="kw">pub</span> <span class="ident">manufacturer</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Manufacturer of the device.
+    </span><span class="kw">pub </span>manufacturer: Annotated&lt;String&gt;,
 
-    <span class="doccomment">/// Brand of the device.</span>
-    <span class="kw">pub</span> <span class="ident">brand</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Brand of the device.
+    </span><span class="kw">pub </span>brand: Annotated&lt;String&gt;,
 
-    <span class="doccomment">/// Device screen resolution.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// (e.g.: 800x600, 3040x1444)</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">screen_resolution</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Device screen resolution.
+    ///
+    /// (e.g.: 800x600, 3040x1444)
+    </span><span class="attribute">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="kw">pub </span>screen_resolution: Annotated&lt;String&gt;,
 
-    <span class="doccomment">/// Device screen density.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">screen_density</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Device screen density.
+    </span><span class="attribute">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="kw">pub </span>screen_density: Annotated&lt;f64&gt;,
 
-    <span class="doccomment">/// Screen density as dots-per-inch.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">screen_dpi</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Screen density as dots-per-inch.
+    </span><span class="attribute">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="kw">pub </span>screen_dpi: Annotated&lt;u64&gt;,
 
-    <span class="doccomment">/// Whether the device was online or not.</span>
-    <span class="kw">pub</span> <span class="ident">online</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Whether the device was online or not.
+    </span><span class="kw">pub </span>online: Annotated&lt;bool&gt;,
 
-    <span class="doccomment">/// Whether the device was charging or not.</span>
-    <span class="kw">pub</span> <span class="ident">charging</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Whether the device was charging or not.
+    </span><span class="kw">pub </span>charging: Annotated&lt;bool&gt;,
 
-    <span class="doccomment">/// Whether the device was low on memory.</span>
-    <span class="kw">pub</span> <span class="ident">low_memory</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Whether the device was low on memory.
+    </span><span class="kw">pub </span>low_memory: Annotated&lt;bool&gt;,
 
-    <span class="doccomment">/// Simulator/prod indicator.</span>
-    <span class="kw">pub</span> <span class="ident">simulator</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Simulator/prod indicator.
+    </span><span class="kw">pub </span>simulator: Annotated&lt;bool&gt;,
 
-    <span class="doccomment">/// Total memory available in bytes.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">memory_size</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Total memory available in bytes.
+    </span><span class="attribute">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="kw">pub </span>memory_size: Annotated&lt;u64&gt;,
 
-    <span class="doccomment">/// How much memory is still available in bytes.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">free_memory</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// How much memory is still available in bytes.
+    </span><span class="attribute">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="kw">pub </span>free_memory: Annotated&lt;u64&gt;,
 
-    <span class="doccomment">/// How much memory is usable for the app in bytes.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">usable_memory</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// How much memory is usable for the app in bytes.
+    </span><span class="attribute">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="kw">pub </span>usable_memory: Annotated&lt;u64&gt;,
 
-    <span class="doccomment">/// Total storage size of the device in bytes.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">storage_size</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Total storage size of the device in bytes.
+    </span><span class="attribute">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="kw">pub </span>storage_size: Annotated&lt;u64&gt;,
 
-    <span class="doccomment">/// How much storage is free in bytes.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">free_storage</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// How much storage is free in bytes.
+    </span><span class="attribute">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="kw">pub </span>free_storage: Annotated&lt;u64&gt;,
 
-    <span class="doccomment">/// Total size of the attached external storage in bytes (eg: android SDK card).</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">external_storage_size</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Total size of the attached external storage in bytes (eg: android SDK card).
+    </span><span class="attribute">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="kw">pub </span>external_storage_size: Annotated&lt;u64&gt;,
 
-    <span class="doccomment">/// Free size of the attached external storage in bytes (eg: android SDK card).</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">external_free_storage</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Free size of the attached external storage in bytes (eg: android SDK card).
+    </span><span class="attribute">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="kw">pub </span>external_free_storage: Annotated&lt;u64&gt;,
 
-    <span class="doccomment">/// Indicator when the device was booted.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">boot_time</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Indicator when the device was booted.
+    </span><span class="attribute">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="kw">pub </span>boot_time: Annotated&lt;String&gt;,
 
-    <span class="doccomment">/// Timezone of the device.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">timezone</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Timezone of the device.
+    </span><span class="attribute">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="kw">pub </span>timezone: Annotated&lt;String&gt;,
 
-    <span class="doccomment">/// Number of &quot;logical processors&quot;.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// For example, 8.</span>
-    <span class="kw">pub</span> <span class="ident">processor_count</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Number of &quot;logical processors&quot;.
+    ///
+    /// For example, 8.
+    </span><span class="kw">pub </span>processor_count: Annotated&lt;u64&gt;,
 
-    <span class="doccomment">/// CPU description.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// For example, Intel(R) Core(TM)2 Quad CPU Q6600 @ 2.40GHz.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">cpu_description</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// CPU description.
+    ///
+    /// For example, Intel(R) Core(TM)2 Quad CPU Q6600 @ 2.40GHz.
+    </span><span class="attribute">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="kw">pub </span>cpu_description: Annotated&lt;String&gt;,
 
-    <span class="doccomment">/// Processor frequency in MHz.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Note that the actual CPU frequency might vary depending on current load and</span>
-    <span class="doccomment">/// power conditions, especially on low-powered devices like phones and laptops.</span>
-    <span class="kw">pub</span> <span class="ident">processor_frequency</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Processor frequency in MHz.
+    ///
+    /// Note that the actual CPU frequency might vary depending on current load and
+    /// power conditions, especially on low-powered devices like phones and laptops.
+    </span><span class="kw">pub </span>processor_frequency: Annotated&lt;u64&gt;,
 
-    <span class="doccomment">/// Kind of device the application is running on.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// For example, `Unknown`, `Handheld`, `Console`, `Desktop`.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">device_type</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Kind of device the application is running on.
+    ///
+    /// For example, `Unknown`, `Handheld`, `Console`, `Desktop`.
+    </span><span class="attribute">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="kw">pub </span>device_type: Annotated&lt;String&gt;,
 
-    <span class="doccomment">/// Status of the device&#39;s battery.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// For example, `Unknown`, `Charging`, `Discharging`, `NotCharging`, `Full`.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">battery_status</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Status of the device&#39;s battery.
+    ///
+    /// For example, `Unknown`, `Charging`, `Discharging`, `NotCharging`, `Full`.
+    </span><span class="attribute">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="kw">pub </span>battery_status: Annotated&lt;String&gt;,
 
-    <span class="doccomment">/// Unique device identifier.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">device_unique_identifier</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Unique device identifier.
+    </span><span class="attribute">#[metastructure(pii = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="kw">pub </span>device_unique_identifier: Annotated&lt;String&gt;,
 
-    <span class="doccomment">/// Whether vibration is available on the device.</span>
-    <span class="kw">pub</span> <span class="ident">supports_vibration</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Whether vibration is available on the device.
+    </span><span class="kw">pub </span>supports_vibration: Annotated&lt;bool&gt;,
 
-    <span class="doccomment">/// Whether the accelerometer is available on the device.</span>
-    <span class="kw">pub</span> <span class="ident">supports_accelerometer</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Whether the accelerometer is available on the device.
+    </span><span class="kw">pub </span>supports_accelerometer: Annotated&lt;bool&gt;,
 
-    <span class="doccomment">/// Whether the gyroscope is available on the device.</span>
-    <span class="kw">pub</span> <span class="ident">supports_gyroscope</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Whether the gyroscope is available on the device.
+    </span><span class="kw">pub </span>supports_gyroscope: Annotated&lt;bool&gt;,
 
-    <span class="doccomment">/// Whether audio is available on the device.</span>
-    <span class="kw">pub</span> <span class="ident">supports_audio</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Whether audio is available on the device.
+    </span><span class="kw">pub </span>supports_audio: Annotated&lt;bool&gt;,
 
-    <span class="doccomment">/// Whether location support is available on the device.</span>
-    <span class="kw">pub</span> <span class="ident">supports_location_service</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Whether location support is available on the device.
+    </span><span class="kw">pub </span>supports_location_service: Annotated&lt;bool&gt;,
 
-    <span class="doccomment">/// Additional arbitrary fields for forwards compatibility</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">additional_properties</span>, <span class="ident">retain</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>, <span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">other</span>: <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Additional arbitrary fields for forwards compatibility
+    </span><span class="attribute">#[metastructure(additional_properties, retain = <span class="string">&quot;true&quot;</span>, pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">DeviceContext</span> {
-    <span class="doccomment">/// The key under which a device context is generally stored (in `Contexts`)</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">default_key</span>() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
-        <span class="string">&quot;device&quot;</span>
-    }
+<span class="kw">impl </span>DeviceContext {
+    <span class="doccomment">/// The key under which a device context is generally stored (in `Contexts`)
+    </span><span class="kw">pub fn </span>default_key() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="string">&quot;device&quot;
+    </span>}
 }
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_device_context_roundtrip</span>() {
-    <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+<span class="attribute">#[test]
+</span><span class="kw">fn </span>test_device_context_roundtrip() {
+    <span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;name&quot;: &quot;iphone&quot;,
   &quot;family&quot;: &quot;iphone&quot;,
   &quot;model&quot;: &quot;iphone7,3&quot;,
@@ -477,56 +477,56 @@
   &quot;other&quot;: &quot;value&quot;,
   &quot;type&quot;: &quot;device&quot;
 }&quot;#</span>;
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol::Context</span>;
-    <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Context::Device</span>(<span class="ident">Box::new</span>(<span class="ident">DeviceContext</span> {
-        <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;iphone&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">family</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;iphone&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">model</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;iphone7,3&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">model_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;AH223&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">arch</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">battery_level</span>: <span class="ident">Annotated::new</span>(<span class="number">58.5</span>),
-        <span class="ident">orientation</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;landscape&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">simulator</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">true</span>),
-        <span class="ident">manufacturer</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Apple&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">brand</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;iphone&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">screen_resolution</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;800x600&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">screen_density</span>: <span class="ident">Annotated::new</span>(<span class="number">1.1</span>),
-        <span class="ident">screen_dpi</span>: <span class="ident">Annotated::new</span>(<span class="number">1</span>),
-        <span class="ident">online</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">true</span>),
-        <span class="ident">charging</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">false</span>),
-        <span class="ident">low_memory</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">false</span>),
-        <span class="ident">memory_size</span>: <span class="ident">Annotated::new</span>(<span class="number">3_137_978_368</span>),
-        <span class="ident">free_memory</span>: <span class="ident">Annotated::new</span>(<span class="number">322_781_184</span>),
-        <span class="ident">usable_memory</span>: <span class="ident">Annotated::new</span>(<span class="number">2_843_525_120</span>),
-        <span class="ident">storage_size</span>: <span class="ident">Annotated::new</span>(<span class="number">63_989_469_184</span>),
-        <span class="ident">free_storage</span>: <span class="ident">Annotated::new</span>(<span class="number">31_994_734_592</span>),
-        <span class="ident">external_storage_size</span>: <span class="ident">Annotated::new</span>(<span class="number">2_097_152</span>),
-        <span class="ident">external_free_storage</span>: <span class="ident">Annotated::new</span>(<span class="number">2_097_152</span>),
-        <span class="ident">boot_time</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;2018-02-08T12:52:12Z&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">timezone</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Europe/Vienna&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">processor_count</span>: <span class="ident">Annotated::new</span>(<span class="number">8</span>),
-        <span class="ident">cpu_description</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Intel(R) Core(TM)2 Quad CPU Q6600 @ 2.40GHz&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">processor_frequency</span>: <span class="ident">Annotated::new</span>(<span class="number">2400</span>),
-        <span class="ident">device_type</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Handheld&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">battery_status</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Charging&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">device_unique_identifier</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;1234567&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">supports_vibration</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">true</span>),
-        <span class="ident">supports_accelerometer</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">true</span>),
-        <span class="ident">supports_gyroscope</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">true</span>),
-        <span class="ident">supports_audio</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">true</span>),
-        <span class="ident">supports_location_service</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">true</span>),
-        <span class="ident">other</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-            <span class="ident">map</span>.<span class="ident">insert</span>(
-                <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+    <span class="kw">use </span><span class="kw">crate</span>::protocol::Context;
+    <span class="kw">let </span>context = Annotated::new(Context::Device(Box::new(DeviceContext {
+        name: Annotated::new(<span class="string">&quot;iphone&quot;</span>.to_string()),
+        family: Annotated::new(<span class="string">&quot;iphone&quot;</span>.to_string()),
+        model: Annotated::new(<span class="string">&quot;iphone7,3&quot;</span>.to_string()),
+        model_id: Annotated::new(<span class="string">&quot;AH223&quot;</span>.to_string()),
+        arch: Annotated::new(<span class="string">&quot;arm64&quot;</span>.to_string()),
+        battery_level: Annotated::new(<span class="number">58.5</span>),
+        orientation: Annotated::new(<span class="string">&quot;landscape&quot;</span>.to_string()),
+        simulator: Annotated::new(<span class="bool-val">true</span>),
+        manufacturer: Annotated::new(<span class="string">&quot;Apple&quot;</span>.to_string()),
+        brand: Annotated::new(<span class="string">&quot;iphone&quot;</span>.to_string()),
+        screen_resolution: Annotated::new(<span class="string">&quot;800x600&quot;</span>.to_string()),
+        screen_density: Annotated::new(<span class="number">1.1</span>),
+        screen_dpi: Annotated::new(<span class="number">1</span>),
+        online: Annotated::new(<span class="bool-val">true</span>),
+        charging: Annotated::new(<span class="bool-val">false</span>),
+        low_memory: Annotated::new(<span class="bool-val">false</span>),
+        memory_size: Annotated::new(<span class="number">3_137_978_368</span>),
+        free_memory: Annotated::new(<span class="number">322_781_184</span>),
+        usable_memory: Annotated::new(<span class="number">2_843_525_120</span>),
+        storage_size: Annotated::new(<span class="number">63_989_469_184</span>),
+        free_storage: Annotated::new(<span class="number">31_994_734_592</span>),
+        external_storage_size: Annotated::new(<span class="number">2_097_152</span>),
+        external_free_storage: Annotated::new(<span class="number">2_097_152</span>),
+        boot_time: Annotated::new(<span class="string">&quot;2018-02-08T12:52:12Z&quot;</span>.to_string()),
+        timezone: Annotated::new(<span class="string">&quot;Europe/Vienna&quot;</span>.to_string()),
+        processor_count: Annotated::new(<span class="number">8</span>),
+        cpu_description: Annotated::new(<span class="string">&quot;Intel(R) Core(TM)2 Quad CPU Q6600 @ 2.40GHz&quot;</span>.to_string()),
+        processor_frequency: Annotated::new(<span class="number">2400</span>),
+        device_type: Annotated::new(<span class="string">&quot;Handheld&quot;</span>.to_string()),
+        battery_status: Annotated::new(<span class="string">&quot;Charging&quot;</span>.to_string()),
+        device_unique_identifier: Annotated::new(<span class="string">&quot;1234567&quot;</span>.to_string()),
+        supports_vibration: Annotated::new(<span class="bool-val">true</span>),
+        supports_accelerometer: Annotated::new(<span class="bool-val">true</span>),
+        supports_gyroscope: Annotated::new(<span class="bool-val">true</span>),
+        supports_audio: Annotated::new(<span class="bool-val">true</span>),
+        supports_location_service: Annotated::new(<span class="bool-val">true</span>),
+        other: {
+            <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
+            map.insert(
+                <span class="string">&quot;other&quot;</span>.to_string(),
+                Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
             );
-            <span class="ident">map</span>
+            map
         },
     })));
 
-    <span class="macro">assert_eq!</span>(<span class="ident">context</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">context</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq!</span>(context, Annotated::from_json(json).unwrap());
+    <span class="macro">assert_eq!</span>(json, context.to_json_pretty().unwrap());
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

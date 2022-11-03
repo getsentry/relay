@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/utils/unreal.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>unreal.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/utils/unreal.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>unreal.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_server/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -386,329 +386,329 @@
 <span id="384">384</span>
 <span id="385">385</span>
 <span id="386">386</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">TimeZone</span>, <span class="ident">Utc</span>};
-<span class="kw">use</span> <span class="ident">symbolic_unreal</span>::{
-    <span class="ident">Unreal4Context</span>, <span class="ident">Unreal4Crash</span>, <span class="ident">Unreal4Error</span>, <span class="ident">Unreal4ErrorKind</span>, <span class="ident">Unreal4FileType</span>, <span class="ident">Unreal4LogEntry</span>,
+</pre><pre class="rust"><code><span class="kw">use </span>chrono::{TimeZone, Utc};
+<span class="kw">use </span>symbolic_unreal::{
+    Unreal4Context, Unreal4Crash, Unreal4Error, Unreal4ErrorKind, Unreal4FileType, Unreal4LogEntry,
 };
 
-<span class="kw">use</span> <span class="ident">relay_config::Config</span>;
-<span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{
-    <span class="ident">AsPair</span>, <span class="ident">Breadcrumb</span>, <span class="ident">ClientSdkInfo</span>, <span class="ident">Context</span>, <span class="ident">Contexts</span>, <span class="ident">DeviceContext</span>, <span class="ident">Event</span>, <span class="ident">EventId</span>,
-    <span class="ident">GpuContext</span>, <span class="ident">LenientString</span>, <span class="ident">LogEntry</span>, <span class="ident">Message</span>, <span class="ident">OsContext</span>, <span class="ident">TagEntry</span>, <span class="ident">Tags</span>, <span class="ident">Timestamp</span>, <span class="ident">User</span>,
-    <span class="ident">UserReport</span>, <span class="ident">Values</span>,
+<span class="kw">use </span>relay_config::Config;
+<span class="kw">use </span>relay_general::protocol::{
+    AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DeviceContext, Event, EventId,
+    GpuContext, LenientString, LogEntry, Message, OsContext, TagEntry, Tags, Timestamp, User,
+    UserReport, Values,
 };
-<span class="kw">use</span> <span class="ident">relay_general::types</span>::{<span class="self">self</span>, <span class="ident">Annotated</span>, <span class="ident">Array</span>, <span class="ident">Object</span>, <span class="ident">Value</span>};
+<span class="kw">use </span>relay_general::types::{<span class="self">self</span>, Annotated, Array, Object, Value};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::constants</span>::{
-    <span class="ident">ITEM_NAME_BREADCRUMBS1</span>, <span class="ident">ITEM_NAME_BREADCRUMBS2</span>, <span class="ident">ITEM_NAME_EVENT</span>, <span class="ident">UNREAL_USER_HEADER</span>,
+<span class="kw">use </span><span class="kw">crate</span>::constants::{
+    ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT, UNREAL_USER_HEADER,
 };
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope</span>::{<span class="ident">AttachmentType</span>, <span class="ident">ContentType</span>, <span class="ident">Envelope</span>, <span class="ident">Item</span>, <span class="ident">ItemType</span>};
+<span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 
-<span class="doccomment">/// Maximum number of unreal logs to parse for breadcrumbs.</span>
-<span class="kw">const</span> <span class="ident">MAX_NUM_UNREAL_LOGS</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">40</span>;
+<span class="doccomment">/// Maximum number of unreal logs to parse for breadcrumbs.
+</span><span class="kw">const </span>MAX_NUM_UNREAL_LOGS: usize = <span class="number">40</span>;
 
-<span class="doccomment">/// Name of the custom XML tag in Unreal GameData for Sentry event payloads.</span>
-<span class="kw">const</span> <span class="ident">SENTRY_PAYLOAD_KEY</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;__sentry&quot;</span>;
+<span class="doccomment">/// Name of the custom XML tag in Unreal GameData for Sentry event payloads.
+</span><span class="kw">const </span>SENTRY_PAYLOAD_KEY: <span class="kw-2">&amp;</span>str = <span class="string">&quot;__sentry&quot;</span>;
 
-<span class="doccomment">/// Client SDK name used for the event payload to identify the UE4 crash reporter.</span>
-<span class="kw">const</span> <span class="ident">CLIENT_SDK_NAME</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;unreal.crashreporter&quot;</span>;
+<span class="doccomment">/// Client SDK name used for the event payload to identify the UE4 crash reporter.
+</span><span class="kw">const </span>CLIENT_SDK_NAME: <span class="kw-2">&amp;</span>str = <span class="string">&quot;unreal.crashreporter&quot;</span>;
 
-<span class="kw">fn</span> <span class="ident">get_event_item</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;</span>, <span class="ident">Unreal4Error</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">Unreal4Context::parse</span>(<span class="ident">data</span>)<span class="question-mark">?</span>;
-    <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">context</span>.<span class="ident">game_data</span>.<span class="ident">remove</span>(<span class="ident">SENTRY_PAYLOAD_KEY</span>) {
-        <span class="prelude-val">Some</span>(<span class="ident">json</span>) <span class="kw">if</span> <span class="op">!</span><span class="ident">json</span>.<span class="ident">is_empty</span>() =&gt; <span class="ident">json</span>,
-        <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>),
+<span class="kw">fn </span>get_event_item(data: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Item&gt;, Unreal4Error&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>context = Unreal4Context::parse(data)<span class="question-mark">?</span>;
+    <span class="kw">let </span>json = <span class="kw">match </span>context.game_data.remove(SENTRY_PAYLOAD_KEY) {
+        <span class="prelude-val">Some</span>(json) <span class="kw">if </span>!json.is_empty() =&gt; json,
+        <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>),
     };
 
     <span class="macro">relay_log::trace!</span>(<span class="string">&quot;adding event payload from unreal context&quot;</span>);
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">item</span> <span class="op">=</span> <span class="ident">Item::new</span>(<span class="ident">ItemType::Event</span>);
-    <span class="ident">item</span>.<span class="ident">set_payload</span>(<span class="ident">ContentType::Json</span>, <span class="ident">json</span>);
-    <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">item</span>))
+    <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Event);
+    item.set_payload(ContentType::Json, json);
+    <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(item))
 }
 
-<span class="doccomment">/// Expands Unreal 4 items inside an envelope.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// If the envelope does NOT contain an `UnrealReport` item, it doesn&#39;t do anything. If the envelope</span>
-<span class="doccomment">/// contains an `UnrealReport` item, it removes it from the envelope and inserts new items for each</span>
-<span class="doccomment">/// of its contents.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// After this, the `EnvelopeProcessor` should be able to process the envelope the same way it</span>
-<span class="doccomment">/// processes any other envelopes.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expand_unreal_envelope</span>(
-    <span class="ident">unreal_item</span>: <span class="ident">Item</span>,
-    <span class="ident">envelope</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Envelope</span>,
-    <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>,
-) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Unreal4Error</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span> <span class="ident">unreal_item</span>.<span class="ident">payload</span>();
-    <span class="kw">let</span> <span class="ident">crash</span> <span class="op">=</span> <span class="ident">Unreal4Crash::parse_with_limit</span>(<span class="kw-2">&amp;</span><span class="ident">payload</span>, <span class="ident">config</span>.<span class="ident">max_envelope_size</span>())<span class="question-mark">?</span>;
+<span class="doccomment">/// Expands Unreal 4 items inside an envelope.
+///
+/// If the envelope does NOT contain an `UnrealReport` item, it doesn&#39;t do anything. If the envelope
+/// contains an `UnrealReport` item, it removes it from the envelope and inserts new items for each
+/// of its contents.
+///
+/// After this, the `EnvelopeProcessor` should be able to process the envelope the same way it
+/// processes any other envelopes.
+</span><span class="kw">pub fn </span>expand_unreal_envelope(
+    unreal_item: Item,
+    envelope: <span class="kw-2">&amp;mut </span>Envelope,
+    config: <span class="kw-2">&amp;</span>Config,
+) -&gt; <span class="prelude-ty">Result</span>&lt;(), Unreal4Error&gt; {
+    <span class="kw">let </span>payload = unreal_item.payload();
+    <span class="kw">let </span>crash = Unreal4Crash::parse_with_limit(<span class="kw-2">&amp;</span>payload, config.max_envelope_size())<span class="question-mark">?</span>;
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">has_event</span> <span class="op">=</span> <span class="ident">envelope</span>
-        .<span class="ident">get_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="kw-2">&amp;</span><span class="ident">ItemType::Event</span>)
-        .<span class="ident">is_some</span>();
+    <span class="kw">let </span><span class="kw-2">mut </span>has_event = envelope
+        .get_item_by(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::Event)
+        .is_some();
 
-    <span class="kw">for</span> <span class="ident">file</span> <span class="kw">in</span> <span class="ident">crash</span>.<span class="ident">files</span>() {
-        <span class="kw">let</span> (<span class="ident">content_type</span>, <span class="ident">attachment_type</span>) <span class="op">=</span> <span class="kw">match</span> <span class="ident">file</span>.<span class="ident">ty</span>() {
-            <span class="ident">Unreal4FileType::Minidump</span> =&gt; (<span class="ident">ContentType::Minidump</span>, <span class="ident">AttachmentType::Minidump</span>),
-            <span class="ident">Unreal4FileType::AppleCrashReport</span> =&gt; {
-                (<span class="ident">ContentType::Text</span>, <span class="ident">AttachmentType::AppleCrashReport</span>)
+    <span class="kw">for </span>file <span class="kw">in </span>crash.files() {
+        <span class="kw">let </span>(content_type, attachment_type) = <span class="kw">match </span>file.ty() {
+            Unreal4FileType::Minidump =&gt; (ContentType::Minidump, AttachmentType::Minidump),
+            Unreal4FileType::AppleCrashReport =&gt; {
+                (ContentType::Text, AttachmentType::AppleCrashReport)
             }
-            <span class="ident">Unreal4FileType::Log</span> =&gt; (<span class="ident">ContentType::Text</span>, <span class="ident">AttachmentType::UnrealLogs</span>),
-            <span class="ident">Unreal4FileType::Config</span> =&gt; (<span class="ident">ContentType::OctetStream</span>, <span class="ident">AttachmentType::Attachment</span>),
-            <span class="ident">Unreal4FileType::Context</span> =&gt; (<span class="ident">ContentType::Xml</span>, <span class="ident">AttachmentType::UnrealContext</span>),
-            <span class="kw">_</span> =&gt; <span class="kw">match</span> <span class="ident">file</span>.<span class="ident">name</span>() {
-                <span class="ident"><span class="self">self</span>::ITEM_NAME_EVENT</span> =&gt; (<span class="ident">ContentType::MsgPack</span>, <span class="ident">AttachmentType::EventPayload</span>),
-                <span class="ident"><span class="self">self</span>::ITEM_NAME_BREADCRUMBS1</span> =&gt; (<span class="ident">ContentType::MsgPack</span>, <span class="ident">AttachmentType::Breadcrumbs</span>),
-                <span class="ident"><span class="self">self</span>::ITEM_NAME_BREADCRUMBS2</span> =&gt; (<span class="ident">ContentType::MsgPack</span>, <span class="ident">AttachmentType::Breadcrumbs</span>),
-                <span class="kw">_</span> =&gt; (<span class="ident">ContentType::OctetStream</span>, <span class="ident">AttachmentType::Attachment</span>),
+            Unreal4FileType::Log =&gt; (ContentType::Text, AttachmentType::UnrealLogs),
+            Unreal4FileType::Config =&gt; (ContentType::OctetStream, AttachmentType::Attachment),
+            Unreal4FileType::Context =&gt; (ContentType::Xml, AttachmentType::UnrealContext),
+            <span class="kw">_ </span>=&gt; <span class="kw">match </span>file.name() {
+                <span class="self">self</span>::ITEM_NAME_EVENT =&gt; (ContentType::MsgPack, AttachmentType::EventPayload),
+                <span class="self">self</span>::ITEM_NAME_BREADCRUMBS1 =&gt; (ContentType::MsgPack, AttachmentType::Breadcrumbs),
+                <span class="self">self</span>::ITEM_NAME_BREADCRUMBS2 =&gt; (ContentType::MsgPack, AttachmentType::Breadcrumbs),
+                <span class="kw">_ </span>=&gt; (ContentType::OctetStream, AttachmentType::Attachment),
             },
         };
 
-        <span class="kw">if</span> <span class="op">!</span><span class="ident">has_event</span> <span class="op">&amp;&amp;</span> <span class="ident">attachment_type</span> <span class="op">==</span> <span class="ident">AttachmentType::UnrealContext</span> {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">event_item</span>) <span class="op">=</span> <span class="ident">get_event_item</span>(<span class="ident">file</span>.<span class="ident">data</span>())<span class="question-mark">?</span> {
-                <span class="ident">envelope</span>.<span class="ident">add_item</span>(<span class="ident">event_item</span>);
-                <span class="ident">has_event</span> <span class="op">=</span> <span class="bool-val">true</span>;
+        <span class="kw">if </span>!has_event &amp;&amp; attachment_type == AttachmentType::UnrealContext {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(event_item) = get_event_item(file.data())<span class="question-mark">? </span>{
+                envelope.add_item(event_item);
+                has_event = <span class="bool-val">true</span>;
             }
         }
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">item</span> <span class="op">=</span> <span class="ident">Item::new</span>(<span class="ident">ItemType::Attachment</span>);
-        <span class="ident">item</span>.<span class="ident">set_filename</span>(<span class="ident">file</span>.<span class="ident">name</span>());
-        <span class="ident">item</span>.<span class="ident">set_payload</span>(<span class="ident">content_type</span>, <span class="ident">file</span>.<span class="ident">data</span>());
-        <span class="ident">item</span>.<span class="ident">set_attachment_type</span>(<span class="ident">attachment_type</span>);
-        <span class="ident">envelope</span>.<span class="ident">add_item</span>(<span class="ident">item</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Attachment);
+        item.set_filename(file.name());
+        item.set_payload(content_type, file.data());
+        item.set_attachment_type(attachment_type);
+        envelope.add_item(item);
     }
 
-    <span class="kw">if</span> <span class="op">!</span><span class="ident"><span class="kw">super</span>::check_envelope_size_limits</span>(<span class="ident">config</span>, <span class="ident">envelope</span>) {
-        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Unreal4ErrorKind::TooLarge</span>.<span class="ident">into</span>());
+    <span class="kw">if </span>!<span class="kw">super</span>::check_envelope_size_limits(config, envelope) {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(Unreal4ErrorKind::TooLarge.into());
     }
 
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">fn</span> <span class="ident">merge_unreal_user_info</span>(<span class="ident">event</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Event</span>, <span class="ident">user_info</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">parts</span> <span class="op">=</span> <span class="ident">user_info</span>.<span class="ident">split</span>(<span class="string">&#39;|&#39;</span>);
+<span class="kw">fn </span>merge_unreal_user_info(event: <span class="kw-2">&amp;mut </span>Event, user_info: <span class="kw-2">&amp;</span>str) {
+    <span class="kw">let </span><span class="kw-2">mut </span>parts = user_info.split(<span class="string">&#39;|&#39;</span>);
 
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">user_id</span>) <span class="op">=</span> <span class="ident">parts</span>.<span class="ident">next</span>() {
-        <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">user</span>.<span class="ident">value_mut</span>().<span class="ident">get_or_insert_with</span>(<span class="ident">User::default</span>);
-        <span class="ident">user</span>.<span class="ident">id</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">LenientString</span>(<span class="ident">user_id</span>.<span class="ident">to_owned</span>()));
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(user_id) = parts.next() {
+        <span class="kw">let </span>user = event.user.value_mut().get_or_insert_with(User::default);
+        user.id = Annotated::new(LenientString(user_id.to_owned()));
     }
 
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">epic_account_id</span>) <span class="op">=</span> <span class="ident">parts</span>.<span class="ident">next</span>() {
-        <span class="kw">let</span> <span class="ident">tags</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">tags</span>.<span class="ident">value_mut</span>().<span class="ident">get_or_insert_with</span>(<span class="ident">Tags::default</span>);
-        <span class="ident">tags</span>.<span class="ident">push</span>(<span class="ident">Annotated::new</span>(<span class="ident">TagEntry</span>(
-            <span class="ident">Annotated::new</span>(<span class="string">&quot;epic_account_id&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">Annotated::new</span>(<span class="ident">epic_account_id</span>.<span class="ident">to_string</span>()),
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(epic_account_id) = parts.next() {
+        <span class="kw">let </span>tags = event.tags.value_mut().get_or_insert_with(Tags::default);
+        tags.push(Annotated::new(TagEntry(
+            Annotated::new(<span class="string">&quot;epic_account_id&quot;</span>.to_string()),
+            Annotated::new(epic_account_id.to_string()),
         )));
     }
 
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">machine_id</span>) <span class="op">=</span> <span class="ident">parts</span>.<span class="ident">next</span>() {
-        <span class="kw">let</span> <span class="ident">tags</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">tags</span>.<span class="ident">value_mut</span>().<span class="ident">get_or_insert_with</span>(<span class="ident">Tags::default</span>);
-        <span class="ident">tags</span>.<span class="ident">push</span>(<span class="ident">Annotated::new</span>(<span class="ident">TagEntry::from_pair</span>((
-            <span class="ident">Annotated::new</span>(<span class="string">&quot;machine_id&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">Annotated::new</span>(<span class="ident">machine_id</span>.<span class="ident">to_string</span>()),
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(machine_id) = parts.next() {
+        <span class="kw">let </span>tags = event.tags.value_mut().get_or_insert_with(Tags::default);
+        tags.push(Annotated::new(TagEntry::from_pair((
+            Annotated::new(<span class="string">&quot;machine_id&quot;</span>.to_string()),
+            Annotated::new(machine_id.to_string()),
         ))));
     }
 }
 
-<span class="doccomment">/// Merge an unreal logs object into event breadcrumbs.</span>
-<span class="kw">fn</span> <span class="ident">merge_unreal_logs</span>(<span class="ident">event</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Event</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Unreal4Error</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">logs</span> <span class="op">=</span> <span class="ident">Unreal4LogEntry::parse</span>(<span class="ident">data</span>, <span class="ident">MAX_NUM_UNREAL_LOGS</span>)<span class="question-mark">?</span>;
+<span class="doccomment">/// Merge an unreal logs object into event breadcrumbs.
+</span><span class="kw">fn </span>merge_unreal_logs(event: <span class="kw-2">&amp;mut </span>Event, data: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;(), Unreal4Error&gt; {
+    <span class="kw">let </span>logs = Unreal4LogEntry::parse(data, MAX_NUM_UNREAL_LOGS)<span class="question-mark">?</span>;
 
-    <span class="kw">let</span> <span class="ident">breadcrumbs</span> <span class="op">=</span> <span class="ident">event</span>
-        .<span class="ident">breadcrumbs</span>
-        .<span class="ident">value_mut</span>()
-        .<span class="ident">get_or_insert_with</span>(<span class="ident">Values::default</span>)
-        .<span class="ident">values</span>
-        .<span class="ident">value_mut</span>()
-        .<span class="ident">get_or_insert_with</span>(<span class="ident">Array::default</span>);
+    <span class="kw">let </span>breadcrumbs = event
+        .breadcrumbs
+        .value_mut()
+        .get_or_insert_with(Values::default)
+        .values
+        .value_mut()
+        .get_or_insert_with(Array::default);
 
-    <span class="kw">for</span> <span class="ident">log</span> <span class="kw">in</span> <span class="ident">logs</span> {
-        <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">log</span>
-            .<span class="ident">timestamp</span>
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">ts</span><span class="op">|</span> <span class="ident">Timestamp</span>(<span class="ident">Utc</span>.<span class="ident">timestamp</span>(<span class="ident">ts</span>.<span class="ident">unix_timestamp</span>(), <span class="ident">ts</span>.<span class="ident">nanosecond</span>())));
+    <span class="kw">for </span>log <span class="kw">in </span>logs {
+        <span class="kw">let </span>timestamp = log
+            .timestamp
+            .map(|ts| Timestamp(Utc.timestamp(ts.unix_timestamp(), ts.nanosecond())));
 
-        <span class="ident">breadcrumbs</span>.<span class="ident">push</span>(<span class="ident">Annotated::new</span>(<span class="ident">Breadcrumb</span> {
-            <span class="ident">timestamp</span>: <span class="ident">Annotated::from</span>(<span class="ident">timestamp</span>),
-            <span class="ident">category</span>: <span class="ident">Annotated::from</span>(<span class="ident">log</span>.<span class="ident">component</span>),
-            <span class="ident">message</span>: <span class="ident">Annotated::new</span>(<span class="ident">log</span>.<span class="ident">message</span>),
-            ..<span class="ident">Breadcrumb::default</span>()
+        breadcrumbs.push(Annotated::new(Breadcrumb {
+            timestamp: Annotated::from(timestamp),
+            category: Annotated::from(log.component),
+            message: Annotated::new(log.message),
+            ..Breadcrumb::default()
         }));
     }
 
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="doccomment">/// Parses `UserReport` from unreal user information.</span>
-<span class="kw">fn</span> <span class="ident">get_unreal_user_report</span>(<span class="ident">event_id</span>: <span class="ident">EventId</span>, <span class="ident">context</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Unreal4Context</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">runtime_props</span> <span class="op">=</span> <span class="ident">context</span>.<span class="ident">runtime_properties</span>.<span class="ident">as_mut</span>()<span class="question-mark">?</span>;
-    <span class="kw">let</span> <span class="ident">user_description</span> <span class="op">=</span> <span class="ident">runtime_props</span>.<span class="ident">user_description</span>.<span class="ident">take</span>()<span class="question-mark">?</span>;
+<span class="doccomment">/// Parses `UserReport` from unreal user information.
+</span><span class="kw">fn </span>get_unreal_user_report(event_id: EventId, context: <span class="kw-2">&amp;mut </span>Unreal4Context) -&gt; <span class="prelude-ty">Option</span>&lt;Item&gt; {
+    <span class="kw">let </span>runtime_props = context.runtime_properties.as_mut()<span class="question-mark">?</span>;
+    <span class="kw">let </span>user_description = runtime_props.user_description.take()<span class="question-mark">?</span>;
 
-    <span class="kw">let</span> <span class="ident">user_name</span> <span class="op">=</span> <span class="ident">runtime_props</span>
-        .<span class="ident">username</span>
-        .<span class="ident">clone</span>()
-        .<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="string">&quot;unknown&quot;</span>.<span class="ident">to_owned</span>());
+    <span class="kw">let </span>user_name = runtime_props
+        .username
+        .clone()
+        .unwrap_or_else(|| <span class="string">&quot;unknown&quot;</span>.to_owned());
 
-    <span class="kw">let</span> <span class="ident">user_report</span> <span class="op">=</span> <span class="ident">UserReport</span> {
-        <span class="ident">email</span>: <span class="string">&quot;&quot;</span>.<span class="ident">to_owned</span>(),
-        <span class="ident">comments</span>: <span class="ident">user_description</span>,
-        <span class="ident">event_id</span>,
-        <span class="ident">name</span>: <span class="ident">user_name</span>,
+    <span class="kw">let </span>user_report = UserReport {
+        email: <span class="string">&quot;&quot;</span>.to_owned(),
+        comments: user_description,
+        event_id,
+        name: user_name,
     };
 
-    <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="ident">serde_json::to_string</span>(<span class="kw-2">&amp;</span><span class="ident">user_report</span>).<span class="ident">ok</span>()<span class="question-mark">?</span>;
+    <span class="kw">let </span>json = serde_json::to_string(<span class="kw-2">&amp;</span>user_report).ok()<span class="question-mark">?</span>;
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">item</span> <span class="op">=</span> <span class="ident">Item::new</span>(<span class="ident">ItemType::UserReport</span>);
-    <span class="ident">item</span>.<span class="ident">set_payload</span>(<span class="ident">ContentType::Json</span>, <span class="ident">json</span>);
-    <span class="prelude-val">Some</span>(<span class="ident">item</span>)
+    <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::UserReport);
+    item.set_payload(ContentType::Json, json);
+    <span class="prelude-val">Some</span>(item)
 }
 
-<span class="doccomment">/// Merges an unreal context object into an event</span>
-<span class="kw">fn</span> <span class="ident">merge_unreal_context</span>(<span class="ident">event</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Event</span>, <span class="ident">context</span>: <span class="ident">Unreal4Context</span>) {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">runtime_props</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">context</span>.<span class="ident">runtime_properties</span> {
-        <span class="prelude-val">Some</span>(<span class="ident">runtime_props</span>) =&gt; <span class="ident">runtime_props</span>,
-        <span class="prelude-val">None</span> =&gt; <span class="kw">return</span>,
+<span class="doccomment">/// Merges an unreal context object into an event
+</span><span class="kw">fn </span>merge_unreal_context(event: <span class="kw-2">&amp;mut </span>Event, context: Unreal4Context) {
+    <span class="kw">let </span><span class="kw-2">mut </span>runtime_props = <span class="kw">match </span>context.runtime_properties {
+        <span class="prelude-val">Some</span>(runtime_props) =&gt; runtime_props,
+        <span class="prelude-val">None </span>=&gt; <span class="kw">return</span>,
     };
 
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">msg</span>) <span class="op">=</span> <span class="ident">runtime_props</span>.<span class="ident">error_message</span>.<span class="ident">take</span>() {
-        <span class="ident">event</span>
-            .<span class="ident">logentry</span>
-            .<span class="ident">get_or_insert_with</span>(<span class="ident">LogEntry::default</span>)
-            .<span class="ident">formatted</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Message::from</span>(<span class="ident">msg</span>));
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(msg) = runtime_props.error_message.take() {
+        event
+            .logentry
+            .get_or_insert_with(LogEntry::default)
+            .formatted = Annotated::new(Message::from(msg));
     }
 
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">username</span>) <span class="op">=</span> <span class="ident">runtime_props</span>.<span class="ident">username</span>.<span class="ident">take</span>() {
-        <span class="ident">event</span>
-            .<span class="ident">user</span>
-            .<span class="ident">get_or_insert_with</span>(<span class="ident">User::default</span>)
-            .<span class="ident">username</span>
-            .<span class="ident">set_value</span>(<span class="prelude-val">Some</span>(<span class="ident">username</span>));
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(username) = runtime_props.username.take() {
+        event
+            .user
+            .get_or_insert_with(User::default)
+            .username
+            .set_value(<span class="prelude-val">Some</span>(username));
     }
 
-    <span class="kw">let</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">contexts</span>.<span class="ident">get_or_insert_with</span>(<span class="ident">Contexts::default</span>);
+    <span class="kw">let </span>contexts = event.contexts.get_or_insert_with(Contexts::default);
 
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">memory_physical</span>) <span class="op">=</span> <span class="ident">runtime_props</span>.<span class="ident">memory_stats_total_physical</span>.<span class="ident">take</span>() {
-        <span class="kw">let</span> <span class="ident">device_context</span> <span class="op">=</span> <span class="ident">contexts</span>.<span class="ident">get_or_insert_with</span>(<span class="ident">DeviceContext::default_key</span>(), <span class="op">|</span><span class="op">|</span> {
-            <span class="ident">Context::Device</span>(<span class="ident">Box::new</span>(<span class="ident">DeviceContext::default</span>()))
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(memory_physical) = runtime_props.memory_stats_total_physical.take() {
+        <span class="kw">let </span>device_context = contexts.get_or_insert_with(DeviceContext::default_key(), || {
+            Context::Device(Box::new(DeviceContext::default()))
         });
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Context::Device</span>(<span class="ident">device_context</span>) <span class="op">=</span> <span class="ident">device_context</span> {
-            <span class="ident">device_context</span>.<span class="ident">memory_size</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">memory_physical</span>);
+        <span class="kw">if let </span>Context::Device(device_context) = device_context {
+            device_context.memory_size = Annotated::new(memory_physical);
         }
     }
 
-    <span class="comment">// OS information is likely overwritten by Minidump processing later.</span>
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">os_major</span>) <span class="op">=</span> <span class="ident">runtime_props</span>.<span class="ident">misc_os_version_major</span>.<span class="ident">take</span>() {
-        <span class="kw">let</span> <span class="ident">os_context</span> <span class="op">=</span> <span class="ident">contexts</span>.<span class="ident">get_or_insert_with</span>(<span class="ident">OsContext::default_key</span>(), <span class="op">|</span><span class="op">|</span> {
-            <span class="ident">Context::Os</span>(<span class="ident">Box::new</span>(<span class="ident">OsContext::default</span>()))
+    <span class="comment">// OS information is likely overwritten by Minidump processing later.
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(os_major) = runtime_props.misc_os_version_major.take() {
+        <span class="kw">let </span>os_context = contexts.get_or_insert_with(OsContext::default_key(), || {
+            Context::Os(Box::new(OsContext::default()))
         });
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Context::Os</span>(<span class="ident">os_context</span>) <span class="op">=</span> <span class="ident">os_context</span> {
-            <span class="ident">os_context</span>.<span class="ident">name</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">os_major</span>);
+        <span class="kw">if let </span>Context::Os(os_context) = os_context {
+            os_context.name = Annotated::new(os_major);
         }
     }
 
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">gpu_brand</span>) <span class="op">=</span> <span class="ident">runtime_props</span>.<span class="ident">misc_primary_gpu_brand</span>.<span class="ident">take</span>() {
-        <span class="kw">let</span> <span class="ident">gpu_context</span> <span class="op">=</span> <span class="ident">contexts</span>.<span class="ident">get_or_insert_with</span>(<span class="ident">GpuContext::default_key</span>(), <span class="op">|</span><span class="op">|</span> {
-            <span class="ident">Context::Gpu</span>(<span class="ident">Box::new</span>(<span class="ident">GpuContext::default</span>()))
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(gpu_brand) = runtime_props.misc_primary_gpu_brand.take() {
+        <span class="kw">let </span>gpu_context = contexts.get_or_insert_with(GpuContext::default_key(), || {
+            Context::Gpu(Box::new(GpuContext::default()))
         });
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Context::Gpu</span>(<span class="ident">gpu_context</span>) <span class="op">=</span> <span class="ident">gpu_context</span> {
-            <span class="ident">gpu_context</span>.<span class="ident">name</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">gpu_brand</span>);
+        <span class="kw">if let </span>Context::Gpu(gpu_context) = gpu_context {
+            gpu_context.name = Annotated::new(gpu_brand);
         }
     }
 
-    <span class="comment">// Modules are not used and later replaced with Modules from the Minidump or Apple Crash Report.</span>
-    <span class="ident">runtime_props</span>.<span class="ident">modules</span>.<span class="ident">take</span>();
+    <span class="comment">// Modules are not used and later replaced with Modules from the Minidump or Apple Crash Report.
+    </span>runtime_props.modules.take();
 
-    <span class="comment">// Promote all game data (except the special `__sentry` key) into a context.</span>
-    <span class="kw">if</span> <span class="op">!</span><span class="ident">context</span>.<span class="ident">game_data</span>.<span class="ident">is_empty</span>() {
-        <span class="kw">let</span> <span class="ident">game_context</span> <span class="op">=</span> <span class="ident">contexts</span>.<span class="ident">get_or_insert_with</span>(<span class="string">&quot;game&quot;</span>, <span class="op">|</span><span class="op">|</span> <span class="ident">Context::Other</span>(<span class="ident">Object::new</span>()));
-        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Context::Other</span>(<span class="ident">game_context</span>) <span class="op">=</span> <span class="ident">game_context</span> {
-            <span class="kw">let</span> <span class="ident">filtered_keys</span> <span class="op">=</span> <span class="ident">context</span>
-                .<span class="ident">game_data</span>
-                .<span class="ident">into_iter</span>()
-                .<span class="ident">filter</span>(<span class="op">|</span>(<span class="ident">key</span>, <span class="kw">_</span>)<span class="op">|</span> <span class="ident">key</span> <span class="op">!</span><span class="op">=</span> <span class="ident">SENTRY_PAYLOAD_KEY</span>)
-                .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">key</span>, <span class="ident">value</span>)<span class="op">|</span> (<span class="ident">key</span>, <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="ident">value</span>))));
+    <span class="comment">// Promote all game data (except the special `__sentry` key) into a context.
+    </span><span class="kw">if </span>!context.game_data.is_empty() {
+        <span class="kw">let </span>game_context = contexts.get_or_insert_with(<span class="string">&quot;game&quot;</span>, || Context::Other(Object::new()));
+        <span class="kw">if let </span>Context::Other(game_context) = game_context {
+            <span class="kw">let </span>filtered_keys = context
+                .game_data
+                .into_iter()
+                .filter(|(key, <span class="kw">_</span>)| key != SENTRY_PAYLOAD_KEY)
+                .map(|(key, value)| (key, Annotated::new(Value::String(value))));
 
-            <span class="ident">game_context</span>.<span class="ident">extend</span>(<span class="ident">filtered_keys</span>);
+            game_context.extend(filtered_keys);
         }
     }
 
-    <span class="comment">// Add sdk information for analytics.</span>
-    <span class="ident">event</span>.<span class="ident">client_sdk</span>.<span class="ident">get_or_insert_with</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">ClientSdkInfo</span> {
-        <span class="ident">name</span>: <span class="ident">CLIENT_SDK_NAME</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
-        <span class="ident">version</span>: <span class="ident">runtime_props</span>
-            .<span class="ident">crash_reporter_client_version</span>
-            .<span class="ident">take</span>()
-            .<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="string">&quot;0.0.0&quot;</span>.<span class="ident">to_owned</span>())
-            .<span class="ident">into</span>(),
-        ..<span class="ident">ClientSdkInfo::default</span>()
+    <span class="comment">// Add sdk information for analytics.
+    </span>event.client_sdk.get_or_insert_with(|| ClientSdkInfo {
+        name: CLIENT_SDK_NAME.to_owned().into(),
+        version: runtime_props
+            .crash_reporter_client_version
+            .take()
+            .unwrap_or_else(|| <span class="string">&quot;0.0.0&quot;</span>.to_owned())
+            .into(),
+        ..ClientSdkInfo::default()
     });
 
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">Value::Object</span>(<span class="ident">props</span>))) <span class="op">=</span> <span class="ident">types::to_value</span>(<span class="kw-2">&amp;</span><span class="ident">runtime_props</span>) {
-        <span class="kw">let</span> <span class="ident">unreal_context</span> <span class="op">=</span>
-            <span class="ident">contexts</span>.<span class="ident">get_or_insert_with</span>(<span class="string">&quot;unreal&quot;</span>, <span class="op">|</span><span class="op">|</span> <span class="ident">Context::Other</span>(<span class="ident">Object::new</span>()));
+    <span class="kw">if let </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(Value::Object(props))) = types::to_value(<span class="kw-2">&amp;</span>runtime_props) {
+        <span class="kw">let </span>unreal_context =
+            contexts.get_or_insert_with(<span class="string">&quot;unreal&quot;</span>, || Context::Other(Object::new()));
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Context::Other</span>(<span class="ident">unreal_context</span>) <span class="op">=</span> <span class="ident">unreal_context</span> {
-            <span class="ident">unreal_context</span>.<span class="ident">extend</span>(<span class="ident">props</span>);
+        <span class="kw">if let </span>Context::Other(unreal_context) = unreal_context {
+            unreal_context.extend(props);
         }
     }
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">process_unreal_envelope</span>(
-    <span class="ident">event</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span>,
-    <span class="ident">envelope</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Envelope</span>,
-) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Unreal4Error</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">user_header</span> <span class="op">=</span> <span class="ident">envelope</span>
-        .<span class="ident">get_header</span>(<span class="ident">UNREAL_USER_HEADER</span>)
-        .<span class="ident">and_then</span>(<span class="ident">Value::as_str</span>);
-    <span class="kw">let</span> <span class="ident">context_item</span> <span class="op">=</span>
-        <span class="ident">envelope</span>.<span class="ident">get_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">attachment_type</span>() <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="ident">AttachmentType::UnrealContext</span>));
-    <span class="kw">let</span> <span class="ident">logs_item</span> <span class="op">=</span>
-        <span class="ident">envelope</span>.<span class="ident">get_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">attachment_type</span>() <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="ident">AttachmentType::UnrealLogs</span>));
+<span class="kw">pub fn </span>process_unreal_envelope(
+    event: <span class="kw-2">&amp;mut </span>Annotated&lt;Event&gt;,
+    envelope: <span class="kw-2">&amp;mut </span>Envelope,
+) -&gt; <span class="prelude-ty">Result</span>&lt;(), Unreal4Error&gt; {
+    <span class="kw">let </span>user_header = envelope
+        .get_header(UNREAL_USER_HEADER)
+        .and_then(Value::as_str);
+    <span class="kw">let </span>context_item =
+        envelope.get_item_by(|item| item.attachment_type() == <span class="prelude-val">Some</span>(AttachmentType::UnrealContext));
+    <span class="kw">let </span>logs_item =
+        envelope.get_item_by(|item| item.attachment_type() == <span class="prelude-val">Some</span>(AttachmentType::UnrealLogs));
 
-    <span class="comment">// Early exit if there is no information.</span>
-    <span class="kw">if</span> <span class="ident">user_header</span>.<span class="ident">is_none</span>() <span class="op">&amp;&amp;</span> <span class="ident">context_item</span>.<span class="ident">is_none</span>() <span class="op">&amp;&amp;</span> <span class="ident">logs_item</span>.<span class="ident">is_none</span>() {
-        <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
+    <span class="comment">// Early exit if there is no information.
+    </span><span class="kw">if </span>user_header.is_none() &amp;&amp; context_item.is_none() &amp;&amp; logs_item.is_none() {
+        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     }
 
-    <span class="comment">// If we have UE4 info, ensure an event is there to fill. DO NOT fill if there is no unreal</span>
-    <span class="comment">// information, or otherwise `EnvelopeProcessorService::process` breaks.</span>
-    <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">get_or_insert_with</span>(<span class="ident">Event::default</span>);
+    <span class="comment">// If we have UE4 info, ensure an event is there to fill. DO NOT fill if there is no unreal
+    // information, or otherwise `EnvelopeProcessorService::process` breaks.
+    </span><span class="kw">let </span>event = event.get_or_insert_with(Event::default);
 
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">user_info</span>) <span class="op">=</span> <span class="ident">user_header</span> {
-        <span class="ident">merge_unreal_user_info</span>(<span class="ident">event</span>, <span class="ident">user_info</span>);
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(user_info) = user_header {
+        merge_unreal_user_info(event, user_info);
     }
 
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">logs_item</span>) <span class="op">=</span> <span class="ident">logs_item</span> {
-        <span class="ident">merge_unreal_logs</span>(<span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="ident">logs_item</span>.<span class="ident">payload</span>())<span class="question-mark">?</span>;
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(logs_item) = logs_item {
+        merge_unreal_logs(event, <span class="kw-2">&amp;</span>logs_item.payload())<span class="question-mark">?</span>;
     }
 
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">context_item</span>) <span class="op">=</span> <span class="ident">context_item</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">Unreal4Context::parse</span>(<span class="kw-2">&amp;</span><span class="ident">context_item</span>.<span class="ident">payload</span>())<span class="question-mark">?</span>;
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(context_item) = context_item {
+        <span class="kw">let </span><span class="kw-2">mut </span>context = Unreal4Context::parse(<span class="kw-2">&amp;</span>context_item.payload())<span class="question-mark">?</span>;
 
-        <span class="comment">// the `unwrap_or_default` here can produce an invalid user report if the envelope id</span>
-        <span class="comment">// is indeed missing. This should not happen under normal circumstances since the EventId is</span>
-        <span class="comment">// created statically.</span>
-        <span class="kw">let</span> <span class="ident">event_id</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">event_id</span>().<span class="ident">unwrap_or_default</span>();
-        <span class="macro">debug_assert!</span>(<span class="op">!</span><span class="ident">event_id</span>.<span class="ident">is_nil</span>());
+        <span class="comment">// the `unwrap_or_default` here can produce an invalid user report if the envelope id
+        // is indeed missing. This should not happen under normal circumstances since the EventId is
+        // created statically.
+        </span><span class="kw">let </span>event_id = envelope.event_id().unwrap_or_default();
+        <span class="macro">debug_assert!</span>(!event_id.is_nil());
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">report</span>) <span class="op">=</span> <span class="ident">get_unreal_user_report</span>(<span class="ident">event_id</span>, <span class="kw-2">&amp;mut</span> <span class="ident">context</span>) {
-            <span class="ident">envelope</span>.<span class="ident">add_item</span>(<span class="ident">report</span>);
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(report) = get_unreal_user_report(event_id, <span class="kw-2">&amp;mut </span>context) {
+            envelope.add_item(report);
         }
 
-        <span class="ident">merge_unreal_context</span>(<span class="ident">event</span>, <span class="ident">context</span>);
+        merge_unreal_context(event, context);
     }
 
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_merge_unreal_context</span>() {
-        <span class="kw">let</span> <span class="ident">raw_context</span> <span class="op">=</span> <span class="string">br##&quot;&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_merge_unreal_context() {
+        <span class="kw">let </span>raw_context = <span class="string">br##&quot;&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;
 &lt;FGenericCrashContext&gt;
 	&lt;RuntimeProperties&gt;
 		&lt;UserName&gt;bruno&lt;/UserName&gt;
@@ -736,41 +736,41 @@
 &lt;/FGenericCrashContext&gt;
 &quot;##</span>;
 
-        <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">Unreal4Context::parse</span>(<span class="ident">raw_context</span>).<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Event::default</span>();
+        <span class="kw">let </span>context = Unreal4Context::parse(raw_context).unwrap();
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
 
-        <span class="ident">merge_unreal_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="ident">context</span>);
+        merge_unreal_context(<span class="kw-2">&amp;mut </span>event, context);
 
-        <span class="macro">insta::assert_snapshot!</span>(<span class="ident">Annotated::new</span>(<span class="ident">event</span>).<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+        <span class="macro">insta::assert_snapshot!</span>(Annotated::new(event).to_json_pretty().unwrap());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_merge_unreal_logs</span>() {
-        <span class="kw">let</span> <span class="ident">logs</span> <span class="op">=</span> <span class="string">br##&quot;Log file open, 10/29/18 17:56:37
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_merge_unreal_logs() {
+        <span class="kw">let </span>logs = <span class="string">br##&quot;Log file open, 10/29/18 17:56:37
 [2018.10.29-16.56.38:332][  0]LogGameplayTags: Display: UGameplayTagsManager::DoneAddingNativeTags. DelegateIsBound: 0
 [2018.10.29-16.56.39:332][  0]LogStats: UGameplayTagsManager::ConstructGameplayTagTree: ImportINI prefixes -  0.000 s
 [2018.10.29-16.56.40:332][  0]LogStats: UGameplayTagsManager::ConstructGameplayTagTree: Construct from data asset -  0.000 s
 [2018.10.29-16.56.41:332][  0]LogStats: UGameplayTagsManager::ConstructGameplayTagTree: ImportINI -  0.000 s&quot;##</span>;
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Event::default</span>();
-        <span class="ident">merge_unreal_logs</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="ident">logs</span>).<span class="ident">ok</span>();
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
+        merge_unreal_logs(<span class="kw-2">&amp;mut </span>event, logs).ok();
 
-        <span class="macro">insta::assert_snapshot!</span>(<span class="ident">Annotated::new</span>(<span class="ident">event</span>).<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+        <span class="macro">insta::assert_snapshot!</span>(Annotated::new(event).to_json_pretty().unwrap());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_merge_unreal_context_event</span>() {
-        <span class="kw">let</span> <span class="ident">bytes</span> <span class="op">=</span> <span class="macro">include_bytes!</span>(<span class="string">&quot;../../../tests/integration/fixtures/native/unreal_crash&quot;</span>);
-        <span class="kw">let</span> <span class="ident">user_id</span> <span class="op">=</span> <span class="string">&quot;ebff51ef3c4878627823eebd9ff40eb4|2e7d369327054a448be6c8d3601213cb|C52DC39D-DAF3-5E36-A8D3-BF5F53A5D38F&quot;</span>;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_merge_unreal_context_event() {
+        <span class="kw">let </span>bytes = <span class="macro">include_bytes!</span>(<span class="string">&quot;../../../tests/integration/fixtures/native/unreal_crash&quot;</span>);
+        <span class="kw">let </span>user_id = <span class="string">&quot;ebff51ef3c4878627823eebd9ff40eb4|2e7d369327054a448be6c8d3601213cb|C52DC39D-DAF3-5E36-A8D3-BF5F53A5D38F&quot;</span>;
 
-        <span class="kw">let</span> <span class="ident">crash</span> <span class="op">=</span> <span class="ident">Unreal4Crash::parse</span>(<span class="ident">bytes</span>).<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Event::default</span>();
+        <span class="kw">let </span>crash = Unreal4Crash::parse(bytes).unwrap();
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
 
-        <span class="ident">merge_unreal_user_info</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="ident">user_id</span>);
-        <span class="ident">merge_unreal_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="ident">crash</span>.<span class="ident">context</span>().<span class="ident">unwrap</span>().<span class="ident">unwrap</span>());
+        merge_unreal_user_info(<span class="kw-2">&amp;mut </span>event, user_id);
+        merge_unreal_context(<span class="kw-2">&amp;mut </span>event, crash.context().unwrap().unwrap());
 
-        <span class="macro">insta::assert_snapshot!</span>(<span class="ident">Annotated::new</span>(<span class="ident">event</span>).<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+        <span class="macro">insta::assert_snapshot!</span>(Annotated::new(event).to_json_pretty().unwrap());
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

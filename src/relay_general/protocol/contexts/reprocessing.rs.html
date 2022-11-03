@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/protocol/contexts/reprocessing.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>reprocessing.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../../storage.js"></script><script defer src="../../../../source-script.js"></script><script defer src="../../../../source-files.js"></script><script defer src="../../../../main.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/protocol/contexts/reprocessing.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>reprocessing.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../../normalize.css"><link rel="stylesheet" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../../ayu.css" disabled><link rel="stylesheet" href="../../../../dark.css" disabled><link rel="stylesheet" href="../../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../../storage.js"></script><script defer src="../../../../source-script.js"></script><script defer src="../../../../source-files.js"></script><script defer src="../../../../main.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../../relay_general/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -54,59 +54,59 @@
 <span id="52">52</span>
 <span id="53">53</span>
 <span id="54">54</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Object</span>, <span class="ident">Value</span>};
+</pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Object, Value};
 
-<span class="doccomment">/// Auxilliary data that Sentry attaches for reprocessed events.</span>
-<span class="comment">// This context is explicitly typed out such that we can disable datascrubbing for it, and for</span>
-<span class="comment">// documentation. We need to disble datascrubbing because it can retract information from the</span>
-<span class="comment">// context that is necessary for basic operation, or worse, mangle it such that the Snuba consumer</span>
-<span class="comment">// crashes: https://github.com/getsentry/snuba/pull/1896/</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>)]</span>
-<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ReprocessingContext</span> {
-    <span class="doccomment">/// The issue ID that this event originally belonged to.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;false&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">original_issue_id</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Auxilliary data that Sentry attaches for reprocessed events.
+</span><span class="comment">// This context is explicitly typed out such that we can disable datascrubbing for it, and for
+// documentation. We need to disble datascrubbing because it can retract information from the
+// context that is necessary for basic operation, or worse, mangle it such that the Snuba consumer
+// crashes: https://github.com/getsentry/snuba/pull/1896/
+</span><span class="attribute">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+</span><span class="kw">pub struct </span>ReprocessingContext {
+    <span class="doccomment">/// The issue ID that this event originally belonged to.
+    </span><span class="attribute">#[metastructure(pii = <span class="string">&quot;false&quot;</span>)]
+    </span><span class="kw">pub </span>original_issue_id: Annotated&lt;u64&gt;,
 
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;false&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">original_primary_hash</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="attribute">#[metastructure(pii = <span class="string">&quot;false&quot;</span>)]
+    </span><span class="kw">pub </span>original_primary_hash: Annotated&lt;String&gt;,
 
-    <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">additional_properties</span>, <span class="ident">retain</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>, <span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;false&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">other</span>: <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
+    </span><span class="attribute">#[metastructure(additional_properties, retain = <span class="string">&quot;true&quot;</span>, pii = <span class="string">&quot;false&quot;</span>)]
+    </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">ReprocessingContext</span> {
-    <span class="doccomment">/// The key under which a reprocessing context is generally stored (in `Contexts`)</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">default_key</span>() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
-        <span class="string">&quot;reprocessing&quot;</span>
-    }
+<span class="kw">impl </span>ReprocessingContext {
+    <span class="doccomment">/// The key under which a reprocessing context is generally stored (in `Contexts`)
+    </span><span class="kw">pub fn </span>default_key() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="string">&quot;reprocessing&quot;
+    </span>}
 }
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_reprocessing_context_roundtrip</span>() {
-    <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+<span class="attribute">#[test]
+</span><span class="kw">fn </span>test_reprocessing_context_roundtrip() {
+    <span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;original_issue_id&quot;: 123,
   &quot;original_primary_hash&quot;: &quot;9f3ee8ff49e6ca0a2bee80d76fee8f0c&quot;,
   &quot;random&quot;: &quot;stuff&quot;,
   &quot;type&quot;: &quot;reprocessing&quot;
 }&quot;#</span>;
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol::Context</span>;
-    <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Context::Reprocessing</span>(<span class="ident">Box::new</span>(<span class="ident">ReprocessingContext</span> {
-        <span class="ident">original_issue_id</span>: <span class="ident">Annotated::new</span>(<span class="number">123</span>),
-        <span class="ident">original_primary_hash</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;9f3ee8ff49e6ca0a2bee80d76fee8f0c&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">other</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-            <span class="ident">map</span>.<span class="ident">insert</span>(
-                <span class="string">&quot;random&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;stuff&quot;</span>.<span class="ident">to_string</span>())),
+    <span class="kw">use </span><span class="kw">crate</span>::protocol::Context;
+    <span class="kw">let </span>context = Annotated::new(Context::Reprocessing(Box::new(ReprocessingContext {
+        original_issue_id: Annotated::new(<span class="number">123</span>),
+        original_primary_hash: Annotated::new(<span class="string">&quot;9f3ee8ff49e6ca0a2bee80d76fee8f0c&quot;</span>.to_string()),
+        other: {
+            <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
+            map.insert(
+                <span class="string">&quot;random&quot;</span>.to_string(),
+                Annotated::new(Value::String(<span class="string">&quot;stuff&quot;</span>.to_string())),
             );
-            <span class="ident">map</span>
+            map
         },
     })));
 
-    <span class="macro">assert_eq!</span>(<span class="ident">context</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">context</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq!</span>(context, Annotated::from_json(json).unwrap());
+    <span class="macro">assert_eq!</span>(json, context.to_json_pretty().unwrap());
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

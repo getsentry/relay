@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/protocol/client_report.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>client_report.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/protocol/client_report.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>client_report.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_general/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -110,55 +110,55 @@
 <span id="108">108</span>
 <span id="109">109</span>
 <span id="110">110</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">DataCategory</span>, <span class="ident">UnixTimestamp</span>};
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
+</pre><pre class="rust"><code><span class="kw">use </span>relay_common::{DataCategory, UnixTimestamp};
+<span class="kw">use </span>serde::{Deserialize, Serialize};
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">DiscardedEvent</span> {
-    <span class="kw">pub</span> <span class="ident">reason</span>: <span class="ident">String</span>,
-    <span class="kw">pub</span> <span class="ident">category</span>: <span class="ident">DataCategory</span>,
-    <span class="kw">pub</span> <span class="ident">quantity</span>: <span class="ident">u32</span>,
+<span class="attribute">#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+</span><span class="kw">pub struct </span>DiscardedEvent {
+    <span class="kw">pub </span>reason: String,
+    <span class="kw">pub </span>category: DataCategory,
+    <span class="kw">pub </span>quantity: u32,
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ClientReport</span> {
-    <span class="doccomment">/// The timestamp of when the report was created.</span>
-    <span class="kw">pub</span> <span class="ident">timestamp</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">UnixTimestamp</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// Counters for events discarded by the client.</span>
-    <span class="kw">pub</span> <span class="ident">discarded_events</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">DiscardedEvent</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// Counters for events rate limited by a relay configured to emit outcomes as client reports</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Vec::is_empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">rate_limited_events</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">DiscardedEvent</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// Counters for events filtered by a relay configured to emit outcomes as client reports</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Vec::is_empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">filtered_events</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">DiscardedEvent</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// Counters for events filtered by a sampling rule,</span>
-    <span class="doccomment">/// by a relay configured to emit outcomes as client reports</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Vec::is_empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">filtered_sampling_events</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">DiscardedEvent</span><span class="op">&gt;</span>,
+<span class="attribute">#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+</span><span class="kw">pub struct </span>ClientReport {
+    <span class="doccomment">/// The timestamp of when the report was created.
+    </span><span class="kw">pub </span>timestamp: <span class="prelude-ty">Option</span>&lt;UnixTimestamp&gt;,
+    <span class="doccomment">/// Counters for events discarded by the client.
+    </span><span class="kw">pub </span>discarded_events: Vec&lt;DiscardedEvent&gt;,
+    <span class="doccomment">/// Counters for events rate limited by a relay configured to emit outcomes as client reports
+    </span><span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
+    </span><span class="kw">pub </span>rate_limited_events: Vec&lt;DiscardedEvent&gt;,
+    <span class="doccomment">/// Counters for events filtered by a relay configured to emit outcomes as client reports
+    </span><span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
+    </span><span class="kw">pub </span>filtered_events: Vec&lt;DiscardedEvent&gt;,
+    <span class="doccomment">/// Counters for events filtered by a sampling rule,
+    /// by a relay configured to emit outcomes as client reports
+    </span><span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
+    </span><span class="kw">pub </span>filtered_sampling_events: Vec&lt;DiscardedEvent&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">ClientReport</span> {
-    <span class="doccomment">/// Parses a client report update from JSON.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">payload</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">serde_json::Error</span><span class="op">&gt;</span> {
-        <span class="ident">serde_json::from_slice</span>(<span class="ident">payload</span>)
+<span class="kw">impl </span>ClientReport {
+    <span class="doccomment">/// Parses a client report update from JSON.
+    </span><span class="kw">pub fn </span>parse(payload: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, serde_json::Error&gt; {
+        serde_json::from_slice(payload)
     }
 
-    <span class="doccomment">/// Serializes a client report update back into JSON.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">serialize</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">serde_json::Error</span><span class="op">&gt;</span> {
-        <span class="ident">serde_json::to_vec</span>(<span class="self">self</span>)
+    <span class="doccomment">/// Serializes a client report update back into JSON.
+    </span><span class="kw">pub fn </span>serialize(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, serde_json::Error&gt; {
+        serde_json::to_vec(<span class="self">self</span>)
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">similar_asserts::assert_eq</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>similar_asserts::assert_eq;
 
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_client_report_roundtrip</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_client_report_roundtrip() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;timestamp&quot;: &quot;2020-02-07T15:17:00Z&quot;,
   &quot;discarded_events&quot;: [
     {&quot;reason&quot;: &quot;foo_reason&quot;, &quot;category&quot;: &quot;error&quot;, &quot;quantity&quot;: 42},
@@ -169,7 +169,7 @@
   ]
 }&quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">output</span> <span class="op">=</span> <span class="string">r#&quot;{
+        <span class="kw">let </span>output = <span class="string">r#&quot;{
   &quot;timestamp&quot;: 1581088620,
   &quot;discarded_events&quot;: [
     {
@@ -192,33 +192,33 @@
   ]
 }&quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">update</span> <span class="op">=</span> <span class="ident">ClientReport</span> {
-            <span class="ident">timestamp</span>: <span class="prelude-val">Some</span>(<span class="string">&quot;2020-02-07T15:17:00Z&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-            <span class="ident">discarded_events</span>: <span class="macro">vec!</span>[
-                <span class="ident">DiscardedEvent</span> {
-                    <span class="ident">reason</span>: <span class="string">&quot;foo_reason&quot;</span>.<span class="ident">into</span>(),
-                    <span class="ident">category</span>: <span class="ident">DataCategory::Error</span>,
-                    <span class="ident">quantity</span>: <span class="number">42</span>,
+        <span class="kw">let </span>update = ClientReport {
+            timestamp: <span class="prelude-val">Some</span>(<span class="string">&quot;2020-02-07T15:17:00Z&quot;</span>.parse().unwrap()),
+            discarded_events: <span class="macro">vec!</span>[
+                DiscardedEvent {
+                    reason: <span class="string">&quot;foo_reason&quot;</span>.into(),
+                    category: DataCategory::Error,
+                    quantity: <span class="number">42</span>,
                 },
-                <span class="ident">DiscardedEvent</span> {
-                    <span class="ident">reason</span>: <span class="string">&quot;foo_reason&quot;</span>.<span class="ident">into</span>(),
-                    <span class="ident">category</span>: <span class="ident">DataCategory::Transaction</span>,
-                    <span class="ident">quantity</span>: <span class="number">23</span>,
+                DiscardedEvent {
+                    reason: <span class="string">&quot;foo_reason&quot;</span>.into(),
+                    category: DataCategory::Transaction,
+                    quantity: <span class="number">23</span>,
                 },
             ],
-            <span class="ident">rate_limited_events</span>: <span class="macro">vec!</span>[<span class="ident">DiscardedEvent</span> {
-                <span class="ident">reason</span>: <span class="string">&quot;bar_reason&quot;</span>.<span class="ident">into</span>(),
-                <span class="ident">category</span>: <span class="ident">DataCategory::Session</span>,
-                <span class="ident">quantity</span>: <span class="number">456</span>,
+            rate_limited_events: <span class="macro">vec!</span>[DiscardedEvent {
+                reason: <span class="string">&quot;bar_reason&quot;</span>.into(),
+                category: DataCategory::Session,
+                quantity: <span class="number">456</span>,
             }],
 
-            ..<span class="ident">Default::default</span>()
+            ..Default::default()
         };
 
-        <span class="kw">let</span> <span class="ident">parsed</span> <span class="op">=</span> <span class="ident">ClientReport::parse</span>(<span class="ident">json</span>.<span class="ident">as_bytes</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_eq!</span>(<span class="ident">update</span>, <span class="ident">parsed</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">output</span>, <span class="ident">serde_json::to_string_pretty</span>(<span class="kw-2">&amp;</span><span class="ident">update</span>).<span class="ident">unwrap</span>());
+        <span class="kw">let </span>parsed = ClientReport::parse(json.as_bytes()).unwrap();
+        <span class="macro">assert_eq!</span>(update, parsed);
+        <span class="macro">assert_eq!</span>(output, serde_json::to_string_pretty(<span class="kw-2">&amp;</span>update).unwrap());
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

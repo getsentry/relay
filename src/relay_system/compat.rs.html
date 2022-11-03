@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-system/src/compat.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>compat.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_system/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_system/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-system/src/compat.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>compat.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_system/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_system/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_system/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -78,83 +78,83 @@
 <span id="76">76</span>
 <span id="77">77</span>
 <span id="78">78</span>
-</pre><pre class="rust"><code><span class="doccomment">//! Compatibility layer for bridging between `actix` and `tokio` 1.0.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Needed to allow services to communicate with the legacy actors (using `actix` 0.7.9).</span>
-<span class="doccomment">//! The problem that is addressed arises when the queues of the channels fill up and tasks are</span>
-<span class="doccomment">//! getting parked. When that happens `task::current()` is executed which panics.</span>
+</pre><pre class="rust"><code><span class="doccomment">//! Compatibility layer for bridging between `actix` and `tokio` 1.0.
+//!
+//! Needed to allow services to communicate with the legacy actors (using `actix` 0.7.9).
+//! The problem that is addressed arises when the queues of the channels fill up and tasks are
+//! getting parked. When that happens `task::current()` is executed which panics.
 
-<span class="kw">use</span> <span class="ident">actix::prelude</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">futures::channel::oneshot</span>;
-<span class="kw">use</span> <span class="ident">futures01::prelude</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">once_cell::sync::OnceCell</span>;
+</span><span class="kw">use </span>actix::prelude::<span class="kw-2">*</span>;
+<span class="kw">use </span>futures::channel::oneshot;
+<span class="kw">use </span>futures01::prelude::<span class="kw-2">*</span>;
+<span class="kw">use </span>once_cell::sync::OnceCell;
 
-<span class="doccomment">/// Custom `tokio` 0.1 runtime.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Needed when sending messages from the new Actors to old Actors to avoid panics when the</span>
-<span class="doccomment">/// channel queues fill up and tasks are being parked.</span>
-<span class="kw">static</span> <span class="ident">RUNTIME</span>: <span class="ident">OnceCell</span><span class="op">&lt;</span><span class="ident">tokio01::runtime::Runtime</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">OnceCell::new</span>();
+<span class="doccomment">/// Custom `tokio` 0.1 runtime.
+///
+/// Needed when sending messages from the new Actors to old Actors to avoid panics when the
+/// channel queues fill up and tasks are being parked.
+</span><span class="kw">static </span>RUNTIME: OnceCell&lt;tokio01::runtime::Runtime&gt; = OnceCell::new();
 
-<span class="doccomment">/// Needed so that `EXECUTOR.spawn` can be called [`send`].</span>
-<span class="kw">static</span> <span class="ident">EXECUTOR</span>: <span class="ident">OnceCell</span><span class="op">&lt;</span><span class="ident">tokio01::runtime::TaskExecutor</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">OnceCell::new</span>();
+<span class="doccomment">/// Needed so that `EXECUTOR.spawn` can be called [`send`].
+</span><span class="kw">static </span>EXECUTOR: OnceCell&lt;tokio01::runtime::TaskExecutor&gt; = OnceCell::new();
 
-<span class="doccomment">/// Initializes the compatibility layer.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">init</span>() {
-    <span class="kw">let</span> <span class="ident">system</span> <span class="op">=</span> <span class="ident">System::current</span>();
+<span class="doccomment">/// Initializes the compatibility layer.
+</span><span class="kw">pub fn </span>init() {
+    <span class="kw">let </span>system = System::current();
 
-    <span class="kw">let</span> <span class="ident">runtime</span> <span class="op">=</span> <span class="ident">RUNTIME</span>.<span class="ident">get_or_init</span>(<span class="kw">move</span> <span class="op">|</span><span class="op">|</span> {
-        <span class="ident">tokio01::runtime::Builder::new</span>()
-            .<span class="ident">core_threads</span>(<span class="number">1</span>)
-            .<span class="ident">blocking_threads</span>(<span class="number">1</span>)
-            .<span class="ident">after_start</span>(<span class="kw">move</span> <span class="op">|</span><span class="op">|</span> <span class="ident">System::set_current</span>(<span class="ident">system</span>.<span class="ident">clone</span>()))
-            .<span class="ident">build</span>()
-            .<span class="ident">unwrap</span>()
+    <span class="kw">let </span>runtime = RUNTIME.get_or_init(<span class="kw">move </span>|| {
+        tokio01::runtime::Builder::new()
+            .core_threads(<span class="number">1</span>)
+            .blocking_threads(<span class="number">1</span>)
+            .after_start(<span class="kw">move </span>|| System::set_current(system.clone()))
+            .build()
+            .unwrap()
     });
 
-    <span class="ident">EXECUTOR</span>.<span class="ident">get_or_init</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">runtime</span>.<span class="ident">executor</span>());
+    EXECUTOR.get_or_init(|| runtime.executor());
 }
 
-<span class="doccomment">/// Sends a message to an actor using `actix` 0.7 from a `tokio` 1.0 context.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The message is internally forwarded through a `tokio` 0.1 runtime in order to avoid panics when</span>
-<span class="doccomment">/// the channel queues fill up and tasks are getting parked.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// # Panics</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Panics if this is invoked outside of the [`Controller`](crate::Controller).</span>
-<span class="kw">pub</span> <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">send</span><span class="op">&lt;</span><span class="ident">A</span>, <span class="ident">M</span><span class="op">&gt;</span>(<span class="ident">addr</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">A</span><span class="op">&gt;</span>, <span class="ident">msg</span>: <span class="ident">M</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">M::Result</span>, <span class="ident">MailboxError</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">A</span>: <span class="ident">Actor</span> <span class="op">+</span> <span class="ident">Send</span>, <span class="comment">// NOTE: Addr only implements Send if the actor does</span>
-    <span class="ident">M</span>: <span class="ident">Message</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;static</span>,
-    <span class="ident">M::Result</span>: <span class="ident">Send</span>,
-    <span class="ident">A</span>: <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span>,
-    <span class="ident">A::Context</span>: <span class="ident">dev::ToEnvelope</span><span class="op">&lt;</span><span class="ident">A</span>, <span class="ident">M</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Sends a message to an actor using `actix` 0.7 from a `tokio` 1.0 context.
+///
+/// The message is internally forwarded through a `tokio` 0.1 runtime in order to avoid panics when
+/// the channel queues fill up and tasks are getting parked.
+///
+/// # Panics
+///
+/// Panics if this is invoked outside of the [`Controller`](crate::Controller).
+</span><span class="kw">pub async fn </span>send&lt;A, M&gt;(addr: Addr&lt;A&gt;, msg: M) -&gt; <span class="prelude-ty">Result</span>&lt;M::Result, MailboxError&gt;
+<span class="kw">where
+    </span>A: Actor + Send, <span class="comment">// NOTE: Addr only implements Send if the actor does
+    </span>M: Message + Send + <span class="lifetime">&#39;static</span>,
+    M::Result: Send,
+    A: Handler&lt;M&gt;,
+    A::Context: dev::ToEnvelope&lt;A, M&gt;,
 {
-    <span class="kw">let</span> (<span class="ident">tx</span>, <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">oneshot::channel</span>();
-    <span class="kw">let</span> <span class="ident">f</span> <span class="op">=</span> <span class="ident">futures01::future::lazy</span>(<span class="kw">move</span> <span class="op">|</span><span class="op">|</span> <span class="ident">addr</span>.<span class="ident">send</span>(<span class="ident">msg</span>))
-        .<span class="ident">then</span>(<span class="op">|</span><span class="ident">res</span><span class="op">|</span> <span class="ident">tx</span>.<span class="ident">send</span>(<span class="ident">res</span>))
-        .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ());
-    <span class="ident">EXECUTOR</span>.<span class="ident">get</span>().<span class="ident">unwrap</span>().<span class="ident">spawn</span>(<span class="ident">f</span>);
-    <span class="ident">rx</span>.<span class="kw">await</span>.<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">MailboxError::Closed</span>)<span class="question-mark">?</span>
-}
+    <span class="kw">let </span>(tx, rx) = oneshot::channel();
+    <span class="kw">let </span>f = futures01::future::lazy(<span class="kw">move </span>|| addr.send(msg))
+        .then(|res| tx.send(res))
+        .map_err(|<span class="kw">_</span>| ());
+    EXECUTOR.get().unwrap().spawn(f);
+    rx.<span class="kw">await</span>.map_err(|<span class="kw">_</span>| MailboxError::Closed)<span class="question-mark">?
+</span>}
 
-<span class="doccomment">/// Sends a message to a recipient using `actix` 0.7 from a `tokio` 1.0 context.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The message is internally forwarded through a `tokio` 0.1 runtime in order to avoid panics when</span>
-<span class="doccomment">/// the channel queues fill up and tasks are getting parked.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// # Panics</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Panics if this is invoked outside of the [`Controller`](crate::Controller).</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// TODO(actix): required by ProjectCache and will be removed with ProjectCache migration.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">send_to_recipient</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span>(<span class="ident">addr</span>: <span class="ident">Recipient</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span>, <span class="ident">msg</span>: <span class="ident">M</span>)
-<span class="kw">where</span>
-    <span class="ident">M</span>: <span class="ident">Message</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;static</span>,
-    <span class="ident">M::Result</span>: <span class="ident">Send</span>,
+<span class="doccomment">/// Sends a message to a recipient using `actix` 0.7 from a `tokio` 1.0 context.
+///
+/// The message is internally forwarded through a `tokio` 0.1 runtime in order to avoid panics when
+/// the channel queues fill up and tasks are getting parked.
+///
+/// # Panics
+///
+/// Panics if this is invoked outside of the [`Controller`](crate::Controller).
+///
+/// TODO(actix): required by ProjectCache and will be removed with ProjectCache migration.
+</span><span class="kw">pub fn </span>send_to_recipient&lt;M&gt;(addr: Recipient&lt;M&gt;, msg: M)
+<span class="kw">where
+    </span>M: Message + Send + <span class="lifetime">&#39;static</span>,
+    M::Result: Send,
 {
-    <span class="kw">let</span> <span class="ident">f</span> <span class="op">=</span> <span class="ident">futures01::future::lazy</span>(<span class="kw">move</span> <span class="op">|</span><span class="op">|</span> <span class="ident">addr</span>.<span class="ident">do_send</span>(<span class="ident">msg</span>)).<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ());
-    <span class="ident">EXECUTOR</span>.<span class="ident">get</span>().<span class="ident">unwrap</span>().<span class="ident">spawn</span>(<span class="ident">f</span>);
+    <span class="kw">let </span>f = futures01::future::lazy(<span class="kw">move </span>|| addr.do_send(msg)).map_err(|<span class="kw">_</span>| ());
+    EXECUTOR.get().unwrap().spawn(f);
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_system" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_system" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-log/src/setup.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>setup.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_log/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_log/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-log/src/setup.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>setup.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_log/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_log/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_log/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -271,143 +271,143 @@
 <span id="269">269</span>
 <span id="270">270</span>
 <span id="271">271</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::env</span>;
-<span class="kw">use</span> <span class="ident">std::io</span>::{<span class="self">self</span>, <span class="ident">Write</span>};
-<span class="kw">use</span> <span class="ident">std::path::PathBuf</span>;
-<span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>std::env;
+<span class="kw">use </span>std::io::{<span class="self">self</span>, Write};
+<span class="kw">use </span>std::path::PathBuf;
+<span class="kw">use </span>std::sync::Arc;
 
-<span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">DateTime</span>, <span class="ident">Utc</span>};
-<span class="kw">use</span> <span class="ident">log</span>::{<span class="ident">Level</span>, <span class="ident">LevelFilter</span>};
-<span class="kw">use</span> <span class="ident">sentry::types::Dsn</span>;
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
+<span class="kw">use </span>chrono::{DateTime, Utc};
+<span class="kw">use </span>log::{Level, LevelFilter};
+<span class="kw">use </span>sentry::types::Dsn;
+<span class="kw">use </span>serde::{Deserialize, Serialize};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::sentry_failure::FailureIntegration</span>;
+<span class="kw">use </span><span class="kw">crate</span>::sentry_failure::FailureIntegration;
 
-<span class="doccomment">/// The full release name including the Relay version and SHA.</span>
-<span class="kw">const</span> <span class="ident">RELEASE</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="macro">std::env!</span>(<span class="string">&quot;RELAY_RELEASE&quot;</span>);
+<span class="doccomment">/// The full release name including the Relay version and SHA.
+</span><span class="kw">const </span>RELEASE: <span class="kw-2">&amp;</span>str = <span class="macro">std::env!</span>(<span class="string">&quot;RELAY_RELEASE&quot;</span>);
 
-<span class="doccomment">/// Controls the log format.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;lowercase&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">LogFormat</span> {
-    <span class="doccomment">/// Auto detect the best format.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This chooses [`LogFormat::Pretty`] for TTY, otherwise [`LogFormat::Simplified`].</span>
-    <span class="ident">Auto</span>,
+<span class="doccomment">/// Controls the log format.
+</span><span class="attribute">#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
+#[serde(rename_all = <span class="string">&quot;lowercase&quot;</span>)]
+</span><span class="kw">pub enum </span>LogFormat {
+    <span class="doccomment">/// Auto detect the best format.
+    ///
+    /// This chooses [`LogFormat::Pretty`] for TTY, otherwise [`LogFormat::Simplified`].
+    </span>Auto,
 
-    <span class="doccomment">/// Pretty printing with colors.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// ```text</span>
-    <span class="doccomment">///  INFO  relay::setup &gt; relay mode: managed</span>
-    <span class="doccomment">/// ```</span>
-    <span class="ident">Pretty</span>,
+    <span class="doccomment">/// Pretty printing with colors.
+    ///
+    /// ```text
+    ///  INFO  relay::setup &gt; relay mode: managed
+    /// ```
+    </span>Pretty,
 
-    <span class="doccomment">/// Simplified plain text output.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// ```text</span>
-    <span class="doccomment">/// 2020-12-04T12:10:32Z [relay::setup] INFO: relay mode: managed</span>
-    <span class="doccomment">/// ```</span>
-    <span class="ident">Simplified</span>,
+    <span class="doccomment">/// Simplified plain text output.
+    ///
+    /// ```text
+    /// 2020-12-04T12:10:32Z [relay::setup] INFO: relay mode: managed
+    /// ```
+    </span>Simplified,
 
-    <span class="doccomment">/// Dump out JSON lines.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// ```text</span>
-    <span class="doccomment">/// {&quot;timestamp&quot;:&quot;2020-12-04T12:11:08.729716Z&quot;,&quot;level&quot;:&quot;INFO&quot;,&quot;logger&quot;:&quot;relay::setup&quot;,&quot;message&quot;:&quot;  relay mode: managed&quot;,&quot;module_path&quot;:&quot;relay::setup&quot;,&quot;filename&quot;:&quot;relay/src/setup.rs&quot;,&quot;lineno&quot;:31}</span>
-    <span class="doccomment">/// ```</span>
-    <span class="ident">Json</span>,
+    <span class="doccomment">/// Dump out JSON lines.
+    ///
+    /// ```text
+    /// {&quot;timestamp&quot;:&quot;2020-12-04T12:11:08.729716Z&quot;,&quot;level&quot;:&quot;INFO&quot;,&quot;logger&quot;:&quot;relay::setup&quot;,&quot;message&quot;:&quot;  relay mode: managed&quot;,&quot;module_path&quot;:&quot;relay::setup&quot;,&quot;filename&quot;:&quot;relay/src/setup.rs&quot;,&quot;lineno&quot;:31}
+    /// ```
+    </span>Json,
 }
 
-<span class="doccomment">/// Controls the logging system.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">LogConfig</span> {
-    <span class="doccomment">/// The log level for Relay.</span>
-    <span class="kw">pub</span> <span class="ident">level</span>: <span class="ident">log::LevelFilter</span>,
+<span class="doccomment">/// Controls the logging system.
+</span><span class="attribute">#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default)]
+</span><span class="kw">pub struct </span>LogConfig {
+    <span class="doccomment">/// The log level for Relay.
+    </span><span class="kw">pub </span>level: log::LevelFilter,
 
-    <span class="doccomment">/// Controls the log output format.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Defaults to [`LogFormat::Auto`], which detects the best format based on the TTY.</span>
-    <span class="kw">pub</span> <span class="ident">format</span>: <span class="ident">LogFormat</span>,
+    <span class="doccomment">/// Controls the log output format.
+    ///
+    /// Defaults to [`LogFormat::Auto`], which detects the best format based on the TTY.
+    </span><span class="kw">pub </span>format: LogFormat,
 
-    <span class="doccomment">/// When set to `true`, backtraces are forced on.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Otherwise, backtraces can be enabled by setting the `RUST_BACKTRACE` variable to `full`.</span>
-    <span class="kw">pub</span> <span class="ident">enable_backtraces</span>: <span class="ident">bool</span>,
+    <span class="doccomment">/// When set to `true`, backtraces are forced on.
+    ///
+    /// Otherwise, backtraces can be enabled by setting the `RUST_BACKTRACE` variable to `full`.
+    </span><span class="kw">pub </span>enable_backtraces: bool,
 }
 
-<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">LogConfig</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> {
-            <span class="ident">level</span>: <span class="ident">log::LevelFilter::Info</span>,
-            <span class="ident">format</span>: <span class="ident">LogFormat::Auto</span>,
-            <span class="ident">enable_backtraces</span>: <span class="bool-val">false</span>,
+<span class="kw">impl </span>Default <span class="kw">for </span>LogConfig {
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            level: log::LevelFilter::Info,
+            format: LogFormat::Auto,
+            enable_backtraces: <span class="bool-val">false</span>,
         }
     }
 }
 
-<span class="doccomment">/// Controls interal reporting to Sentry.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SentryConfig</span> {
-    <span class="doccomment">/// The [`DSN`](sentry::types::Dsn) specifying the Project to report to.</span>
-    <span class="kw">pub</span> <span class="ident">dsn</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Dsn</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Controls interal reporting to Sentry.
+</span><span class="attribute">#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default)]
+</span><span class="kw">pub struct </span>SentryConfig {
+    <span class="doccomment">/// The [`DSN`](sentry::types::Dsn) specifying the Project to report to.
+    </span><span class="kw">pub </span>dsn: <span class="prelude-ty">Option</span>&lt;Dsn&gt;,
 
-    <span class="doccomment">/// Enables reporting to Sentry.</span>
-    <span class="kw">pub</span> <span class="ident">enabled</span>: <span class="ident">bool</span>,
+    <span class="doccomment">/// Enables reporting to Sentry.
+    </span><span class="kw">pub </span>enabled: bool,
 
-    <span class="doccomment">/// Internal. Enables crash handling and sets the absolute path to where minidumps should be</span>
-    <span class="doccomment">/// cached on disk. The path is created if it doesn&#39;t exist. Path must be UTF-8.</span>
-    <span class="kw">pub</span> <span class="ident">_crash_db</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PathBuf</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Internal. Enables crash handling and sets the absolute path to where minidumps should be
+    /// cached on disk. The path is created if it doesn&#39;t exist. Path must be UTF-8.
+    </span><span class="kw">pub </span>_crash_db: <span class="prelude-ty">Option</span>&lt;PathBuf&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">SentryConfig</span> {
-    <span class="doccomment">/// Returns a reference to the [`DSN`](sentry::types::Dsn) if Sentry is enabled.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">enabled_dsn</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Dsn</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">dsn</span>.<span class="ident">as_ref</span>().<span class="ident">filter</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">enabled</span>)
+<span class="kw">impl </span>SentryConfig {
+    <span class="doccomment">/// Returns a reference to the [`DSN`](sentry::types::Dsn) if Sentry is enabled.
+    </span><span class="kw">pub fn </span>enabled_dsn(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Dsn&gt; {
+        <span class="self">self</span>.dsn.as_ref().filter(|<span class="kw">_</span>| <span class="self">self</span>.enabled)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">SentryConfig</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> {
-            <span class="ident">dsn</span>: <span class="string">&quot;https://0cc4a37e5aab4da58366266a87a95740@sentry.io/1269704&quot;</span>
-                .<span class="ident">parse</span>()
-                .<span class="ident">ok</span>(),
-            <span class="ident">enabled</span>: <span class="bool-val">false</span>,
-            <span class="ident">_crash_db</span>: <span class="prelude-val">None</span>,
+<span class="kw">impl </span>Default <span class="kw">for </span>SentryConfig {
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            dsn: <span class="string">&quot;https://0cc4a37e5aab4da58366266a87a95740@sentry.io/1269704&quot;
+                </span>.parse()
+                .ok(),
+            enabled: <span class="bool-val">false</span>,
+            _crash_db: <span class="prelude-val">None</span>,
         }
     }
 }
 
-<span class="doccomment">/// Initialize the logging system and reporting to Sentry.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// # Example</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">/// let log_config = relay_log::LogConfig {</span>
-<span class="doccomment">///     enable_backtraces: true,</span>
-<span class="doccomment">///     ..Default::default()</span>
-<span class="doccomment">/// };</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// let sentry_config = relay_log::SentryConfig::default();</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// relay_log::init(&amp;log_config, &amp;sentry_config);</span>
-<span class="doccomment">/// ```</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">init</span>(<span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">LogConfig</span>, <span class="ident">sentry</span>: <span class="kw-2">&amp;</span><span class="ident">SentryConfig</span>) {
-    <span class="kw">if</span> <span class="ident">config</span>.<span class="ident">enable_backtraces</span> {
-        <span class="ident">env::set_var</span>(<span class="string">&quot;RUST_BACKTRACE&quot;</span>, <span class="string">&quot;full&quot;</span>);
+<span class="doccomment">/// Initialize the logging system and reporting to Sentry.
+///
+/// # Example
+///
+/// ```
+/// let log_config = relay_log::LogConfig {
+///     enable_backtraces: true,
+///     ..Default::default()
+/// };
+///
+/// let sentry_config = relay_log::SentryConfig::default();
+///
+/// relay_log::init(&amp;log_config, &amp;sentry_config);
+/// ```
+</span><span class="kw">pub fn </span>init(config: <span class="kw-2">&amp;</span>LogConfig, sentry: <span class="kw-2">&amp;</span>SentryConfig) {
+    <span class="kw">if </span>config.enable_backtraces {
+        env::set_var(<span class="string">&quot;RUST_BACKTRACE&quot;</span>, <span class="string">&quot;full&quot;</span>);
     }
 
-    <span class="kw">if</span> <span class="ident">env::var</span>(<span class="string">&quot;RUST_LOG&quot;</span>).<span class="ident">is_err</span>() {
-        <span class="kw">let</span> <span class="ident">log</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">config</span>.<span class="ident">level</span> {
-            <span class="ident">LevelFilter::Off</span> =&gt; <span class="string">&quot;&quot;</span>,
-            <span class="ident">LevelFilter::Error</span> =&gt; <span class="string">&quot;ERROR&quot;</span>,
-            <span class="ident">LevelFilter::Warn</span> =&gt; <span class="string">&quot;WARN&quot;</span>,
-            <span class="ident">LevelFilter::Info</span> =&gt; {
+    <span class="kw">if </span>env::var(<span class="string">&quot;RUST_LOG&quot;</span>).is_err() {
+        <span class="kw">let </span>log = <span class="kw">match </span>config.level {
+            LevelFilter::Off =&gt; <span class="string">&quot;&quot;</span>,
+            LevelFilter::Error =&gt; <span class="string">&quot;ERROR&quot;</span>,
+            LevelFilter::Warn =&gt; <span class="string">&quot;WARN&quot;</span>,
+            LevelFilter::Info =&gt; {
                 <span class="string">&quot;INFO,\
-                 trust_dns_proto=WARN&quot;</span>
-            }
-            <span class="ident">LevelFilter::Debug</span> =&gt; {
+                 trust_dns_proto=WARN&quot;
+            </span>}
+            LevelFilter::Debug =&gt; {
                 <span class="string">&quot;INFO,\
                  trust_dns_proto=WARN,\
                  actix_web::pipeline=DEBUG,\
@@ -419,9 +419,9 @@
                  relay_quotas=DEBUG,\
                  relay_redis=DEBUG,\
                  relay_server=DEBUG,\
-                 relay=DEBUG&quot;</span>
-            }
-            <span class="ident">LevelFilter::Trace</span> =&gt; {
+                 relay=DEBUG&quot;
+            </span>}
+            LevelFilter::Trace =&gt; {
                 <span class="string">&quot;INFO,\
                  trust_dns_proto=WARN,\
                  actix_web::pipeline=DEBUG,\
@@ -433,95 +433,95 @@
                  relay_quotas=TRACE,\
                  relay_redis=TRACE,\
                  relay_server=TRACE,\
-                 relay=TRACE&quot;</span>
-            }
+                 relay=TRACE&quot;
+            </span>}
         }
-        .<span class="ident">to_string</span>();
+        .to_string();
 
-        <span class="ident">env::set_var</span>(<span class="string">&quot;RUST_LOG&quot;</span>, <span class="ident">log</span>);
+        env::set_var(<span class="string">&quot;RUST_LOG&quot;</span>, log);
     }
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">log_builder</span> <span class="op">=</span> {
-        <span class="kw">match</span> (<span class="ident">config</span>.<span class="ident">format</span>, <span class="ident">console::user_attended</span>()) {
-            (<span class="ident">LogFormat::Auto</span>, <span class="bool-val">true</span>) <span class="op">|</span> (<span class="ident">LogFormat::Pretty</span>, <span class="kw">_</span>) =&gt; {
-                <span class="ident">pretty_env_logger::formatted_builder</span>()
+    <span class="kw">let </span><span class="kw-2">mut </span>log_builder = {
+        <span class="kw">match </span>(config.format, console::user_attended()) {
+            (LogFormat::Auto, <span class="bool-val">true</span>) | (LogFormat::Pretty, <span class="kw">_</span>) =&gt; {
+                pretty_env_logger::formatted_builder()
             }
-            (<span class="ident">LogFormat::Auto</span>, <span class="bool-val">false</span>) <span class="op">|</span> (<span class="ident">LogFormat::Simplified</span>, <span class="kw">_</span>) =&gt; {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">builder</span> <span class="op">=</span> <span class="ident">env_logger::Builder::new</span>();
-                <span class="ident">builder</span>.<span class="ident">format</span>(<span class="op">|</span><span class="ident">buf</span>, <span class="ident">record</span><span class="op">|</span> {
-                    <span class="kw">let</span> <span class="ident">ts</span> <span class="op">=</span> <span class="ident">buf</span>.<span class="ident">timestamp</span>();
+            (LogFormat::Auto, <span class="bool-val">false</span>) | (LogFormat::Simplified, <span class="kw">_</span>) =&gt; {
+                <span class="kw">let </span><span class="kw-2">mut </span>builder = env_logger::Builder::new();
+                builder.format(|buf, record| {
+                    <span class="kw">let </span>ts = buf.timestamp();
                     <span class="macro">writeln!</span>(
-                        <span class="ident">buf</span>,
+                        buf,
                         <span class="string">&quot;{} [{}] {}: {}&quot;</span>,
-                        <span class="ident">ts</span>,
-                        <span class="ident">record</span>.<span class="ident">module_path</span>().<span class="ident">unwrap_or</span>(<span class="string">&quot;&lt;unknown&gt;&quot;</span>),
-                        <span class="ident">record</span>.<span class="ident">level</span>(),
-                        <span class="ident">record</span>.<span class="ident">args</span>()
+                        ts,
+                        record.module_path().unwrap_or(<span class="string">&quot;&lt;unknown&gt;&quot;</span>),
+                        record.level(),
+                        record.args()
                     )
                 });
-                <span class="ident">builder</span>
+                builder
             }
-            (<span class="ident">LogFormat::Json</span>, <span class="kw">_</span>) =&gt; {
-                <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
-                <span class="kw">struct</span> <span class="ident">LogRecord</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-                    <span class="ident">timestamp</span>: <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>,
-                    <span class="ident">level</span>: <span class="ident">Level</span>,
-                    <span class="ident">logger</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>,
-                    <span class="ident">message</span>: <span class="ident">String</span>,
-                    <span class="ident">module_path</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span><span class="op">&gt;</span>,
-                    <span class="ident">filename</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span><span class="op">&gt;</span>,
-                    <span class="ident">lineno</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span>,
+            (LogFormat::Json, <span class="kw">_</span>) =&gt; {
+                <span class="attribute">#[derive(Serialize, Deserialize, Debug)]
+                </span><span class="kw">struct </span>LogRecord&lt;<span class="lifetime">&#39;a</span>&gt; {
+                    timestamp: DateTime&lt;Utc&gt;,
+                    level: Level,
+                    logger: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str,
+                    message: String,
+                    module_path: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;,
+                    filename: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;,
+                    lineno: <span class="prelude-ty">Option</span>&lt;u32&gt;,
                 }
 
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">builder</span> <span class="op">=</span> <span class="ident">env_logger::Builder::new</span>();
-                <span class="ident">builder</span>.<span class="ident">format</span>(<span class="op">|</span><span class="kw-2">mut</span> <span class="ident">buf</span>, <span class="ident">record</span><span class="op">|</span> -&gt; <span class="ident">io::Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-                    <span class="ident">serde_json::to_writer</span>(
-                        <span class="kw-2">&amp;mut</span> <span class="ident">buf</span>,
-                        <span class="kw-2">&amp;</span><span class="ident">LogRecord</span> {
-                            <span class="ident">timestamp</span>: <span class="ident">Utc::now</span>(),
-                            <span class="ident">level</span>: <span class="ident">record</span>.<span class="ident">level</span>(),
-                            <span class="ident">logger</span>: <span class="ident">record</span>.<span class="ident">target</span>(),
-                            <span class="ident">message</span>: <span class="ident">record</span>.<span class="ident">args</span>().<span class="ident">to_string</span>(),
-                            <span class="ident">module_path</span>: <span class="ident">record</span>.<span class="ident">module_path</span>(),
-                            <span class="ident">filename</span>: <span class="ident">record</span>.<span class="ident">file</span>(),
-                            <span class="ident">lineno</span>: <span class="ident">record</span>.<span class="ident">line</span>(),
+                <span class="kw">let </span><span class="kw-2">mut </span>builder = env_logger::Builder::new();
+                builder.format(|<span class="kw-2">mut </span>buf, record| -&gt; io::Result&lt;()&gt; {
+                    serde_json::to_writer(
+                        <span class="kw-2">&amp;mut </span>buf,
+                        <span class="kw-2">&amp;</span>LogRecord {
+                            timestamp: Utc::now(),
+                            level: record.level(),
+                            logger: record.target(),
+                            message: record.args().to_string(),
+                            module_path: record.module_path(),
+                            filename: record.file(),
+                            lineno: record.line(),
                         },
                     )
-                    .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">err</span><span class="op">|</span> <span class="ident">io::Error::new</span>(<span class="ident">io::ErrorKind::Other</span>, <span class="ident">err</span>))<span class="question-mark">?</span>;
-                    <span class="ident">buf</span>.<span class="ident">write_all</span>(<span class="string">b&quot;\n&quot;</span>)<span class="question-mark">?</span>;
+                    .map_err(|err| io::Error::new(io::ErrorKind::Other, err))<span class="question-mark">?</span>;
+                    buf.write_all(<span class="string">b&quot;\n&quot;</span>)<span class="question-mark">?</span>;
                     <span class="prelude-val">Ok</span>(())
                 });
-                <span class="ident">builder</span>
+                builder
             }
         }
     };
 
-    <span class="kw">match</span> <span class="ident">env::var</span>(<span class="string">&quot;RUST_LOG&quot;</span>) {
-        <span class="prelude-val">Ok</span>(<span class="ident">rust_log</span>) =&gt; <span class="ident">log_builder</span>.<span class="ident">parse_filters</span>(<span class="kw-2">&amp;</span><span class="ident">rust_log</span>),
-        <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="ident">log_builder</span>.<span class="ident">filter_level</span>(<span class="ident">config</span>.<span class="ident">level</span>),
+    <span class="kw">match </span>env::var(<span class="string">&quot;RUST_LOG&quot;</span>) {
+        <span class="prelude-val">Ok</span>(rust_log) =&gt; log_builder.parse_filters(<span class="kw-2">&amp;</span>rust_log),
+        <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; log_builder.filter_level(config.level),
     };
 
-    <span class="kw">let</span> <span class="ident">dest_log</span> <span class="op">=</span> <span class="ident">log_builder</span>.<span class="ident">build</span>();
-    <span class="ident">log::set_max_level</span>(<span class="ident">dest_log</span>.<span class="ident">filter</span>());
+    <span class="kw">let </span>dest_log = log_builder.build();
+    log::set_max_level(dest_log.filter());
 
-    <span class="kw">let</span> <span class="ident">log</span> <span class="op">=</span> <span class="ident">sentry::integrations::log::SentryLogger::with_dest</span>(<span class="ident">dest_log</span>);
-    <span class="ident">log::set_boxed_logger</span>(<span class="ident">Box::new</span>(<span class="ident">log</span>)).<span class="ident">ok</span>();
+    <span class="kw">let </span>log = sentry::integrations::log::SentryLogger::with_dest(dest_log);
+    log::set_boxed_logger(Box::new(log)).ok();
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;relay-crash&quot;</span>)]</span>
-    {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">dsn</span>) <span class="op">=</span> <span class="ident">sentry</span>.<span class="ident">enabled_dsn</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">d</span><span class="op">|</span> <span class="ident">d</span>.<span class="ident">to_string</span>()) {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">db</span>) <span class="op">=</span> <span class="ident">sentry</span>.<span class="ident">_crash_db</span>.<span class="ident">as_deref</span>() {
-                <span class="ident">relay_crash::CrashHandler::new</span>(<span class="ident">dsn</span>.<span class="ident">as_ref</span>(), <span class="ident">db</span>)
-                    .<span class="ident">release</span>(<span class="prelude-val">Some</span>(<span class="ident">RELEASE</span>))
-                    .<span class="ident">install</span>();
+    <span class="attribute">#[cfg(feature = <span class="string">&quot;relay-crash&quot;</span>)]
+    </span>{
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(dsn) = sentry.enabled_dsn().map(|d| d.to_string()) {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(db) = sentry._crash_db.as_deref() {
+                relay_crash::CrashHandler::new(dsn.as_ref(), db)
+                    .release(<span class="prelude-val">Some</span>(RELEASE))
+                    .install();
             }
         }
     }
 
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">dsn</span>) <span class="op">=</span> <span class="ident">sentry</span>.<span class="ident">enabled_dsn</span>() {
-        <span class="kw">let</span> <span class="ident">guard</span> <span class="op">=</span> <span class="ident">sentry::init</span>(<span class="ident">sentry::ClientOptions</span> {
-            <span class="ident">dsn</span>: <span class="prelude-val">Some</span>(<span class="ident">dsn</span>).<span class="ident">cloned</span>(),
-            <span class="ident">in_app_include</span>: <span class="macro">vec!</span>[
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(dsn) = sentry.enabled_dsn() {
+        <span class="kw">let </span>guard = sentry::init(sentry::ClientOptions {
+            dsn: <span class="prelude-val">Some</span>(dsn).cloned(),
+            in_app_include: <span class="macro">vec!</span>[
                 <span class="string">&quot;relay_auth::&quot;</span>,
                 <span class="string">&quot;relay_common::&quot;</span>,
                 <span class="string">&quot;relay_config::&quot;</span>,
@@ -532,15 +532,15 @@
                 <span class="string">&quot;relay_server::&quot;</span>,
                 <span class="string">&quot;relay::&quot;</span>,
             ],
-            <span class="ident">integrations</span>: <span class="macro">vec!</span>[<span class="ident">Arc::new</span>(<span class="ident">FailureIntegration::new</span>())],
-            <span class="ident">release</span>: <span class="prelude-val">Some</span>(<span class="ident">RELEASE</span>.<span class="ident">into</span>()),
-            <span class="ident">attach_stacktrace</span>: <span class="ident">config</span>.<span class="ident">enable_backtraces</span>,
-            ..<span class="ident">Default::default</span>()
+            integrations: <span class="macro">vec!</span>[Arc::new(FailureIntegration::new())],
+            release: <span class="prelude-val">Some</span>(RELEASE.into()),
+            attach_stacktrace: config.enable_backtraces,
+            ..Default::default()
         });
 
-        <span class="comment">// Keep the client initialized. The client is flushed manually in `main`.</span>
-        <span class="ident">std::mem::forget</span>(<span class="ident">guard</span>);
+        <span class="comment">// Keep the client initialized. The client is flushed manually in `main`.
+        </span>std::mem::forget(guard);
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_log" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_log" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

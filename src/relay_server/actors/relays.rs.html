@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/relays.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>relays.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/relays.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>relays.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_server/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -363,362 +363,362 @@
 <span id="361">361</span>
 <span id="362">362</span>
 <span id="363">363</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
-<span class="kw">use</span> <span class="ident">std::collections::HashMap</span>;
-<span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
-<span class="kw">use</span> <span class="ident">std::time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>};
+</pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<span class="kw">use </span>std::collections::HashMap;
+<span class="kw">use </span>std::sync::Arc;
+<span class="kw">use </span>std::time::{Duration, Instant};
 
-<span class="kw">use</span> <span class="ident">actix::SystemService</span>;
-<span class="kw">use</span> <span class="ident">actix_web::http::Method</span>;
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
-<span class="kw">use</span> <span class="ident">tokio::sync::mpsc</span>;
+<span class="kw">use </span>actix::SystemService;
+<span class="kw">use </span>actix_web::http::Method;
+<span class="kw">use </span>serde::{Deserialize, Serialize};
+<span class="kw">use </span>tokio::sync::mpsc;
 
-<span class="kw">use</span> <span class="ident">relay_auth</span>::{<span class="ident">PublicKey</span>, <span class="ident">RelayId</span>};
-<span class="kw">use</span> <span class="ident">relay_common::RetryBackoff</span>;
-<span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">RelayInfo</span>};
-<span class="kw">use</span> <span class="ident">relay_log::LogError</span>;
-<span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">compat</span>, <span class="ident">Addr</span>, <span class="ident">AsyncResponse</span>, <span class="ident">FromMessage</span>, <span class="ident">Interface</span>, <span class="ident">Sender</span>, <span class="ident">Service</span>};
+<span class="kw">use </span>relay_auth::{PublicKey, RelayId};
+<span class="kw">use </span>relay_common::RetryBackoff;
+<span class="kw">use </span>relay_config::{Config, RelayInfo};
+<span class="kw">use </span>relay_log::LogError;
+<span class="kw">use </span>relay_system::{compat, Addr, AsyncResponse, FromMessage, Interface, Sender, Service};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::upstream</span>::{<span class="ident">RequestPriority</span>, <span class="ident">SendQuery</span>, <span class="ident">UpstreamQuery</span>, <span class="ident">UpstreamRelay</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service::REGISTRY</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils::SleepHandle</span>;
+<span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
+<span class="kw">use </span><span class="kw">crate</span>::service::REGISTRY;
+<span class="kw">use </span><span class="kw">crate</span>::utils::SleepHandle;
 
-<span class="doccomment">/// Resolves [`RelayInfo`] by it&#39;s [identifier](RelayId).</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This message may fail if the upstream is not reachable repeatedly and Relay information cannot</span>
-<span class="doccomment">/// be resolved.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">GetRelay</span> {
-    <span class="doccomment">/// The unique identifier of the Relay deployment.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This is part of the Relay credentials file and determined during setup.</span>
-    <span class="kw">pub</span> <span class="ident">relay_id</span>: <span class="ident">RelayId</span>,
+<span class="doccomment">/// Resolves [`RelayInfo`] by it&#39;s [identifier](RelayId).
+///
+/// This message may fail if the upstream is not reachable repeatedly and Relay information cannot
+/// be resolved.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>GetRelay {
+    <span class="doccomment">/// The unique identifier of the Relay deployment.
+    ///
+    /// This is part of the Relay credentials file and determined during setup.
+    </span><span class="kw">pub </span>relay_id: RelayId,
 }
 
-<span class="doccomment">/// Response of a [`GetRelay`] message.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This is `Some` if the Relay is known by the upstream or `None` the Relay is unknown.</span>
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">GetRelayResult</span> <span class="op">=</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">RelayInfo</span><span class="op">&gt;</span>;
+<span class="doccomment">/// Response of a [`GetRelay`] message.
+///
+/// This is `Some` if the Relay is known by the upstream or `None` the Relay is unknown.
+</span><span class="kw">pub type </span>GetRelayResult = <span class="prelude-ty">Option</span>&lt;RelayInfo&gt;;
 
-<span class="doccomment">/// Manages authentication information for downstream Relays.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RelayCache</span>(<span class="ident">GetRelay</span>, <span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">GetRelayResult</span><span class="op">&gt;</span>);
+<span class="doccomment">/// Manages authentication information for downstream Relays.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>RelayCache(GetRelay, Sender&lt;GetRelayResult&gt;);
 
-<span class="kw">impl</span> <span class="ident">RelayCache</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_registry</span>() -&gt; <span class="ident">Addr</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="ident">REGISTRY</span>.<span class="ident">get</span>().<span class="ident">unwrap</span>().<span class="ident">relay_cache</span>.<span class="ident">clone</span>()
+<span class="kw">impl </span>RelayCache {
+    <span class="kw">pub fn </span>from_registry() -&gt; Addr&lt;<span class="self">Self</span>&gt; {
+        REGISTRY.get().unwrap().relay_cache.clone()
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Interface</span> <span class="kw">for</span> <span class="ident">RelayCache</span> {}
+<span class="kw">impl </span>Interface <span class="kw">for </span>RelayCache {}
 
-<span class="kw">impl</span> <span class="ident">FromMessage</span><span class="op">&lt;</span><span class="ident">GetRelay</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RelayCache</span> {
-    <span class="kw">type</span> <span class="ident">Response</span> <span class="op">=</span> <span class="ident">AsyncResponse</span><span class="op">&lt;</span><span class="ident">GetRelayResult</span><span class="op">&gt;</span>;
+<span class="kw">impl </span>FromMessage&lt;GetRelay&gt; <span class="kw">for </span>RelayCache {
+    <span class="kw">type </span>Response = AsyncResponse&lt;GetRelayResult&gt;;
 
-    <span class="kw">fn</span> <span class="ident">from_message</span>(<span class="ident">message</span>: <span class="ident">GetRelay</span>, <span class="ident">sender</span>: <span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">GetRelayResult</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span>(<span class="ident">message</span>, <span class="ident">sender</span>)
+    <span class="kw">fn </span>from_message(message: GetRelay, sender: Sender&lt;GetRelayResult&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>(message, sender)
     }
 }
 
-<span class="doccomment">/// Compatibility format for deserializing [`GetRelaysResponse`] from the legacy endpoint.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">PublicKeysResultCompatibility</span> {
-    <span class="doccomment">/// DEPRECATED. Legacy format only public key info.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;public_keys&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">public_keys</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">RelayId</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PublicKey</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Compatibility format for deserializing [`GetRelaysResponse`] from the legacy endpoint.
+</span><span class="attribute">#[derive(Debug, Deserialize)]
+#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+</span><span class="kw">pub struct </span>PublicKeysResultCompatibility {
+    <span class="doccomment">/// DEPRECATED. Legacy format only public key info.
+    </span><span class="attribute">#[serde(default, rename = <span class="string">&quot;public_keys&quot;</span>)]
+    </span><span class="kw">pub </span>public_keys: HashMap&lt;RelayId, <span class="prelude-ty">Option</span>&lt;PublicKey&gt;&gt;,
 
-    <span class="doccomment">/// A map from Relay&#39;s identifier to its information.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Missing entries or explicit `None` both indicate that a Relay with this ID is not known by</span>
-    <span class="doccomment">/// the upstream and should not be authenticated.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">relays</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">RelayId</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">RelayInfo</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// A map from Relay&#39;s identifier to its information.
+    ///
+    /// Missing entries or explicit `None` both indicate that a Relay with this ID is not known by
+    /// the upstream and should not be authenticated.
+    </span><span class="attribute">#[serde(default)]
+    </span><span class="kw">pub </span>relays: HashMap&lt;RelayId, <span class="prelude-ty">Option</span>&lt;RelayInfo&gt;&gt;,
 }
 
-<span class="doccomment">/// Response of the [`GetRelays`] upstream query.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Former versions of the endpoint returned a different response containing only public keys,</span>
-<span class="doccomment">/// defined by [`PublicKeysResultCompatibility`]. Relay&#39;s own endpoint is allowed to skip this field</span>
-<span class="doccomment">/// and return just the new information.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">GetRelaysResponse</span> {
-    <span class="doccomment">/// A map from Relay&#39;s identifier to its information.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Missing entries or explicit `None` both indicate that a Relay with this ID is not known by</span>
-    <span class="doccomment">/// the upstream and should not be authenticated.</span>
-    <span class="kw">pub</span> <span class="ident">relays</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">RelayId</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">RelayInfo</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Response of the [`GetRelays`] upstream query.
+///
+/// Former versions of the endpoint returned a different response containing only public keys,
+/// defined by [`PublicKeysResultCompatibility`]. Relay&#39;s own endpoint is allowed to skip this field
+/// and return just the new information.
+</span><span class="attribute">#[derive(Debug, Serialize, Deserialize)]
+</span><span class="kw">pub struct </span>GetRelaysResponse {
+    <span class="doccomment">/// A map from Relay&#39;s identifier to its information.
+    ///
+    /// Missing entries or explicit `None` both indicate that a Relay with this ID is not known by
+    /// the upstream and should not be authenticated.
+    </span><span class="kw">pub </span>relays: HashMap&lt;RelayId, <span class="prelude-ty">Option</span>&lt;RelayInfo&gt;&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">PublicKeysResultCompatibility</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">GetRelaysResponse</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">relays_info</span>: <span class="ident">PublicKeysResultCompatibility</span>) -&gt; <span class="self">Self</span> {
-        <span class="kw">let</span> <span class="ident">relays</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">relays_info</span>.<span class="ident">relays</span>.<span class="ident">is_empty</span>() <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">relays_info</span>.<span class="ident">public_keys</span>.<span class="ident">is_empty</span>() {
-            <span class="ident">relays_info</span>
-                .<span class="ident">public_keys</span>
-                .<span class="ident">into_iter</span>()
-                .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">id</span>, <span class="ident">pk</span>)<span class="op">|</span> (<span class="ident">id</span>, <span class="ident">pk</span>.<span class="ident">map</span>(<span class="ident">RelayInfo::new</span>)))
-                .<span class="ident">collect</span>()
-        } <span class="kw">else</span> {
-            <span class="ident">relays_info</span>.<span class="ident">relays</span>
+<span class="kw">impl </span>From&lt;PublicKeysResultCompatibility&gt; <span class="kw">for </span>GetRelaysResponse {
+    <span class="kw">fn </span>from(relays_info: PublicKeysResultCompatibility) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>relays = <span class="kw">if </span>relays_info.relays.is_empty() &amp;&amp; !relays_info.public_keys.is_empty() {
+            relays_info
+                .public_keys
+                .into_iter()
+                .map(|(id, pk)| (id, pk.map(RelayInfo::new)))
+                .collect()
+        } <span class="kw">else </span>{
+            relays_info.relays
         };
-        <span class="self">Self</span> { <span class="ident">relays</span> }
+        <span class="self">Self </span>{ relays }
     }
 }
 
-<span class="doccomment">/// Upstream batch query to resolve information for Relays by ID.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">GetRelays</span> {
-    <span class="doccomment">/// A list of Relay deployment identifiers to fetch.</span>
-    <span class="kw">pub</span> <span class="ident">relay_ids</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">RelayId</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Upstream batch query to resolve information for Relays by ID.
+</span><span class="attribute">#[derive(Debug, Deserialize, Serialize)]
+</span><span class="kw">pub struct </span>GetRelays {
+    <span class="doccomment">/// A list of Relay deployment identifiers to fetch.
+    </span><span class="kw">pub </span>relay_ids: Vec&lt;RelayId&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">UpstreamQuery</span> <span class="kw">for</span> <span class="ident">GetRelays</span> {
-    <span class="kw">type</span> <span class="ident">Response</span> <span class="op">=</span> <span class="ident">PublicKeysResultCompatibility</span>;
+<span class="kw">impl </span>UpstreamQuery <span class="kw">for </span>GetRelays {
+    <span class="kw">type </span>Response = PublicKeysResultCompatibility;
 
-    <span class="kw">fn</span> <span class="ident">method</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Method</span> {
-        <span class="ident">Method::POST</span>
+    <span class="kw">fn </span>method(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Method {
+        Method::POST
     }
 
-    <span class="kw">fn</span> <span class="ident">path</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span>, <span class="ident">str</span><span class="op">&gt;</span> {
-        <span class="ident">Cow::Borrowed</span>(<span class="string">&quot;/api/0/relays/publickeys/&quot;</span>)
+    <span class="kw">fn </span>path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Cow&lt;<span class="lifetime">&#39;static</span>, str&gt; {
+        Cow::Borrowed(<span class="string">&quot;/api/0/relays/publickeys/&quot;</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">priority</span>() -&gt; <span class="ident">RequestPriority</span> {
-        <span class="ident">RequestPriority::High</span>
+    <span class="kw">fn </span>priority() -&gt; RequestPriority {
+        RequestPriority::High
     }
 
-    <span class="kw">fn</span> <span class="ident">retry</span>() -&gt; <span class="ident">bool</span> {
-        <span class="bool-val">false</span>
-    }
+    <span class="kw">fn </span>retry() -&gt; bool {
+        <span class="bool-val">false
+    </span>}
 }
 
-<span class="doccomment">/// Cache entry with metadata.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">enum</span> <span class="ident">RelayState</span> {
-    <span class="ident">Exists</span> {
-        <span class="ident">relay</span>: <span class="ident">RelayInfo</span>,
-        <span class="ident">checked_at</span>: <span class="ident">Instant</span>,
+<span class="doccomment">/// Cache entry with metadata.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">enum </span>RelayState {
+    Exists {
+        relay: RelayInfo,
+        checked_at: Instant,
     },
-    <span class="ident">DoesNotExist</span> {
-        <span class="ident">checked_at</span>: <span class="ident">Instant</span>,
+    DoesNotExist {
+        checked_at: Instant,
     },
 }
 
-<span class="kw">impl</span> <span class="ident">RelayState</span> {
-    <span class="doccomment">/// Returns `true` if this cache entry is still valid.</span>
-    <span class="kw">fn</span> <span class="ident">is_valid_cache</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) -&gt; <span class="ident">bool</span> {
-        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">RelayState::Exists</span> { <span class="ident">checked_at</span>, .. } =&gt; {
-                <span class="ident">checked_at</span>.<span class="ident">elapsed</span>() <span class="op">&lt;</span> <span class="ident">config</span>.<span class="ident">relay_cache_expiry</span>()
+<span class="kw">impl </span>RelayState {
+    <span class="doccomment">/// Returns `true` if this cache entry is still valid.
+    </span><span class="kw">fn </span>is_valid_cache(<span class="kw-2">&amp;</span><span class="self">self</span>, config: <span class="kw-2">&amp;</span>Config) -&gt; bool {
+        <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
+            RelayState::Exists { checked_at, .. } =&gt; {
+                checked_at.elapsed() &lt; config.relay_cache_expiry()
             }
-            <span class="ident">RelayState::DoesNotExist</span> { <span class="ident">checked_at</span> } =&gt; {
-                <span class="ident">checked_at</span>.<span class="ident">elapsed</span>() <span class="op">&lt;</span> <span class="ident">config</span>.<span class="ident">cache_miss_expiry</span>()
+            RelayState::DoesNotExist { checked_at } =&gt; {
+                checked_at.elapsed() &lt; config.cache_miss_expiry()
             }
         }
     }
 
-    <span class="doccomment">/// Returns `Some` if there is an existing entry.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This entry may be expired; use `is_valid_cache` to verify this.</span>
-    <span class="kw">fn</span> <span class="ident">as_option</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">RelayInfo</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">RelayState::Exists</span> { <span class="kw-2">ref</span> <span class="ident">relay</span>, .. } =&gt; <span class="prelude-val">Some</span>(<span class="ident">relay</span>),
-            <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
+    <span class="doccomment">/// Returns `Some` if there is an existing entry.
+    ///
+    /// This entry may be expired; use `is_valid_cache` to verify this.
+    </span><span class="kw">fn </span>as_option(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>RelayInfo&gt; {
+        <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
+            RelayState::Exists { <span class="kw-2">ref </span>relay, .. } =&gt; <span class="prelude-val">Some</span>(relay),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         }
     }
 
-    <span class="doccomment">/// Constructs a cache entry from an upstream response.</span>
-    <span class="kw">fn</span> <span class="ident">from_option</span>(<span class="ident">option</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">RelayInfo</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="kw">match</span> <span class="ident">option</span> {
-            <span class="prelude-val">Some</span>(<span class="ident">relay</span>) =&gt; <span class="ident">RelayState::Exists</span> {
-                <span class="ident">relay</span>,
-                <span class="ident">checked_at</span>: <span class="ident">Instant::now</span>(),
+    <span class="doccomment">/// Constructs a cache entry from an upstream response.
+    </span><span class="kw">fn </span>from_option(option: <span class="prelude-ty">Option</span>&lt;RelayInfo&gt;) -&gt; <span class="self">Self </span>{
+        <span class="kw">match </span>option {
+            <span class="prelude-val">Some</span>(relay) =&gt; RelayState::Exists {
+                relay,
+                checked_at: Instant::now(),
             },
-            <span class="prelude-val">None</span> =&gt; <span class="ident">RelayState::DoesNotExist</span> {
-                <span class="ident">checked_at</span>: <span class="ident">Instant::now</span>(),
+            <span class="prelude-val">None </span>=&gt; RelayState::DoesNotExist {
+                checked_at: Instant::now(),
             },
         }
     }
 }
 
-<span class="doccomment">/// Result type of the background fetch task.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">///  - `Ok`: The task succeeded and information from the response should be inserted into the cache.</span>
-<span class="doccomment">///  - `Err`: The task failed and the senders should be placed back for the next fetch.</span>
-<span class="kw">type</span> <span class="ident">FetchResult</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">GetRelaysResponse</span>, <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">RelayId</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">GetRelayResult</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span>;
+<span class="doccomment">/// Result type of the background fetch task.
+///
+///  - `Ok`: The task succeeded and information from the response should be inserted into the cache.
+///  - `Err`: The task failed and the senders should be placed back for the next fetch.
+</span><span class="kw">type </span>FetchResult = <span class="prelude-ty">Result</span>&lt;GetRelaysResponse, HashMap&lt;RelayId, Vec&lt;Sender&lt;GetRelayResult&gt;&gt;&gt;&gt;;
 
-<span class="doccomment">/// Service implementing the [`RelayCache`] interface.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RelayCacheService</span> {
-    <span class="ident">static_relays</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">RelayId</span>, <span class="ident">RelayInfo</span><span class="op">&gt;</span>,
-    <span class="ident">relays</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">RelayId</span>, <span class="ident">RelayState</span><span class="op">&gt;</span>,
-    <span class="ident">senders</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">RelayId</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">GetRelayResult</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-    <span class="ident">fetch_channel</span>: (<span class="ident">mpsc::Sender</span><span class="op">&lt;</span><span class="ident">FetchResult</span><span class="op">&gt;</span>, <span class="ident">mpsc::Receiver</span><span class="op">&lt;</span><span class="ident">FetchResult</span><span class="op">&gt;</span>),
-    <span class="ident">backoff</span>: <span class="ident">RetryBackoff</span>,
-    <span class="ident">delay</span>: <span class="ident">SleepHandle</span>,
-    <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Service implementing the [`RelayCache`] interface.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>RelayCacheService {
+    static_relays: HashMap&lt;RelayId, RelayInfo&gt;,
+    relays: HashMap&lt;RelayId, RelayState&gt;,
+    senders: HashMap&lt;RelayId, Vec&lt;Sender&lt;GetRelayResult&gt;&gt;&gt;,
+    fetch_channel: (mpsc::Sender&lt;FetchResult&gt;, mpsc::Receiver&lt;FetchResult&gt;),
+    backoff: RetryBackoff,
+    delay: SleepHandle,
+    config: Arc&lt;Config&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">RelayCacheService</span> {
-    <span class="doccomment">/// Creates a new [`RelayCache`] service.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> {
-            <span class="ident">static_relays</span>: <span class="ident">config</span>.<span class="ident">static_relays</span>().<span class="ident">clone</span>(),
-            <span class="ident">relays</span>: <span class="ident">HashMap::new</span>(),
-            <span class="ident">senders</span>: <span class="ident">HashMap::new</span>(),
-            <span class="ident">fetch_channel</span>: <span class="ident">mpsc::channel</span>(<span class="number">1</span>),
-            <span class="ident">backoff</span>: <span class="ident">RetryBackoff::new</span>(<span class="ident">config</span>.<span class="ident">http_max_retry_interval</span>()),
-            <span class="ident">delay</span>: <span class="ident">SleepHandle::idle</span>(),
-            <span class="ident">config</span>,
+<span class="kw">impl </span>RelayCacheService {
+    <span class="doccomment">/// Creates a new [`RelayCache`] service.
+    </span><span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            static_relays: config.static_relays().clone(),
+            relays: HashMap::new(),
+            senders: HashMap::new(),
+            fetch_channel: mpsc::channel(<span class="number">1</span>),
+            backoff: RetryBackoff::new(config.http_max_retry_interval()),
+            delay: SleepHandle::idle(),
+            config,
         }
     }
 
-    <span class="doccomment">/// Returns a clone of the sender for the background fetch task.</span>
-    <span class="kw">fn</span> <span class="ident">fetch_tx</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">mpsc::Sender</span><span class="op">&lt;</span><span class="ident">FetchResult</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> (<span class="kw-2">ref</span> <span class="ident">tx</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">fetch_channel</span>;
-        <span class="ident">tx</span>.<span class="ident">clone</span>()
+    <span class="doccomment">/// Returns a clone of the sender for the background fetch task.
+    </span><span class="kw">fn </span>fetch_tx(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; mpsc::Sender&lt;FetchResult&gt; {
+        <span class="kw">let </span>(<span class="kw-2">ref </span>tx, <span class="kw">_</span>) = <span class="self">self</span>.fetch_channel;
+        tx.clone()
     }
 
-    <span class="doccomment">/// Returns the backoff timeout for a batched upstream query.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// If previous queries succeeded, this will be the general batch interval. Additionally, an</span>
-    <span class="doccomment">/// exponentially increasing backoff is used for retrying the upstream request.</span>
-    <span class="kw">fn</span> <span class="ident">next_backoff</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="ident">Duration</span> {
-        <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">query_batch_interval</span>() <span class="op">+</span> <span class="self">self</span>.<span class="ident">backoff</span>.<span class="ident">next_backoff</span>()
+    <span class="doccomment">/// Returns the backoff timeout for a batched upstream query.
+    ///
+    /// If previous queries succeeded, this will be the general batch interval. Additionally, an
+    /// exponentially increasing backoff is used for retrying the upstream request.
+    </span><span class="kw">fn </span>next_backoff(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Duration {
+        <span class="self">self</span>.config.query_batch_interval() + <span class="self">self</span>.backoff.next_backoff()
     }
 
-    <span class="doccomment">/// Schedules a batched upstream query with exponential backoff.</span>
-    <span class="kw">fn</span> <span class="ident">schedule_fetch</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
-        <span class="kw">let</span> <span class="ident">backoff</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">next_backoff</span>();
-        <span class="self">self</span>.<span class="ident">delay</span>.<span class="ident">set</span>(<span class="ident">backoff</span>);
+    <span class="doccomment">/// Schedules a batched upstream query with exponential backoff.
+    </span><span class="kw">fn </span>schedule_fetch(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="kw">let </span>backoff = <span class="self">self</span>.next_backoff();
+        <span class="self">self</span>.delay.set(backoff);
     }
 
-    <span class="doccomment">/// Executes an upstream request to fetch information on downstream Relays.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This assumes that currently no request is running. If the upstream request fails or new</span>
-    <span class="doccomment">/// channels are pushed in the meanwhile, this will reschedule automatically.</span>
-    <span class="kw">fn</span> <span class="ident">fetch_relays</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
-        <span class="kw">let</span> <span class="ident">channels</span> <span class="op">=</span> <span class="ident">std::mem::take</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">senders</span>);
+    <span class="doccomment">/// Executes an upstream request to fetch information on downstream Relays.
+    ///
+    /// This assumes that currently no request is running. If the upstream request fails or new
+    /// channels are pushed in the meanwhile, this will reschedule automatically.
+    </span><span class="kw">fn </span>fetch_relays(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="kw">let </span>channels = std::mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.senders);
         <span class="macro">relay_log::debug!</span>(
             <span class="string">&quot;updating public keys for {} relays (attempt {})&quot;</span>,
-            <span class="ident">channels</span>.<span class="ident">len</span>(),
-            <span class="self">self</span>.<span class="ident">backoff</span>.<span class="ident">attempt</span>(),
+            channels.len(),
+            <span class="self">self</span>.backoff.attempt(),
         );
 
-        <span class="kw">let</span> <span class="ident">fetch_tx</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">fetch_tx</span>();
-        <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
-            <span class="kw">let</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">GetRelays</span> {
-                <span class="ident">relay_ids</span>: <span class="ident">channels</span>.<span class="ident">keys</span>().<span class="ident">cloned</span>().<span class="ident">collect</span>(),
+        <span class="kw">let </span>fetch_tx = <span class="self">self</span>.fetch_tx();
+        tokio::spawn(<span class="kw">async move </span>{
+            <span class="kw">let </span>request = GetRelays {
+                relay_ids: channels.keys().cloned().collect(),
             };
 
-            <span class="kw">let</span> <span class="ident">upstream</span> <span class="op">=</span> <span class="ident">UpstreamRelay::from_registry</span>();
-            <span class="kw">let</span> <span class="ident">query_result</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">compat::send</span>(<span class="ident">upstream</span>, <span class="ident">SendQuery</span>(<span class="ident">request</span>)).<span class="kw">await</span> {
-                <span class="prelude-val">Ok</span>(<span class="ident">inner</span>) =&gt; <span class="ident">inner</span>,
-                <span class="comment">// Drop the senders to propagate the SendError up.</span>
-                <span class="prelude-val">Err</span>(<span class="ident">_send_error</span>) =&gt; <span class="kw">return</span>,
+            <span class="kw">let </span>upstream = UpstreamRelay::from_registry();
+            <span class="kw">let </span>query_result = <span class="kw">match </span>compat::send(upstream, SendQuery(request)).<span class="kw">await </span>{
+                <span class="prelude-val">Ok</span>(inner) =&gt; inner,
+                <span class="comment">// Drop the senders to propagate the SendError up.
+                </span><span class="prelude-val">Err</span>(_send_error) =&gt; <span class="kw">return</span>,
             };
 
-            <span class="kw">let</span> <span class="ident">fetch_result</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">query_result</span> {
-                <span class="prelude-val">Ok</span>(<span class="ident">response</span>) =&gt; {
-                    <span class="kw">let</span> <span class="ident">response</span> <span class="op">=</span> <span class="ident">GetRelaysResponse::from</span>(<span class="ident">response</span>);
+            <span class="kw">let </span>fetch_result = <span class="kw">match </span>query_result {
+                <span class="prelude-val">Ok</span>(response) =&gt; {
+                    <span class="kw">let </span>response = GetRelaysResponse::from(response);
 
-                    <span class="kw">for</span> (<span class="ident">id</span>, <span class="ident">channels</span>) <span class="kw">in</span> <span class="ident">channels</span> {
-                        <span class="macro">relay_log::debug!</span>(<span class="string">&quot;relay {} public key updated&quot;</span>, <span class="ident">id</span>);
-                        <span class="kw">let</span> <span class="ident">info</span> <span class="op">=</span> <span class="ident">response</span>.<span class="ident">relays</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">id</span>).<span class="ident">unwrap_or</span>(<span class="kw-2">&amp;</span><span class="prelude-val">None</span>);
-                        <span class="kw">for</span> <span class="ident">channel</span> <span class="kw">in</span> <span class="ident">channels</span> {
-                            <span class="ident">channel</span>.<span class="ident">send</span>(<span class="ident">info</span>.<span class="ident">clone</span>());
+                    <span class="kw">for </span>(id, channels) <span class="kw">in </span>channels {
+                        <span class="macro">relay_log::debug!</span>(<span class="string">&quot;relay {} public key updated&quot;</span>, id);
+                        <span class="kw">let </span>info = response.relays.get(<span class="kw-2">&amp;</span>id).unwrap_or(<span class="kw-2">&amp;</span><span class="prelude-val">None</span>);
+                        <span class="kw">for </span>channel <span class="kw">in </span>channels {
+                            channel.send(info.clone());
                         }
                     }
 
-                    <span class="prelude-val">Ok</span>(<span class="ident">response</span>)
+                    <span class="prelude-val">Ok</span>(response)
                 }
-                <span class="prelude-val">Err</span>(<span class="ident">error</span>) =&gt; {
-                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;error fetching public keys: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>));
-                    <span class="prelude-val">Err</span>(<span class="ident">channels</span>)
+                <span class="prelude-val">Err</span>(error) =&gt; {
+                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;error fetching public keys: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error));
+                    <span class="prelude-val">Err</span>(channels)
                 }
             };
 
-            <span class="ident">fetch_tx</span>.<span class="ident">send</span>(<span class="ident">fetch_result</span>).<span class="kw">await</span>.<span class="ident">ok</span>();
+            fetch_tx.send(fetch_result).<span class="kw">await</span>.ok();
         });
     }
 
-    <span class="doccomment">/// Handles results from the background fetch task.</span>
-    <span class="kw">fn</span> <span class="ident">handle_fetch_result</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">result</span>: <span class="ident">FetchResult</span>) {
-        <span class="kw">match</span> <span class="ident">result</span> {
-            <span class="prelude-val">Ok</span>(<span class="ident">response</span>) =&gt; {
-                <span class="self">self</span>.<span class="ident">backoff</span>.<span class="ident">reset</span>();
+    <span class="doccomment">/// Handles results from the background fetch task.
+    </span><span class="kw">fn </span>handle_fetch_result(<span class="kw-2">&amp;mut </span><span class="self">self</span>, result: FetchResult) {
+        <span class="kw">match </span>result {
+            <span class="prelude-val">Ok</span>(response) =&gt; {
+                <span class="self">self</span>.backoff.reset();
 
-                <span class="kw">for</span> (<span class="ident">id</span>, <span class="ident">info</span>) <span class="kw">in</span> <span class="ident">response</span>.<span class="ident">relays</span> {
-                    <span class="self">self</span>.<span class="ident">relays</span>.<span class="ident">insert</span>(<span class="ident">id</span>, <span class="ident">RelayState::from_option</span>(<span class="ident">info</span>));
+                <span class="kw">for </span>(id, info) <span class="kw">in </span>response.relays {
+                    <span class="self">self</span>.relays.insert(id, RelayState::from_option(info));
                 }
             }
-            <span class="prelude-val">Err</span>(<span class="ident">channels</span>) =&gt; {
-                <span class="self">self</span>.<span class="ident">senders</span>.<span class="ident">extend</span>(<span class="ident">channels</span>);
+            <span class="prelude-val">Err</span>(channels) =&gt; {
+                <span class="self">self</span>.senders.extend(channels);
             }
         }
 
-        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">senders</span>.<span class="ident">is_empty</span>() {
-            <span class="self">self</span>.<span class="ident">schedule_fetch</span>();
+        <span class="kw">if </span>!<span class="self">self</span>.senders.is_empty() {
+            <span class="self">self</span>.schedule_fetch();
         }
     }
 
-    <span class="doccomment">/// Resolves information for a Relay and passes it to the sender.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Sends information immediately if it is available in the cache. Otherwise, this schedules a</span>
-    <span class="doccomment">/// delayed background fetch and queues the sender.</span>
-    <span class="kw">fn</span> <span class="ident">get_or_fetch</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">GetRelay</span>, <span class="ident">sender</span>: <span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">GetRelayResult</span><span class="op">&gt;</span>) {
-        <span class="kw">let</span> <span class="ident">relay_id</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">relay_id</span>;
+    <span class="doccomment">/// Resolves information for a Relay and passes it to the sender.
+    ///
+    /// Sends information immediately if it is available in the cache. Otherwise, this schedules a
+    /// delayed background fetch and queues the sender.
+    </span><span class="kw">fn </span>get_or_fetch(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: GetRelay, sender: Sender&lt;GetRelayResult&gt;) {
+        <span class="kw">let </span>relay_id = message.relay_id;
 
-        <span class="comment">// First check the statically configured relays</span>
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">key</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">static_relays</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">relay_id</span>) {
-            <span class="ident">sender</span>.<span class="ident">send</span>(<span class="prelude-val">Some</span>(<span class="ident">key</span>.<span class="ident">clone</span>()));
+        <span class="comment">// First check the statically configured relays
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(key) = <span class="self">self</span>.static_relays.get(<span class="kw-2">&amp;</span>relay_id) {
+            sender.send(<span class="prelude-val">Some</span>(key.clone()));
             <span class="kw">return</span>;
         }
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">key</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">relays</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">relay_id</span>) {
-            <span class="kw">if</span> <span class="ident">key</span>.<span class="ident">is_valid_cache</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>) {
-                <span class="ident">sender</span>.<span class="ident">send</span>(<span class="ident">key</span>.<span class="ident">as_option</span>().<span class="ident">cloned</span>());
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(key) = <span class="self">self</span>.relays.get(<span class="kw-2">&amp;</span>relay_id) {
+            <span class="kw">if </span>key.is_valid_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.config) {
+                sender.send(key.as_option().cloned());
                 <span class="kw">return</span>;
             }
         }
 
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">credentials</span>().<span class="ident">is_none</span>() {
+        <span class="kw">if </span><span class="self">self</span>.config.credentials().is_none() {
             <span class="macro">relay_log::error!</span>(
                 <span class="string">&quot;No credentials configured. Relay {} cannot send requests to this relay.&quot;</span>,
-                <span class="ident">relay_id</span>
+                relay_id
             );
-            <span class="ident">sender</span>.<span class="ident">send</span>(<span class="prelude-val">None</span>);
+            sender.send(<span class="prelude-val">None</span>);
             <span class="kw">return</span>;
         }
 
-        <span class="macro">relay_log::debug!</span>(<span class="string">&quot;relay {} public key requested&quot;</span>, <span class="ident">relay_id</span>);
-        <span class="self">self</span>.<span class="ident">senders</span>
-            .<span class="ident">entry</span>(<span class="ident">relay_id</span>)
-            .<span class="ident">or_insert_with</span>(<span class="ident">Vec::new</span>)
-            .<span class="ident">push</span>(<span class="ident">sender</span>);
+        <span class="macro">relay_log::debug!</span>(<span class="string">&quot;relay {} public key requested&quot;</span>, relay_id);
+        <span class="self">self</span>.senders
+            .entry(relay_id)
+            .or_insert_with(Vec::new)
+            .push(sender);
 
-        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">backoff</span>.<span class="ident">started</span>() {
-            <span class="self">self</span>.<span class="ident">schedule_fetch</span>();
+        <span class="kw">if </span>!<span class="self">self</span>.backoff.started() {
+            <span class="self">self</span>.schedule_fetch();
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Service</span> <span class="kw">for</span> <span class="ident">RelayCacheService</span> {
-    <span class="kw">type</span> <span class="ident">Interface</span> <span class="op">=</span> <span class="ident">RelayCache</span>;
+<span class="kw">impl </span>Service <span class="kw">for </span>RelayCacheService {
+    <span class="kw">type </span>Interface = RelayCache;
 
-    <span class="kw">fn</span> <span class="ident">spawn_handler</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">rx</span>: <span class="ident">relay_system::Receiver</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Interface</span><span class="op">&gt;</span>) {
-        <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
+    <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+        tokio::spawn(<span class="kw">async move </span>{
             <span class="macro">relay_log::info!</span>(<span class="string">&quot;key cache started&quot;</span>);
 
-            <span class="kw">loop</span> {
-                <span class="macro">tokio::select!</span> {
-                    <span class="comment">// Prioritize flush over receiving messages to prevent starving.</span>
-                    <span class="ident">biased</span>;
+            <span class="kw">loop </span>{
+                <span class="macro">tokio::select! </span>{
+                    <span class="comment">// Prioritize flush over receiving messages to prevent starving.
+                    </span>biased;
 
-                    <span class="prelude-val">Some</span>(<span class="ident">result</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">fetch_channel</span>.<span class="number">1</span>.<span class="ident">recv</span>() =&gt; <span class="self">self</span>.<span class="ident">handle_fetch_result</span>(<span class="ident">result</span>),
-                    () <span class="op">=</span> <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">delay</span> =&gt; <span class="self">self</span>.<span class="ident">fetch_relays</span>(),
-                    <span class="prelude-val">Some</span>(<span class="ident">message</span>) <span class="op">=</span> <span class="ident">rx</span>.<span class="ident">recv</span>() =&gt; <span class="self">self</span>.<span class="ident">get_or_fetch</span>(<span class="ident">message</span>.<span class="number">0</span>, <span class="ident">message</span>.<span class="number">1</span>),
-                    <span class="kw">else</span> =&gt; <span class="kw">break</span>,
+                    <span class="prelude-val">Some</span>(result) = <span class="self">self</span>.fetch_channel.<span class="number">1</span>.recv() =&gt; <span class="self">self</span>.handle_fetch_result(result),
+                    () = <span class="kw-2">&amp;mut </span><span class="self">self</span>.delay =&gt; <span class="self">self</span>.fetch_relays(),
+                    <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; <span class="self">self</span>.get_or_fetch(message.<span class="number">0</span>, message.<span class="number">1</span>),
+                    <span class="kw">else </span>=&gt; <span class="kw">break</span>,
                 }
             }
 
@@ -727,4 +727,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

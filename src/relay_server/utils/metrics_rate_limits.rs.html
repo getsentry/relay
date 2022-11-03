@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/utils/metrics_rate_limits.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>metrics_rate_limits.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/utils/metrics_rate_limits.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>metrics_rate_limits.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_server/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -163,168 +163,168 @@
 <span id="161">161</span>
 <span id="162">162</span>
 <span id="163">163</span>
-</pre><pre class="rust"><code><span class="doccomment">//! Quota and rate limiting helpers for metrics and metrics buckets.</span>
+</pre><pre class="rust"><code><span class="doccomment">//! Quota and rate limiting helpers for metrics and metrics buckets.
 
-<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">DataCategory</span>, <span class="ident">UnixTimestamp</span>};
-<span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">MetricNamespace</span>, <span class="ident">MetricResourceIdentifier</span>, <span class="ident">MetricsContainer</span>};
-<span class="kw">use</span> <span class="ident">relay_quotas</span>::{<span class="ident">ItemScoping</span>, <span class="ident">Quota</span>, <span class="ident">RateLimits</span>, <span class="ident">Scoping</span>};
+</span><span class="kw">use </span>relay_common::{DataCategory, UnixTimestamp};
+<span class="kw">use </span>relay_metrics::{MetricNamespace, MetricResourceIdentifier, MetricsContainer};
+<span class="kw">use </span>relay_quotas::{ItemScoping, Quota, RateLimits, Scoping};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome</span>::{<span class="ident">DiscardReason</span>, <span class="ident">Outcome</span>, <span class="ident">TrackOutcome</span>};
+<span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 
-<span class="doccomment">/// Contains all data necessary to rate limit metrics or metrics buckets.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MetricsLimiter</span><span class="op">&lt;</span><span class="ident">M</span>: <span class="ident">MetricsContainer</span>, <span class="ident">Q</span>: <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Quota</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Quota</span><span class="op">&gt;</span><span class="op">&gt;</span> {
-    <span class="doccomment">/// A list of metrics or buckets.</span>
-    <span class="ident">metrics</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Contains all data necessary to rate limit metrics or metrics buckets.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>MetricsLimiter&lt;M: MetricsContainer, Q: AsRef&lt;Vec&lt;Quota&gt;&gt; = Vec&lt;Quota&gt;&gt; {
+    <span class="doccomment">/// A list of metrics or buckets.
+    </span>metrics: Vec&lt;M&gt;,
 
-    <span class="doccomment">/// The quotas set on the current project.</span>
-    <span class="ident">quotas</span>: <span class="ident">Q</span>,
+    <span class="doccomment">/// The quotas set on the current project.
+    </span>quotas: Q,
 
-    <span class="doccomment">/// Project information.</span>
-    <span class="ident">scoping</span>: <span class="ident">Scoping</span>,
+    <span class="doccomment">/// Project information.
+    </span>scoping: Scoping,
 
-    <span class="doccomment">/// Binary index of metrics/buckets in the transaction namespace (used to retain).</span>
-    <span class="ident">transaction_buckets</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Binary index of metrics/buckets in the transaction namespace (used to retain).
+    </span>transaction_buckets: Vec&lt;bool&gt;,
 
-    <span class="doccomment">/// The number of transactions contributing to these metrics.</span>
-    <span class="ident">transaction_count</span>: <span class="ident">usize</span>,
+    <span class="doccomment">/// The number of transactions contributing to these metrics.
+    </span>transaction_count: usize,
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">M</span>: <span class="ident">MetricsContainer</span>, <span class="ident">Q</span>: <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Quota</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="ident">MetricsLimiter</span><span class="op">&lt;</span><span class="ident">M</span>, <span class="ident">Q</span><span class="op">&gt;</span> {
-    <span class="doccomment">/// Create a new limiter instance.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Returns Ok if `metrics` contain transaction metrics, `metrics` otherwise.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create</span>(<span class="ident">buckets</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span>, <span class="ident">quotas</span>: <span class="ident">Q</span>, <span class="ident">scoping</span>: <span class="ident">Scoping</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">transaction_counts</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">buckets</span>
-            .<span class="ident">iter</span>()
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">metric</span><span class="op">|</span> {
-                <span class="kw">let</span> <span class="ident">mri</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">MetricResourceIdentifier::parse</span>(<span class="ident">metric</span>.<span class="ident">name</span>()) {
-                    <span class="prelude-val">Ok</span>(<span class="ident">mri</span>) =&gt; <span class="ident">mri</span>,
+<span class="kw">impl</span>&lt;M: MetricsContainer, Q: AsRef&lt;Vec&lt;Quota&gt;&gt;&gt; MetricsLimiter&lt;M, Q&gt; {
+    <span class="doccomment">/// Create a new limiter instance.
+    ///
+    /// Returns Ok if `metrics` contain transaction metrics, `metrics` otherwise.
+    </span><span class="kw">pub fn </span>create(buckets: Vec&lt;M&gt;, quotas: Q, scoping: Scoping) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, Vec&lt;M&gt;&gt; {
+        <span class="kw">let </span>transaction_counts: Vec&lt;<span class="kw">_</span>&gt; = buckets
+            .iter()
+            .map(|metric| {
+                <span class="kw">let </span>mri = <span class="kw">match </span>MetricResourceIdentifier::parse(metric.name()) {
+                    <span class="prelude-val">Ok</span>(mri) =&gt; mri,
                     <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-                        <span class="macro">relay_log::error!</span>(<span class="string">&quot;Invalid MRI: {}&quot;</span>, <span class="ident">metric</span>.<span class="ident">name</span>());
-                        <span class="kw">return</span> <span class="prelude-val">None</span>;
+                        <span class="macro">relay_log::error!</span>(<span class="string">&quot;Invalid MRI: {}&quot;</span>, metric.name());
+                        <span class="kw">return </span><span class="prelude-val">None</span>;
                     }
                 };
 
-                <span class="comment">// Keep all metrics that are not transaction related:</span>
-                <span class="kw">if</span> <span class="ident">mri</span>.<span class="ident">namespace</span> <span class="op">!</span><span class="op">=</span> <span class="ident">MetricNamespace::Transactions</span> {
-                    <span class="kw">return</span> <span class="prelude-val">None</span>;
+                <span class="comment">// Keep all metrics that are not transaction related:
+                </span><span class="kw">if </span>mri.namespace != MetricNamespace::Transactions {
+                    <span class="kw">return </span><span class="prelude-val">None</span>;
                 }
 
-                <span class="kw">if</span> <span class="ident">mri</span>.<span class="ident">name</span> <span class="op">==</span> <span class="string">&quot;duration&quot;</span> {
-                    <span class="comment">// The &quot;duration&quot; metric is extracted exactly once for every processed</span>
-                    <span class="comment">// transaction, so we can use it to count the number of transactions.</span>
-                    <span class="kw">let</span> <span class="ident">count</span> <span class="op">=</span> <span class="ident">metric</span>.<span class="ident">len</span>();
-                    <span class="prelude-val">Some</span>(<span class="ident">count</span>)
-                } <span class="kw">else</span> {
-                    <span class="comment">// For any other metric in the transaction namespace, we check the limit with</span>
-                    <span class="comment">// quantity=0 so transactions are not double counted against the quota.</span>
-                    <span class="prelude-val">Some</span>(<span class="number">0</span>)
+                <span class="kw">if </span>mri.name == <span class="string">&quot;duration&quot; </span>{
+                    <span class="comment">// The &quot;duration&quot; metric is extracted exactly once for every processed
+                    // transaction, so we can use it to count the number of transactions.
+                    </span><span class="kw">let </span>count = metric.len();
+                    <span class="prelude-val">Some</span>(count)
+                } <span class="kw">else </span>{
+                    <span class="comment">// For any other metric in the transaction namespace, we check the limit with
+                    // quantity=0 so transactions are not double counted against the quota.
+                    </span><span class="prelude-val">Some</span>(<span class="number">0</span>)
                 }
             })
-            .<span class="ident">collect</span>();
+            .collect();
 
-        <span class="comment">// Accumulate the total transaction count:</span>
-        <span class="kw">let</span> <span class="ident">transaction_count</span> <span class="op">=</span> <span class="ident">transaction_counts</span>
-            .<span class="ident">iter</span>()
-            .<span class="ident">fold</span>(<span class="prelude-val">None</span>, <span class="op">|</span><span class="ident">acc</span>, <span class="ident">transaction_count</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">transaction_count</span> {
-                <span class="prelude-val">Some</span>(<span class="ident">count</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">acc</span>.<span class="ident">unwrap_or</span>(<span class="number">0</span>) <span class="op">+</span> <span class="ident">count</span>),
-                <span class="prelude-val">None</span> =&gt; <span class="ident">acc</span>,
+        <span class="comment">// Accumulate the total transaction count:
+        </span><span class="kw">let </span>transaction_count = transaction_counts
+            .iter()
+            .fold(<span class="prelude-val">None</span>, |acc, transaction_count| <span class="kw">match </span>transaction_count {
+                <span class="prelude-val">Some</span>(count) =&gt; <span class="prelude-val">Some</span>(acc.unwrap_or(<span class="number">0</span>) + count),
+                <span class="prelude-val">None </span>=&gt; acc,
             });
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">transaction_count</span>) <span class="op">=</span> <span class="ident">transaction_count</span> {
-            <span class="kw">let</span> <span class="ident">transaction_buckets</span> <span class="op">=</span> <span class="ident">transaction_counts</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="ident">Option::is_some</span>).<span class="ident">collect</span>();
-            <span class="prelude-val">Ok</span>(<span class="self">Self</span> {
-                <span class="ident">metrics</span>: <span class="ident">buckets</span>,
-                <span class="ident">quotas</span>,
-                <span class="ident">scoping</span>,
-                <span class="ident">transaction_buckets</span>,
-                <span class="ident">transaction_count</span>,
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_count) = transaction_count {
+            <span class="kw">let </span>transaction_buckets = transaction_counts.iter().map(Option::is_some).collect();
+            <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
+                metrics: buckets,
+                quotas,
+                scoping,
+                transaction_buckets,
+                transaction_count,
             })
-        } <span class="kw">else</span> {
-            <span class="prelude-val">Err</span>(<span class="ident">buckets</span>)
+        } <span class="kw">else </span>{
+            <span class="prelude-val">Err</span>(buckets)
         }
     }
 
-    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">scoping</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">Scoping</span> {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">scoping</span>
+    <span class="attribute">#[allow(dead_code)]
+    </span><span class="kw">pub fn </span>scoping(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Scoping {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.scoping
     }
 
-    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">quotas</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[<span class="ident">Quota</span>] {
-        <span class="self">self</span>.<span class="ident">quotas</span>.<span class="ident">as_ref</span>()
+    <span class="attribute">#[allow(dead_code)]
+    </span><span class="kw">pub fn </span>quotas(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[Quota] {
+        <span class="self">self</span>.quotas.as_ref()
     }
 
-    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">transaction_count</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
-        <span class="self">self</span>.<span class="ident">transaction_count</span>
+    <span class="attribute">#[allow(dead_code)]
+    </span><span class="kw">pub fn </span>transaction_count(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.transaction_count
     }
 
-    <span class="kw">fn</span> <span class="ident">drop_with_outcome</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">outcome</span>: <span class="ident">Outcome</span>) {
-        <span class="comment">// Drop transaction buckets:</span>
-        <span class="kw">let</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="ident">std::mem::take</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">metrics</span>);
+    <span class="kw">fn </span>drop_with_outcome(<span class="kw-2">&amp;mut </span><span class="self">self</span>, outcome: Outcome) {
+        <span class="comment">// Drop transaction buckets:
+        </span><span class="kw">let </span>metrics = std::mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.metrics);
 
-        <span class="self">self</span>.<span class="ident">metrics</span> <span class="op">=</span> <span class="ident">metrics</span>
-            .<span class="ident">into_iter</span>()
-            .<span class="ident">zip</span>(<span class="self">self</span>.<span class="ident">transaction_buckets</span>.<span class="ident">iter</span>())
-            .<span class="ident">filter_map</span>(<span class="op">|</span>(<span class="ident">bucket</span>, <span class="ident">is_transaction_bucket</span>)<span class="op">|</span> {
-                (<span class="op">!</span><span class="ident">is_transaction_bucket</span>).<span class="ident">then_some</span>(<span class="ident">bucket</span>)
+        <span class="self">self</span>.metrics = metrics
+            .into_iter()
+            .zip(<span class="self">self</span>.transaction_buckets.iter())
+            .filter_map(|(bucket, is_transaction_bucket)| {
+                (!is_transaction_bucket).then_some(bucket)
             })
-            .<span class="ident">collect</span>();
+            .collect();
 
-        <span class="comment">// Track outcome for the transaction metrics we dropped here:</span>
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">transaction_count</span> <span class="op">&gt;</span> <span class="number">0</span> {
-            <span class="ident">TrackOutcome::from_registry</span>().<span class="ident">send</span>(<span class="ident">TrackOutcome</span> {
-                <span class="ident">timestamp</span>: <span class="ident">UnixTimestamp::now</span>().<span class="ident">as_datetime</span>(), <span class="comment">// as good as any timestamp</span>
-                <span class="ident">scoping</span>: <span class="self">self</span>.<span class="ident">scoping</span>,
-                <span class="ident">outcome</span>,
-                <span class="ident">event_id</span>: <span class="prelude-val">None</span>,
-                <span class="ident">remote_addr</span>: <span class="prelude-val">None</span>,
-                <span class="ident">category</span>: <span class="ident">DataCategory::Transaction</span>,
-                <span class="ident">quantity</span>: <span class="self">self</span>.<span class="ident">transaction_count</span> <span class="kw">as</span> <span class="ident">u32</span>,
+        <span class="comment">// Track outcome for the transaction metrics we dropped here:
+        </span><span class="kw">if </span><span class="self">self</span>.transaction_count &gt; <span class="number">0 </span>{
+            TrackOutcome::from_registry().send(TrackOutcome {
+                timestamp: UnixTimestamp::now().as_datetime(), <span class="comment">// as good as any timestamp
+                </span>scoping: <span class="self">self</span>.scoping,
+                outcome,
+                event_id: <span class="prelude-val">None</span>,
+                remote_addr: <span class="prelude-val">None</span>,
+                category: DataCategory::Transaction,
+                quantity: <span class="self">self</span>.transaction_count <span class="kw">as </span>u32,
             });
         }
     }
 
-    <span class="comment">// Drop transaction-related metrics and create outcomes for any active rate limits.</span>
-    <span class="comment">//</span>
-    <span class="comment">// If rate limits could not be checked for some reason, pass an `Err` to this function.</span>
-    <span class="comment">// In this case, transaction-related metrics will also be dropped, and an &quot;internal&quot;</span>
-    <span class="comment">// outcome is generated.</span>
-    <span class="comment">//</span>
-    <span class="comment">// Returns true if any metrics were dropped.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">enforce_limits</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">rate_limits</span>: <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">RateLimits</span>, ()<span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">dropped_stuff</span> <span class="op">=</span> <span class="bool-val">false</span>;
-        <span class="kw">match</span> <span class="ident">rate_limits</span> {
-            <span class="prelude-val">Ok</span>(<span class="ident">rate_limits</span>) =&gt; {
-                <span class="kw">let</span> <span class="ident">item_scoping</span> <span class="op">=</span> <span class="ident">ItemScoping</span> {
-                    <span class="ident">category</span>: <span class="ident">DataCategory::Transaction</span>,
-                    <span class="ident">scoping</span>: <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">scoping</span>,
+    <span class="comment">// Drop transaction-related metrics and create outcomes for any active rate limits.
+    //
+    // If rate limits could not be checked for some reason, pass an `Err` to this function.
+    // In this case, transaction-related metrics will also be dropped, and an &quot;internal&quot;
+    // outcome is generated.
+    //
+    // Returns true if any metrics were dropped.
+    </span><span class="kw">pub fn </span>enforce_limits(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rate_limits: <span class="prelude-ty">Result</span>&lt;<span class="kw-2">&amp;</span>RateLimits, ()&gt;) -&gt; bool {
+        <span class="kw">let </span><span class="kw-2">mut </span>dropped_stuff = <span class="bool-val">false</span>;
+        <span class="kw">match </span>rate_limits {
+            <span class="prelude-val">Ok</span>(rate_limits) =&gt; {
+                <span class="kw">let </span>item_scoping = ItemScoping {
+                    category: DataCategory::Transaction,
+                    scoping: <span class="kw-2">&amp;</span><span class="self">self</span>.scoping,
                 };
-                <span class="kw">let</span> <span class="ident">active_rate_limits</span> <span class="op">=</span>
-                    <span class="ident">rate_limits</span>.<span class="ident">check_with_quotas</span>(<span class="self">self</span>.<span class="ident">quotas</span>.<span class="ident">as_ref</span>(), <span class="ident">item_scoping</span>);
+                <span class="kw">let </span>active_rate_limits =
+                    rate_limits.check_with_quotas(<span class="self">self</span>.quotas.as_ref(), item_scoping);
 
-                <span class="comment">// If a rate limit is active, discard transaction buckets.</span>
-                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">limit</span>) <span class="op">=</span> <span class="ident">active_rate_limits</span>.<span class="ident">longest</span>() {
-                    <span class="self">self</span>.<span class="ident">drop_with_outcome</span>(<span class="ident">Outcome::RateLimited</span>(<span class="ident">limit</span>.<span class="ident">reason_code</span>.<span class="ident">clone</span>()));
-                    <span class="ident">dropped_stuff</span> <span class="op">=</span> <span class="bool-val">true</span>;
+                <span class="comment">// If a rate limit is active, discard transaction buckets.
+                </span><span class="kw">if let </span><span class="prelude-val">Some</span>(limit) = active_rate_limits.longest() {
+                    <span class="self">self</span>.drop_with_outcome(Outcome::RateLimited(limit.reason_code.clone()));
+                    dropped_stuff = <span class="bool-val">true</span>;
                 }
             }
             <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-                <span class="comment">// Error from rate limiter, drop transaction buckets.</span>
-                <span class="self">self</span>.<span class="ident">drop_with_outcome</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::Internal</span>));
-                <span class="ident">dropped_stuff</span> <span class="op">=</span> <span class="bool-val">true</span>;
+                <span class="comment">// Error from rate limiter, drop transaction buckets.
+                </span><span class="self">self</span>.drop_with_outcome(Outcome::Invalid(DiscardReason::Internal));
+                dropped_stuff = <span class="bool-val">true</span>;
             }
         };
 
-        <span class="ident">dropped_stuff</span>
+        dropped_stuff
     }
 
-    <span class="doccomment">/// Consume this struct and return the contained metrics.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">into_metrics</span>(<span class="self">self</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">metrics</span>
+    <span class="doccomment">/// Consume this struct and return the contained metrics.
+    </span><span class="kw">pub fn </span>into_metrics(<span class="self">self</span>) -&gt; Vec&lt;M&gt; {
+        <span class="self">self</span>.metrics
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

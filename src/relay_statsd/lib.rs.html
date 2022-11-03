@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-statsd/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_statsd/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_statsd/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_statsd/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-statsd/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_statsd/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_statsd/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_statsd/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
 <span id="3">3</span>
 <span id="4">4</span>
@@ -630,637 +630,637 @@
 <span id="630">630</span>
 <span id="631">631</span>
 <span id="632">632</span>
-</pre><pre class="rust"><code><span class="doccomment">//! A high-level StatsD metric client built on cadence.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ## Defining Metrics</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! In order to use metrics, one needs to first define one of the metric traits on a custom enum.</span>
-<span class="doccomment">//! The following types of metrics are available: `counter`, `timer`, `gauge`, `histogram`, and</span>
-<span class="doccomment">//! `set`. For explanations on what that means see [Metric Types].</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! The metric traits serve only to provide a type safe metric name. All metric types have exactly</span>
-<span class="doccomment">//! the same form, they are different only to ensure that a metric can only be used for the type for</span>
-<span class="doccomment">//! which it was defined, (e.g. a counter metric cannot be used as a timer metric). See the traits</span>
-<span class="doccomment">//! for more detailed examples.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ## Initializing the Client</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Metrics can be used without initializing a statsd client. In that case, invoking `with_client`</span>
-<span class="doccomment">//! or the [`metric!`] macro will become a noop. Only when configured, metrics will actually be</span>
-<span class="doccomment">//! collected.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! To initialize the client, either use [`set_client`] to pass a custom client, or use</span>
-<span class="doccomment">//! [`init`] to create a default client with known arguments:</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ```no_run</span>
-<span class="doccomment">//! # use std::collections::BTreeMap;</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! relay_statsd::init(&quot;myprefix&quot;, &quot;localhost:8125&quot;, BTreeMap::new(), true, 1.0);</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ## Macro Usage</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! The recommended way to record metrics is by using the [`metric!`] macro. See the trait docs</span>
-<span class="doccomment">//! for more information on how to record each type of metric.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//! use relay_statsd::{metric, CounterMetric};</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! struct MyCounter;</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! impl CounterMetric for MyCounter {</span>
-<span class="doccomment">//!     fn name(&amp;self) -&gt; &amp;&#39;static str {</span>
-<span class="doccomment">//!         &quot;counter&quot;</span>
-<span class="doccomment">//!     }</span>
-<span class="doccomment">//! }</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! metric!(counter(MyCounter) += 1);</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ## Manual Usage</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//! use relay_statsd::prelude::*;</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! relay_statsd::with_client(|client| {</span>
-<span class="doccomment">//!     client.count(&quot;mymetric&quot;, 1).ok();</span>
-<span class="doccomment">//! });</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! [Metric Types]: https://github.com/statsd/statsd/blob/master/docs/metric_types.md</span>
-<span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
-<span class="kw">use</span> <span class="ident">std::net</span>::{<span class="ident">ToSocketAddrs</span>, <span class="ident">UdpSocket</span>};
-<span class="kw">use</span> <span class="ident">std::ops</span>::{<span class="ident">Deref</span>, <span class="ident">DerefMut</span>};
-<span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
+</pre><pre class="rust"><code><span class="doccomment">//! A high-level StatsD metric client built on cadence.
+//!
+//! ## Defining Metrics
+//!
+//! In order to use metrics, one needs to first define one of the metric traits on a custom enum.
+//! The following types of metrics are available: `counter`, `timer`, `gauge`, `histogram`, and
+//! `set`. For explanations on what that means see [Metric Types].
+//!
+//! The metric traits serve only to provide a type safe metric name. All metric types have exactly
+//! the same form, they are different only to ensure that a metric can only be used for the type for
+//! which it was defined, (e.g. a counter metric cannot be used as a timer metric). See the traits
+//! for more detailed examples.
+//!
+//! ## Initializing the Client
+//!
+//! Metrics can be used without initializing a statsd client. In that case, invoking `with_client`
+//! or the [`metric!`] macro will become a noop. Only when configured, metrics will actually be
+//! collected.
+//!
+//! To initialize the client, either use [`set_client`] to pass a custom client, or use
+//! [`init`] to create a default client with known arguments:
+//!
+//! ```no_run
+//! # use std::collections::BTreeMap;
+//!
+//! relay_statsd::init(&quot;myprefix&quot;, &quot;localhost:8125&quot;, BTreeMap::new(), true, 1.0);
+//! ```
+//!
+//! ## Macro Usage
+//!
+//! The recommended way to record metrics is by using the [`metric!`] macro. See the trait docs
+//! for more information on how to record each type of metric.
+//!
+//! ```
+//! use relay_statsd::{metric, CounterMetric};
+//!
+//! struct MyCounter;
+//!
+//! impl CounterMetric for MyCounter {
+//!     fn name(&amp;self) -&gt; &amp;&#39;static str {
+//!         &quot;counter&quot;
+//!     }
+//! }
+//!
+//! metric!(counter(MyCounter) += 1);
+//! ```
+//!
+//! ## Manual Usage
+//!
+//! ```
+//! use relay_statsd::prelude::*;
+//!
+//! relay_statsd::with_client(|client| {
+//!     client.count(&quot;mymetric&quot;, 1).ok();
+//! });
+//! ```
+//!
+//! [Metric Types]: https://github.com/statsd/statsd/blob/master/docs/metric_types.md
+</span><span class="kw">use </span>std::collections::BTreeMap;
+<span class="kw">use </span>std::net::{ToSocketAddrs, UdpSocket};
+<span class="kw">use </span>std::ops::{Deref, DerefMut};
+<span class="kw">use </span>std::sync::Arc;
 
-<span class="kw">use</span> <span class="ident">cadence</span>::{
-    <span class="ident">BufferedUdpMetricSink</span>, <span class="ident">Metric</span>, <span class="ident">MetricBuilder</span>, <span class="ident">QueuingMetricSink</span>, <span class="ident">SpyMetricSink</span>, <span class="ident">StatsdClient</span>,
-    <span class="ident">UdpMetricSink</span>,
+<span class="kw">use </span>cadence::{
+    BufferedUdpMetricSink, Metric, MetricBuilder, QueuingMetricSink, SpyMetricSink, StatsdClient,
+    UdpMetricSink,
 };
-<span class="kw">use</span> <span class="ident">parking_lot::RwLock</span>;
-<span class="kw">use</span> <span class="ident">rand::distributions</span>::{<span class="ident">Distribution</span>, <span class="ident">Uniform</span>};
+<span class="kw">use </span>parking_lot::RwLock;
+<span class="kw">use </span>rand::distributions::{Distribution, Uniform};
 
-<span class="kw">use</span> <span class="ident">relay_log::LogError</span>;
+<span class="kw">use </span>relay_log::LogError;
 
-<span class="doccomment">/// Maximum number of metric events that can be queued before we start dropping them</span>
-<span class="kw">const</span> <span class="ident">METRICS_MAX_QUEUE_SIZE</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">100_000</span>;
+<span class="doccomment">/// Maximum number of metric events that can be queued before we start dropping them
+</span><span class="kw">const </span>METRICS_MAX_QUEUE_SIZE: usize = <span class="number">100_000</span>;
 
-<span class="doccomment">/// Client configuration object to store globally.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MetricsClient</span> {
-    <span class="doccomment">/// The raw statsd client.</span>
-    <span class="kw">pub</span> <span class="ident">statsd_client</span>: <span class="ident">StatsdClient</span>,
-    <span class="doccomment">/// Default tags to apply to every metric.</span>
-    <span class="kw">pub</span> <span class="ident">default_tags</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// Global sample rate.</span>
-    <span class="kw">pub</span> <span class="ident">sample_rate</span>: <span class="ident">f32</span>,
+<span class="doccomment">/// Client configuration object to store globally.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>MetricsClient {
+    <span class="doccomment">/// The raw statsd client.
+    </span><span class="kw">pub </span>statsd_client: StatsdClient,
+    <span class="doccomment">/// Default tags to apply to every metric.
+    </span><span class="kw">pub </span>default_tags: BTreeMap&lt;String, String&gt;,
+    <span class="doccomment">/// Global sample rate.
+    </span><span class="kw">pub </span>sample_rate: f32,
 }
 
-<span class="kw">impl</span> <span class="ident">Deref</span> <span class="kw">for</span> <span class="ident">MetricsClient</span> {
-    <span class="kw">type</span> <span class="ident">Target</span> <span class="op">=</span> <span class="ident">StatsdClient</span>;
+<span class="kw">impl </span>Deref <span class="kw">for </span>MetricsClient {
+    <span class="kw">type </span>Target = StatsdClient;
 
-    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">StatsdClient</span> {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">statsd_client</span>
+    <span class="kw">fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>StatsdClient {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.statsd_client
     }
 }
 
-<span class="kw">impl</span> <span class="ident">DerefMut</span> <span class="kw">for</span> <span class="ident">MetricsClient</span> {
-    <span class="kw">fn</span> <span class="ident">deref_mut</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut</span> <span class="ident">StatsdClient</span> {
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">statsd_client</span>
+<span class="kw">impl </span>DerefMut <span class="kw">for </span>MetricsClient {
+    <span class="kw">fn </span>deref_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span>StatsdClient {
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>.statsd_client
     }
 }
 
-<span class="kw">impl</span> <span class="ident">MetricsClient</span> {
-    <span class="doccomment">/// Send a metric with the default tags defined on this `MetricsClient`.</span>
-    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">send_metric</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">metric</span>: <span class="ident">MetricBuilder</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;_</span>, <span class="ident">T</span><span class="op">&gt;</span>)
-    <span class="kw">where</span>
-        <span class="ident">T</span>: <span class="ident">Metric</span> <span class="op">+</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+<span class="kw">impl </span>MetricsClient {
+    <span class="doccomment">/// Send a metric with the default tags defined on this `MetricsClient`.
+    </span><span class="attribute">#[inline(always)]
+    </span><span class="kw">pub fn </span>send_metric&lt;<span class="lifetime">&#39;a</span>, T&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>, <span class="kw-2">mut </span>metric: MetricBuilder&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;_</span>, T&gt;)
+    <span class="kw">where
+        </span>T: Metric + From&lt;String&gt;,
     {
-        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">_should_send</span>() {
+        <span class="kw">if </span>!<span class="self">self</span>._should_send() {
             <span class="kw">return</span>;
         }
 
-        <span class="kw">for</span> (<span class="ident">k</span>, <span class="ident">v</span>) <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">default_tags</span> {
-            <span class="ident">metric</span> <span class="op">=</span> <span class="ident">metric</span>.<span class="ident">with_tag</span>(<span class="ident">k</span>, <span class="ident">v</span>);
+        <span class="kw">for </span>(k, v) <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.default_tags {
+            metric = metric.with_tag(k, v);
         }
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span> <span class="ident">metric</span>.<span class="ident">try_send</span>() {
+        <span class="kw">if let </span><span class="prelude-val">Err</span>(error) = metric.try_send() {
             <span class="macro">relay_log::error!</span>(
                 <span class="string">&quot;Error sending a metric: {}, maximum capacity: {}&quot;</span>,
-                <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>),
-                <span class="ident">METRICS_MAX_QUEUE_SIZE</span>
+                LogError(<span class="kw-2">&amp;</span>error),
+                METRICS_MAX_QUEUE_SIZE
             );
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">_should_send</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">sample_rate</span> <span class="op">&lt;</span><span class="op">=</span> <span class="number">0.0</span> {
-            <span class="bool-val">false</span>
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">sample_rate</span> <span class="op">&gt;</span><span class="op">=</span> <span class="number">1.0</span> {
-            <span class="bool-val">true</span>
-        } <span class="kw">else</span> {
-            <span class="comment">// Using thread local RNG and uniform distribution here because Rng::gen_range is</span>
-            <span class="comment">// &quot;optimized for the case that only a single sample is made from the given range&quot;.</span>
-            <span class="comment">// See https://docs.rs/rand/0.7.3/rand/distributions/uniform/struct.Uniform.html for more</span>
-            <span class="comment">// details.</span>
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> <span class="ident">rand::thread_rng</span>();
-            <span class="ident">RNG_UNIFORM_DISTRIBUTION</span>
-                .<span class="ident">with</span>(<span class="op">|</span><span class="ident">uniform_dist</span><span class="op">|</span> <span class="ident">uniform_dist</span>.<span class="ident">sample</span>(<span class="kw-2">&amp;mut</span> <span class="ident">rng</span>) <span class="op">&lt;</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">sample_rate</span>)
+    <span class="kw">fn </span>_should_send(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="kw">if </span><span class="self">self</span>.sample_rate &lt;= <span class="number">0.0 </span>{
+            <span class="bool-val">false
+        </span>} <span class="kw">else if </span><span class="self">self</span>.sample_rate &gt;= <span class="number">1.0 </span>{
+            <span class="bool-val">true
+        </span>} <span class="kw">else </span>{
+            <span class="comment">// Using thread local RNG and uniform distribution here because Rng::gen_range is
+            // &quot;optimized for the case that only a single sample is made from the given range&quot;.
+            // See https://docs.rs/rand/0.7.3/rand/distributions/uniform/struct.Uniform.html for more
+            // details.
+            </span><span class="kw">let </span><span class="kw-2">mut </span>rng = rand::thread_rng();
+            RNG_UNIFORM_DISTRIBUTION
+                .with(|uniform_dist| uniform_dist.sample(<span class="kw-2">&amp;mut </span>rng) &lt;= <span class="self">self</span>.sample_rate)
         }
     }
 }
 
-<span class="kw">static</span> <span class="ident">METRICS_CLIENT</span>: <span class="ident">RwLock</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">MetricsClient</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">RwLock::new</span>(<span class="prelude-val">None</span>);
+<span class="kw">static </span>METRICS_CLIENT: RwLock&lt;<span class="prelude-ty">Option</span>&lt;Arc&lt;MetricsClient&gt;&gt;&gt; = RwLock::new(<span class="prelude-val">None</span>);
 
-<span class="macro">thread_local!</span> {
-    <span class="kw">static</span> <span class="ident">CURRENT_CLIENT</span>: <span class="ident">std::cell::RefCell</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">MetricsClient</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span>  <span class="op">=</span> <span class="ident">METRICS_CLIENT</span>.<span class="ident">read</span>().<span class="ident">clone</span>().<span class="ident">into</span>();
-    <span class="kw">static</span> <span class="ident">RNG_UNIFORM_DISTRIBUTION</span>: <span class="ident">Uniform</span><span class="op">&lt;</span><span class="ident">f32</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Uniform::new</span>(<span class="number">0.0</span>, <span class="number">1.0</span>);
+<span class="macro">thread_local! </span>{
+    <span class="kw">static </span>CURRENT_CLIENT: std::cell::RefCell&lt;<span class="prelude-ty">Option</span>&lt;Arc&lt;MetricsClient&gt;&gt;&gt;  = METRICS_CLIENT.read().clone().into();
+    <span class="kw">static </span>RNG_UNIFORM_DISTRIBUTION: Uniform&lt;f32&gt; = Uniform::new(<span class="number">0.0</span>, <span class="number">1.0</span>);
 }
 
-<span class="doccomment">/// Internal prelude for the macro</span>
-<span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">_pred</span> {
-    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">cadence::prelude</span>::<span class="kw-2">*</span>;
+<span class="doccomment">/// Internal prelude for the macro
+</span><span class="attribute">#[doc(hidden)]
+</span><span class="kw">pub mod </span>_pred {
+    <span class="kw">pub use </span>cadence::prelude::<span class="kw-2">*</span>;
 }
 
-<span class="doccomment">/// The metrics prelude that is necessary to use the client.</span>
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">prelude</span> {
-    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">cadence::prelude</span>::<span class="kw-2">*</span>;
+<span class="doccomment">/// The metrics prelude that is necessary to use the client.
+</span><span class="kw">pub mod </span>prelude {
+    <span class="kw">pub use </span>cadence::prelude::<span class="kw-2">*</span>;
 }
 
-<span class="doccomment">/// Set a new statsd client.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_client</span>(<span class="ident">client</span>: <span class="ident">MetricsClient</span>) {
-    <span class="kw-2">*</span><span class="ident">METRICS_CLIENT</span>.<span class="ident">write</span>() <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">Arc::new</span>(<span class="ident">client</span>));
-    <span class="ident">CURRENT_CLIENT</span>.<span class="ident">with</span>(<span class="op">|</span><span class="ident">cell</span><span class="op">|</span> <span class="ident">cell</span>.<span class="ident">replace</span>(<span class="ident">METRICS_CLIENT</span>.<span class="ident">read</span>().<span class="ident">clone</span>()));
+<span class="doccomment">/// Set a new statsd client.
+</span><span class="kw">pub fn </span>set_client(client: MetricsClient) {
+    <span class="kw-2">*</span>METRICS_CLIENT.write() = <span class="prelude-val">Some</span>(Arc::new(client));
+    CURRENT_CLIENT.with(|cell| cell.replace(METRICS_CLIENT.read().clone()));
 }
 
-<span class="doccomment">/// Set a test client for the period of the called function (only affects the current thread).</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_capturing_test_client</span>(<span class="ident">f</span>: <span class="kw">impl</span> <span class="ident">FnOnce</span>()) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> (<span class="ident">rx</span>, <span class="ident">sink</span>) <span class="op">=</span> <span class="ident">SpyMetricSink::new</span>();
-    <span class="kw">let</span> <span class="ident">test_client</span> <span class="op">=</span> <span class="ident">MetricsClient</span> {
-        <span class="ident">statsd_client</span>: <span class="ident">StatsdClient::from_sink</span>(<span class="string">&quot;&quot;</span>, <span class="ident">sink</span>),
-        <span class="ident">default_tags</span>: <span class="ident">Default::default</span>(),
-        <span class="ident">sample_rate</span>: <span class="number">1.0</span>,
+<span class="doccomment">/// Set a test client for the period of the called function (only affects the current thread).
+</span><span class="kw">pub fn </span>with_capturing_test_client(f: <span class="kw">impl </span>FnOnce()) -&gt; Vec&lt;String&gt; {
+    <span class="kw">let </span>(rx, sink) = SpyMetricSink::new();
+    <span class="kw">let </span>test_client = MetricsClient {
+        statsd_client: StatsdClient::from_sink(<span class="string">&quot;&quot;</span>, sink),
+        default_tags: Default::default(),
+        sample_rate: <span class="number">1.0</span>,
     };
 
-    <span class="ident">CURRENT_CLIENT</span>.<span class="ident">with</span>(<span class="op">|</span><span class="ident">cell</span><span class="op">|</span> {
-        <span class="kw">let</span> <span class="ident">old_client</span> <span class="op">=</span> <span class="ident">cell</span>.<span class="ident">replace</span>(<span class="prelude-val">Some</span>(<span class="ident">Arc::new</span>(<span class="ident">test_client</span>)));
-        <span class="ident">f</span>();
-        <span class="ident">cell</span>.<span class="ident">replace</span>(<span class="ident">old_client</span>);
+    CURRENT_CLIENT.with(|cell| {
+        <span class="kw">let </span>old_client = cell.replace(<span class="prelude-val">Some</span>(Arc::new(test_client)));
+        f();
+        cell.replace(old_client);
     });
 
-    <span class="ident">rx</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">String::from_utf8</span>(<span class="ident">x</span>).<span class="ident">unwrap</span>()).<span class="ident">collect</span>()
+    rx.iter().map(|x| String::from_utf8(x).unwrap()).collect()
 }
 
-<span class="doccomment">/// Disable the client again.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">disable</span>() {
-    <span class="kw-2">*</span><span class="ident">METRICS_CLIENT</span>.<span class="ident">write</span>() <span class="op">=</span> <span class="prelude-val">None</span>;
+<span class="doccomment">/// Disable the client again.
+</span><span class="kw">pub fn </span>disable() {
+    <span class="kw-2">*</span>METRICS_CLIENT.write() = <span class="prelude-val">None</span>;
 }
 
-<span class="doccomment">/// Tell the metrics system to report to statsd.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">init</span><span class="op">&lt;</span><span class="ident">A</span>: <span class="ident">ToSocketAddrs</span><span class="op">&gt;</span>(
-    <span class="ident">prefix</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
-    <span class="ident">host</span>: <span class="ident">A</span>,
-    <span class="ident">default_tags</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="ident">buffering</span>: <span class="ident">bool</span>,
-    <span class="ident">sample_rate</span>: <span class="ident">f32</span>,
+<span class="doccomment">/// Tell the metrics system to report to statsd.
+</span><span class="kw">pub fn </span>init&lt;A: ToSocketAddrs&gt;(
+    prefix: <span class="kw-2">&amp;</span>str,
+    host: A,
+    default_tags: BTreeMap&lt;String, String&gt;,
+    buffering: bool,
+    sample_rate: f32,
 ) {
-    <span class="kw">let</span> <span class="ident">addrs</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">host</span>.<span class="ident">to_socket_addrs</span>().<span class="ident">unwrap</span>().<span class="ident">collect</span>();
-    <span class="kw">if</span> <span class="op">!</span><span class="ident">addrs</span>.<span class="ident">is_empty</span>() {
-        <span class="macro">relay_log::info!</span>(<span class="string">&quot;reporting metrics to statsd at {}&quot;</span>, <span class="ident">addrs</span>[<span class="number">0</span>]);
+    <span class="kw">let </span>addrs: Vec&lt;<span class="kw">_</span>&gt; = host.to_socket_addrs().unwrap().collect();
+    <span class="kw">if </span>!addrs.is_empty() {
+        <span class="macro">relay_log::info!</span>(<span class="string">&quot;reporting metrics to statsd at {}&quot;</span>, addrs[<span class="number">0</span>]);
     }
 
-    <span class="comment">// Normalize sample_rate</span>
-    <span class="kw">let</span> <span class="ident">sample_rate</span> <span class="op">=</span> <span class="ident">sample_rate</span>.<span class="ident">max</span>(<span class="number">0.</span>).<span class="ident">min</span>(<span class="number">1.</span>);
+    <span class="comment">// Normalize sample_rate
+    </span><span class="kw">let </span>sample_rate = sample_rate.max(<span class="number">0.</span>).min(<span class="number">1.</span>);
     <span class="macro">relay_log::debug!</span>(
         <span class="string">&quot;metrics sample rate is set to {}{}&quot;</span>,
-        <span class="ident">sample_rate</span>,
-        <span class="kw">if</span> <span class="ident">sample_rate</span> <span class="op">==</span> <span class="number">0.0</span> {
-            <span class="string">&quot;, no metrics will be reported&quot;</span>
-        } <span class="kw">else</span> {
-            <span class="string">&quot;&quot;</span>
-        }
+        sample_rate,
+        <span class="kw">if </span>sample_rate == <span class="number">0.0 </span>{
+            <span class="string">&quot;, no metrics will be reported&quot;
+        </span>} <span class="kw">else </span>{
+            <span class="string">&quot;&quot;
+        </span>}
     );
 
-    <span class="kw">let</span> <span class="ident">socket</span> <span class="op">=</span> <span class="ident">UdpSocket::bind</span>(<span class="string">&quot;0.0.0.0:0&quot;</span>).<span class="ident">unwrap</span>();
-    <span class="ident">socket</span>.<span class="ident">set_nonblocking</span>(<span class="bool-val">true</span>).<span class="ident">unwrap</span>();
+    <span class="kw">let </span>socket = UdpSocket::bind(<span class="string">&quot;0.0.0.0:0&quot;</span>).unwrap();
+    socket.set_nonblocking(<span class="bool-val">true</span>).unwrap();
 
-    <span class="kw">let</span> <span class="ident">statsd_client</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">buffering</span> {
-        <span class="kw">let</span> <span class="ident">udp_sink</span> <span class="op">=</span> <span class="ident">BufferedUdpMetricSink::from</span>(<span class="ident">host</span>, <span class="ident">socket</span>).<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="ident">queuing_sink</span> <span class="op">=</span> <span class="ident">QueuingMetricSink::with_capacity</span>(<span class="ident">udp_sink</span>, <span class="ident">METRICS_MAX_QUEUE_SIZE</span>);
-        <span class="ident">StatsdClient::from_sink</span>(<span class="ident">prefix</span>, <span class="ident">queuing_sink</span>)
-    } <span class="kw">else</span> {
-        <span class="kw">let</span> <span class="ident">simple_sink</span> <span class="op">=</span> <span class="ident">UdpMetricSink::from</span>(<span class="ident">host</span>, <span class="ident">socket</span>).<span class="ident">unwrap</span>();
-        <span class="ident">StatsdClient::from_sink</span>(<span class="ident">prefix</span>, <span class="ident">simple_sink</span>)
+    <span class="kw">let </span>statsd_client = <span class="kw">if </span>buffering {
+        <span class="kw">let </span>udp_sink = BufferedUdpMetricSink::from(host, socket).unwrap();
+        <span class="kw">let </span>queuing_sink = QueuingMetricSink::with_capacity(udp_sink, METRICS_MAX_QUEUE_SIZE);
+        StatsdClient::from_sink(prefix, queuing_sink)
+    } <span class="kw">else </span>{
+        <span class="kw">let </span>simple_sink = UdpMetricSink::from(host, socket).unwrap();
+        StatsdClient::from_sink(prefix, simple_sink)
     };
     <span class="macro">relay_log::debug!</span>(
         <span class="string">&quot;metrics buffering is {}&quot;</span>,
-        <span class="kw">if</span> <span class="ident">buffering</span> { <span class="string">&quot;enabled&quot;</span> } <span class="kw">else</span> { <span class="string">&quot;disabled&quot;</span> }
+        <span class="kw">if </span>buffering { <span class="string">&quot;enabled&quot; </span>} <span class="kw">else </span>{ <span class="string">&quot;disabled&quot; </span>}
     );
 
-    <span class="ident">set_client</span>(<span class="ident">MetricsClient</span> {
-        <span class="ident">statsd_client</span>,
-        <span class="ident">default_tags</span>,
-        <span class="ident">sample_rate</span>,
+    set_client(MetricsClient {
+        statsd_client,
+        default_tags,
+        sample_rate,
     });
 }
 
-<span class="doccomment">/// Invoke a callback with the current statsd client.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// If statsd is not configured the callback is not invoked.  For the most part</span>
-<span class="doccomment">/// the [`metric!`] macro should be used instead.</span>
-<span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_client</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">R</span><span class="op">&gt;</span>(<span class="ident">f</span>: <span class="ident">F</span>) -&gt; <span class="ident">R</span>
-<span class="kw">where</span>
-    <span class="ident">F</span>: <span class="ident">FnOnce</span>(<span class="kw-2">&amp;</span><span class="ident">MetricsClient</span>) -&gt; <span class="ident">R</span>,
-    <span class="ident">R</span>: <span class="ident">Default</span>,
+<span class="doccomment">/// Invoke a callback with the current statsd client.
+///
+/// If statsd is not configured the callback is not invoked.  For the most part
+/// the [`metric!`] macro should be used instead.
+</span><span class="attribute">#[inline(always)]
+</span><span class="kw">pub fn </span>with_client&lt;F, R&gt;(f: F) -&gt; R
+<span class="kw">where
+    </span>F: FnOnce(<span class="kw-2">&amp;</span>MetricsClient) -&gt; R,
+    R: Default,
 {
-    <span class="ident">CURRENT_CLIENT</span>.<span class="ident">with</span>(<span class="op">|</span><span class="ident">client</span><span class="op">|</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">client</span>) <span class="op">=</span> <span class="ident">client</span>.<span class="ident">borrow</span>().<span class="ident">as_deref</span>() {
-            <span class="ident">f</span>(<span class="ident">client</span>)
-        } <span class="kw">else</span> {
-            <span class="ident">R::default</span>()
+    CURRENT_CLIENT.with(|client| {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(client) = client.borrow().as_deref() {
+            f(client)
+        } <span class="kw">else </span>{
+            R::default()
         }
     })
 }
 
-<span class="doccomment">/// A metric for capturing timings.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Timings are a positive number of milliseconds between a start and end time. Examples include</span>
-<span class="doccomment">/// time taken to render a web page or time taken for a database call to return.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ## Example</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">/// use relay_statsd::{metric, TimerMetric};</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// enum MyTimer {</span>
-<span class="doccomment">///     ProcessA,</span>
-<span class="doccomment">///     ProcessB,</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// impl TimerMetric for MyTimer {</span>
-<span class="doccomment">///     fn name(&amp;self) -&gt; &amp;&#39;static str {</span>
-<span class="doccomment">///         match self {</span>
-<span class="doccomment">///             Self::ProcessA =&gt; &quot;process_a&quot;,</span>
-<span class="doccomment">///             Self::ProcessB =&gt; &quot;process_b&quot;,</span>
-<span class="doccomment">///         }</span>
-<span class="doccomment">///     }</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// # fn process_a() {}</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// // measure time by explicitly setting a std::timer::Duration</span>
-<span class="doccomment">/// # use std::time::Instant;</span>
-<span class="doccomment">/// let start_time = Instant::now();</span>
-<span class="doccomment">/// process_a();</span>
-<span class="doccomment">/// metric!(timer(MyTimer::ProcessA) = start_time.elapsed());</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// // provide tags to a timer</span>
-<span class="doccomment">/// metric!(</span>
-<span class="doccomment">///     timer(MyTimer::ProcessA) = start_time.elapsed(),</span>
-<span class="doccomment">///     server = &quot;server1&quot;,</span>
-<span class="doccomment">///     host = &quot;host1&quot;,</span>
-<span class="doccomment">/// );</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// // measure time implicitly by enclosing a code block in a metric</span>
-<span class="doccomment">/// metric!(timer(MyTimer::ProcessA), {</span>
-<span class="doccomment">///     process_a();</span>
-<span class="doccomment">/// });</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// // measure block and also provide tags</span>
-<span class="doccomment">/// metric!(</span>
-<span class="doccomment">///     timer(MyTimer::ProcessB),</span>
-<span class="doccomment">///     server = &quot;server1&quot;,</span>
-<span class="doccomment">///     host = &quot;host1&quot;,</span>
-<span class="doccomment">///     {</span>
-<span class="doccomment">///         process_a();</span>
-<span class="doccomment">///     }</span>
-<span class="doccomment">/// );</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```</span>
-<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">TimerMetric</span> {
-    <span class="doccomment">/// Returns the timer metric name that will be sent to statsd.</span>
-    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>;
+<span class="doccomment">/// A metric for capturing timings.
+///
+/// Timings are a positive number of milliseconds between a start and end time. Examples include
+/// time taken to render a web page or time taken for a database call to return.
+///
+/// ## Example
+///
+/// ```
+/// use relay_statsd::{metric, TimerMetric};
+///
+/// enum MyTimer {
+///     ProcessA,
+///     ProcessB,
+/// }
+///
+/// impl TimerMetric for MyTimer {
+///     fn name(&amp;self) -&gt; &amp;&#39;static str {
+///         match self {
+///             Self::ProcessA =&gt; &quot;process_a&quot;,
+///             Self::ProcessB =&gt; &quot;process_b&quot;,
+///         }
+///     }
+/// }
+///
+/// # fn process_a() {}
+///
+/// // measure time by explicitly setting a std::timer::Duration
+/// # use std::time::Instant;
+/// let start_time = Instant::now();
+/// process_a();
+/// metric!(timer(MyTimer::ProcessA) = start_time.elapsed());
+///
+/// // provide tags to a timer
+/// metric!(
+///     timer(MyTimer::ProcessA) = start_time.elapsed(),
+///     server = &quot;server1&quot;,
+///     host = &quot;host1&quot;,
+/// );
+///
+/// // measure time implicitly by enclosing a code block in a metric
+/// metric!(timer(MyTimer::ProcessA), {
+///     process_a();
+/// });
+///
+/// // measure block and also provide tags
+/// metric!(
+///     timer(MyTimer::ProcessB),
+///     server = &quot;server1&quot;,
+///     host = &quot;host1&quot;,
+///     {
+///         process_a();
+///     }
+/// );
+///
+/// ```
+</span><span class="kw">pub trait </span>TimerMetric {
+    <span class="doccomment">/// Returns the timer metric name that will be sent to statsd.
+    </span><span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str;
 }
 
-<span class="doccomment">/// A metric for capturing counters.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Counters are simple values incremented or decremented by a client. The rates at which these</span>
-<span class="doccomment">/// events occur or average values will be determined by the server receiving them. Examples of</span>
-<span class="doccomment">/// counter uses include number of logins to a system or requests received.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ## Example</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">/// use relay_statsd::{metric, CounterMetric};</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// enum MyCounter {</span>
-<span class="doccomment">///     TotalRequests,</span>
-<span class="doccomment">///     TotalBytes,</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// impl CounterMetric for MyCounter {</span>
-<span class="doccomment">///     fn name(&amp;self) -&gt; &amp;&#39;static str {</span>
-<span class="doccomment">///         match self {</span>
-<span class="doccomment">///             Self::TotalRequests =&gt; &quot;total_requests&quot;,</span>
-<span class="doccomment">///             Self::TotalBytes =&gt; &quot;total_bytes&quot;,</span>
-<span class="doccomment">///         }</span>
-<span class="doccomment">///     }</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// # let buffer = &amp;[(), ()];</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// // add to the counter</span>
-<span class="doccomment">/// metric!(counter(MyCounter::TotalRequests) += 1);</span>
-<span class="doccomment">/// metric!(counter(MyCounter::TotalBytes) += buffer.len() as i64);</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// // add to the counter and provide tags</span>
-<span class="doccomment">/// metric!(</span>
-<span class="doccomment">///     counter(MyCounter::TotalRequests) += 1,</span>
-<span class="doccomment">///     server = &quot;s1&quot;,</span>
-<span class="doccomment">///     host = &quot;h1&quot;</span>
-<span class="doccomment">/// );</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// // subtract from the counter</span>
-<span class="doccomment">/// metric!(counter(MyCounter::TotalRequests) -= 1);</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// // subtract from the counter and provide tags</span>
-<span class="doccomment">/// metric!(</span>
-<span class="doccomment">///     counter(MyCounter::TotalRequests) -= 1,</span>
-<span class="doccomment">///     server = &quot;s1&quot;,</span>
-<span class="doccomment">///     host = &quot;h1&quot;</span>
-<span class="doccomment">/// );</span>
-<span class="doccomment">/// ```</span>
-<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">CounterMetric</span> {
-    <span class="doccomment">/// Returns the counter metric name that will be sent to statsd.</span>
-    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>;
+<span class="doccomment">/// A metric for capturing counters.
+///
+/// Counters are simple values incremented or decremented by a client. The rates at which these
+/// events occur or average values will be determined by the server receiving them. Examples of
+/// counter uses include number of logins to a system or requests received.
+///
+/// ## Example
+///
+/// ```
+/// use relay_statsd::{metric, CounterMetric};
+///
+/// enum MyCounter {
+///     TotalRequests,
+///     TotalBytes,
+/// }
+///
+/// impl CounterMetric for MyCounter {
+///     fn name(&amp;self) -&gt; &amp;&#39;static str {
+///         match self {
+///             Self::TotalRequests =&gt; &quot;total_requests&quot;,
+///             Self::TotalBytes =&gt; &quot;total_bytes&quot;,
+///         }
+///     }
+/// }
+///
+/// # let buffer = &amp;[(), ()];
+///
+/// // add to the counter
+/// metric!(counter(MyCounter::TotalRequests) += 1);
+/// metric!(counter(MyCounter::TotalBytes) += buffer.len() as i64);
+///
+/// // add to the counter and provide tags
+/// metric!(
+///     counter(MyCounter::TotalRequests) += 1,
+///     server = &quot;s1&quot;,
+///     host = &quot;h1&quot;
+/// );
+///
+/// // subtract from the counter
+/// metric!(counter(MyCounter::TotalRequests) -= 1);
+///
+/// // subtract from the counter and provide tags
+/// metric!(
+///     counter(MyCounter::TotalRequests) -= 1,
+///     server = &quot;s1&quot;,
+///     host = &quot;h1&quot;
+/// );
+/// ```
+</span><span class="kw">pub trait </span>CounterMetric {
+    <span class="doccomment">/// Returns the counter metric name that will be sent to statsd.
+    </span><span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str;
 }
 
-<span class="doccomment">/// A metric for capturing histograms.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Histograms are values whose distribution is calculated by the server. The distribution</span>
-<span class="doccomment">/// calculated for histograms is often similar to that of timers. Histograms can be thought of as a</span>
-<span class="doccomment">/// more general (not limited to timing things) form of timers.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ## Example</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">/// use relay_statsd::{metric, HistogramMetric};</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// struct QueueSize;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// impl HistogramMetric for QueueSize {</span>
-<span class="doccomment">///     fn name(&amp;self) -&gt; &amp;&#39;static str {</span>
-<span class="doccomment">///         &quot;queue_size&quot;</span>
-<span class="doccomment">///     }</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// # use std::collections::VecDeque;</span>
-<span class="doccomment">/// let queue = VecDeque::new();</span>
-<span class="doccomment">/// # let _hint: &amp;VecDeque&lt;()&gt; = &amp;queue;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// // record a histogram value</span>
-<span class="doccomment">/// metric!(histogram(QueueSize) = queue.len() as u64);</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// // record with tags</span>
-<span class="doccomment">/// metric!(</span>
-<span class="doccomment">///     histogram(QueueSize) = queue.len() as u64,</span>
-<span class="doccomment">///     server = &quot;server1&quot;,</span>
-<span class="doccomment">///     host = &quot;host1&quot;,</span>
-<span class="doccomment">/// );</span>
-<span class="doccomment">/// ```</span>
-<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">HistogramMetric</span> {
-    <span class="doccomment">/// Returns the histogram metric name that will be sent to statsd.</span>
-    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>;
+<span class="doccomment">/// A metric for capturing histograms.
+///
+/// Histograms are values whose distribution is calculated by the server. The distribution
+/// calculated for histograms is often similar to that of timers. Histograms can be thought of as a
+/// more general (not limited to timing things) form of timers.
+///
+/// ## Example
+///
+/// ```
+/// use relay_statsd::{metric, HistogramMetric};
+///
+/// struct QueueSize;
+///
+/// impl HistogramMetric for QueueSize {
+///     fn name(&amp;self) -&gt; &amp;&#39;static str {
+///         &quot;queue_size&quot;
+///     }
+/// }
+///
+/// # use std::collections::VecDeque;
+/// let queue = VecDeque::new();
+/// # let _hint: &amp;VecDeque&lt;()&gt; = &amp;queue;
+///
+/// // record a histogram value
+/// metric!(histogram(QueueSize) = queue.len() as u64);
+///
+/// // record with tags
+/// metric!(
+///     histogram(QueueSize) = queue.len() as u64,
+///     server = &quot;server1&quot;,
+///     host = &quot;host1&quot;,
+/// );
+/// ```
+</span><span class="kw">pub trait </span>HistogramMetric {
+    <span class="doccomment">/// Returns the histogram metric name that will be sent to statsd.
+    </span><span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str;
 }
 
-<span class="doccomment">/// A metric for capturing sets.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Sets count the number of unique elements in a group. You can use them to, for example, count the</span>
-<span class="doccomment">/// unique visitors to your site.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ## Example</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">/// use relay_statsd::{metric, SetMetric};</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// enum MySet {</span>
-<span class="doccomment">///     UniqueProjects,</span>
-<span class="doccomment">///     UniqueUsers,</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// impl SetMetric for MySet {</span>
-<span class="doccomment">///     fn name(&amp;self) -&gt; &amp;&#39;static str {</span>
-<span class="doccomment">///         match self {</span>
-<span class="doccomment">///             MySet::UniqueProjects =&gt; &quot;unique_projects&quot;,</span>
-<span class="doccomment">///             MySet::UniqueUsers =&gt; &quot;unique_users&quot;,</span>
-<span class="doccomment">///         }</span>
-<span class="doccomment">///     }</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// # use std::collections::HashSet;</span>
-<span class="doccomment">/// let users = HashSet::new();</span>
-<span class="doccomment">/// # let _hint: &amp;HashSet&lt;()&gt; = &amp;users;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// // use a set metric</span>
-<span class="doccomment">/// metric!(set(MySet::UniqueUsers) = users.len() as i64);</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// // use a set metric with tags</span>
-<span class="doccomment">/// metric!(</span>
-<span class="doccomment">///     set(MySet::UniqueUsers) = users.len() as i64,</span>
-<span class="doccomment">///     server = &quot;server1&quot;,</span>
-<span class="doccomment">///     host = &quot;host1&quot;,</span>
-<span class="doccomment">/// );</span>
-<span class="doccomment">/// ```</span>
-<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">SetMetric</span> {
-    <span class="doccomment">/// Returns the set metric name that will be sent to statsd.</span>
-    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>;
+<span class="doccomment">/// A metric for capturing sets.
+///
+/// Sets count the number of unique elements in a group. You can use them to, for example, count the
+/// unique visitors to your site.
+///
+/// ## Example
+///
+/// ```
+/// use relay_statsd::{metric, SetMetric};
+///
+/// enum MySet {
+///     UniqueProjects,
+///     UniqueUsers,
+/// }
+///
+/// impl SetMetric for MySet {
+///     fn name(&amp;self) -&gt; &amp;&#39;static str {
+///         match self {
+///             MySet::UniqueProjects =&gt; &quot;unique_projects&quot;,
+///             MySet::UniqueUsers =&gt; &quot;unique_users&quot;,
+///         }
+///     }
+/// }
+///
+/// # use std::collections::HashSet;
+/// let users = HashSet::new();
+/// # let _hint: &amp;HashSet&lt;()&gt; = &amp;users;
+///
+/// // use a set metric
+/// metric!(set(MySet::UniqueUsers) = users.len() as i64);
+///
+/// // use a set metric with tags
+/// metric!(
+///     set(MySet::UniqueUsers) = users.len() as i64,
+///     server = &quot;server1&quot;,
+///     host = &quot;host1&quot;,
+/// );
+/// ```
+</span><span class="kw">pub trait </span>SetMetric {
+    <span class="doccomment">/// Returns the set metric name that will be sent to statsd.
+    </span><span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str;
 }
 
-<span class="doccomment">/// A metric for capturing gauges.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Gauge values are an instantaneous measurement of a value determined by the client. They do not</span>
-<span class="doccomment">/// change unless changed by the client. Examples include things like load average or how many</span>
-<span class="doccomment">/// connections are active.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ## Example</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">/// use relay_statsd::{metric, GaugeMetric};</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// struct QueueSize;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// impl GaugeMetric for QueueSize {</span>
-<span class="doccomment">///     fn name(&amp;self) -&gt; &amp;&#39;static str {</span>
-<span class="doccomment">///         &quot;queue_size&quot;</span>
-<span class="doccomment">///     }</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// # use std::collections::VecDeque;</span>
-<span class="doccomment">/// let queue = VecDeque::new();</span>
-<span class="doccomment">/// # let _hint: &amp;VecDeque&lt;()&gt; = &amp;queue;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// // a simple gauge value</span>
-<span class="doccomment">/// metric!(gauge(QueueSize) = queue.len() as u64);</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// // a gauge with tags</span>
-<span class="doccomment">/// metric!(</span>
-<span class="doccomment">///     gauge(QueueSize) = queue.len() as u64,</span>
-<span class="doccomment">///     server = &quot;server1&quot;,</span>
-<span class="doccomment">///     host = &quot;host1&quot;</span>
-<span class="doccomment">/// );</span>
-<span class="doccomment">/// ```</span>
-<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">GaugeMetric</span> {
-    <span class="doccomment">/// Returns the gauge metric name that will be sent to statsd.</span>
-    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>;
+<span class="doccomment">/// A metric for capturing gauges.
+///
+/// Gauge values are an instantaneous measurement of a value determined by the client. They do not
+/// change unless changed by the client. Examples include things like load average or how many
+/// connections are active.
+///
+/// ## Example
+///
+/// ```
+/// use relay_statsd::{metric, GaugeMetric};
+///
+/// struct QueueSize;
+///
+/// impl GaugeMetric for QueueSize {
+///     fn name(&amp;self) -&gt; &amp;&#39;static str {
+///         &quot;queue_size&quot;
+///     }
+/// }
+///
+/// # use std::collections::VecDeque;
+/// let queue = VecDeque::new();
+/// # let _hint: &amp;VecDeque&lt;()&gt; = &amp;queue;
+///
+/// // a simple gauge value
+/// metric!(gauge(QueueSize) = queue.len() as u64);
+///
+/// // a gauge with tags
+/// metric!(
+///     gauge(QueueSize) = queue.len() as u64,
+///     server = &quot;server1&quot;,
+///     host = &quot;host1&quot;
+/// );
+/// ```
+</span><span class="kw">pub trait </span>GaugeMetric {
+    <span class="doccomment">/// Returns the gauge metric name that will be sent to statsd.
+    </span><span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str;
 }
 
-<span class="doccomment">/// Emits a metric.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// See [crate-level documentation](self) for examples.</span>
-<span class="attribute">#[<span class="ident">macro_export</span>]</span>
-<span class="macro">macro_rules!</span> <span class="ident">metric</span> {
-    <span class="comment">// counter increment</span>
-    (<span class="ident">counter</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>:<span class="ident">expr</span>) <span class="op">+</span><span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>:<span class="ident">expr</span> $(, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>:<span class="ident">ident</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>:<span class="ident">expr</span>)<span class="op">*</span> $(,)<span class="question-mark">?</span>) =&gt; {
-        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">crate::with_client</span>(<span class="op">|</span><span class="ident">client</span><span class="op">|</span> {
-            <span class="kw">use</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">crate::_pred</span>::<span class="kw-2">*</span>;
-            <span class="ident">client</span>.<span class="ident">send_metric</span>(
-                <span class="ident">client</span>.<span class="ident">count_with_tags</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">crate::CounterMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>)
-                $(.<span class="ident">with_tag</span>(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>))<span class="op">*</span>
+<span class="doccomment">/// Emits a metric.
+///
+/// See [crate-level documentation](self) for examples.
+</span><span class="attribute">#[macro_export]
+</span><span class="macro">macro_rules! </span>metric {
+    <span class="comment">// counter increment
+    </span>(counter(<span class="macro-nonterminal">$id</span>:expr) += <span class="macro-nonterminal">$value</span>:expr $(, <span class="macro-nonterminal">$k</span>:ident = <span class="macro-nonterminal">$v</span>:expr)* $(,)<span class="question-mark">?</span>) =&gt; {
+        <span class="macro-nonterminal">$crate::with_client</span>(|client| {
+            <span class="kw">use </span><span class="macro-nonterminal">$crate::_pred</span>::<span class="kw-2">*</span>;
+            client.send_metric(
+                client.count_with_tags(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$crate::CounterMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$id</span>), <span class="macro-nonterminal">$value</span>)
+                $(.with_tag(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$k</span>), <span class="macro-nonterminal">$v</span>))*
             )
         })
     };
 
-    <span class="comment">// counter decrement</span>
-    (<span class="ident">counter</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>:<span class="ident">expr</span>) <span class="op">-</span><span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>:<span class="ident">expr</span> $(, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>:<span class="ident">ident</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>:<span class="ident">expr</span>)<span class="op">*</span> $(,)<span class="question-mark">?</span>) =&gt; {
-        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">crate::with_client</span>(<span class="op">|</span><span class="ident">client</span><span class="op">|</span> {
-            <span class="kw">use</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">crate::_pred</span>::<span class="kw-2">*</span>;
-            <span class="ident">client</span>.<span class="ident">send_metric</span>(
-                <span class="ident">client</span>.<span class="ident">count_with_tags</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">crate::CounterMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>), <span class="op">-</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>)
-                    $(.<span class="ident">with_tag</span>(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>))<span class="op">*</span>
+    <span class="comment">// counter decrement
+    </span>(counter(<span class="macro-nonterminal">$id</span>:expr) -= <span class="macro-nonterminal">$value</span>:expr $(, <span class="macro-nonterminal">$k</span>:ident = <span class="macro-nonterminal">$v</span>:expr)* $(,)<span class="question-mark">?</span>) =&gt; {
+        <span class="macro-nonterminal">$crate::with_client</span>(|client| {
+            <span class="kw">use </span><span class="macro-nonterminal">$crate::_pred</span>::<span class="kw-2">*</span>;
+            client.send_metric(
+                client.count_with_tags(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$crate::CounterMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$id</span>), -<span class="macro-nonterminal">$value</span>)
+                    $(.with_tag(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$k</span>), <span class="macro-nonterminal">$v</span>))*
             )
         })
     };
 
-    <span class="comment">// gauge set</span>
-    (<span class="ident">gauge</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>:<span class="ident">expr</span>) <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>:<span class="ident">expr</span> $(, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>:<span class="ident">ident</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>:<span class="ident">expr</span>)<span class="op">*</span> $(,)<span class="question-mark">?</span>) =&gt; {
-        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">crate::with_client</span>(<span class="op">|</span><span class="ident">client</span><span class="op">|</span> {
-            <span class="kw">use</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">crate::_pred</span>::<span class="kw-2">*</span>;
-            <span class="ident">client</span>.<span class="ident">send_metric</span>(
-                <span class="ident">client</span>.<span class="ident">gauge_with_tags</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">crate::GaugeMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>)
-                    $(.<span class="ident">with_tag</span>(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>))<span class="op">*</span>
+    <span class="comment">// gauge set
+    </span>(gauge(<span class="macro-nonterminal">$id</span>:expr) = <span class="macro-nonterminal">$value</span>:expr $(, <span class="macro-nonterminal">$k</span>:ident = <span class="macro-nonterminal">$v</span>:expr)* $(,)<span class="question-mark">?</span>) =&gt; {
+        <span class="macro-nonterminal">$crate::with_client</span>(|client| {
+            <span class="kw">use </span><span class="macro-nonterminal">$crate::_pred</span>::<span class="kw-2">*</span>;
+            client.send_metric(
+                client.gauge_with_tags(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$crate::GaugeMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$id</span>), <span class="macro-nonterminal">$value</span>)
+                    $(.with_tag(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$k</span>), <span class="macro-nonterminal">$v</span>))*
             )
         })
     };
 
-    <span class="comment">// histogram</span>
-    (<span class="ident">histogram</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>:<span class="ident">expr</span>) <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>:<span class="ident">expr</span> $(, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>:<span class="ident">ident</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>:<span class="ident">expr</span>)<span class="op">*</span> $(,)<span class="question-mark">?</span>) =&gt; {
-        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">crate::with_client</span>(<span class="op">|</span><span class="ident">client</span><span class="op">|</span> {
-            <span class="kw">use</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">crate::_pred</span>::<span class="kw-2">*</span>;
-            <span class="ident">client</span>.<span class="ident">send_metric</span>(
-                <span class="ident">client</span>.<span class="ident">histogram_with_tags</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">crate::HistogramMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>)
-                    $(.<span class="ident">with_tag</span>(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>))<span class="op">*</span>
+    <span class="comment">// histogram
+    </span>(histogram(<span class="macro-nonterminal">$id</span>:expr) = <span class="macro-nonterminal">$value</span>:expr $(, <span class="macro-nonterminal">$k</span>:ident = <span class="macro-nonterminal">$v</span>:expr)* $(,)<span class="question-mark">?</span>) =&gt; {
+        <span class="macro-nonterminal">$crate::with_client</span>(|client| {
+            <span class="kw">use </span><span class="macro-nonterminal">$crate::_pred</span>::<span class="kw-2">*</span>;
+            client.send_metric(
+                client.histogram_with_tags(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$crate::HistogramMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$id</span>), <span class="macro-nonterminal">$value</span>)
+                    $(.with_tag(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$k</span>), <span class="macro-nonterminal">$v</span>))*
             )
         })
     };
 
-    <span class="comment">// sets (count unique occurrences of a value per time interval)</span>
-    (<span class="ident">set</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>:<span class="ident">expr</span>) <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>:<span class="ident">expr</span> $(, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>:<span class="ident">ident</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>:<span class="ident">expr</span>)<span class="op">*</span> $(,)<span class="question-mark">?</span>) =&gt; {
-        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">crate::with_client</span>(<span class="op">|</span><span class="ident">client</span><span class="op">|</span> {
-            <span class="kw">use</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">crate::_pred</span>::<span class="kw-2">*</span>;
-            <span class="ident">client</span>.<span class="ident">send_metric</span>(
-                <span class="ident">client</span>.<span class="ident">set_with_tags</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">crate::SetMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>)
-                    $(.<span class="ident">with_tag</span>(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>))<span class="op">*</span>
+    <span class="comment">// sets (count unique occurrences of a value per time interval)
+    </span>(set(<span class="macro-nonterminal">$id</span>:expr) = <span class="macro-nonterminal">$value</span>:expr $(, <span class="macro-nonterminal">$k</span>:ident = <span class="macro-nonterminal">$v</span>:expr)* $(,)<span class="question-mark">?</span>) =&gt; {
+        <span class="macro-nonterminal">$crate::with_client</span>(|client| {
+            <span class="kw">use </span><span class="macro-nonterminal">$crate::_pred</span>::<span class="kw-2">*</span>;
+            client.send_metric(
+                client.set_with_tags(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$crate::SetMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$id</span>), <span class="macro-nonterminal">$value</span>)
+                    $(.with_tag(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$k</span>), <span class="macro-nonterminal">$v</span>))*
             )
         })
     };
 
-    <span class="comment">// timer value (duration)</span>
-    (<span class="ident">timer</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>:<span class="ident">expr</span>) <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>:<span class="ident">expr</span> $(, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>:<span class="ident">ident</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>:<span class="ident">expr</span>)<span class="op">*</span> $(,)<span class="question-mark">?</span>) =&gt; {
-        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">crate::with_client</span>(<span class="op">|</span><span class="ident">client</span><span class="op">|</span> {
-            <span class="kw">use</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">crate::_pred</span>::<span class="kw-2">*</span>;
-            <span class="ident">client</span>.<span class="ident">send_metric</span>(
-                <span class="ident">client</span>.<span class="ident">time_with_tags</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">crate::TimerMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>)
-                    $(.<span class="ident">with_tag</span>(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>))<span class="op">*</span>
+    <span class="comment">// timer value (duration)
+    </span>(timer(<span class="macro-nonterminal">$id</span>:expr) = <span class="macro-nonterminal">$value</span>:expr $(, <span class="macro-nonterminal">$k</span>:ident = <span class="macro-nonterminal">$v</span>:expr)* $(,)<span class="question-mark">?</span>) =&gt; {
+        <span class="macro-nonterminal">$crate::with_client</span>(|client| {
+            <span class="kw">use </span><span class="macro-nonterminal">$crate::_pred</span>::<span class="kw-2">*</span>;
+            client.send_metric(
+                client.time_with_tags(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$crate::TimerMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$id</span>), <span class="macro-nonterminal">$value</span>)
+                    $(.with_tag(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$k</span>), <span class="macro-nonterminal">$v</span>))*
             )
         })
     };
 
-    <span class="comment">// timed block</span>
-    (<span class="ident">timer</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>:<span class="ident">expr</span>), $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>:<span class="ident">ident</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>:<span class="ident">expr</span>,)<span class="op">*</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">block</span>:<span class="ident">block</span>) =&gt; {{
-        <span class="kw">let</span> <span class="ident">now</span> <span class="op">=</span> <span class="ident">std::time::Instant::now</span>();
-        <span class="kw">let</span> <span class="ident">rv</span> <span class="op">=</span> {<span class="macro-nonterminal">$</span><span class="macro-nonterminal">block</span>};
-        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">crate::with_client</span>(<span class="op">|</span><span class="ident">client</span><span class="op">|</span> {
-            <span class="kw">use</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">crate::_pred</span>::<span class="kw-2">*</span>;
-            <span class="ident">client</span>.<span class="ident">send_metric</span>(
-                <span class="ident">client</span>.<span class="ident">time_with_tags</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">crate::TimerMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>), <span class="ident">now</span>.<span class="ident">elapsed</span>())
-                    $(.<span class="ident">with_tag</span>(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>))<span class="op">*</span>
+    <span class="comment">// timed block
+    </span>(timer(<span class="macro-nonterminal">$id</span>:expr), $(<span class="macro-nonterminal">$k</span>:ident = <span class="macro-nonterminal">$v</span>:expr,)* <span class="macro-nonterminal">$block</span>:block) =&gt; {{
+        <span class="kw">let </span>now = std::time::Instant::now();
+        <span class="kw">let </span>rv = {<span class="macro-nonterminal">$block</span>};
+        <span class="macro-nonterminal">$crate::with_client</span>(|client| {
+            <span class="kw">use </span><span class="macro-nonterminal">$crate::_pred</span>::<span class="kw-2">*</span>;
+            client.send_metric(
+                client.time_with_tags(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$crate::TimerMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$id</span>), now.elapsed())
+                    $(.with_tag(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$k</span>), <span class="macro-nonterminal">$v</span>))*
             )
         });
-        <span class="ident">rv</span>
+        rv
     }};
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
 
-    <span class="kw">use</span> <span class="ident">cadence</span>::{<span class="ident">NopMetricSink</span>, <span class="ident">StatsdClient</span>};
+    <span class="kw">use </span>cadence::{NopMetricSink, StatsdClient};
 
-    <span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">set_client</span>, <span class="ident">with_capturing_test_client</span>, <span class="ident">with_client</span>, <span class="ident">GaugeMetric</span>, <span class="ident">MetricsClient</span>};
+    <span class="kw">use crate</span>::{set_client, with_capturing_test_client, with_client, GaugeMetric, MetricsClient};
 
-    <span class="kw">enum</span> <span class="ident">TestGauges</span> {
-        <span class="ident">Foo</span>,
-        <span class="ident">Bar</span>,
+    <span class="kw">enum </span>TestGauges {
+        Foo,
+        Bar,
     }
 
-    <span class="kw">impl</span> <span class="ident">GaugeMetric</span> <span class="kw">for</span> <span class="ident">TestGauges</span> {
-        <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
-            <span class="kw">match</span> <span class="self">self</span> {
-                <span class="ident"><span class="self">Self</span>::Foo</span> =&gt; <span class="string">&quot;foo&quot;</span>,
-                <span class="ident"><span class="self">Self</span>::Bar</span> =&gt; <span class="string">&quot;bar&quot;</span>,
+    <span class="kw">impl </span>GaugeMetric <span class="kw">for </span>TestGauges {
+        <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+            <span class="kw">match </span><span class="self">self </span>{
+                <span class="self">Self</span>::Foo =&gt; <span class="string">&quot;foo&quot;</span>,
+                <span class="self">Self</span>::Bar =&gt; <span class="string">&quot;bar&quot;</span>,
             }
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_capturing_client</span>() {
-        <span class="kw">let</span> <span class="ident">captures</span> <span class="op">=</span> <span class="ident">with_capturing_test_client</span>(<span class="op">|</span><span class="op">|</span> {
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_capturing_client() {
+        <span class="kw">let </span>captures = with_capturing_test_client(|| {
             <span class="macro">metric!</span>(
-                <span class="ident">gauge</span>(<span class="ident">TestGauges::Foo</span>) <span class="op">=</span> <span class="number">123</span>,
-                <span class="ident">server</span> <span class="op">=</span> <span class="string">&quot;server1&quot;</span>,
-                <span class="ident">host</span> <span class="op">=</span> <span class="string">&quot;host1&quot;</span>
-            );
+                gauge(TestGauges::Foo) = <span class="number">123</span>,
+                server = <span class="string">&quot;server1&quot;</span>,
+                host = <span class="string">&quot;host1&quot;
+            </span>);
             <span class="macro">metric!</span>(
-                <span class="ident">gauge</span>(<span class="ident">TestGauges::Bar</span>) <span class="op">=</span> <span class="number">456</span>,
-                <span class="ident">server</span> <span class="op">=</span> <span class="string">&quot;server2&quot;</span>,
-                <span class="ident">host</span> <span class="op">=</span> <span class="string">&quot;host2&quot;</span>
-            );
+                gauge(TestGauges::Bar) = <span class="number">456</span>,
+                server = <span class="string">&quot;server2&quot;</span>,
+                host = <span class="string">&quot;host2&quot;
+            </span>);
         });
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">captures</span>.<span class="ident">as_slice</span>(),
+            captures.as_slice(),
             [
                 <span class="string">&quot;foo:123|g|#server:server1,host:host1&quot;</span>,
-                <span class="string">&quot;bar:456|g|#server:server2,host:host2&quot;</span>
-            ]
+                <span class="string">&quot;bar:456|g|#server:server2,host:host2&quot;
+            </span>]
         )
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">current_client_is_global_client</span>() {
-        <span class="kw">let</span> <span class="ident">client1</span> <span class="op">=</span> <span class="ident">with_client</span>(<span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">c</span>));
-        <span class="ident">set_client</span>(<span class="ident">MetricsClient</span> {
-            <span class="ident">statsd_client</span>: <span class="ident">StatsdClient::from_sink</span>(<span class="string">&quot;&quot;</span>, <span class="ident">NopMetricSink</span>),
-            <span class="ident">default_tags</span>: <span class="ident">Default::default</span>(),
-            <span class="ident">sample_rate</span>: <span class="number">1.0</span>,
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>current_client_is_global_client() {
+        <span class="kw">let </span>client1 = with_client(|c| <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, c));
+        set_client(MetricsClient {
+            statsd_client: StatsdClient::from_sink(<span class="string">&quot;&quot;</span>, NopMetricSink),
+            default_tags: Default::default(),
+            sample_rate: <span class="number">1.0</span>,
         });
-        <span class="kw">let</span> <span class="ident">client2</span> <span class="op">=</span> <span class="ident">with_client</span>(<span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">c</span>));
+        <span class="kw">let </span>client2 = with_client(|c| <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, c));
 
-        <span class="comment">// After setting the global client,the current client must change:</span>
-        <span class="macro">assert_ne!</span>(<span class="ident">client1</span>, <span class="ident">client2</span>);
+        <span class="comment">// After setting the global client,the current client must change:
+        </span><span class="macro">assert_ne!</span>(client1, client2);
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_statsd" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_statsd" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-profiling/src/native_debug_image.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>native_debug_image.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_profiling/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_profiling/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_profiling/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-profiling/src/native_debug_image.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>native_debug_image.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_profiling/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_profiling/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_profiling/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
 <span id="3">3</span>
 <span id="4">4</span>
@@ -57,64 +57,64 @@
 <span id="57">57</span>
 <span id="58">58</span>
 <span id="59">59</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
+</pre><pre class="rust"><code><span class="kw">use </span>serde::{Deserialize, Serialize};
 
-<span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{<span class="ident">Addr</span>, <span class="ident">DebugId</span>, <span class="ident">NativeImagePath</span>};
+<span class="kw">use </span>relay_general::protocol::{Addr, DebugId, NativeImagePath};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils::deserialize_number_from_string</span>;
+<span class="kw">use </span><span class="kw">crate</span>::utils::deserialize_number_from_string;
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">PartialEq</span>, <span class="ident">Clone</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;lowercase&quot;</span>)]</span>
-<span class="kw">enum</span> <span class="ident">ImageType</span> {
-    <span class="ident">MachO</span>,
-    <span class="ident">Symbolic</span>,
+<span class="attribute">#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[serde(rename_all = <span class="string">&quot;lowercase&quot;</span>)]
+</span><span class="kw">enum </span>ImageType {
+    MachO,
+    Symbolic,
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">PartialEq</span>, <span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">NativeDebugImage</span> {
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">alias</span> <span class="op">=</span> <span class="string">&quot;name&quot;</span>)]</span>
-    <span class="ident">code_file</span>: <span class="ident">NativeImagePath</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">alias</span> <span class="op">=</span> <span class="string">&quot;id&quot;</span>)]</span>
-    <span class="ident">debug_id</span>: <span class="ident">DebugId</span>,
-    <span class="ident">image_addr</span>: <span class="ident">Addr</span>,
+<span class="attribute">#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+</span><span class="kw">pub struct </span>NativeDebugImage {
+    <span class="attribute">#[serde(alias = <span class="string">&quot;name&quot;</span>)]
+    </span>code_file: NativeImagePath,
+    <span class="attribute">#[serde(alias = <span class="string">&quot;id&quot;</span>)]
+    </span>debug_id: DebugId,
+    image_addr: Addr,
 
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-    <span class="ident">image_vmaddr</span>: <span class="ident">Addr</span>,
+    <span class="attribute">#[serde(default)]
+    </span>image_vmaddr: Addr,
 
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">deserialize_with</span> <span class="op">=</span> <span class="string">&quot;deserialize_number_from_string&quot;</span>)]</span>
-    <span class="ident">image_size</span>: <span class="ident">u64</span>,
+    <span class="attribute">#[serde(deserialize_with = <span class="string">&quot;deserialize_number_from_string&quot;</span>)]
+    </span>image_size: u64,
 
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;type&quot;</span>)]</span>
-    <span class="ident">image_type</span>: <span class="ident">ImageType</span>,
+    <span class="attribute">#[serde(rename = <span class="string">&quot;type&quot;</span>)]
+    </span>image_type: ImageType,
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::NativeDebugImage</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span><span class="kw">super</span>::NativeDebugImage;
 
-    <span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{<span class="ident">Addr</span>, <span class="ident">DebugImage</span>, <span class="ident">NativeDebugImage</span> <span class="kw">as</span> <span class="ident">RelayNativeDebugImage</span>};
-    <span class="kw">use</span> <span class="ident">relay_general::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Map</span>};
+    <span class="kw">use </span>relay_general::protocol::{Addr, DebugImage, NativeDebugImage <span class="kw">as </span>RelayNativeDebugImage};
+    <span class="kw">use </span>relay_general::types::{Annotated, Map};
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_native_debug_image_compatibility</span>() {
-        <span class="kw">let</span> <span class="ident">image_json</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;debug_id&quot;:&quot;32420279-25E2-34E6-8BC7-8A006A8F2425&quot;,&quot;image_addr&quot;:&quot;0x000000010258c000&quot;,&quot;code_file&quot;:&quot;/private/var/containers/Bundle/Application/C3511752-DD67-4FE8-9DA2-ACE18ADFAA61/TrendingMovies.app/TrendingMovies&quot;,&quot;type&quot;:&quot;macho&quot;,&quot;image_size&quot;:1720320,&quot;image_vmaddr&quot;:&quot;0x0000000100000000&quot;}&quot;#</span>;
-        <span class="kw">let</span> <span class="ident">image</span>: <span class="ident">NativeDebugImage</span> <span class="op">=</span> <span class="ident">serde_json::from_str</span>(<span class="ident">image_json</span>).<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="ident">serde_json::to_string</span>(<span class="kw-2">&amp;</span><span class="ident">image</span>).<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="ident">annotated</span> <span class="op">=</span> <span class="ident">Annotated::from_json</span>(<span class="kw-2">&amp;</span><span class="ident">json</span>[..]).<span class="ident">unwrap</span>();
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_native_debug_image_compatibility() {
+        <span class="kw">let </span>image_json = <span class="string">r#&quot;{&quot;debug_id&quot;:&quot;32420279-25E2-34E6-8BC7-8A006A8F2425&quot;,&quot;image_addr&quot;:&quot;0x000000010258c000&quot;,&quot;code_file&quot;:&quot;/private/var/containers/Bundle/Application/C3511752-DD67-4FE8-9DA2-ACE18ADFAA61/TrendingMovies.app/TrendingMovies&quot;,&quot;type&quot;:&quot;macho&quot;,&quot;image_size&quot;:1720320,&quot;image_vmaddr&quot;:&quot;0x0000000100000000&quot;}&quot;#</span>;
+        <span class="kw">let </span>image: NativeDebugImage = serde_json::from_str(image_json).unwrap();
+        <span class="kw">let </span>json = serde_json::to_string(<span class="kw-2">&amp;</span>image).unwrap();
+        <span class="kw">let </span>annotated = Annotated::from_json(<span class="kw-2">&amp;</span>json[..]).unwrap();
         <span class="macro">assert_eq!</span>(
-            <span class="ident">Annotated::new</span>(<span class="ident">DebugImage::MachO</span>(<span class="ident">Box::new</span>(<span class="ident">RelayNativeDebugImage</span> {
-                <span class="ident">arch</span>: <span class="ident">Annotated::empty</span>(),
-                <span class="ident">code_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;/private/var/containers/Bundle/Application/C3511752-DD67-4FE8-9DA2-ACE18ADFAA61/TrendingMovies.app/TrendingMovies&quot;</span>.<span class="ident">into</span>()),
-                <span class="ident">code_id</span>: <span class="ident">Annotated::empty</span>(),
-                <span class="ident">debug_file</span>: <span class="ident">Annotated::empty</span>(),
-                <span class="ident">debug_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;32420279-25E2-34E6-8BC7-8A006A8F2425&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-                <span class="ident">debug_checksum</span>: <span class="ident">Annotated::empty</span>(),
-                <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">4334338048</span>)),
-                <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">1720320</span>),
-                <span class="ident">image_vmaddr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">4294967296</span>)),
-                <span class="ident">other</span>: <span class="ident">Map::new</span>(),
-            }))), <span class="ident">annotated</span>);
+            Annotated::new(DebugImage::MachO(Box::new(RelayNativeDebugImage {
+                arch: Annotated::empty(),
+                code_file: Annotated::new(<span class="string">&quot;/private/var/containers/Bundle/Application/C3511752-DD67-4FE8-9DA2-ACE18ADFAA61/TrendingMovies.app/TrendingMovies&quot;</span>.into()),
+                code_id: Annotated::empty(),
+                debug_file: Annotated::empty(),
+                debug_id: Annotated::new(<span class="string">&quot;32420279-25E2-34E6-8BC7-8A006A8F2425&quot;</span>.parse().unwrap()),
+                debug_checksum: Annotated::empty(),
+                image_addr: Annotated::new(Addr(<span class="number">4334338048</span>)),
+                image_size: Annotated::new(<span class="number">1720320</span>),
+                image_vmaddr: Annotated::new(Addr(<span class="number">4294967296</span>)),
+                other: Map::new(),
+            }))), annotated);
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_profiling" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_profiling" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

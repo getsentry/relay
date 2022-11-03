@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_server/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -48,53 +48,53 @@
 <span id="46">46</span>
 <span id="47">47</span>
 <span id="48">48</span>
-</pre><pre class="rust"><code><span class="doccomment">//! Defines all actors of the relay.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Actors require an actix system to run, see [`relay_system`] and particularly</span>
-<span class="doccomment">//! [`Controller`](relay_system::Controller) for more information.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! The web server is wrapped by the [`Server`](server::Server) actor. It starts the actix http web</span>
-<span class="doccomment">//! server and relays the graceful shutdown signal. Internally, it creates several other actors</span>
-<span class="doccomment">//! comprising the service state:</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//!  - [`ProjectCache`](project_cache::ProjectCache): A cache that serves queries for project</span>
-<span class="doccomment">//!    configurations. Its requests are debounced and batched based on a configured interval (100ms</span>
-<span class="doccomment">//!    by default). Also, missing projects are cached for some time.</span>
-<span class="doccomment">//!  - [`EnvelopeManager`](envelopes::EnvelopeManager) and</span>
-<span class="doccomment">//!    [`EnvelopeProcessor`](processor::EnvelopeProcessor): Handle a queue of envelopes, verify</span>
-<span class="doccomment">//!    their projects, execute PII stripping and finally send the envelope to the upstream. The</span>
-<span class="doccomment">//!    processor is spawned in multiple synchronous worker threads (via `SyncArbiter`).</span>
-<span class="doccomment">//!  - [`UpstreamRelay`](upstream::UpstreamRelay): Abstraction for communication with the upstream</span>
-<span class="doccomment">//!    (either another Relay or Sentry). It manages an internal client connector to throttle</span>
-<span class="doccomment">//!    requests and ensures this relay is authenticated before sending queries (e.g. project config</span>
-<span class="doccomment">//!    or public keys).</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! # Example</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ```ignore</span>
-<span class="doccomment">//! use relay_server::controller::Controller;</span>
-<span class="doccomment">//! use relay_server::server::Server;</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Controller::run(|| Server::start())</span>
-<span class="doccomment">//!     .expect(&quot;failed to start relay&quot;);</span>
-<span class="doccomment">//! ```</span>
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">envelopes</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">health_check</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">outcome</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">outcome_aggregator</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">processor</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">project</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">project_cache</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">project_local</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">project_upstream</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">relays</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">server</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">test_store</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">upstream</span>;
+</pre><pre class="rust"><code><span class="doccomment">//! Defines all actors of the relay.
+//!
+//! Actors require an actix system to run, see [`relay_system`] and particularly
+//! [`Controller`](relay_system::Controller) for more information.
+//!
+//! The web server is wrapped by the [`Server`](server::Server) actor. It starts the actix http web
+//! server and relays the graceful shutdown signal. Internally, it creates several other actors
+//! comprising the service state:
+//!
+//!  - [`ProjectCache`](project_cache::ProjectCache): A cache that serves queries for project
+//!    configurations. Its requests are debounced and batched based on a configured interval (100ms
+//!    by default). Also, missing projects are cached for some time.
+//!  - [`EnvelopeManager`](envelopes::EnvelopeManager) and
+//!    [`EnvelopeProcessor`](processor::EnvelopeProcessor): Handle a queue of envelopes, verify
+//!    their projects, execute PII stripping and finally send the envelope to the upstream. The
+//!    processor is spawned in multiple synchronous worker threads (via `SyncArbiter`).
+//!  - [`UpstreamRelay`](upstream::UpstreamRelay): Abstraction for communication with the upstream
+//!    (either another Relay or Sentry). It manages an internal client connector to throttle
+//!    requests and ensures this relay is authenticated before sending queries (e.g. project config
+//!    or public keys).
+//!
+//! # Example
+//!
+//! ```ignore
+//! use relay_server::controller::Controller;
+//! use relay_server::server::Server;
+//!
+//! Controller::run(|| Server::start())
+//!     .expect(&quot;failed to start relay&quot;);
+//! ```
+</span><span class="kw">pub mod </span>envelopes;
+<span class="kw">pub mod </span>health_check;
+<span class="kw">pub mod </span>outcome;
+<span class="kw">pub mod </span>outcome_aggregator;
+<span class="kw">pub mod </span>processor;
+<span class="kw">pub mod </span>project;
+<span class="kw">pub mod </span>project_cache;
+<span class="kw">pub mod </span>project_local;
+<span class="kw">pub mod </span>project_upstream;
+<span class="kw">pub mod </span>relays;
+<span class="kw">pub mod </span>server;
+<span class="kw">pub mod </span>test_store;
+<span class="kw">pub mod </span>upstream;
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">project_redis</span>;
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">store</span>;
+<span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+</span><span class="kw">pub mod </span>project_redis;
+<span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+</span><span class="kw">pub mod </span>store;
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

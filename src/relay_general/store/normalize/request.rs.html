@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/store/normalize/request.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>request.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../../storage.js"></script><script defer src="../../../../source-script.js"></script><script defer src="../../../../source-files.js"></script><script defer src="../../../../main.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/store/normalize/request.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>request.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../../normalize.css"><link rel="stylesheet" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../../ayu.css" disabled><link rel="stylesheet" href="../../../../dark.css" disabled><link rel="stylesheet" href="../../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../../storage.js"></script><script defer src="../../../../source-script.js"></script><script defer src="../../../../source-files.js"></script><script defer src="../../../../main.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../../relay_general/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -544,549 +544,549 @@
 <span id="542">542</span>
 <span id="543">543</span>
 <span id="544">544</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">once_cell::sync::OnceCell</span>;
-<span class="kw">use</span> <span class="ident">regex::Regex</span>;
-<span class="kw">use</span> <span class="ident">url::Url</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>once_cell::sync::OnceCell;
+<span class="kw">use </span>regex::Regex;
+<span class="kw">use </span>url::Url;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">Query</span>, <span class="ident">Request</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Annotated</span>, <span class="ident">ErrorKind</span>, <span class="ident">Meta</span>, <span class="ident">ProcessingAction</span>, <span class="ident">ProcessingResult</span>, <span class="ident">Value</span>};
+<span class="kw">use </span><span class="kw">crate</span>::protocol::{Query, Request};
+<span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, ErrorKind, Meta, ProcessingAction, ProcessingResult, Value};
 
-<span class="kw">const</span> <span class="ident">ELLIPSIS</span>: <span class="ident">char</span> <span class="op">=</span> <span class="string">&#39;\u{2026}&#39;</span>;
+<span class="kw">const </span>ELLIPSIS: char = <span class="string">&#39;\u{2026}&#39;</span>;
 
-<span class="kw">fn</span> <span class="ident">normalize_url</span>(<span class="ident">request</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Request</span>) {
-    <span class="kw">let</span> <span class="ident">url_string</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">request</span>.<span class="ident">url</span>.<span class="ident">value_mut</span>() {
-        <span class="prelude-val">Some</span>(<span class="ident">url_string</span>) =&gt; <span class="ident">url_string</span>,
-        <span class="prelude-val">None</span> =&gt; <span class="kw">return</span>,
+<span class="kw">fn </span>normalize_url(request: <span class="kw-2">&amp;mut </span>Request) {
+    <span class="kw">let </span>url_string = <span class="kw">match </span>request.url.value_mut() {
+        <span class="prelude-val">Some</span>(url_string) =&gt; url_string,
+        <span class="prelude-val">None </span>=&gt; <span class="kw">return</span>,
     };
 
-    <span class="comment">// Special case: JavaScript SDK used to send an ellipsis character for</span>
-    <span class="comment">// truncated URLs. Canonical URLs do not contain UTF-8 characters in</span>
-    <span class="comment">// either the path, query string or fragment, so we replace it with</span>
-    <span class="comment">// three dots (which is the behavior of other SDKs). This effectively</span>
-    <span class="comment">// makes the string two characters longer, but it will be trimmed</span>
-    <span class="comment">// again later if it is too long in the end.</span>
-    <span class="kw">if</span> <span class="ident">url_string</span>.<span class="ident">ends_with</span>(<span class="ident">ELLIPSIS</span>) {
-        <span class="ident">url_string</span>.<span class="ident">truncate</span>(<span class="ident">url_string</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="ident">ELLIPSIS</span>.<span class="ident">len_utf8</span>());
-        <span class="ident">url_string</span>.<span class="ident">push_str</span>(<span class="string">&quot;...&quot;</span>);
+    <span class="comment">// Special case: JavaScript SDK used to send an ellipsis character for
+    // truncated URLs. Canonical URLs do not contain UTF-8 characters in
+    // either the path, query string or fragment, so we replace it with
+    // three dots (which is the behavior of other SDKs). This effectively
+    // makes the string two characters longer, but it will be trimmed
+    // again later if it is too long in the end.
+    </span><span class="kw">if </span>url_string.ends_with(ELLIPSIS) {
+        url_string.truncate(url_string.len() - ELLIPSIS.len_utf8());
+        url_string.push_str(<span class="string">&quot;...&quot;</span>);
     }
 
-    <span class="kw">match</span> <span class="ident">Url::parse</span>(<span class="ident">url_string</span>) {
-        <span class="prelude-val">Ok</span>(<span class="kw-2">mut</span> <span class="ident">url</span>) =&gt; {
-            <span class="comment">// Separate the query string and fragment bits into dedicated fields. If</span>
-            <span class="comment">// both the URL and the fields have been set, the fields take precedence.</span>
-            <span class="kw">if</span> <span class="ident">request</span>.<span class="ident">query_string</span>.<span class="ident">value</span>().<span class="ident">is_none</span>() {
-                <span class="kw">let</span> <span class="ident">query</span>: <span class="ident">Query</span> <span class="op">=</span> <span class="ident">url</span>.<span class="ident">query_pairs</span>().<span class="ident">collect</span>();
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">query</span>.<span class="ident">is_empty</span>() {
-                    <span class="ident">request</span>.<span class="ident">query_string</span>.<span class="ident">set_value</span>(<span class="prelude-val">Some</span>(<span class="ident">query</span>));
+    <span class="kw">match </span>Url::parse(url_string) {
+        <span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>url) =&gt; {
+            <span class="comment">// Separate the query string and fragment bits into dedicated fields. If
+            // both the URL and the fields have been set, the fields take precedence.
+            </span><span class="kw">if </span>request.query_string.value().is_none() {
+                <span class="kw">let </span>query: Query = url.query_pairs().collect();
+                <span class="kw">if </span>!query.is_empty() {
+                    request.query_string.set_value(<span class="prelude-val">Some</span>(query));
                 }
             }
 
-            <span class="kw">if</span> <span class="ident">request</span>.<span class="ident">fragment</span>.<span class="ident">value</span>().<span class="ident">is_none</span>() {
-                <span class="ident">request</span>
-                    .<span class="ident">fragment</span>
-                    .<span class="ident">set_value</span>(<span class="ident">url</span>.<span class="ident">fragment</span>().<span class="ident">map</span>(<span class="ident">str::to_string</span>));
+            <span class="kw">if </span>request.fragment.value().is_none() {
+                request
+                    .fragment
+                    .set_value(url.fragment().map(str::to_string));
             }
 
-            <span class="ident">url</span>.<span class="ident">set_query</span>(<span class="prelude-val">None</span>);
-            <span class="ident">url</span>.<span class="ident">set_fragment</span>(<span class="prelude-val">None</span>);
-            <span class="kw">if</span> <span class="ident">url</span>.<span class="ident">as_str</span>() <span class="op">!</span><span class="op">=</span> <span class="ident">url_string</span> {
-                <span class="kw-2">*</span><span class="ident">url_string</span> <span class="op">=</span> <span class="ident">url</span>.<span class="ident">into</span>();
+            url.set_query(<span class="prelude-val">None</span>);
+            url.set_fragment(<span class="prelude-val">None</span>);
+            <span class="kw">if </span>url.as_str() != url_string {
+                <span class="kw-2">*</span>url_string = url.into();
             }
         }
         <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-            <span class="comment">// The URL is invalid, but we can still apply heuristics to parse the query</span>
-            <span class="comment">// string and put the fragment in its own field.</span>
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">fragment_index</span>) <span class="op">=</span> <span class="ident">url_string</span>.<span class="ident">find</span>(<span class="string">&#39;#&#39;</span>) {
-                <span class="kw">let</span> <span class="ident">fragment</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">url_string</span>[<span class="ident">fragment_index</span> <span class="op">+</span> <span class="number">1</span>..];
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">fragment</span>.<span class="ident">is_empty</span>() <span class="op">&amp;&amp;</span> <span class="ident">request</span>.<span class="ident">fragment</span>.<span class="ident">value</span>().<span class="ident">is_none</span>() {
-                    <span class="ident">request</span>.<span class="ident">fragment</span>.<span class="ident">set_value</span>(<span class="prelude-val">Some</span>(<span class="ident">fragment</span>.<span class="ident">to_string</span>()));
+            <span class="comment">// The URL is invalid, but we can still apply heuristics to parse the query
+            // string and put the fragment in its own field.
+            </span><span class="kw">if let </span><span class="prelude-val">Some</span>(fragment_index) = url_string.find(<span class="string">&#39;#&#39;</span>) {
+                <span class="kw">let </span>fragment = <span class="kw-2">&amp;</span>url_string[fragment_index + <span class="number">1</span>..];
+                <span class="kw">if </span>!fragment.is_empty() &amp;&amp; request.fragment.value().is_none() {
+                    request.fragment.set_value(<span class="prelude-val">Some</span>(fragment.to_string()));
                 }
-                <span class="ident">url_string</span>.<span class="ident">truncate</span>(<span class="ident">fragment_index</span>);
+                url_string.truncate(fragment_index);
             }
 
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">query_index</span>) <span class="op">=</span> <span class="ident">url_string</span>.<span class="ident">find</span>(<span class="string">&#39;?&#39;</span>) {
-                <span class="kw">let</span> <span class="ident">query_string</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">url_string</span>[<span class="ident">query_index</span> <span class="op">+</span> <span class="number">1</span>..];
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">query_string</span>.<span class="ident">is_empty</span>() <span class="op">&amp;&amp;</span> <span class="ident">request</span>.<span class="ident">query_string</span>.<span class="ident">value</span>().<span class="ident">is_none</span>() {
-                    <span class="kw">let</span> <span class="ident">query</span> <span class="op">=</span> <span class="ident">Query::parse</span>(<span class="ident">query_string</span>);
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">query</span>.<span class="ident">is_empty</span>() {
-                        <span class="ident">request</span>.<span class="ident">query_string</span>.<span class="ident">set_value</span>(<span class="prelude-val">Some</span>(<span class="ident">query</span>));
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(query_index) = url_string.find(<span class="string">&#39;?&#39;</span>) {
+                <span class="kw">let </span>query_string = <span class="kw-2">&amp;</span>url_string[query_index + <span class="number">1</span>..];
+                <span class="kw">if </span>!query_string.is_empty() &amp;&amp; request.query_string.value().is_none() {
+                    <span class="kw">let </span>query = Query::parse(query_string);
+                    <span class="kw">if </span>!query.is_empty() {
+                        request.query_string.set_value(<span class="prelude-val">Some</span>(query));
                     }
                 }
-                <span class="ident">url_string</span>.<span class="ident">truncate</span>(<span class="ident">query_index</span>);
+                url_string.truncate(query_index);
             }
         }
     };
 }
 
-<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::ptr_arg</span>)]</span> <span class="comment">// normalize_method must be &amp;mut String for `apply`.</span>
-<span class="kw">fn</span> <span class="ident">normalize_method</span>(<span class="ident">method</span>: <span class="kw-2">&amp;mut</span> <span class="ident">String</span>, <span class="ident">meta</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Meta</span>) -&gt; <span class="ident">ProcessingResult</span> {
-    <span class="ident">method</span>.<span class="ident">make_ascii_uppercase</span>();
+<span class="attribute">#[allow(clippy::ptr_arg)] </span><span class="comment">// normalize_method must be &amp;mut String for `apply`.
+</span><span class="kw">fn </span>normalize_method(method: <span class="kw-2">&amp;mut </span>String, meta: <span class="kw-2">&amp;mut </span>Meta) -&gt; ProcessingResult {
+    method.make_ascii_uppercase();
 
-    <span class="kw">static</span> <span class="ident">METHOD_RE</span>: <span class="ident">OnceCell</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">OnceCell::new</span>();
-    <span class="kw">let</span> <span class="ident">regex</span> <span class="op">=</span> <span class="ident">METHOD_RE</span>.<span class="ident">get_or_init</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Regex::new</span>(<span class="string">r&quot;^[A-Z\-_]{3,32}$&quot;</span>).<span class="ident">unwrap</span>());
+    <span class="kw">static </span>METHOD_RE: OnceCell&lt;Regex&gt; = OnceCell::new();
+    <span class="kw">let </span>regex = METHOD_RE.get_or_init(|| Regex::new(<span class="string">r&quot;^[A-Z\-_]{3,32}$&quot;</span>).unwrap());
 
-    <span class="kw">if</span> <span class="op">!</span><span class="ident">meta</span>.<span class="ident">has_errors</span>() <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">regex</span>.<span class="ident">is_match</span>(<span class="ident">method</span>) {
-        <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">ErrorKind::InvalidData</span>);
-        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::DeleteValueSoft</span>);
+    <span class="kw">if </span>!meta.has_errors() &amp;&amp; !regex.is_match(method) {
+        meta.add_error(ErrorKind::InvalidData);
+        <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::DeleteValueSoft);
     }
 
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="doccomment">/// Decodes an urlencoded body.</span>
-<span class="kw">fn</span> <span class="ident">urlencoded_from_str</span>(<span class="ident">raw</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span> {
-    <span class="comment">// Binary strings would be decoded, but we know url-encoded bodies are ASCII.</span>
-    <span class="kw">if</span> <span class="op">!</span><span class="ident">raw</span>.<span class="ident">is_ascii</span>() {
-        <span class="kw">return</span> <span class="prelude-val">None</span>;
+<span class="doccomment">/// Decodes an urlencoded body.
+</span><span class="kw">fn </span>urlencoded_from_str(raw: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;Value&gt; {
+    <span class="comment">// Binary strings would be decoded, but we know url-encoded bodies are ASCII.
+    </span><span class="kw">if </span>!raw.is_ascii() {
+        <span class="kw">return </span><span class="prelude-val">None</span>;
     }
 
-    <span class="comment">// Avoid false positives with XML and partial JSON.</span>
-    <span class="kw">if</span> <span class="ident">raw</span>.<span class="ident">starts_with</span>(<span class="string">&quot;&lt;?xml&quot;</span>) <span class="op">|</span><span class="op">|</span> <span class="ident">raw</span>.<span class="ident">starts_with</span>(<span class="string">&#39;{&#39;</span>) <span class="op">|</span><span class="op">|</span> <span class="ident">raw</span>.<span class="ident">starts_with</span>(<span class="string">&#39;[&#39;</span>) {
-        <span class="kw">return</span> <span class="prelude-val">None</span>;
+    <span class="comment">// Avoid false positives with XML and partial JSON.
+    </span><span class="kw">if </span>raw.starts_with(<span class="string">&quot;&lt;?xml&quot;</span>) || raw.starts_with(<span class="string">&#39;{&#39;</span>) || raw.starts_with(<span class="string">&#39;[&#39;</span>) {
+        <span class="kw">return </span><span class="prelude-val">None</span>;
     }
 
-    <span class="comment">// serde_urlencoded always deserializes into `Value::Object`.</span>
-    <span class="kw">let</span> <span class="ident">object</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">serde_urlencoded::from_str</span>(<span class="ident">raw</span>) {
-        <span class="prelude-val">Ok</span>(<span class="ident">Value::Object</span>(<span class="ident">value</span>)) =&gt; <span class="ident">value</span>,
-        <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="prelude-val">None</span>,
+    <span class="comment">// serde_urlencoded always deserializes into `Value::Object`.
+    </span><span class="kw">let </span>object = <span class="kw">match </span>serde_urlencoded::from_str(raw) {
+        <span class="prelude-val">Ok</span>(Value::Object(value)) =&gt; value,
+        <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
     };
 
-    <span class="comment">// `serde_urlencoded` can decode any string with valid characters into an object. However, we</span>
-    <span class="comment">// need to account for false-positives in the following cases:</span>
-    <span class="comment">//  - An empty string &quot;&quot; is decoded as empty object</span>
-    <span class="comment">//  - A string &quot;foo&quot; is decoded as {&quot;foo&quot;: &quot;&quot;} (check for single empty value)</span>
-    <span class="comment">//  - A base64 encoded string &quot;dGU=&quot; also decodes with a single empty value</span>
-    <span class="comment">//  - A base64 encoded string &quot;dA==&quot; decodes as {&quot;dA&quot;: &quot;=&quot;} (check for single =)</span>
-    <span class="kw">let</span> <span class="ident">is_valid</span> <span class="op">=</span> <span class="ident">object</span>.<span class="ident">len</span>() <span class="op">&gt;</span> <span class="number">1</span>
-        <span class="op">|</span><span class="op">|</span> <span class="ident">object</span>
-            .<span class="ident">values</span>()
-            .<span class="ident">next</span>()
-            .<span class="ident">and_then</span>(<span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span><span class="ident">::as_str</span>)
-            .<span class="ident">map_or</span>(<span class="bool-val">false</span>, <span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="op">!</span><span class="macro">matches!</span>(<span class="ident">s</span>, <span class="string">&quot;&quot;</span> <span class="op">|</span> <span class="string">&quot;=&quot;</span>));
+    <span class="comment">// `serde_urlencoded` can decode any string with valid characters into an object. However, we
+    // need to account for false-positives in the following cases:
+    //  - An empty string &quot;&quot; is decoded as empty object
+    //  - A string &quot;foo&quot; is decoded as {&quot;foo&quot;: &quot;&quot;} (check for single empty value)
+    //  - A base64 encoded string &quot;dGU=&quot; also decodes with a single empty value
+    //  - A base64 encoded string &quot;dA==&quot; decodes as {&quot;dA&quot;: &quot;=&quot;} (check for single =)
+    </span><span class="kw">let </span>is_valid = object.len() &gt; <span class="number">1
+        </span>|| object
+            .values()
+            .next()
+            .and_then(Annotated::&lt;Value&gt;::as_str)
+            .map_or(<span class="bool-val">false</span>, |s| !<span class="macro">matches!</span>(s, <span class="string">&quot;&quot; </span>| <span class="string">&quot;=&quot;</span>));
 
-    <span class="kw">if</span> <span class="ident">is_valid</span> {
-        <span class="prelude-val">Some</span>(<span class="ident">Value::Object</span>(<span class="ident">object</span>))
-    } <span class="kw">else</span> {
-        <span class="prelude-val">None</span>
+    <span class="kw">if </span>is_valid {
+        <span class="prelude-val">Some</span>(Value::Object(object))
+    } <span class="kw">else </span>{
+        <span class="prelude-val">None
+    </span>}
+}
+
+<span class="kw">fn </span>parse_raw_data(request: <span class="kw-2">&amp;</span>Request) -&gt; <span class="prelude-ty">Option</span>&lt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str, Value)&gt; {
+    <span class="kw">let </span>raw = request.data.as_str()<span class="question-mark">?</span>;
+
+    <span class="comment">// TODO: Try to decode base64 first
+
+    </span><span class="kw">if let </span><span class="prelude-val">Ok</span>(value) = serde_json::from_str(raw) {
+        <span class="prelude-val">Some</span>((<span class="string">&quot;application/json&quot;</span>, value))
+    } <span class="kw">else </span>{
+        urlencoded_from_str(raw).map(|value| (<span class="string">&quot;application/x-www-form-urlencoded&quot;</span>, value))
     }
 }
 
-<span class="kw">fn</span> <span class="ident">parse_raw_data</span>(<span class="ident">request</span>: <span class="kw-2">&amp;</span><span class="ident">Request</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>, <span class="ident">Value</span>)<span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">raw</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">data</span>.<span class="ident">as_str</span>()<span class="question-mark">?</span>;
-
-    <span class="comment">// TODO: Try to decode base64 first</span>
-
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">value</span>) <span class="op">=</span> <span class="ident">serde_json::from_str</span>(<span class="ident">raw</span>) {
-        <span class="prelude-val">Some</span>((<span class="string">&quot;application/json&quot;</span>, <span class="ident">value</span>))
-    } <span class="kw">else</span> {
-        <span class="ident">urlencoded_from_str</span>(<span class="ident">raw</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">value</span><span class="op">|</span> (<span class="string">&quot;application/x-www-form-urlencoded&quot;</span>, <span class="ident">value</span>))
+<span class="kw">fn </span>normalize_data(request: <span class="kw-2">&amp;mut </span>Request) {
+    <span class="comment">// Always derive the `inferred_content_type` from the request body, even if there is a
+    // `Content-Type` header present. This value can technically be ingested (due to the schema) but
+    // should always be overwritten in normalization. Only if inference fails, fall back to the
+    // content type header.
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>((content_type, parsed_data)) = parse_raw_data(request) {
+        <span class="comment">// Retain meta data on the body (e.g. trimming annotations) but remove anything on the
+        // inferred content type.
+        </span>request.data.set_value(<span class="prelude-val">Some</span>(parsed_data));
+        request.inferred_content_type = Annotated::from(content_type.to_string());
+    } <span class="kw">else </span>{
+        request.inferred_content_type = request
+            .headers
+            .value()
+            .and_then(|headers| headers.get_header(<span class="string">&quot;Content-Type&quot;</span>))
+            .map(|value| value.split(<span class="string">&#39;;&#39;</span>).next().unwrap_or(value).to_string())
+            .into();
     }
 }
 
-<span class="kw">fn</span> <span class="ident">normalize_data</span>(<span class="ident">request</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Request</span>) {
-    <span class="comment">// Always derive the `inferred_content_type` from the request body, even if there is a</span>
-    <span class="comment">// `Content-Type` header present. This value can technically be ingested (due to the schema) but</span>
-    <span class="comment">// should always be overwritten in normalization. Only if inference fails, fall back to the</span>
-    <span class="comment">// content type header.</span>
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="ident">content_type</span>, <span class="ident">parsed_data</span>)) <span class="op">=</span> <span class="ident">parse_raw_data</span>(<span class="ident">request</span>) {
-        <span class="comment">// Retain meta data on the body (e.g. trimming annotations) but remove anything on the</span>
-        <span class="comment">// inferred content type.</span>
-        <span class="ident">request</span>.<span class="ident">data</span>.<span class="ident">set_value</span>(<span class="prelude-val">Some</span>(<span class="ident">parsed_data</span>));
-        <span class="ident">request</span>.<span class="ident">inferred_content_type</span> <span class="op">=</span> <span class="ident">Annotated::from</span>(<span class="ident">content_type</span>.<span class="ident">to_string</span>());
-    } <span class="kw">else</span> {
-        <span class="ident">request</span>.<span class="ident">inferred_content_type</span> <span class="op">=</span> <span class="ident">request</span>
-            .<span class="ident">headers</span>
-            .<span class="ident">value</span>()
-            .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">headers</span><span class="op">|</span> <span class="ident">headers</span>.<span class="ident">get_header</span>(<span class="string">&quot;Content-Type&quot;</span>))
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">value</span><span class="op">|</span> <span class="ident">value</span>.<span class="ident">split</span>(<span class="string">&#39;;&#39;</span>).<span class="ident">next</span>().<span class="ident">unwrap_or</span>(<span class="ident">value</span>).<span class="ident">to_string</span>())
-            .<span class="ident">into</span>();
-    }
-}
-
-<span class="kw">fn</span> <span class="ident">normalize_cookies</span>(<span class="ident">request</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Request</span>) {
-    <span class="kw">let</span> <span class="ident">headers</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">request</span>.<span class="ident">headers</span>.<span class="ident">value_mut</span>() {
-        <span class="prelude-val">Some</span>(<span class="ident">headers</span>) =&gt; <span class="ident">headers</span>,
-        <span class="prelude-val">None</span> =&gt; <span class="kw">return</span>,
+<span class="kw">fn </span>normalize_cookies(request: <span class="kw-2">&amp;mut </span>Request) {
+    <span class="kw">let </span>headers = <span class="kw">match </span>request.headers.value_mut() {
+        <span class="prelude-val">Some</span>(headers) =&gt; headers,
+        <span class="prelude-val">None </span>=&gt; <span class="kw">return</span>,
     };
 
-    <span class="kw">if</span> <span class="ident">request</span>.<span class="ident">cookies</span>.<span class="ident">value</span>().<span class="ident">is_some</span>() {
-        <span class="ident">headers</span>.<span class="ident">remove</span>(<span class="string">&quot;Cookie&quot;</span>);
+    <span class="kw">if </span>request.cookies.value().is_some() {
+        headers.remove(<span class="string">&quot;Cookie&quot;</span>);
         <span class="kw">return</span>;
     }
 
-    <span class="kw">let</span> <span class="ident">cookie_header</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">headers</span>.<span class="ident">get_header</span>(<span class="string">&quot;Cookie&quot;</span>) {
-        <span class="prelude-val">Some</span>(<span class="ident">header</span>) =&gt; <span class="ident">header</span>,
-        <span class="prelude-val">None</span> =&gt; <span class="kw">return</span>,
+    <span class="kw">let </span>cookie_header = <span class="kw">match </span>headers.get_header(<span class="string">&quot;Cookie&quot;</span>) {
+        <span class="prelude-val">Some</span>(header) =&gt; header,
+        <span class="prelude-val">None </span>=&gt; <span class="kw">return</span>,
     };
 
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">new_cookies</span>) <span class="op">=</span> <span class="ident"><span class="kw">crate</span>::protocol::Cookies::parse</span>(<span class="ident">cookie_header</span>) {
-        <span class="ident">request</span>.<span class="ident">cookies</span> <span class="op">=</span> <span class="ident">Annotated::from</span>(<span class="ident">new_cookies</span>);
-        <span class="ident">headers</span>.<span class="ident">remove</span>(<span class="string">&quot;Cookie&quot;</span>);
+    <span class="kw">if let </span><span class="prelude-val">Ok</span>(new_cookies) = <span class="kw">crate</span>::protocol::Cookies::parse(cookie_header) {
+        request.cookies = Annotated::from(new_cookies);
+        headers.remove(<span class="string">&quot;Cookie&quot;</span>);
     }
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">normalize_request</span>(<span class="ident">request</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Request</span>) -&gt; <span class="ident">ProcessingResult</span> {
-    <span class="ident">request</span>.<span class="ident">method</span>.<span class="ident">apply</span>(<span class="ident">normalize_method</span>)<span class="question-mark">?</span>;
-    <span class="ident">normalize_url</span>(<span class="ident">request</span>);
-    <span class="ident">normalize_data</span>(<span class="ident">request</span>);
-    <span class="ident">normalize_cookies</span>(<span class="ident">request</span>);
+<span class="kw">pub fn </span>normalize_request(request: <span class="kw-2">&amp;mut </span>Request) -&gt; ProcessingResult {
+    request.method.apply(normalize_method)<span class="question-mark">?</span>;
+    normalize_url(request);
+    normalize_data(request);
+    normalize_cookies(request);
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">similar_asserts::assert_eq</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>similar_asserts::assert_eq;
 
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">Cookies</span>, <span class="ident">Headers</span>, <span class="ident">PairList</span>, <span class="ident">Query</span>};
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types::Object</span>;
+    <span class="kw">use </span><span class="kw">crate</span>::protocol::{Cookies, Headers, PairList, Query};
+    <span class="kw">use </span><span class="kw">crate</span>::types::Object;
 
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_url_truncation</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">Request</span> {
-            <span class="ident">url</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;http://example.com/path?foo#bar&quot;</span>.<span class="ident">to_string</span>()),
-            ..<span class="ident">Request::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_url_truncation() {
+        <span class="kw">let </span><span class="kw-2">mut </span>request = Request {
+            url: Annotated::new(<span class="string">&quot;http://example.com/path?foo#bar&quot;</span>.to_string()),
+            ..Request::default()
         };
 
-        <span class="ident">normalize_request</span>(<span class="kw-2">&amp;mut</span> <span class="ident">request</span>).<span class="ident">unwrap</span>();
-        <span class="macro">assert_eq!</span>(<span class="ident">request</span>.<span class="ident">url</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;http://example.com/path&quot;</span>));
+        normalize_request(<span class="kw-2">&amp;mut </span>request).unwrap();
+        <span class="macro">assert_eq!</span>(request.url.as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;http://example.com/path&quot;</span>));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_url_truncation_reversed</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">Request</span> {
-            <span class="comment">// The query string is empty and the fragment is &quot;foo?bar&quot; here</span>
-            <span class="ident">url</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;http://example.com/path#foo?bar&quot;</span>.<span class="ident">to_string</span>()),
-            ..<span class="ident">Request::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_url_truncation_reversed() {
+        <span class="kw">let </span><span class="kw-2">mut </span>request = Request {
+            <span class="comment">// The query string is empty and the fragment is &quot;foo?bar&quot; here
+            </span>url: Annotated::new(<span class="string">&quot;http://example.com/path#foo?bar&quot;</span>.to_string()),
+            ..Request::default()
         };
 
-        <span class="ident">normalize_request</span>(<span class="kw-2">&amp;mut</span> <span class="ident">request</span>).<span class="ident">unwrap</span>();
-        <span class="macro">assert_eq!</span>(<span class="ident">request</span>.<span class="ident">url</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;http://example.com/path&quot;</span>));
+        normalize_request(<span class="kw-2">&amp;mut </span>request).unwrap();
+        <span class="macro">assert_eq!</span>(request.url.as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;http://example.com/path&quot;</span>));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_url_with_ellipsis</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">Request</span> {
-            <span class="ident">url</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;http://example.com/path…&quot;</span>.<span class="ident">to_string</span>()),
-            ..<span class="ident">Request::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_url_with_ellipsis() {
+        <span class="kw">let </span><span class="kw-2">mut </span>request = Request {
+            url: Annotated::new(<span class="string">&quot;http://example.com/path…&quot;</span>.to_string()),
+            ..Request::default()
         };
 
-        <span class="ident">normalize_request</span>(<span class="kw-2">&amp;mut</span> <span class="ident">request</span>).<span class="ident">unwrap</span>();
-        <span class="macro">assert_eq!</span>(<span class="ident">request</span>.<span class="ident">url</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;http://example.com/path...&quot;</span>));
+        normalize_request(<span class="kw-2">&amp;mut </span>request).unwrap();
+        <span class="macro">assert_eq!</span>(request.url.as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;http://example.com/path...&quot;</span>));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_url_with_qs_and_fragment</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">Request</span> {
-            <span class="ident">url</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;http://example.com/path?some=thing#else&quot;</span>.<span class="ident">to_string</span>()),
-            ..<span class="ident">Request::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_url_with_qs_and_fragment() {
+        <span class="kw">let </span><span class="kw-2">mut </span>request = Request {
+            url: Annotated::new(<span class="string">&quot;http://example.com/path?some=thing#else&quot;</span>.to_string()),
+            ..Request::default()
         };
 
-        <span class="ident">normalize_request</span>(<span class="kw-2">&amp;mut</span> <span class="ident">request</span>).<span class="ident">unwrap</span>();
+        normalize_request(<span class="kw-2">&amp;mut </span>request).unwrap();
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">request</span>,
-            <span class="ident">Request</span> {
-                <span class="ident">url</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;http://example.com/path&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">query_string</span>: <span class="ident">Annotated::new</span>(<span class="ident">Query</span>(<span class="ident">PairList</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>((
-                    <span class="ident">Annotated::new</span>(<span class="string">&quot;some&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="ident">Annotated::new</span>(<span class="string">&quot;thing&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+            request,
+            Request {
+                url: Annotated::new(<span class="string">&quot;http://example.com/path&quot;</span>.to_string()),
+                query_string: Annotated::new(Query(PairList(<span class="macro">vec!</span>[Annotated::new((
+                    Annotated::new(<span class="string">&quot;some&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">&quot;thing&quot;</span>.to_string().into()),
                 )),]))),
-                <span class="ident">fragment</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;else&quot;</span>.<span class="ident">to_string</span>()),
-                ..<span class="ident">Request::default</span>()
+                fragment: Annotated::new(<span class="string">&quot;else&quot;</span>.to_string()),
+                ..Request::default()
             }
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_url_only_path</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">Request</span> {
-            <span class="ident">url</span>: <span class="ident">Annotated::from</span>(<span class="string">&quot;metamask/popup.html#&quot;</span>.<span class="ident">to_string</span>()),
-            ..<span class="ident">Request::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_url_only_path() {
+        <span class="kw">let </span><span class="kw-2">mut </span>request = Request {
+            url: Annotated::from(<span class="string">&quot;metamask/popup.html#&quot;</span>.to_string()),
+            ..Request::default()
         };
 
-        <span class="ident">normalize_request</span>(<span class="kw-2">&amp;mut</span> <span class="ident">request</span>).<span class="ident">unwrap</span>();
+        normalize_request(<span class="kw-2">&amp;mut </span>request).unwrap();
         <span class="macro">assert_eq!</span>(
-            <span class="ident">request</span>,
-            <span class="ident">Request</span> {
-                <span class="ident">url</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;metamask/popup.html&quot;</span>.<span class="ident">to_string</span>()),
-                ..<span class="ident">Request::default</span>()
+            request,
+            Request {
+                url: Annotated::new(<span class="string">&quot;metamask/popup.html&quot;</span>.to_string()),
+                ..Request::default()
             }
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_url_punycoded</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">Request</span> {
-            <span class="ident">url</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;http://göögle.com/&quot;</span>.<span class="ident">to_string</span>()),
-            ..<span class="ident">Request::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_url_punycoded() {
+        <span class="kw">let </span><span class="kw-2">mut </span>request = Request {
+            url: Annotated::new(<span class="string">&quot;http://göögle.com/&quot;</span>.to_string()),
+            ..Request::default()
         };
 
-        <span class="ident">normalize_request</span>(<span class="kw-2">&amp;mut</span> <span class="ident">request</span>).<span class="ident">unwrap</span>();
+        normalize_request(<span class="kw-2">&amp;mut </span>request).unwrap();
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">request</span>,
-            <span class="ident">Request</span> {
-                <span class="ident">url</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;http://xn--ggle-5qaa.com/&quot;</span>.<span class="ident">to_string</span>()),
-                ..<span class="ident">Request::default</span>()
+            request,
+            Request {
+                url: Annotated::new(<span class="string">&quot;http://xn--ggle-5qaa.com/&quot;</span>.to_string()),
+                ..Request::default()
             }
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_url_precedence</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">Request</span> {
-            <span class="ident">url</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;http://example.com/path?completely=different#stuff&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">query_string</span>: <span class="ident">Annotated::new</span>(<span class="ident">Query</span>(<span class="ident">PairList</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>((
-                <span class="ident">Annotated::new</span>(<span class="string">&quot;some&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">Annotated::new</span>(<span class="string">&quot;thing&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_url_precedence() {
+        <span class="kw">let </span><span class="kw-2">mut </span>request = Request {
+            url: Annotated::new(<span class="string">&quot;http://example.com/path?completely=different#stuff&quot;</span>.to_string()),
+            query_string: Annotated::new(Query(PairList(<span class="macro">vec!</span>[Annotated::new((
+                Annotated::new(<span class="string">&quot;some&quot;</span>.to_string()),
+                Annotated::new(<span class="string">&quot;thing&quot;</span>.to_string().into()),
             ))]))),
-            <span class="ident">fragment</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;else&quot;</span>.<span class="ident">to_string</span>()),
-            ..<span class="ident">Request::default</span>()
+            fragment: Annotated::new(<span class="string">&quot;else&quot;</span>.to_string()),
+            ..Request::default()
         };
 
-        <span class="ident">normalize_request</span>(<span class="kw-2">&amp;mut</span> <span class="ident">request</span>).<span class="ident">unwrap</span>();
+        normalize_request(<span class="kw-2">&amp;mut </span>request).unwrap();
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">request</span>,
-            <span class="ident">Request</span> {
-                <span class="ident">url</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;http://example.com/path&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">query_string</span>: <span class="ident">Annotated::new</span>(<span class="ident">Query</span>(<span class="ident">PairList</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>((
-                    <span class="ident">Annotated::new</span>(<span class="string">&quot;some&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="ident">Annotated::new</span>(<span class="string">&quot;thing&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+            request,
+            Request {
+                url: Annotated::new(<span class="string">&quot;http://example.com/path&quot;</span>.to_string()),
+                query_string: Annotated::new(Query(PairList(<span class="macro">vec!</span>[Annotated::new((
+                    Annotated::new(<span class="string">&quot;some&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">&quot;thing&quot;</span>.to_string().into()),
                 )),]))),
-                <span class="ident">fragment</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;else&quot;</span>.<span class="ident">to_string</span>()),
-                ..<span class="ident">Request::default</span>()
+                fragment: Annotated::new(<span class="string">&quot;else&quot;</span>.to_string()),
+                ..Request::default()
             }
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_query_string_empty_value</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">Request</span> {
-            <span class="ident">url</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;http://example.com/path?some&quot;</span>.<span class="ident">to_string</span>()),
-            ..<span class="ident">Request::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_query_string_empty_value() {
+        <span class="kw">let </span><span class="kw-2">mut </span>request = Request {
+            url: Annotated::new(<span class="string">&quot;http://example.com/path?some&quot;</span>.to_string()),
+            ..Request::default()
         };
 
-        <span class="ident">normalize_request</span>(<span class="kw-2">&amp;mut</span> <span class="ident">request</span>).<span class="ident">unwrap</span>();
+        normalize_request(<span class="kw-2">&amp;mut </span>request).unwrap();
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">request</span>,
-            <span class="ident">Request</span> {
-                <span class="ident">url</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;http://example.com/path&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">query_string</span>: <span class="ident">Annotated::new</span>(<span class="ident">Query</span>(<span class="ident">PairList</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>((
-                    <span class="ident">Annotated::new</span>(<span class="string">&quot;some&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="ident">Annotated::new</span>(<span class="string">&quot;&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+            request,
+            Request {
+                url: Annotated::new(<span class="string">&quot;http://example.com/path&quot;</span>.to_string()),
+                query_string: Annotated::new(Query(PairList(<span class="macro">vec!</span>[Annotated::new((
+                    Annotated::new(<span class="string">&quot;some&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">&quot;&quot;</span>.to_string().into()),
                 )),]))),
-                ..<span class="ident">Request::default</span>()
+                ..Request::default()
             }
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_cookies_in_header</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">Request</span> {
-            <span class="ident">url</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;http://example.com&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">headers</span>: <span class="ident">Annotated::new</span>(<span class="ident">Headers</span>(<span class="ident">PairList</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>((
-                <span class="ident">Annotated::new</span>(<span class="string">&quot;Cookie&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-                <span class="ident">Annotated::new</span>(<span class="string">&quot;a=b;c=d&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_cookies_in_header() {
+        <span class="kw">let </span><span class="kw-2">mut </span>request = Request {
+            url: Annotated::new(<span class="string">&quot;http://example.com&quot;</span>.to_string()),
+            headers: Annotated::new(Headers(PairList(<span class="macro">vec!</span>[Annotated::new((
+                Annotated::new(<span class="string">&quot;Cookie&quot;</span>.to_string().into()),
+                Annotated::new(<span class="string">&quot;a=b;c=d&quot;</span>.to_string().into()),
             ))]))),
-            ..<span class="ident">Request::default</span>()
+            ..Request::default()
         };
 
-        <span class="ident">normalize_request</span>(<span class="kw-2">&amp;mut</span> <span class="ident">request</span>).<span class="ident">unwrap</span>();
+        normalize_request(<span class="kw-2">&amp;mut </span>request).unwrap();
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">request</span>.<span class="ident">cookies</span>,
-            <span class="ident">Annotated::new</span>(<span class="ident">Cookies</span>(<span class="ident">PairList</span>(<span class="macro">vec!</span>[
-                <span class="ident">Annotated::new</span>((
-                    <span class="ident">Annotated::new</span>(<span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="ident">Annotated::new</span>(<span class="string">&quot;b&quot;</span>.<span class="ident">to_string</span>()),
+            request.cookies,
+            Annotated::new(Cookies(PairList(<span class="macro">vec!</span>[
+                Annotated::new((
+                    Annotated::new(<span class="string">&quot;a&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">&quot;b&quot;</span>.to_string()),
                 )),
-                <span class="ident">Annotated::new</span>((
-                    <span class="ident">Annotated::new</span>(<span class="string">&quot;c&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="ident">Annotated::new</span>(<span class="string">&quot;d&quot;</span>.<span class="ident">to_string</span>()),
+                Annotated::new((
+                    Annotated::new(<span class="string">&quot;c&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">&quot;d&quot;</span>.to_string()),
                 )),
             ])))
         );
 
-        <span class="macro">assert_eq!</span>(<span class="ident">request</span>.<span class="ident">headers</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">get_header</span>(<span class="string">&quot;Cookie&quot;</span>), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(request.headers.value().unwrap().get_header(<span class="string">&quot;Cookie&quot;</span>), <span class="prelude-val">None</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_cookies_in_header_dont_override_cookies</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">Request</span> {
-            <span class="ident">url</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;http://example.com&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">headers</span>: <span class="ident">Annotated::new</span>(<span class="ident">Headers</span>(
-                <span class="macro">vec!</span>[<span class="ident">Annotated::new</span>((
-                    <span class="ident">Annotated::new</span>(<span class="string">&quot;Cookie&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-                    <span class="ident">Annotated::new</span>(<span class="string">&quot;a=b;c=d&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_cookies_in_header_dont_override_cookies() {
+        <span class="kw">let </span><span class="kw-2">mut </span>request = Request {
+            url: Annotated::new(<span class="string">&quot;http://example.com&quot;</span>.to_string()),
+            headers: Annotated::new(Headers(
+                <span class="macro">vec!</span>[Annotated::new((
+                    Annotated::new(<span class="string">&quot;Cookie&quot;</span>.to_string().into()),
+                    Annotated::new(<span class="string">&quot;a=b;c=d&quot;</span>.to_string().into()),
                 ))]
-                .<span class="ident">into</span>(),
+                .into(),
             )),
-            <span class="ident">cookies</span>: <span class="ident">Annotated::new</span>(<span class="ident">Cookies</span>(<span class="ident">PairList</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>((
-                <span class="ident">Annotated::new</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">Annotated::new</span>(<span class="string">&quot;bar&quot;</span>.<span class="ident">to_string</span>()),
+            cookies: Annotated::new(Cookies(PairList(<span class="macro">vec!</span>[Annotated::new((
+                Annotated::new(<span class="string">&quot;foo&quot;</span>.to_string()),
+                Annotated::new(<span class="string">&quot;bar&quot;</span>.to_string()),
             ))]))),
-            ..<span class="ident">Request::default</span>()
+            ..Request::default()
         };
 
-        <span class="ident">normalize_request</span>(<span class="kw-2">&amp;mut</span> <span class="ident">request</span>).<span class="ident">unwrap</span>();
+        normalize_request(<span class="kw-2">&amp;mut </span>request).unwrap();
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">request</span>.<span class="ident">cookies</span>,
-            <span class="ident">Annotated::new</span>(<span class="ident">Cookies</span>(<span class="ident">PairList</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>((
-                <span class="ident">Annotated::new</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">Annotated::new</span>(<span class="string">&quot;bar&quot;</span>.<span class="ident">to_string</span>()),
+            request.cookies,
+            Annotated::new(Cookies(PairList(<span class="macro">vec!</span>[Annotated::new((
+                Annotated::new(<span class="string">&quot;foo&quot;</span>.to_string()),
+                Annotated::new(<span class="string">&quot;bar&quot;</span>.to_string()),
             ))])))
         );
 
-        <span class="comment">// Cookie header is removed when explicit cookies are given</span>
-        <span class="macro">assert_eq!</span>(<span class="ident">request</span>.<span class="ident">headers</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">get_header</span>(<span class="string">&quot;Cookie&quot;</span>), <span class="prelude-val">None</span>);
+        <span class="comment">// Cookie header is removed when explicit cookies are given
+        </span><span class="macro">assert_eq!</span>(request.headers.value().unwrap().get_header(<span class="string">&quot;Cookie&quot;</span>), <span class="prelude-val">None</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_method_invalid</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">Request</span> {
-            <span class="ident">method</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;!!!!&quot;</span>.<span class="ident">to_string</span>()),
-            ..<span class="ident">Request::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_method_invalid() {
+        <span class="kw">let </span><span class="kw-2">mut </span>request = Request {
+            method: Annotated::new(<span class="string">&quot;!!!!&quot;</span>.to_string()),
+            ..Request::default()
         };
 
-        <span class="ident">normalize_request</span>(<span class="kw-2">&amp;mut</span> <span class="ident">request</span>).<span class="ident">unwrap</span>();
+        normalize_request(<span class="kw-2">&amp;mut </span>request).unwrap();
 
-        <span class="macro">assert_eq!</span>(<span class="ident">request</span>.<span class="ident">method</span>.<span class="ident">value</span>(), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(request.method.value(), <span class="prelude-val">None</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_method_valid</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">Request</span> {
-            <span class="ident">method</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;POST&quot;</span>.<span class="ident">to_string</span>()),
-            ..<span class="ident">Request::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_method_valid() {
+        <span class="kw">let </span><span class="kw-2">mut </span>request = Request {
+            method: Annotated::new(<span class="string">&quot;POST&quot;</span>.to_string()),
+            ..Request::default()
         };
 
-        <span class="ident">normalize_request</span>(<span class="kw-2">&amp;mut</span> <span class="ident">request</span>).<span class="ident">unwrap</span>();
+        normalize_request(<span class="kw-2">&amp;mut </span>request).unwrap();
 
-        <span class="macro">assert_eq!</span>(<span class="ident">request</span>.<span class="ident">method</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;POST&quot;</span>));
+        <span class="macro">assert_eq!</span>(request.method.as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;POST&quot;</span>));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_infer_json</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">Request</span> {
-            <span class="ident">data</span>: <span class="ident">Annotated::from</span>(<span class="ident">Value::String</span>(<span class="string">r#&quot;{&quot;foo&quot;:&quot;bar&quot;}&quot;#</span>.<span class="ident">to_string</span>())),
-            ..<span class="ident">Request::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_infer_json() {
+        <span class="kw">let </span><span class="kw-2">mut </span>request = Request {
+            data: Annotated::from(Value::String(<span class="string">r#&quot;{&quot;foo&quot;:&quot;bar&quot;}&quot;#</span>.to_string())),
+            ..Request::default()
         };
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">expected_value</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-        <span class="ident">expected_value</span>.<span class="ident">insert</span>(
-            <span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>(),
-            <span class="ident">Annotated::from</span>(<span class="ident">Value::String</span>(<span class="string">&quot;bar&quot;</span>.<span class="ident">into</span>())),
+        <span class="kw">let </span><span class="kw-2">mut </span>expected_value = Object::new();
+        expected_value.insert(
+            <span class="string">&quot;foo&quot;</span>.to_string(),
+            Annotated::from(Value::String(<span class="string">&quot;bar&quot;</span>.into())),
         );
 
-        <span class="ident">normalize_request</span>(<span class="kw-2">&amp;mut</span> <span class="ident">request</span>).<span class="ident">unwrap</span>();
+        normalize_request(<span class="kw-2">&amp;mut </span>request).unwrap();
         <span class="macro">assert_eq!</span>(
-            <span class="ident">request</span>.<span class="ident">inferred_content_type</span>.<span class="ident">as_str</span>(),
+            request.inferred_content_type.as_str(),
             <span class="prelude-val">Some</span>(<span class="string">&quot;application/json&quot;</span>)
         );
-        <span class="macro">assert_eq!</span>(<span class="ident">request</span>.<span class="ident">data</span>.<span class="ident">value</span>(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">Value::Object</span>(<span class="ident">expected_value</span>)));
+        <span class="macro">assert_eq!</span>(request.data.value(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Value::Object(expected_value)));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_broken_json_with_fallback</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">Request</span> {
-            <span class="ident">data</span>: <span class="ident">Annotated::from</span>(<span class="ident">Value::String</span>(<span class="string">r#&quot;{&quot;foo&quot;:&quot;b&quot;#</span>.<span class="ident">to_string</span>())),
-            <span class="ident">headers</span>: <span class="ident">Annotated::from</span>(<span class="ident">Headers</span>(<span class="ident">PairList</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>((
-                <span class="ident">Annotated::new</span>(<span class="string">&quot;Content-Type&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-                <span class="ident">Annotated::new</span>(<span class="string">&quot;text/plain; encoding=utf-8&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_broken_json_with_fallback() {
+        <span class="kw">let </span><span class="kw-2">mut </span>request = Request {
+            data: Annotated::from(Value::String(<span class="string">r#&quot;{&quot;foo&quot;:&quot;b&quot;#</span>.to_string())),
+            headers: Annotated::from(Headers(PairList(<span class="macro">vec!</span>[Annotated::new((
+                Annotated::new(<span class="string">&quot;Content-Type&quot;</span>.to_string().into()),
+                Annotated::new(<span class="string">&quot;text/plain; encoding=utf-8&quot;</span>.to_string().into()),
             ))]))),
-            ..<span class="ident">Request::default</span>()
+            ..Request::default()
         };
 
-        <span class="ident">normalize_request</span>(<span class="kw-2">&amp;mut</span> <span class="ident">request</span>).<span class="ident">unwrap</span>();
-        <span class="macro">assert_eq!</span>(<span class="ident">request</span>.<span class="ident">inferred_content_type</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;text/plain&quot;</span>));
-        <span class="macro">assert_eq!</span>(<span class="ident">request</span>.<span class="ident">data</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">r#&quot;{&quot;foo&quot;:&quot;b&quot;#</span>));
+        normalize_request(<span class="kw-2">&amp;mut </span>request).unwrap();
+        <span class="macro">assert_eq!</span>(request.inferred_content_type.as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;text/plain&quot;</span>));
+        <span class="macro">assert_eq!</span>(request.data.as_str(), <span class="prelude-val">Some</span>(<span class="string">r#&quot;{&quot;foo&quot;:&quot;b&quot;#</span>));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_broken_json_without_fallback</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">Request</span> {
-            <span class="ident">data</span>: <span class="ident">Annotated::from</span>(<span class="ident">Value::String</span>(<span class="string">r#&quot;{&quot;foo&quot;:&quot;b&quot;#</span>.<span class="ident">to_string</span>())),
-            ..<span class="ident">Request::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_broken_json_without_fallback() {
+        <span class="kw">let </span><span class="kw-2">mut </span>request = Request {
+            data: Annotated::from(Value::String(<span class="string">r#&quot;{&quot;foo&quot;:&quot;b&quot;#</span>.to_string())),
+            ..Request::default()
         };
 
-        <span class="ident">normalize_request</span>(<span class="kw-2">&amp;mut</span> <span class="ident">request</span>).<span class="ident">unwrap</span>();
-        <span class="macro">assert_eq!</span>(<span class="ident">request</span>.<span class="ident">inferred_content_type</span>.<span class="ident">value</span>(), <span class="prelude-val">None</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">request</span>.<span class="ident">data</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">r#&quot;{&quot;foo&quot;:&quot;b&quot;#</span>));
+        normalize_request(<span class="kw-2">&amp;mut </span>request).unwrap();
+        <span class="macro">assert_eq!</span>(request.inferred_content_type.value(), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(request.data.as_str(), <span class="prelude-val">Some</span>(<span class="string">r#&quot;{&quot;foo&quot;:&quot;b&quot;#</span>));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_infer_url_encoded</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">Request</span> {
-            <span class="ident">data</span>: <span class="ident">Annotated::from</span>(<span class="ident">Value::String</span>(<span class="string">r#&quot;foo=bar&quot;#</span>.<span class="ident">to_string</span>())),
-            ..<span class="ident">Request::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_infer_url_encoded() {
+        <span class="kw">let </span><span class="kw-2">mut </span>request = Request {
+            data: Annotated::from(Value::String(<span class="string">r#&quot;foo=bar&quot;#</span>.to_string())),
+            ..Request::default()
         };
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">expected_value</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-        <span class="ident">expected_value</span>.<span class="ident">insert</span>(
-            <span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>(),
-            <span class="ident">Annotated::from</span>(<span class="ident">Value::String</span>(<span class="string">&quot;bar&quot;</span>.<span class="ident">into</span>())),
+        <span class="kw">let </span><span class="kw-2">mut </span>expected_value = Object::new();
+        expected_value.insert(
+            <span class="string">&quot;foo&quot;</span>.to_string(),
+            Annotated::from(Value::String(<span class="string">&quot;bar&quot;</span>.into())),
         );
 
-        <span class="ident">normalize_request</span>(<span class="kw-2">&amp;mut</span> <span class="ident">request</span>).<span class="ident">unwrap</span>();
+        normalize_request(<span class="kw-2">&amp;mut </span>request).unwrap();
         <span class="macro">assert_eq!</span>(
-            <span class="ident">request</span>.<span class="ident">inferred_content_type</span>.<span class="ident">as_str</span>(),
+            request.inferred_content_type.as_str(),
             <span class="prelude-val">Some</span>(<span class="string">&quot;application/x-www-form-urlencoded&quot;</span>)
         );
-        <span class="macro">assert_eq!</span>(<span class="ident">request</span>.<span class="ident">data</span>.<span class="ident">value</span>(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">Value::Object</span>(<span class="ident">expected_value</span>)));
+        <span class="macro">assert_eq!</span>(request.data.value(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Value::Object(expected_value)));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_infer_url_false_positive</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">Request</span> {
-            <span class="ident">data</span>: <span class="ident">Annotated::from</span>(<span class="ident">Value::String</span>(<span class="string">&quot;dGU=&quot;</span>.<span class="ident">to_string</span>())),
-            ..<span class="ident">Request::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_infer_url_false_positive() {
+        <span class="kw">let </span><span class="kw-2">mut </span>request = Request {
+            data: Annotated::from(Value::String(<span class="string">&quot;dGU=&quot;</span>.to_string())),
+            ..Request::default()
         };
 
-        <span class="ident">normalize_request</span>(<span class="kw-2">&amp;mut</span> <span class="ident">request</span>).<span class="ident">unwrap</span>();
-        <span class="macro">assert_eq!</span>(<span class="ident">request</span>.<span class="ident">inferred_content_type</span>.<span class="ident">value</span>(), <span class="prelude-val">None</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">request</span>.<span class="ident">data</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;dGU=&quot;</span>));
+        normalize_request(<span class="kw-2">&amp;mut </span>request).unwrap();
+        <span class="macro">assert_eq!</span>(request.inferred_content_type.value(), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(request.data.as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;dGU=&quot;</span>));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_infer_url_encoded_base64</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">Request</span> {
-            <span class="ident">data</span>: <span class="ident">Annotated::from</span>(<span class="ident">Value::String</span>(<span class="string">&quot;dA==&quot;</span>.<span class="ident">to_string</span>())),
-            ..<span class="ident">Request::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_infer_url_encoded_base64() {
+        <span class="kw">let </span><span class="kw-2">mut </span>request = Request {
+            data: Annotated::from(Value::String(<span class="string">&quot;dA==&quot;</span>.to_string())),
+            ..Request::default()
         };
 
-        <span class="ident">normalize_request</span>(<span class="kw-2">&amp;mut</span> <span class="ident">request</span>).<span class="ident">unwrap</span>();
-        <span class="macro">assert_eq!</span>(<span class="ident">request</span>.<span class="ident">inferred_content_type</span>.<span class="ident">value</span>(), <span class="prelude-val">None</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">request</span>.<span class="ident">data</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;dA==&quot;</span>));
+        normalize_request(<span class="kw-2">&amp;mut </span>request).unwrap();
+        <span class="macro">assert_eq!</span>(request.inferred_content_type.value(), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(request.data.as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;dA==&quot;</span>));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_infer_xml</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">Request</span> {
-            <span class="ident">data</span>: <span class="ident">Annotated::from</span>(<span class="ident">Value::String</span>(<span class="string">&quot;&lt;?xml version=\&quot;1.0\&quot; ?&gt;&quot;</span>.<span class="ident">to_string</span>())),
-            ..<span class="ident">Request::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_infer_xml() {
+        <span class="kw">let </span><span class="kw-2">mut </span>request = Request {
+            data: Annotated::from(Value::String(<span class="string">&quot;&lt;?xml version=\&quot;1.0\&quot; ?&gt;&quot;</span>.to_string())),
+            ..Request::default()
         };
 
-        <span class="ident">normalize_request</span>(<span class="kw-2">&amp;mut</span> <span class="ident">request</span>).<span class="ident">unwrap</span>();
-        <span class="macro">assert_eq!</span>(<span class="ident">request</span>.<span class="ident">inferred_content_type</span>.<span class="ident">value</span>(), <span class="prelude-val">None</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">request</span>.<span class="ident">data</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;&lt;?xml version=\&quot;1.0\&quot; ?&gt;&quot;</span>));
+        normalize_request(<span class="kw-2">&amp;mut </span>request).unwrap();
+        <span class="macro">assert_eq!</span>(request.inferred_content_type.value(), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(request.data.as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;&lt;?xml version=\&quot;1.0\&quot; ?&gt;&quot;</span>));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_infer_binary</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">Request</span> {
-            <span class="ident">data</span>: <span class="ident">Annotated::from</span>(<span class="ident">Value::String</span>(<span class="string">&quot;\u{001f}1\u{0000}\u{0000}&quot;</span>.<span class="ident">to_string</span>())),
-            ..<span class="ident">Request::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_infer_binary() {
+        <span class="kw">let </span><span class="kw-2">mut </span>request = Request {
+            data: Annotated::from(Value::String(<span class="string">&quot;\u{001f}1\u{0000}\u{0000}&quot;</span>.to_string())),
+            ..Request::default()
         };
 
-        <span class="ident">normalize_request</span>(<span class="kw-2">&amp;mut</span> <span class="ident">request</span>).<span class="ident">unwrap</span>();
-        <span class="macro">assert_eq!</span>(<span class="ident">request</span>.<span class="ident">inferred_content_type</span>.<span class="ident">value</span>(), <span class="prelude-val">None</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">request</span>.<span class="ident">data</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;\u{001f}1\u{0000}\u{0000}&quot;</span>));
+        normalize_request(<span class="kw-2">&amp;mut </span>request).unwrap();
+        <span class="macro">assert_eq!</span>(request.inferred_content_type.value(), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(request.data.as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;\u{001f}1\u{0000}\u{0000}&quot;</span>));
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

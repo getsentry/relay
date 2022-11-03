@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/derive/src/process.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>process.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_general_derive/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_general_derive/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/derive/src/process.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>process.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_general_derive/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_general_derive/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_general_derive/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -198,197 +198,197 @@
 <span id="196">196</span>
 <span id="197">197</span>
 <span id="198">198</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">proc_macro2</span>::{<span class="ident">Span</span>, <span class="ident">TokenStream</span>};
-<span class="kw">use</span> <span class="ident">quote</span>::{<span class="ident">quote</span>, <span class="ident">ToTokens</span>};
-<span class="kw">use</span> <span class="ident">syn::Ident</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>proc_macro2::{Span, TokenStream};
+<span class="kw">use </span>quote::{quote, ToTokens};
+<span class="kw">use </span>syn::Ident;
 
-<span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">is_newtype</span>, <span class="ident">parse_field_attributes</span>, <span class="ident">parse_type_attributes</span>};
+<span class="kw">use crate</span>::{is_newtype, parse_field_attributes, parse_type_attributes};
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">derive_process_value</span>(<span class="kw-2">mut</span> <span class="ident">s</span>: <span class="ident">synstructure::Structure</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">TokenStream</span> {
-    <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">bind_with</span>(<span class="op">|</span><span class="ident">_bi</span><span class="op">|</span> <span class="ident">synstructure::BindStyle::RefMut</span>);
-    <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">add_bounds</span>(<span class="ident">synstructure::AddBounds::Generics</span>);
+<span class="kw">pub fn </span>derive_process_value(<span class="kw-2">mut </span>s: synstructure::Structure&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; TokenStream {
+    <span class="kw">let _ </span>= s.bind_with(|_bi| synstructure::BindStyle::RefMut);
+    <span class="kw">let _ </span>= s.add_bounds(synstructure::AddBounds::Generics);
 
-    <span class="kw">let</span> <span class="ident">type_attrs</span> <span class="op">=</span> <span class="ident">parse_type_attributes</span>(<span class="kw-2">&amp;</span><span class="ident">s</span>);
-    <span class="kw">let</span> <span class="ident">process_func_call_tokens</span> <span class="op">=</span> <span class="ident">type_attrs</span>.<span class="ident">process_func_call_tokens</span>();
+    <span class="kw">let </span>type_attrs = parse_type_attributes(<span class="kw-2">&amp;</span>s);
+    <span class="kw">let </span>process_func_call_tokens = type_attrs.process_func_call_tokens();
 
-    <span class="kw">let</span> <span class="ident">process_value_arms</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">each_variant</span>(<span class="op">|</span><span class="ident">variant</span><span class="op">|</span> {
-        <span class="kw">if</span> <span class="ident">is_newtype</span>(<span class="ident">variant</span>) {
-            <span class="comment">// Process variant twice s.t. both processor functions are called.</span>
-            <span class="comment">//</span>
-            <span class="comment">// E.g.:</span>
-            <span class="comment">// - For `Value::String`, call `process_string` as well as `process_value`.</span>
-            <span class="comment">// - For `LenientString`, call `process_lenient_string` (not a thing.. yet) as well as</span>
-            <span class="comment">// `process_string`.</span>
+    <span class="kw">let </span>process_value_arms = s.each_variant(|variant| {
+        <span class="kw">if </span>is_newtype(variant) {
+            <span class="comment">// Process variant twice s.t. both processor functions are called.
+            //
+            // E.g.:
+            // - For `Value::String`, call `process_string` as well as `process_value`.
+            // - For `LenientString`, call `process_lenient_string` (not a thing.. yet) as well as
+            // `process_string`.
 
-            <span class="kw">let</span> <span class="ident">bi</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">variant</span>.<span class="ident">bindings</span>()[<span class="number">0</span>];
-            <span class="kw">let</span> <span class="ident">ident</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">bi</span>.<span class="ident">binding</span>;
-            <span class="kw">let</span> <span class="ident">field_attrs</span> <span class="op">=</span> <span class="ident">parse_field_attributes</span>(<span class="number">0</span>, <span class="ident">bi</span>.<span class="ident">ast</span>(), <span class="kw-2">&amp;mut</span> <span class="bool-val">true</span>);
-            <span class="kw">let</span> <span class="ident">field_attrs_tokens</span> <span class="op">=</span> <span class="ident">field_attrs</span>.<span class="ident">as_tokens</span>(<span class="prelude-val">Some</span>(<span class="macro">quote!</span>(<span class="ident">parent_attrs</span>)));
+            </span><span class="kw">let </span>bi = <span class="kw-2">&amp;</span>variant.bindings()[<span class="number">0</span>];
+            <span class="kw">let </span>ident = <span class="kw-2">&amp;</span>bi.binding;
+            <span class="kw">let </span>field_attrs = parse_field_attributes(<span class="number">0</span>, bi.ast(), <span class="kw-2">&amp;mut </span><span class="bool-val">true</span>);
+            <span class="kw">let </span>field_attrs_tokens = field_attrs.as_tokens(<span class="prelude-val">Some</span>(<span class="macro">quote!</span>(parent_attrs)));
 
-            <span class="macro">quote!</span> {
-                <span class="kw">let</span> <span class="ident">parent_attrs</span> <span class="op">=</span> <span class="ident">__state</span>.<span class="ident">attrs</span>();
-                <span class="kw">let</span> <span class="ident">attrs</span> <span class="op">=</span> #<span class="ident">field_attrs_tokens</span>;
-                <span class="kw">let</span> <span class="ident">__state</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">__state</span>.<span class="ident">enter_nothing</span>(
-                    <span class="prelude-val">Some</span>(<span class="ident">::std::borrow::Cow::Owned</span>(<span class="ident">attrs</span>))
+            <span class="macro">quote! </span>{
+                <span class="kw">let </span>parent_attrs = __state.attrs();
+                <span class="kw">let </span>attrs = #field_attrs_tokens;
+                <span class="kw">let </span>__state = <span class="kw-2">&amp;</span>__state.enter_nothing(
+                    <span class="prelude-val">Some</span>(::std::borrow::Cow::Owned(attrs))
                 );
 
-                <span class="comment">// This is a copy of `funcs::process_value`, due to ownership issues. In particular</span>
-                <span class="comment">// we want to pass the same meta twice.</span>
-                <span class="comment">//</span>
-                <span class="comment">// NOTE: Handling for ProcessingAction is slightly different (early-return). This</span>
-                <span class="comment">// should be fine though.</span>
-                <span class="kw">let</span> <span class="ident">action</span> <span class="op">=</span> <span class="ident">__processor</span>.<span class="ident">before_process</span>(
-                    <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span>#<span class="ident">ident</span>),
-                    <span class="ident">__meta</span>,
-                    <span class="kw-2">&amp;</span><span class="ident">__state</span>
+                <span class="comment">// This is a copy of `funcs::process_value`, due to ownership issues. In particular
+                // we want to pass the same meta twice.
+                //
+                // NOTE: Handling for ProcessingAction is slightly different (early-return). This
+                // should be fine though.
+                </span><span class="kw">let </span>action = __processor.before_process(
+                    <span class="prelude-val">Some</span>(<span class="kw-2">&amp;*</span>#ident),
+                    __meta,
+                    <span class="kw-2">&amp;</span>__state
                 )<span class="question-mark">?</span>;
 
-                <span class="ident"><span class="kw">crate</span>::processor::ProcessValue::process_value</span>(
-                    #<span class="ident">ident</span>,
-                    <span class="ident">__meta</span>,
-                    <span class="ident">__processor</span>,
-                    <span class="kw-2">&amp;</span><span class="ident">__state</span>
+                <span class="kw">crate</span>::processor::ProcessValue::process_value(
+                    #ident,
+                    __meta,
+                    __processor,
+                    <span class="kw-2">&amp;</span>__state
                 )<span class="question-mark">?</span>;
 
-                <span class="ident">__processor</span>.<span class="ident">after_process</span>(
-                    <span class="prelude-val">Some</span>(#<span class="ident">ident</span>),
-                    <span class="ident">__meta</span>,
-                    <span class="kw-2">&amp;</span><span class="ident">__state</span>
+                __processor.after_process(
+                    <span class="prelude-val">Some</span>(#ident),
+                    __meta,
+                    <span class="kw-2">&amp;</span>__state
                 )<span class="question-mark">?</span>;
             }
-        } <span class="kw">else</span> {
+        } <span class="kw">else </span>{
             <span class="macro">quote!</span>()
         }
     });
 
-    <span class="kw">let</span> <span class="ident">process_child_values_arms</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">each_variant</span>(<span class="op">|</span><span class="ident">variant</span><span class="op">|</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">is_tuple_struct</span> <span class="op">=</span> <span class="bool-val">false</span>;
+    <span class="kw">let </span>process_child_values_arms = s.each_variant(|variant| {
+        <span class="kw">let </span><span class="kw-2">mut </span>is_tuple_struct = <span class="bool-val">false</span>;
 
-        <span class="kw">if</span> <span class="ident">is_newtype</span>(<span class="ident">variant</span>) {
-            <span class="comment">// `process_child_values` has to be a noop because otherwise we recurse into the</span>
-            <span class="comment">// subtree twice due to the weird `process_value` impl</span>
+        <span class="kw">if </span>is_newtype(variant) {
+            <span class="comment">// `process_child_values` has to be a noop because otherwise we recurse into the
+            // subtree twice due to the weird `process_value` impl
 
-            <span class="kw">return</span> <span class="macro">quote!</span>();
+            </span><span class="kw">return </span><span class="macro">quote!</span>();
         }
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">body</span> <span class="op">=</span> <span class="ident">TokenStream::new</span>();
-        <span class="kw">for</span> (<span class="ident">index</span>, <span class="ident">bi</span>) <span class="kw">in</span> <span class="ident">variant</span>.<span class="ident">bindings</span>().<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
-            <span class="kw">let</span> <span class="ident">field_attrs</span> <span class="op">=</span> <span class="ident">parse_field_attributes</span>(<span class="ident">index</span>, <span class="ident">bi</span>.<span class="ident">ast</span>(), <span class="kw-2">&amp;mut</span> <span class="ident">is_tuple_struct</span>);
-            <span class="kw">let</span> <span class="ident">ident</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">bi</span>.<span class="ident">binding</span>;
-            <span class="kw">let</span> <span class="ident">field_attrs_name</span> <span class="op">=</span> <span class="ident">Ident::new</span>(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;FIELD_ATTRS_{}&quot;</span>, <span class="ident">index</span>), <span class="ident">Span::call_site</span>());
-            <span class="kw">let</span> <span class="ident">field_name</span> <span class="op">=</span> <span class="ident">field_attrs</span>.<span class="ident">field_name</span>.<span class="ident">clone</span>();
+        <span class="kw">let </span><span class="kw-2">mut </span>body = TokenStream::new();
+        <span class="kw">for </span>(index, bi) <span class="kw">in </span>variant.bindings().iter().enumerate() {
+            <span class="kw">let </span>field_attrs = parse_field_attributes(index, bi.ast(), <span class="kw-2">&amp;mut </span>is_tuple_struct);
+            <span class="kw">let </span>ident = <span class="kw-2">&amp;</span>bi.binding;
+            <span class="kw">let </span>field_attrs_name = Ident::new(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;FIELD_ATTRS_{}&quot;</span>, index), Span::call_site());
+            <span class="kw">let </span>field_name = field_attrs.field_name.clone();
 
-            <span class="kw">let</span> <span class="ident">field_attrs_tokens</span> <span class="op">=</span> <span class="ident">field_attrs</span>.<span class="ident">as_tokens</span>(<span class="prelude-val">None</span>);
+            <span class="kw">let </span>field_attrs_tokens = field_attrs.as_tokens(<span class="prelude-val">None</span>);
 
-            (<span class="macro">quote!</span> {
-                <span class="kw">static</span> #<span class="ident">field_attrs_name</span>: <span class="ident"><span class="kw">crate</span>::processor::FieldAttrs</span> <span class="op">=</span> #<span class="ident">field_attrs_tokens</span>;
+            (<span class="macro">quote! </span>{
+                <span class="kw">static </span>#field_attrs_name: <span class="kw">crate</span>::processor::FieldAttrs = #field_attrs_tokens;
             })
-            .<span class="ident">to_tokens</span>(<span class="kw-2">&amp;mut</span> <span class="ident">body</span>);
+            .to_tokens(<span class="kw-2">&amp;mut </span>body);
 
-            <span class="kw">let</span> <span class="ident">enter_state</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">field_attrs</span>.<span class="ident">additional_properties</span> {
-                <span class="kw">if</span> <span class="ident">is_tuple_struct</span> {
+            <span class="kw">let </span>enter_state = <span class="kw">if </span>field_attrs.additional_properties {
+                <span class="kw">if </span>is_tuple_struct {
                     <span class="macro">panic!</span>(<span class="string">&quot;additional_properties not allowed in tuple struct&quot;</span>);
                 }
 
-                <span class="macro">quote!</span> {
-                    <span class="ident">__state</span>.<span class="ident">enter_nothing</span>(<span class="prelude-val">Some</span>(<span class="ident">::std::borrow::Cow::Borrowed</span>(<span class="kw-2">&amp;</span>#<span class="ident">field_attrs_name</span>)))
+                <span class="macro">quote! </span>{
+                    __state.enter_nothing(<span class="prelude-val">Some</span>(::std::borrow::Cow::Borrowed(<span class="kw-2">&amp;</span>#field_attrs_name)))
                 }
-            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">is_tuple_struct</span> {
-                <span class="macro">quote!</span> {
-                    <span class="ident">__state</span>.<span class="ident">enter_index</span>(
-                        #<span class="ident">index</span>,
-                        <span class="prelude-val">Some</span>(<span class="ident">::std::borrow::Cow::Borrowed</span>(<span class="kw-2">&amp;</span>#<span class="ident">field_attrs_name</span>)),
-                        <span class="ident"><span class="kw">crate</span>::processor::ValueType::for_field</span>(#<span class="ident">ident</span>),
+            } <span class="kw">else if </span>is_tuple_struct {
+                <span class="macro">quote! </span>{
+                    __state.enter_index(
+                        #index,
+                        <span class="prelude-val">Some</span>(::std::borrow::Cow::Borrowed(<span class="kw-2">&amp;</span>#field_attrs_name)),
+                        <span class="kw">crate</span>::processor::ValueType::for_field(#ident),
                     )
                 }
-            } <span class="kw">else</span> {
-                <span class="macro">quote!</span> {
-                    <span class="ident">__state</span>.<span class="ident">enter_static</span>(
-                        #<span class="ident">field_name</span>,
-                        <span class="prelude-val">Some</span>(<span class="ident">::std::borrow::Cow::Borrowed</span>(<span class="kw-2">&amp;</span>#<span class="ident">field_attrs_name</span>)),
-                        <span class="ident"><span class="kw">crate</span>::processor::ValueType::for_field</span>(#<span class="ident">ident</span>),
+            } <span class="kw">else </span>{
+                <span class="macro">quote! </span>{
+                    __state.enter_static(
+                        #field_name,
+                        <span class="prelude-val">Some</span>(::std::borrow::Cow::Borrowed(<span class="kw-2">&amp;</span>#field_attrs_name)),
+                        <span class="kw">crate</span>::processor::ValueType::for_field(#ident),
                     )
                 }
             };
 
-            <span class="kw">if</span> <span class="ident">field_attrs</span>.<span class="ident">additional_properties</span> {
-                (<span class="macro">quote!</span> {
-                    <span class="ident">__processor</span>.<span class="ident">process_other</span>(#<span class="ident">ident</span>, <span class="kw-2">&amp;</span>#<span class="ident">enter_state</span>)<span class="question-mark">?</span>;
+            <span class="kw">if </span>field_attrs.additional_properties {
+                (<span class="macro">quote! </span>{
+                    __processor.process_other(#ident, <span class="kw-2">&amp;</span>#enter_state)<span class="question-mark">?</span>;
                 })
-                .<span class="ident">to_tokens</span>(<span class="kw-2">&amp;mut</span> <span class="ident">body</span>);
-            } <span class="kw">else</span> {
-                (<span class="macro">quote!</span> {
-                    <span class="ident"><span class="kw">crate</span>::processor::process_value</span>(#<span class="ident">ident</span>, <span class="ident">__processor</span>, <span class="kw-2">&amp;</span>#<span class="ident">enter_state</span>)<span class="question-mark">?</span>;
+                .to_tokens(<span class="kw-2">&amp;mut </span>body);
+            } <span class="kw">else </span>{
+                (<span class="macro">quote! </span>{
+                    <span class="kw">crate</span>::processor::process_value(#ident, __processor, <span class="kw-2">&amp;</span>#enter_state)<span class="question-mark">?</span>;
                 })
-                .<span class="ident">to_tokens</span>(<span class="kw-2">&amp;mut</span> <span class="ident">body</span>);
+                .to_tokens(<span class="kw-2">&amp;mut </span>body);
             }
         }
 
-        <span class="macro">quote!</span>({ #<span class="ident">body</span> })
+        <span class="macro">quote!</span>({ #body })
     });
 
-    <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">bind_with</span>(<span class="op">|</span><span class="ident">_bi</span><span class="op">|</span> <span class="ident">synstructure::BindStyle::Ref</span>);
+    <span class="kw">let _ </span>= s.bind_with(|_bi| synstructure::BindStyle::Ref);
 
-    <span class="kw">let</span> <span class="ident">value_type_arms</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">each_variant</span>(<span class="op">|</span><span class="ident">variant</span><span class="op">|</span> {
-        <span class="kw">if</span> <span class="op">!</span><span class="ident">type_attrs</span>.<span class="ident">value_type</span>.<span class="ident">is_empty</span>() {
-            <span class="kw">let</span> <span class="ident">value_names</span> <span class="op">=</span> <span class="ident">type_attrs</span>
-                .<span class="ident">value_type</span>
-                .<span class="ident">iter</span>()
-                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">value_name</span><span class="op">|</span> <span class="ident">Ident::new</span>(<span class="ident">value_name</span>, <span class="ident">Span::call_site</span>()));
-            <span class="macro">quote!</span> {
-                <span class="comment">// enumset produces a deprecation warning because it thinks we use its internals</span>
-                <span class="comment">// directly, but we do actually use the macro</span>
-                <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">deprecated</span>)]</span>
-                {
-                    <span class="macro">enumset::enum_set!</span>( #(<span class="ident"><span class="kw">crate</span>::processor::ValueType</span>::#<span class="ident">value_names</span>)<span class="op">|</span><span class="op">*</span> )
+    <span class="kw">let </span>value_type_arms = s.each_variant(|variant| {
+        <span class="kw">if </span>!type_attrs.value_type.is_empty() {
+            <span class="kw">let </span>value_names = type_attrs
+                .value_type
+                .iter()
+                .map(|value_name| Ident::new(value_name, Span::call_site()));
+            <span class="macro">quote! </span>{
+                <span class="comment">// enumset produces a deprecation warning because it thinks we use its internals
+                // directly, but we do actually use the macro
+                </span><span class="attribute">#[allow(deprecated)]
+                </span>{
+                    <span class="macro">enumset::enum_set!</span>( #(<span class="kw">crate</span>::processor::ValueType::#value_names)|* )
                 }
             }
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">is_newtype</span>(<span class="ident">variant</span>) {
-            <span class="kw">let</span> <span class="ident">bi</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">variant</span>.<span class="ident">bindings</span>()[<span class="number">0</span>];
-            <span class="kw">let</span> <span class="ident">ident</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">bi</span>.<span class="ident">binding</span>;
-            <span class="macro">quote!</span>(<span class="ident"><span class="kw">crate</span>::processor::ProcessValue::value_type</span>(#<span class="ident">ident</span>))
-        } <span class="kw">else</span> {
-            <span class="macro">quote!</span>(<span class="ident">enumset::EnumSet::empty</span>())
+        } <span class="kw">else if </span>is_newtype(variant) {
+            <span class="kw">let </span>bi = <span class="kw-2">&amp;</span>variant.bindings()[<span class="number">0</span>];
+            <span class="kw">let </span>ident = <span class="kw-2">&amp;</span>bi.binding;
+            <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::ProcessValue::value_type(#ident))
+        } <span class="kw">else </span>{
+            <span class="macro">quote!</span>(enumset::EnumSet::empty())
         }
     });
 
-    <span class="ident">s</span>.<span class="ident">gen_impl</span>(<span class="macro">quote!</span> {
-        <span class="attribute">#[<span class="ident">automatically_derived</span>]</span>
-        <span class="ident">gen</span> <span class="kw">impl</span> <span class="ident"><span class="kw">crate</span>::processor::ProcessValue</span> <span class="kw">for</span> @<span class="self">Self</span> {
-            <span class="kw">fn</span> <span class="ident">value_type</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">enumset::EnumSet</span><span class="op">&lt;</span><span class="ident"><span class="kw">crate</span>::processor::ValueType</span><span class="op">&gt;</span> {
-                <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-                    #<span class="ident">value_type_arms</span>
+    s.gen_impl(<span class="macro">quote! </span>{
+        <span class="attribute">#[automatically_derived]
+        </span>gen <span class="kw">impl </span><span class="kw">crate</span>::processor::ProcessValue <span class="kw">for </span>@<span class="self">Self </span>{
+            <span class="kw">fn </span>value_type(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; enumset::EnumSet&lt;<span class="kw">crate</span>::processor::ValueType&gt; {
+                <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
+                    #value_type_arms
                 }
             }
 
-            <span class="kw">fn</span> <span class="ident">process_value</span><span class="op">&lt;</span><span class="ident">P</span><span class="op">&gt;</span>(
-                <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
-                <span class="ident">__meta</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="kw">crate</span>::types::Meta</span>,
-                <span class="ident">__processor</span>: <span class="kw-2">&amp;mut</span> <span class="ident">P</span>,
-                <span class="ident">__state</span>: <span class="kw-2">&amp;</span><span class="ident"><span class="kw">crate</span>::processor::ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-            ) -&gt; <span class="ident"><span class="kw">crate</span>::types::ProcessingResult</span>
-            <span class="kw">where</span>
-                <span class="ident">P</span>: <span class="ident"><span class="kw">crate</span>::processor::Processor</span>,
+            <span class="kw">fn </span>process_value&lt;P&gt;(
+                <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+                __meta: <span class="kw-2">&amp;mut </span><span class="kw">crate</span>::types::Meta,
+                __processor: <span class="kw-2">&amp;mut </span>P,
+                __state: <span class="kw-2">&amp;</span><span class="kw">crate</span>::processor::ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+            ) -&gt; <span class="kw">crate</span>::types::ProcessingResult
+            <span class="kw">where
+                </span>P: <span class="kw">crate</span>::processor::Processor,
             {
-                #<span class="ident">process_func_call_tokens</span>;
-                <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-                    #<span class="ident">process_value_arms</span>
+                #process_func_call_tokens;
+                <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
+                    #process_value_arms
                 }
 
                 <span class="prelude-val">Ok</span>(())
             }
 
-            <span class="attribute">#[<span class="ident">inline</span>]</span>
-            <span class="kw">fn</span> <span class="ident">process_child_values</span><span class="op">&lt;</span><span class="ident">P</span><span class="op">&gt;</span>(
-                <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
-                <span class="ident">__processor</span>: <span class="kw-2">&amp;mut</span> <span class="ident">P</span>,
-                <span class="ident">__state</span>: <span class="kw-2">&amp;</span><span class="ident"><span class="kw">crate</span>::processor::ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>
-            ) -&gt; <span class="ident"><span class="kw">crate</span>::types::ProcessingResult</span>
-            <span class="kw">where</span>
-                <span class="ident">P</span>: <span class="ident"><span class="kw">crate</span>::processor::Processor</span>,
+            <span class="attribute">#[inline]
+            </span><span class="kw">fn </span>process_child_values&lt;P&gt;(
+                <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+                __processor: <span class="kw-2">&amp;mut </span>P,
+                __state: <span class="kw-2">&amp;</span><span class="kw">crate</span>::processor::ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;
+            ) -&gt; <span class="kw">crate</span>::types::ProcessingResult
+            <span class="kw">where
+                </span>P: <span class="kw">crate</span>::processor::Processor,
             {
-                <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-                    #<span class="ident">process_child_values_arms</span>
+                <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
+                    #process_child_values_arms
                 }
 
                 <span class="prelude-val">Ok</span>(())
@@ -397,4 +397,4 @@
     })
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_general_derive" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_general_derive" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

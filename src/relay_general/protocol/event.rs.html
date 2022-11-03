@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/protocol/event.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>event.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/protocol/event.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>event.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_general/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -816,604 +816,604 @@
 <span id="814">814</span>
 <span id="815">815</span>
 <span id="816">816</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
-<span class="kw">use</span> <span class="ident">std::str::FromStr</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::str::FromStr;
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident">schemars::gen::SchemaGenerator</span>;
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident">schemars::schema::Schema</span>;
+<span class="attribute">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+</span><span class="kw">use </span>schemars::gen::SchemaGenerator;
+<span class="attribute">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+</span><span class="kw">use </span>schemars::schema::Schema;
 
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Serialize</span>, <span class="ident">Serializer</span>};
+<span class="kw">use </span>serde::{Serialize, Serializer};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::macros::derive_string_meta_structure</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor::ProcessValue</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{
-    <span class="ident">Breadcrumb</span>, <span class="ident">Breakdowns</span>, <span class="ident">ClientSdkInfo</span>, <span class="ident">Contexts</span>, <span class="ident">Csp</span>, <span class="ident">DebugMeta</span>, <span class="ident">Exception</span>, <span class="ident">ExpectCt</span>,
-    <span class="ident">ExpectStaple</span>, <span class="ident">Fingerprint</span>, <span class="ident">Hpkp</span>, <span class="ident">LenientString</span>, <span class="ident">Level</span>, <span class="ident">LogEntry</span>, <span class="ident">Measurements</span>, <span class="ident">Metrics</span>,
-    <span class="ident">RelayInfo</span>, <span class="ident">Request</span>, <span class="ident">Span</span>, <span class="ident">Stacktrace</span>, <span class="ident">Tags</span>, <span class="ident">TemplateInfo</span>, <span class="ident">Thread</span>, <span class="ident">Timestamp</span>, <span class="ident">TransactionInfo</span>,
-    <span class="ident">TransactionSource</span>, <span class="ident">User</span>, <span class="ident">Values</span>,
+<span class="kw">use </span><span class="kw">crate</span>::macros::derive_string_meta_structure;
+<span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
+<span class="kw">use </span><span class="kw">crate</span>::protocol::{
+    Breadcrumb, Breakdowns, ClientSdkInfo, Contexts, Csp, DebugMeta, Exception, ExpectCt,
+    ExpectStaple, Fingerprint, Hpkp, LenientString, Level, LogEntry, Measurements, Metrics,
+    RelayInfo, Request, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp, TransactionInfo,
+    TransactionSource, User, Values,
 };
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{
-    <span class="ident">Annotated</span>, <span class="ident">Array</span>, <span class="ident">Empty</span>, <span class="ident">ErrorKind</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">Object</span>, <span class="ident">SkipSerialization</span>, <span class="ident">Value</span>,
+<span class="kw">use </span><span class="kw">crate</span>::types::{
+    Annotated, Array, Empty, ErrorKind, FromValue, IntoValue, Object, SkipSerialization, Value,
 };
 
-<span class="doccomment">/// Wrapper around a UUID with slightly different formatting.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">PartialOrd</span>, <span class="ident">Ord</span>, <span class="ident">Hash</span>)]</span>
-<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">EventId</span>(<span class="kw">pub</span> <span class="ident">uuid::Uuid</span>);
+<span class="doccomment">/// Wrapper around a UUID with slightly different formatting.
+</span><span class="attribute">#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+</span><span class="kw">pub struct </span>EventId(<span class="kw">pub </span>uuid::Uuid);
 
-<span class="kw">impl</span> <span class="ident">EventId</span> {
-    <span class="doccomment">/// Creates a new event id using a UUID v4.</span>
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span>(<span class="ident">uuid::Uuid::new_v4</span>())
+<span class="kw">impl </span>EventId {
+    <span class="doccomment">/// Creates a new event id using a UUID v4.
+    </span><span class="attribute">#[inline]
+    </span><span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>(uuid::Uuid::new_v4())
     }
 
-    <span class="doccomment">/// Tests if the UUID is nil.</span>
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_nil</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">is_nil</span>()
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">EventId</span> {
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
-        <span class="ident"><span class="self">Self</span>::new</span>()
+    <span class="doccomment">/// Tests if the UUID is nil.
+    </span><span class="attribute">#[inline]
+    </span><span class="kw">pub fn </span>is_nil(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.<span class="number">0</span>.is_nil()
     }
 }
 
-<span class="macro">derive_string_meta_structure!</span>(<span class="ident">EventId</span>, <span class="string">&quot;event id&quot;</span>);
-
-<span class="kw">impl</span> <span class="ident">ProcessValue</span> <span class="kw">for</span> <span class="ident">EventId</span> {}
-
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">EventId</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.<span class="number">0</span>.<span class="ident">to_simple_ref</span>())
+<span class="kw">impl </span>Default <span class="kw">for </span>EventId {
+    <span class="attribute">#[inline]
+    </span><span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::new()
     }
 }
 
-<span class="kw">impl</span> <span class="ident">FromStr</span> <span class="kw">for</span> <span class="ident">EventId</span> {
-    <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="ident">uuid::Error</span>;
+<span class="macro">derive_string_meta_structure!</span>(EventId, <span class="string">&quot;event id&quot;</span>);
 
-    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">uuid_str</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
-        <span class="ident">uuid_str</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">EventId</span>)
+<span class="kw">impl </span>ProcessValue <span class="kw">for </span>EventId {}
+
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>EventId {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.<span class="number">0</span>.to_simple_ref())
     }
 }
 
-<span class="macro">relay_common::impl_str_serde!</span>(<span class="ident">EventId</span>, <span class="string">&quot;an event identifier&quot;</span>);
+<span class="kw">impl </span>FromStr <span class="kw">for </span>EventId {
+    <span class="kw">type </span><span class="prelude-val">Err </span>= uuid::Error;
 
-<span class="attribute">#[<span class="ident">doc</span>(<span class="ident">inline</span>)]</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">EventType</span>, <span class="ident">ParseEventTypeError</span>};
-
-<span class="kw">impl</span> <span class="ident">Empty</span> <span class="kw">for</span> <span class="ident">EventType</span> {
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="bool-val">false</span>
+    <span class="kw">fn </span>from_str(uuid_str: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
+        uuid_str.parse().map(EventId)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">FromValue</span> <span class="kw">for</span> <span class="ident">EventType</span> {
-    <span class="kw">fn</span> <span class="ident">from_value</span>(<span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="ident">String::from_value</span>(<span class="ident">value</span>) {
-            <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="kw-2">mut</span> <span class="ident">meta</span>) =&gt; <span class="kw">match</span> <span class="ident">value</span>.<span class="ident">parse</span>() {
-                <span class="prelude-val">Ok</span>(<span class="ident">eventtype</span>) =&gt; <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">eventtype</span>), <span class="ident">meta</span>),
+<span class="macro">relay_common::impl_str_serde!</span>(EventId, <span class="string">&quot;an event identifier&quot;</span>);
+
+<span class="attribute">#[doc(inline)]
+</span><span class="kw">pub use </span>relay_common::{EventType, ParseEventTypeError};
+
+<span class="kw">impl </span>Empty <span class="kw">for </span>EventType {
+    <span class="attribute">#[inline]
+    </span><span class="kw">fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="bool-val">false
+    </span>}
+}
+
+<span class="kw">impl </span>FromValue <span class="kw">for </span>EventType {
+    <span class="kw">fn </span>from_value(value: Annotated&lt;Value&gt;) -&gt; Annotated&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">match </span>String::from_value(value) {
+            Annotated(<span class="prelude-val">Some</span>(value), <span class="kw-2">mut </span>meta) =&gt; <span class="kw">match </span>value.parse() {
+                <span class="prelude-val">Ok</span>(eventtype) =&gt; Annotated(<span class="prelude-val">Some</span>(eventtype), meta),
                 <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-                    <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">ErrorKind::InvalidData</span>);
-                    <span class="ident">meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>));
-                    <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>)
+                    meta.add_error(ErrorKind::InvalidData);
+                    meta.set_original_value(<span class="prelude-val">Some</span>(value));
+                    Annotated(<span class="prelude-val">None</span>, meta)
                 }
             },
-            <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>) =&gt; <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>),
+            Annotated(<span class="prelude-val">None</span>, meta) =&gt; Annotated(<span class="prelude-val">None</span>, meta),
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">IntoValue</span> <span class="kw">for</span> <span class="ident">EventType</span> {
-    <span class="kw">fn</span> <span class="ident">into_value</span>(<span class="self">self</span>) -&gt; <span class="ident">Value</span>
-    <span class="kw">where</span>
-        <span class="self">Self</span>: <span class="ident">Sized</span>,
+<span class="kw">impl </span>IntoValue <span class="kw">for </span>EventType {
+    <span class="kw">fn </span>into_value(<span class="self">self</span>) -&gt; Value
+    <span class="kw">where
+        </span><span class="self">Self</span>: Sized,
     {
-        <span class="ident">Value::String</span>(<span class="macro">format!</span>(<span class="string">&quot;{}&quot;</span>, <span class="self">self</span>))
+        Value::String(<span class="macro">format!</span>(<span class="string">&quot;{}&quot;</span>, <span class="self">self</span>))
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_payload</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">s</span>: <span class="ident">S</span>, <span class="ident">_behavior</span>: <span class="ident">SkipSerialization</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="self">Self</span>: <span class="ident">Sized</span>,
-        <span class="ident">S</span>: <span class="ident">Serializer</span>,
+    <span class="kw">fn </span>serialize_payload&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, s: S, _behavior: SkipSerialization) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
+    <span class="kw">where
+        </span><span class="self">Self</span>: Sized,
+        S: Serializer,
     {
-        <span class="ident">Serialize::serialize</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">to_string</span>(), <span class="ident">s</span>)
+        Serialize::serialize(<span class="kw-2">&amp;</span><span class="self">self</span>.to_string(), s)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">ProcessValue</span> <span class="kw">for</span> <span class="ident">EventType</span> {}
+<span class="kw">impl </span>ProcessValue <span class="kw">for </span>EventType {}
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>, <span class="ident">Empty</span>, <span class="ident">Clone</span>, <span class="ident">PartialEq</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ExtraValue</span>(<span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">bag_size</span> <span class="op">=</span> <span class="string">&quot;larger&quot;</span>)]</span> <span class="kw">pub</span> <span class="ident">Value</span>);
+<span class="attribute">#[derive(Debug, FromValue, IntoValue, ProcessValue, Empty, Clone, PartialEq)]
+</span><span class="kw">pub struct </span>ExtraValue(<span class="attribute">#[metastructure(bag_size = <span class="string">&quot;larger&quot;</span>)] </span><span class="kw">pub </span>Value);
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>)]</span>
-<span class="kw">impl</span> <span class="ident">schemars::JsonSchema</span> <span class="kw">for</span> <span class="ident">ExtraValue</span> {
-    <span class="kw">fn</span> <span class="ident">schema_name</span>() -&gt; <span class="ident">String</span> {
-        <span class="ident">Value::schema_name</span>()
+<span class="attribute">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+</span><span class="kw">impl </span>schemars::JsonSchema <span class="kw">for </span>ExtraValue {
+    <span class="kw">fn </span>schema_name() -&gt; String {
+        Value::schema_name()
     }
 
-    <span class="kw">fn</span> <span class="ident">json_schema</span>(<span class="ident">gen</span>: <span class="kw-2">&amp;mut</span> <span class="ident">SchemaGenerator</span>) -&gt; <span class="ident">Schema</span> {
-        <span class="ident">Value::json_schema</span>(<span class="ident">gen</span>)
+    <span class="kw">fn </span>json_schema(gen: <span class="kw-2">&amp;mut </span>SchemaGenerator) -&gt; Schema {
+        Value::json_schema(gen)
     }
 
-    <span class="kw">fn</span> <span class="ident">is_referenceable</span>() -&gt; <span class="ident">bool</span> {
-        <span class="bool-val">false</span>
+    <span class="kw">fn </span>is_referenceable() -&gt; bool {
+        <span class="bool-val">false
+    </span>}
+}
+
+<span class="kw">impl</span>&lt;T: Into&lt;Value&gt;&gt; From&lt;T&gt; <span class="kw">for </span>ExtraValue {
+    <span class="kw">fn </span>from(value: T) -&gt; ExtraValue {
+        ExtraValue(value.into())
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ExtraValue</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">value</span>: <span class="ident">T</span>) -&gt; <span class="ident">ExtraValue</span> {
-        <span class="ident">ExtraValue</span>(<span class="ident">value</span>.<span class="ident">into</span>())
-    }
+<span class="doccomment">/// An event processing error.
+</span><span class="attribute">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+</span><span class="kw">pub struct </span>EventProcessingError {
+    <span class="doccomment">/// The error kind.
+    </span><span class="attribute">#[metastructure(field = <span class="string">&quot;type&quot;</span>, required = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="kw">pub </span>ty: Annotated&lt;String&gt;,
+
+    <span class="doccomment">/// Affected key or deep path.
+    </span><span class="kw">pub </span>name: Annotated&lt;String&gt;,
+
+    <span class="doccomment">/// The original value causing this error.
+    </span><span class="kw">pub </span>value: Annotated&lt;Value&gt;,
+
+    <span class="doccomment">/// Additional data explaining this error.
+    </span><span class="attribute">#[metastructure(additional_properties, pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
 }
 
-<span class="doccomment">/// An event processing error.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>)]</span>
-<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">EventProcessingError</span> {
-    <span class="doccomment">/// The error kind.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">field</span> <span class="op">=</span> <span class="string">&quot;type&quot;</span>, <span class="ident">required</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">ty</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Affected key or deep path.</span>
-    <span class="kw">pub</span> <span class="ident">name</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// The original value causing this error.</span>
-    <span class="kw">pub</span> <span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Additional data explaining this error.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">additional_properties</span>, <span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">other</span>: <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
+<span class="doccomment">/// The grouping config that should be used for grouping this event.
+///
+/// This is currently only supplied as part of normalization and the payload
+/// only permits the ID of the algorithm to be set and no parameters yet.
+</span><span class="attribute">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+</span><span class="kw">pub struct </span>GroupingConfig {
+    <span class="doccomment">/// The id of the grouping config.
+    </span><span class="attribute">#[metastructure(max_chars = <span class="string">&quot;enumlike&quot;</span>)]
+    </span><span class="kw">pub </span>id: Annotated&lt;String&gt;,
+    <span class="doccomment">/// The enhancements configuration.
+    </span><span class="kw">pub </span>enhancements: Annotated&lt;String&gt;,
 }
 
-<span class="doccomment">/// The grouping config that should be used for grouping this event.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This is currently only supplied as part of normalization and the payload</span>
-<span class="doccomment">/// only permits the ID of the algorithm to be set and no parameters yet.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">GroupingConfig</span> {
-    <span class="doccomment">/// The id of the grouping config.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">max_chars</span> <span class="op">=</span> <span class="string">&quot;enumlike&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">id</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// The enhancements configuration.</span>
-    <span class="kw">pub</span> <span class="ident">enhancements</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+<span class="doccomment">/// The sentry v7 event structure.
+</span><span class="attribute">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[metastructure(process_func = <span class="string">&quot;process_event&quot;</span>, value_type = <span class="string">&quot;Event&quot;</span>)]
+</span><span class="kw">pub struct </span>Event {
+    <span class="doccomment">/// Unique identifier of this event.
+    ///
+    /// Hexadecimal string representing a uuid4 value. The length is exactly 32 characters. Dashes
+    /// are not allowed. Has to be lowercase.
+    ///
+    /// Even though this field is backfilled on the server with a new uuid4, it is strongly
+    /// recommended to generate that uuid4 clientside. There are some features like user feedback
+    /// which are easier to implement that way, and debugging in case events get lost in your
+    /// Sentry installation is also easier.
+    ///
+    /// Example:
+    ///
+    /// ```json
+    /// {
+    ///   &quot;event_id&quot;: &quot;fc6d8c0c43fc4630ad850ee518f1b9d0&quot;
+    /// }
+    /// ```
+    </span><span class="attribute">#[metastructure(field = <span class="string">&quot;event_id&quot;</span>)]
+    </span><span class="kw">pub </span>id: Annotated&lt;EventId&gt;,
+
+    <span class="doccomment">/// Severity level of the event. Defaults to `error`.
+    ///
+    /// Example:
+    ///
+    /// ```json
+    /// {&quot;level&quot;: &quot;warning&quot;}
+    /// ```
+    </span><span class="kw">pub </span>level: Annotated&lt;Level&gt;,
+
+    <span class="doccomment">/// Version
+    </span><span class="kw">pub </span>version: Annotated&lt;String&gt;,
+
+    <span class="doccomment">/// Type of the event. Defaults to `default`.
+    ///
+    /// The event type determines how Sentry handles the event and has an impact on processing, rate
+    /// limiting, and quotas. There are three fundamental classes of event types:
+    ///
+    ///  - **Error monitoring events**: Processed and grouped into unique issues based on their
+    ///    exception stack traces and error messages.
+    ///  - **Security events**: Derived from Browser security violation reports and grouped into
+    ///    unique issues based on the endpoint and violation. SDKs do not send such events.
+    ///  - **Transaction events** (`transaction`): Contain operation spans and collected into traces
+    ///    for performance monitoring.
+    ///
+    /// Transactions must explicitly specify the `&quot;transaction&quot;` event type. In all other cases,
+    /// Sentry infers the appropriate event type from the payload and overrides the stated type.
+    /// SDKs should not send an event type other than for transactions.
+    ///
+    /// Example:
+    ///
+    /// ```json
+    /// {
+    ///   &quot;type&quot;: &quot;transaction&quot;,
+    ///   &quot;spans&quot;: []
+    /// }
+    /// ```
+    </span><span class="attribute">#[metastructure(field = <span class="string">&quot;type&quot;</span>)]
+    </span><span class="kw">pub </span>ty: Annotated&lt;EventType&gt;,
+
+    <span class="doccomment">/// Manual fingerprint override.
+    ///
+    /// A list of strings used to dictate how this event is supposed to be grouped with other
+    /// events into issues. For more information about overriding grouping see [Customize Grouping
+    /// with Fingerprints](https://docs.sentry.io/data-management/event-grouping/).
+    ///
+    /// ```json
+    /// {
+    ///     &quot;fingerprint&quot;: [&quot;myrpc&quot;, &quot;POST&quot;, &quot;/foo.bar&quot;]
+    /// }
+    </span><span class="attribute">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="kw">pub </span>fingerprint: Annotated&lt;Fingerprint&gt;,
+
+    <span class="doccomment">/// Custom culprit of the event.
+    ///
+    /// This field is deprecated and shall not be set by client SDKs.
+    </span><span class="attribute">#[metastructure(max_chars = <span class="string">&quot;culprit&quot;</span>, pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="kw">pub </span>culprit: Annotated&lt;String&gt;,
+
+    <span class="doccomment">/// Transaction name of the event.
+    ///
+    /// For example, in a web app, this might be the route name (`&quot;/users/&lt;username&gt;/&quot;` or
+    /// `UserView`), in a task queue it might be the function + module name.
+    </span><span class="attribute">#[metastructure(max_chars = <span class="string">&quot;culprit&quot;</span>, trim_whitespace = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="kw">pub </span>transaction: Annotated&lt;String&gt;,
+
+    <span class="doccomment">/// Additional information about the name of the transaction.
+    </span><span class="attribute">#[metastructure(skip_serialization = <span class="string">&quot;null&quot;</span>)]
+    </span><span class="kw">pub </span>transaction_info: Annotated&lt;TransactionInfo&gt;,
+
+    <span class="doccomment">/// Time since the start of the transaction until the error occurred.
+    </span><span class="kw">pub </span>time_spent: Annotated&lt;u64&gt;,
+
+    <span class="doccomment">/// Custom parameterized message for this event.
+    </span><span class="attribute">#[metastructure(legacy_alias = <span class="string">&quot;sentry.interfaces.Message&quot;</span>, legacy_alias = <span class="string">&quot;message&quot;</span>)]
+    #[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="kw">pub </span>logentry: Annotated&lt;LogEntry&gt;,
+
+    <span class="doccomment">/// Logger that created the event.
+    </span><span class="attribute">#[metastructure(
+        max_chars = <span class="string">&quot;logger&quot;</span>, <span class="comment">// DB-imposed limit
+        </span>deny_chars = <span class="string">&quot;\r\n&quot;</span>,
+    )]
+    </span><span class="kw">pub </span>logger: Annotated&lt;String&gt;,
+
+    <span class="doccomment">/// Name and versions of all installed modules/packages/dependencies in the current
+    /// environment/application.
+    ///
+    /// ```json
+    /// { &quot;django&quot;: &quot;3.0.0&quot;, &quot;celery&quot;: &quot;4.2.1&quot; }
+    /// ```
+    ///
+    /// In Python this is a list of installed packages as reported by `pkg_resources` together with
+    /// their reported version string.
+    ///
+    /// This is primarily used for suggesting to enable certain SDK integrations from within the UI
+    /// and for making informed decisions on which frameworks to support in future development
+    /// efforts.
+    </span><span class="attribute">#[metastructure(skip_serialization = <span class="string">&quot;empty_deep&quot;</span>, bag_size = <span class="string">&quot;large&quot;</span>)]
+    </span><span class="kw">pub </span>modules: Annotated&lt;Object&lt;String&gt;&gt;,
+
+    <span class="doccomment">/// Platform identifier of this event (defaults to &quot;other&quot;).
+    ///
+    /// A string representing the platform the SDK is submitting from. This will be used by the
+    /// Sentry interface to customize various components in the interface, but also to enter or
+    /// skip stacktrace processing.
+    ///
+    /// Acceptable values are: `as3`, `c`, `cfml`, `cocoa`, `csharp`, `elixir`, `haskell`, `go`,
+    /// `groovy`, `java`, `javascript`, `native`, `node`, `objc`, `other`, `perl`, `php`, `python`,
+    /// `ruby`
+    </span><span class="kw">pub </span>platform: Annotated&lt;String&gt;,
+
+    <span class="doccomment">/// Timestamp when the event was created.
+    ///
+    /// Indicates when the event was created in the Sentry SDK. The format is either a string as
+    /// defined in [RFC 3339](https://tools.ietf.org/html/rfc3339) or a numeric (integer or float)
+    /// value representing the number of seconds that have elapsed since the [Unix
+    /// epoch](https://en.wikipedia.org/wiki/Unix_time).
+    ///
+    /// Timezone is assumed to be UTC if missing.
+    ///
+    /// Sub-microsecond precision is not preserved with numeric values due to precision
+    /// limitations with floats (at least in our systems). With that caveat in mind, just send
+    /// whatever is easiest to produce.
+    ///
+    /// All timestamps in the event protocol are formatted this way.
+    ///
+    /// # Example
+    ///
+    /// All of these are the same date:
+    ///
+    /// ```json
+    /// { &quot;timestamp&quot;: &quot;2011-05-02T17:41:36Z&quot; }
+    /// { &quot;timestamp&quot;: &quot;2011-05-02T17:41:36&quot; }
+    /// { &quot;timestamp&quot;: &quot;2011-05-02T17:41:36.000&quot; }
+    /// { &quot;timestamp&quot;: 1304358096.0 }
+    /// ```
+    </span><span class="kw">pub </span>timestamp: Annotated&lt;Timestamp&gt;,
+
+    <span class="doccomment">/// Timestamp when the event has started (relevant for event type = &quot;transaction&quot;)
+    </span><span class="attribute">#[metastructure(omit_from_schema)] </span><span class="comment">// we only document error events for now
+    </span><span class="kw">pub </span>start_timestamp: Annotated&lt;Timestamp&gt;,
+
+    <span class="doccomment">/// Timestamp when the event has been received by Sentry.
+    </span><span class="kw">pub </span>received: Annotated&lt;Timestamp&gt;,
+
+    <span class="doccomment">/// Server or device name the event was generated on.
+    ///
+    /// This is supposed to be a hostname.
+    </span><span class="attribute">#[metastructure(pii = <span class="string">&quot;true&quot;</span>, max_chars = <span class="string">&quot;symbol&quot;</span>)]
+    </span><span class="kw">pub </span>server_name: Annotated&lt;String&gt;,
+
+    <span class="doccomment">/// The release version of the application.
+    ///
+    /// **Release versions must be unique across all projects in your organization.** This value
+    /// can be the git SHA for the given project, or a product identifier with a semantic version.
+    </span><span class="attribute">#[metastructure(
+        max_chars = <span class="string">&quot;tag_value&quot;</span>,  <span class="comment">// release ends in tag
+        // release allowed chars are validated in the sentry-release-parser crate!
+        </span>required = <span class="string">&quot;false&quot;</span>,
+        trim_whitespace = <span class="string">&quot;true&quot;</span>,
+        nonempty = <span class="string">&quot;true&quot;</span>,
+        skip_serialization = <span class="string">&quot;empty&quot;
+    </span>)]
+    </span><span class="kw">pub </span>release: Annotated&lt;LenientString&gt;,
+
+    <span class="doccomment">/// Program&#39;s distribution identifier.
+    ///
+    /// The distribution of the application.
+    ///
+    /// Distributions are used to disambiguate build or deployment variants of the same release of
+    /// an application. For example, the dist can be the build number of an XCode build or the
+    /// version code of an Android build.
+    </span><span class="attribute">#[metastructure(
+        max_chars = <span class="string">&quot;tag_value&quot;</span>,  <span class="comment">// dist ends in tag
+        </span>allow_chars = <span class="string">&quot;a-zA-Z0-9_.-&quot;</span>,
+        trim_whitespace = <span class="string">&quot;true&quot;</span>,
+        required = <span class="string">&quot;false&quot;</span>,
+        nonempty = <span class="string">&quot;true&quot;
+    </span>)]
+    </span><span class="kw">pub </span>dist: Annotated&lt;String&gt;,
+
+    <span class="doccomment">/// The environment name, such as `production` or `staging`.
+    ///
+    /// ```json
+    /// { &quot;environment&quot;: &quot;production&quot; }
+    /// ```
+    </span><span class="attribute">#[metastructure(
+        max_chars = <span class="string">&quot;environment&quot;</span>,
+        <span class="comment">// environment allowed chars are validated in the sentry-release-parser crate!
+        </span>nonempty = <span class="string">&quot;true&quot;</span>,
+        required = <span class="string">&quot;false&quot;</span>,
+        trim_whitespace = <span class="string">&quot;true&quot;
+    </span>)]
+    </span><span class="kw">pub </span>environment: Annotated&lt;String&gt;,
+
+    <span class="doccomment">/// Deprecated in favor of tags.
+    </span><span class="attribute">#[metastructure(max_chars = <span class="string">&quot;symbol&quot;</span>)]
+    #[metastructure(omit_from_schema)] </span><span class="comment">// deprecated
+    </span><span class="kw">pub </span>site: Annotated&lt;String&gt;,
+
+    <span class="doccomment">/// Information about the user who triggered this event.
+    </span><span class="attribute">#[metastructure(legacy_alias = <span class="string">&quot;sentry.interfaces.User&quot;</span>)]
+    #[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="kw">pub </span>user: Annotated&lt;User&gt;,
+
+    <span class="doccomment">/// Information about a web request that occurred during the event.
+    </span><span class="attribute">#[metastructure(legacy_alias = <span class="string">&quot;sentry.interfaces.Http&quot;</span>)]
+    #[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="kw">pub </span>request: Annotated&lt;Request&gt;,
+
+    <span class="doccomment">/// Contexts describing the environment (e.g. device, os or browser).
+    </span><span class="attribute">#[metastructure(legacy_alias = <span class="string">&quot;sentry.interfaces.Contexts&quot;</span>)]
+    </span><span class="kw">pub </span>contexts: Annotated&lt;Contexts&gt;,
+
+    <span class="doccomment">/// List of breadcrumbs recorded before this event.
+    </span><span class="attribute">#[metastructure(legacy_alias = <span class="string">&quot;sentry.interfaces.Breadcrumbs&quot;</span>)]
+    #[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="kw">pub </span>breadcrumbs: Annotated&lt;Values&lt;Breadcrumb&gt;&gt;,
+
+    <span class="doccomment">/// One or multiple chained (nested) exceptions.
+    </span><span class="attribute">#[metastructure(legacy_alias = <span class="string">&quot;sentry.interfaces.Exception&quot;</span>)]
+    #[metastructure(field = <span class="string">&quot;exception&quot;</span>)]
+    #[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="kw">pub </span>exceptions: Annotated&lt;Values&lt;Exception&gt;&gt;,
+
+    <span class="doccomment">/// Event stacktrace.
+    ///
+    /// DEPRECATED: Prefer `threads` or `exception` depending on which is more appropriate.
+    </span><span class="attribute">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    #[metastructure(legacy_alias = <span class="string">&quot;sentry.interfaces.Stacktrace&quot;</span>)]
+    </span><span class="kw">pub </span>stacktrace: Annotated&lt;Stacktrace&gt;,
+
+    <span class="doccomment">/// Simplified template error location information.
+    /// DEPRECATED: Non-Raven clients are not supposed to send this anymore, but rather just report
+    /// synthetic frames.
+    </span><span class="attribute">#[metastructure(legacy_alias = <span class="string">&quot;sentry.interfaces.Template&quot;</span>)]
+    #[metastructure(omit_from_schema)]
+    </span><span class="kw">pub </span>template: Annotated&lt;TemplateInfo&gt;,
+
+    <span class="doccomment">/// Threads that were active when the event occurred.
+    </span><span class="attribute">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="kw">pub </span>threads: Annotated&lt;Values&lt;Thread&gt;&gt;,
+
+    <span class="doccomment">/// Custom tags for this event.
+    ///
+    /// A map or list of tags for this event. Each tag must be less than 200 characters.
+    </span><span class="attribute">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>, pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="kw">pub </span>tags: Annotated&lt;Tags&gt;,
+
+    <span class="doccomment">/// Arbitrary extra information set by the user.
+    ///
+    /// ```json
+    /// {
+    ///     &quot;extra&quot;: {
+    ///         &quot;my_key&quot;: 1,
+    ///         &quot;some_other_value&quot;: &quot;foo bar&quot;
+    ///     }
+    /// }```
+    </span><span class="attribute">#[metastructure(bag_size = <span class="string">&quot;massive&quot;</span>)]
+    #[metastructure(pii = <span class="string">&quot;true&quot;</span>, skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="kw">pub </span>extra: Annotated&lt;Object&lt;ExtraValue&gt;&gt;,
+
+    <span class="doccomment">/// Meta data for event processing and debugging.
+    </span><span class="attribute">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="kw">pub </span>debug_meta: Annotated&lt;DebugMeta&gt;,
+
+    <span class="doccomment">/// Information about the Sentry SDK that generated this event.
+    </span><span class="attribute">#[metastructure(field = <span class="string">&quot;sdk&quot;</span>)]
+    #[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="kw">pub </span>client_sdk: Annotated&lt;ClientSdkInfo&gt;,
+
+    <span class="doccomment">/// Information about the Relays that processed this event during ingest.
+    </span><span class="attribute">#[metastructure(bag_size = <span class="string">&quot;medium&quot;</span>)]
+    #[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>, omit_from_schema)]
+    </span><span class="kw">pub </span>ingest_path: Annotated&lt;Array&lt;RelayInfo&gt;&gt;,
+
+    <span class="doccomment">/// Errors encountered during processing. Intended to be phased out in favor of
+    /// annotation/metadata system.
+    </span><span class="attribute">#[metastructure(skip_serialization = <span class="string">&quot;empty_deep&quot;</span>)]
+    </span><span class="kw">pub </span>errors: Annotated&lt;Array&lt;EventProcessingError&gt;&gt;,
+
+    <span class="doccomment">/// Project key which sent this event.
+    </span><span class="attribute">#[metastructure(omit_from_schema)] </span><span class="comment">// not part of external schema
+    </span><span class="kw">pub </span>key_id: Annotated&lt;String&gt;,
+
+    <span class="doccomment">/// Project which sent this event.
+    </span><span class="attribute">#[metastructure(omit_from_schema)] </span><span class="comment">// not part of external schema
+    </span><span class="kw">pub </span>project: Annotated&lt;u64&gt;,
+
+    <span class="doccomment">/// The grouping configuration for this event.
+    </span><span class="attribute">#[metastructure(omit_from_schema)] </span><span class="comment">// not part of external schema
+    </span><span class="kw">pub </span>grouping_config: Annotated&lt;Object&lt;Value&gt;&gt;,
+
+    <span class="doccomment">/// Legacy checksum used for grouping before fingerprint hashes.
+    </span><span class="attribute">#[metastructure(max_chars = <span class="string">&quot;hash&quot;</span>)]
+    #[metastructure(omit_from_schema)] </span><span class="comment">// deprecated
+    </span><span class="kw">pub </span>checksum: Annotated&lt;String&gt;,
+
+    <span class="doccomment">/// CSP (security) reports.
+    </span><span class="attribute">#[metastructure(legacy_alias = <span class="string">&quot;sentry.interfaces.Csp&quot;</span>)]
+    #[metastructure(omit_from_schema)] </span><span class="comment">// we only document error events for now
+    </span><span class="kw">pub </span>csp: Annotated&lt;Csp&gt;,
+
+    <span class="doccomment">/// HPKP (security) reports.
+    </span><span class="attribute">#[metastructure(pii = <span class="string">&quot;true&quot;</span>, legacy_alias = <span class="string">&quot;sentry.interfaces.Hpkp&quot;</span>)]
+    #[metastructure(omit_from_schema)] </span><span class="comment">// we only document error events for now
+    </span><span class="kw">pub </span>hpkp: Annotated&lt;Hpkp&gt;,
+
+    <span class="doccomment">/// ExpectCT (security) reports.
+    </span><span class="attribute">#[metastructure(pii = <span class="string">&quot;true&quot;</span>, legacy_alias = <span class="string">&quot;sentry.interfaces.ExpectCT&quot;</span>)]
+    #[metastructure(omit_from_schema)] </span><span class="comment">// we only document error events for now
+    </span><span class="kw">pub </span>expectct: Annotated&lt;ExpectCt&gt;,
+
+    <span class="doccomment">/// ExpectStaple (security) reports.
+    </span><span class="attribute">#[metastructure(pii = <span class="string">&quot;true&quot;</span>, legacy_alias = <span class="string">&quot;sentry.interfaces.ExpectStaple&quot;</span>)]
+    #[metastructure(omit_from_schema)] </span><span class="comment">// we only document error events for now
+    </span><span class="kw">pub </span>expectstaple: Annotated&lt;ExpectStaple&gt;,
+
+    <span class="doccomment">/// Spans for tracing.
+    </span><span class="attribute">#[metastructure(omit_from_schema)] </span><span class="comment">// we only document error events for now
+    </span><span class="kw">pub </span>spans: Annotated&lt;Array&lt;Span&gt;&gt;,
+
+    <span class="doccomment">/// Measurements which holds observed values such as web vitals.
+    ///
+    /// Measurements are only available on transactions. They contain measurement values of observed
+    /// values such as Largest Contentful Paint (LCP).
+    </span><span class="attribute">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    #[metastructure(omit_from_schema)] </span><span class="comment">// we only document error events for now
+    </span><span class="kw">pub </span>measurements: Annotated&lt;Measurements&gt;,
+
+    <span class="doccomment">/// Breakdowns which holds product-defined values such as span operation breakdowns.
+    </span><span class="attribute">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    #[metastructure(omit_from_schema)] </span><span class="comment">// we only document error events for now
+    </span><span class="kw">pub </span>breakdowns: Annotated&lt;Breakdowns&gt;,
+
+    <span class="doccomment">/// Internal ingestion and processing metrics.
+    ///
+    /// This value should not be ingested and will be overwritten by the store normalizer.
+    </span><span class="attribute">#[metastructure(omit_from_schema)]
+    </span><span class="kw">pub </span>_metrics: Annotated&lt;Metrics&gt;,
+
+    <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
+    </span><span class="attribute">#[metastructure(additional_properties, pii = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
 }
 
-<span class="doccomment">/// The sentry v7 event structure.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>)]</span>
-<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
-<span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">process_func</span> <span class="op">=</span> <span class="string">&quot;process_event&quot;</span>, <span class="ident">value_type</span> <span class="op">=</span> <span class="string">&quot;Event&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Event</span> {
-    <span class="doccomment">/// Unique identifier of this event.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Hexadecimal string representing a uuid4 value. The length is exactly 32 characters. Dashes</span>
-    <span class="doccomment">/// are not allowed. Has to be lowercase.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Even though this field is backfilled on the server with a new uuid4, it is strongly</span>
-    <span class="doccomment">/// recommended to generate that uuid4 clientside. There are some features like user feedback</span>
-    <span class="doccomment">/// which are easier to implement that way, and debugging in case events get lost in your</span>
-    <span class="doccomment">/// Sentry installation is also easier.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Example:</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// ```json</span>
-    <span class="doccomment">/// {</span>
-    <span class="doccomment">///   &quot;event_id&quot;: &quot;fc6d8c0c43fc4630ad850ee518f1b9d0&quot;</span>
-    <span class="doccomment">/// }</span>
-    <span class="doccomment">/// ```</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">field</span> <span class="op">=</span> <span class="string">&quot;event_id&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">id</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">EventId</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Severity level of the event. Defaults to `error`.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Example:</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// ```json</span>
-    <span class="doccomment">/// {&quot;level&quot;: &quot;warning&quot;}</span>
-    <span class="doccomment">/// ```</span>
-    <span class="kw">pub</span> <span class="ident">level</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Level</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Version</span>
-    <span class="kw">pub</span> <span class="ident">version</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Type of the event. Defaults to `default`.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The event type determines how Sentry handles the event and has an impact on processing, rate</span>
-    <span class="doccomment">/// limiting, and quotas. There are three fundamental classes of event types:</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">///  - **Error monitoring events**: Processed and grouped into unique issues based on their</span>
-    <span class="doccomment">///    exception stack traces and error messages.</span>
-    <span class="doccomment">///  - **Security events**: Derived from Browser security violation reports and grouped into</span>
-    <span class="doccomment">///    unique issues based on the endpoint and violation. SDKs do not send such events.</span>
-    <span class="doccomment">///  - **Transaction events** (`transaction`): Contain operation spans and collected into traces</span>
-    <span class="doccomment">///    for performance monitoring.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Transactions must explicitly specify the `&quot;transaction&quot;` event type. In all other cases,</span>
-    <span class="doccomment">/// Sentry infers the appropriate event type from the payload and overrides the stated type.</span>
-    <span class="doccomment">/// SDKs should not send an event type other than for transactions.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Example:</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// ```json</span>
-    <span class="doccomment">/// {</span>
-    <span class="doccomment">///   &quot;type&quot;: &quot;transaction&quot;,</span>
-    <span class="doccomment">///   &quot;spans&quot;: []</span>
-    <span class="doccomment">/// }</span>
-    <span class="doccomment">/// ```</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">field</span> <span class="op">=</span> <span class="string">&quot;type&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">ty</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">EventType</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Manual fingerprint override.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// A list of strings used to dictate how this event is supposed to be grouped with other</span>
-    <span class="doccomment">/// events into issues. For more information about overriding grouping see [Customize Grouping</span>
-    <span class="doccomment">/// with Fingerprints](https://docs.sentry.io/data-management/event-grouping/).</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// ```json</span>
-    <span class="doccomment">/// {</span>
-    <span class="doccomment">///     &quot;fingerprint&quot;: [&quot;myrpc&quot;, &quot;POST&quot;, &quot;/foo.bar&quot;]</span>
-    <span class="doccomment">/// }</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">fingerprint</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Custom culprit of the event.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This field is deprecated and shall not be set by client SDKs.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">max_chars</span> <span class="op">=</span> <span class="string">&quot;culprit&quot;</span>, <span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">culprit</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Transaction name of the event.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// For example, in a web app, this might be the route name (`&quot;/users/&lt;username&gt;/&quot;` or</span>
-    <span class="doccomment">/// `UserView`), in a task queue it might be the function + module name.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">max_chars</span> <span class="op">=</span> <span class="string">&quot;culprit&quot;</span>, <span class="ident">trim_whitespace</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">transaction</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Additional information about the name of the transaction.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;null&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">transaction_info</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">TransactionInfo</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Time since the start of the transaction until the error occurred.</span>
-    <span class="kw">pub</span> <span class="ident">time_spent</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Custom parameterized message for this event.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">legacy_alias</span> <span class="op">=</span> <span class="string">&quot;sentry.interfaces.Message&quot;</span>, <span class="ident">legacy_alias</span> <span class="op">=</span> <span class="string">&quot;message&quot;</span>)]</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">logentry</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">LogEntry</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Logger that created the event.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(
-        <span class="ident">max_chars</span> <span class="op">=</span> <span class="string">&quot;logger&quot;</span>, <span class="comment">// DB-imposed limit</span>
-        <span class="ident">deny_chars</span> <span class="op">=</span> <span class="string">&quot;\r\n&quot;</span>,
-    )]</span>
-    <span class="kw">pub</span> <span class="ident">logger</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Name and versions of all installed modules/packages/dependencies in the current</span>
-    <span class="doccomment">/// environment/application.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// ```json</span>
-    <span class="doccomment">/// { &quot;django&quot;: &quot;3.0.0&quot;, &quot;celery&quot;: &quot;4.2.1&quot; }</span>
-    <span class="doccomment">/// ```</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// In Python this is a list of installed packages as reported by `pkg_resources` together with</span>
-    <span class="doccomment">/// their reported version string.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This is primarily used for suggesting to enable certain SDK integrations from within the UI</span>
-    <span class="doccomment">/// and for making informed decisions on which frameworks to support in future development</span>
-    <span class="doccomment">/// efforts.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty_deep&quot;</span>, <span class="ident">bag_size</span> <span class="op">=</span> <span class="string">&quot;large&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">modules</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Object</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Platform identifier of this event (defaults to &quot;other&quot;).</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// A string representing the platform the SDK is submitting from. This will be used by the</span>
-    <span class="doccomment">/// Sentry interface to customize various components in the interface, but also to enter or</span>
-    <span class="doccomment">/// skip stacktrace processing.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Acceptable values are: `as3`, `c`, `cfml`, `cocoa`, `csharp`, `elixir`, `haskell`, `go`,</span>
-    <span class="doccomment">/// `groovy`, `java`, `javascript`, `native`, `node`, `objc`, `other`, `perl`, `php`, `python`,</span>
-    <span class="doccomment">/// `ruby`</span>
-    <span class="kw">pub</span> <span class="ident">platform</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Timestamp when the event was created.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Indicates when the event was created in the Sentry SDK. The format is either a string as</span>
-    <span class="doccomment">/// defined in [RFC 3339](https://tools.ietf.org/html/rfc3339) or a numeric (integer or float)</span>
-    <span class="doccomment">/// value representing the number of seconds that have elapsed since the [Unix</span>
-    <span class="doccomment">/// epoch](https://en.wikipedia.org/wiki/Unix_time).</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Timezone is assumed to be UTC if missing.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Sub-microsecond precision is not preserved with numeric values due to precision</span>
-    <span class="doccomment">/// limitations with floats (at least in our systems). With that caveat in mind, just send</span>
-    <span class="doccomment">/// whatever is easiest to produce.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// All timestamps in the event protocol are formatted this way.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// # Example</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// All of these are the same date:</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// ```json</span>
-    <span class="doccomment">/// { &quot;timestamp&quot;: &quot;2011-05-02T17:41:36Z&quot; }</span>
-    <span class="doccomment">/// { &quot;timestamp&quot;: &quot;2011-05-02T17:41:36&quot; }</span>
-    <span class="doccomment">/// { &quot;timestamp&quot;: &quot;2011-05-02T17:41:36.000&quot; }</span>
-    <span class="doccomment">/// { &quot;timestamp&quot;: 1304358096.0 }</span>
-    <span class="doccomment">/// ```</span>
-    <span class="kw">pub</span> <span class="ident">timestamp</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Timestamp</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Timestamp when the event has started (relevant for event type = &quot;transaction&quot;)</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">omit_from_schema</span>)]</span> <span class="comment">// we only document error events for now</span>
-    <span class="kw">pub</span> <span class="ident">start_timestamp</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Timestamp</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Timestamp when the event has been received by Sentry.</span>
-    <span class="kw">pub</span> <span class="ident">received</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Timestamp</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Server or device name the event was generated on.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This is supposed to be a hostname.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>, <span class="ident">max_chars</span> <span class="op">=</span> <span class="string">&quot;symbol&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">server_name</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// The release version of the application.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// **Release versions must be unique across all projects in your organization.** This value</span>
-    <span class="doccomment">/// can be the git SHA for the given project, or a product identifier with a semantic version.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(
-        <span class="ident">max_chars</span> <span class="op">=</span> <span class="string">&quot;tag_value&quot;</span>,  <span class="comment">// release ends in tag</span>
-        <span class="comment">// release allowed chars are validated in the sentry-release-parser crate!</span>
-        <span class="ident">required</span> <span class="op">=</span> <span class="string">&quot;false&quot;</span>,
-        <span class="ident">trim_whitespace</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>,
-        <span class="ident">nonempty</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>,
-        <span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>
-    )]</span>
-    <span class="kw">pub</span> <span class="ident">release</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">LenientString</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Program&#39;s distribution identifier.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The distribution of the application.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Distributions are used to disambiguate build or deployment variants of the same release of</span>
-    <span class="doccomment">/// an application. For example, the dist can be the build number of an XCode build or the</span>
-    <span class="doccomment">/// version code of an Android build.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(
-        <span class="ident">max_chars</span> <span class="op">=</span> <span class="string">&quot;tag_value&quot;</span>,  <span class="comment">// dist ends in tag</span>
-        <span class="ident">allow_chars</span> <span class="op">=</span> <span class="string">&quot;a-zA-Z0-9_.-&quot;</span>,
-        <span class="ident">trim_whitespace</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>,
-        <span class="ident">required</span> <span class="op">=</span> <span class="string">&quot;false&quot;</span>,
-        <span class="ident">nonempty</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>
-    )]</span>
-    <span class="kw">pub</span> <span class="ident">dist</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// The environment name, such as `production` or `staging`.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// ```json</span>
-    <span class="doccomment">/// { &quot;environment&quot;: &quot;production&quot; }</span>
-    <span class="doccomment">/// ```</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(
-        <span class="ident">max_chars</span> <span class="op">=</span> <span class="string">&quot;environment&quot;</span>,
-        <span class="comment">// environment allowed chars are validated in the sentry-release-parser crate!</span>
-        <span class="ident">nonempty</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>,
-        <span class="ident">required</span> <span class="op">=</span> <span class="string">&quot;false&quot;</span>,
-        <span class="ident">trim_whitespace</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>
-    )]</span>
-    <span class="kw">pub</span> <span class="ident">environment</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Deprecated in favor of tags.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">max_chars</span> <span class="op">=</span> <span class="string">&quot;symbol&quot;</span>)]</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">omit_from_schema</span>)]</span> <span class="comment">// deprecated</span>
-    <span class="kw">pub</span> <span class="ident">site</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Information about the user who triggered this event.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">legacy_alias</span> <span class="op">=</span> <span class="string">&quot;sentry.interfaces.User&quot;</span>)]</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">user</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">User</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Information about a web request that occurred during the event.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">legacy_alias</span> <span class="op">=</span> <span class="string">&quot;sentry.interfaces.Http&quot;</span>)]</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">request</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Request</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Contexts describing the environment (e.g. device, os or browser).</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">legacy_alias</span> <span class="op">=</span> <span class="string">&quot;sentry.interfaces.Contexts&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">contexts</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Contexts</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// List of breadcrumbs recorded before this event.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">legacy_alias</span> <span class="op">=</span> <span class="string">&quot;sentry.interfaces.Breadcrumbs&quot;</span>)]</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">breadcrumbs</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Values</span><span class="op">&lt;</span><span class="ident">Breadcrumb</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// One or multiple chained (nested) exceptions.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">legacy_alias</span> <span class="op">=</span> <span class="string">&quot;sentry.interfaces.Exception&quot;</span>)]</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">field</span> <span class="op">=</span> <span class="string">&quot;exception&quot;</span>)]</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">exceptions</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Values</span><span class="op">&lt;</span><span class="ident">Exception</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Event stacktrace.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// DEPRECATED: Prefer `threads` or `exception` depending on which is more appropriate.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>)]</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">legacy_alias</span> <span class="op">=</span> <span class="string">&quot;sentry.interfaces.Stacktrace&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">stacktrace</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Stacktrace</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Simplified template error location information.</span>
-    <span class="doccomment">/// DEPRECATED: Non-Raven clients are not supposed to send this anymore, but rather just report</span>
-    <span class="doccomment">/// synthetic frames.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">legacy_alias</span> <span class="op">=</span> <span class="string">&quot;sentry.interfaces.Template&quot;</span>)]</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">omit_from_schema</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">template</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">TemplateInfo</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Threads that were active when the event occurred.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">threads</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Values</span><span class="op">&lt;</span><span class="ident">Thread</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Custom tags for this event.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// A map or list of tags for this event. Each tag must be less than 200 characters.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>, <span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">tags</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Tags</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Arbitrary extra information set by the user.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// ```json</span>
-    <span class="doccomment">/// {</span>
-    <span class="doccomment">///     &quot;extra&quot;: {</span>
-    <span class="doccomment">///         &quot;my_key&quot;: 1,</span>
-    <span class="doccomment">///         &quot;some_other_value&quot;: &quot;foo bar&quot;</span>
-    <span class="doccomment">///     }</span>
-    <span class="doccomment">/// }```</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">bag_size</span> <span class="op">=</span> <span class="string">&quot;massive&quot;</span>)]</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>, <span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">extra</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Object</span><span class="op">&lt;</span><span class="ident">ExtraValue</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Meta data for event processing and debugging.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">debug_meta</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">DebugMeta</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Information about the Sentry SDK that generated this event.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">field</span> <span class="op">=</span> <span class="string">&quot;sdk&quot;</span>)]</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">client_sdk</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">ClientSdkInfo</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Information about the Relays that processed this event during ingest.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">bag_size</span> <span class="op">=</span> <span class="string">&quot;medium&quot;</span>)]</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>, <span class="ident">omit_from_schema</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">ingest_path</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Array</span><span class="op">&lt;</span><span class="ident">RelayInfo</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Errors encountered during processing. Intended to be phased out in favor of</span>
-    <span class="doccomment">/// annotation/metadata system.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty_deep&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">errors</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Array</span><span class="op">&lt;</span><span class="ident">EventProcessingError</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Project key which sent this event.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">omit_from_schema</span>)]</span> <span class="comment">// not part of external schema</span>
-    <span class="kw">pub</span> <span class="ident">key_id</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Project which sent this event.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">omit_from_schema</span>)]</span> <span class="comment">// not part of external schema</span>
-    <span class="kw">pub</span> <span class="ident">project</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// The grouping configuration for this event.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">omit_from_schema</span>)]</span> <span class="comment">// not part of external schema</span>
-    <span class="kw">pub</span> <span class="ident">grouping_config</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Legacy checksum used for grouping before fingerprint hashes.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">max_chars</span> <span class="op">=</span> <span class="string">&quot;hash&quot;</span>)]</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">omit_from_schema</span>)]</span> <span class="comment">// deprecated</span>
-    <span class="kw">pub</span> <span class="ident">checksum</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// CSP (security) reports.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">legacy_alias</span> <span class="op">=</span> <span class="string">&quot;sentry.interfaces.Csp&quot;</span>)]</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">omit_from_schema</span>)]</span> <span class="comment">// we only document error events for now</span>
-    <span class="kw">pub</span> <span class="ident">csp</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Csp</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// HPKP (security) reports.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>, <span class="ident">legacy_alias</span> <span class="op">=</span> <span class="string">&quot;sentry.interfaces.Hpkp&quot;</span>)]</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">omit_from_schema</span>)]</span> <span class="comment">// we only document error events for now</span>
-    <span class="kw">pub</span> <span class="ident">hpkp</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Hpkp</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// ExpectCT (security) reports.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>, <span class="ident">legacy_alias</span> <span class="op">=</span> <span class="string">&quot;sentry.interfaces.ExpectCT&quot;</span>)]</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">omit_from_schema</span>)]</span> <span class="comment">// we only document error events for now</span>
-    <span class="kw">pub</span> <span class="ident">expectct</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">ExpectCt</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// ExpectStaple (security) reports.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>, <span class="ident">legacy_alias</span> <span class="op">=</span> <span class="string">&quot;sentry.interfaces.ExpectStaple&quot;</span>)]</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">omit_from_schema</span>)]</span> <span class="comment">// we only document error events for now</span>
-    <span class="kw">pub</span> <span class="ident">expectstaple</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">ExpectStaple</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Spans for tracing.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">omit_from_schema</span>)]</span> <span class="comment">// we only document error events for now</span>
-    <span class="kw">pub</span> <span class="ident">spans</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Array</span><span class="op">&lt;</span><span class="ident">Span</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Measurements which holds observed values such as web vitals.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Measurements are only available on transactions. They contain measurement values of observed</span>
-    <span class="doccomment">/// values such as Largest Contentful Paint (LCP).</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>)]</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">omit_from_schema</span>)]</span> <span class="comment">// we only document error events for now</span>
-    <span class="kw">pub</span> <span class="ident">measurements</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Measurements</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Breakdowns which holds product-defined values such as span operation breakdowns.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>)]</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">omit_from_schema</span>)]</span> <span class="comment">// we only document error events for now</span>
-    <span class="kw">pub</span> <span class="ident">breakdowns</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Breakdowns</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Internal ingestion and processing metrics.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This value should not be ingested and will be overwritten by the store normalizer.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">omit_from_schema</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">_metrics</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Metrics</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">additional_properties</span>, <span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">other</span>: <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
-}
-
-<span class="kw">impl</span> <span class="ident">Event</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_transaction_source</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">TransactionSource</span> {
-        <span class="self">self</span>.<span class="ident">transaction_info</span>
-            .<span class="ident">value</span>()
-            .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">info</span><span class="op">|</span> <span class="ident">info</span>.<span class="ident">source</span>.<span class="ident">value</span>())
-            .<span class="ident">unwrap_or</span>(<span class="kw-2">&amp;</span><span class="ident">TransactionSource::Unknown</span>)
+<span class="kw">impl </span>Event {
+    <span class="kw">pub fn </span>get_transaction_source(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>TransactionSource {
+        <span class="self">self</span>.transaction_info
+            .value()
+            .and_then(|info| info.source.value())
+            .unwrap_or(<span class="kw-2">&amp;</span>TransactionSource::Unknown)
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_tag_value</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">tag_key</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">tags</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">tags</span>.<span class="ident">value</span>() {
-            <span class="ident">tags</span>.<span class="ident">get</span>(<span class="ident">tag_key</span>)
-        } <span class="kw">else</span> {
-            <span class="prelude-val">None</span>
-        }
+    <span class="kw">pub fn </span>get_tag_value(<span class="kw-2">&amp;</span><span class="self">self</span>, tag_key: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(tags) = <span class="self">self</span>.tags.value() {
+            tags.get(tag_key)
+        } <span class="kw">else </span>{
+            <span class="prelude-val">None
+        </span>}
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">has_module</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">module_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">modules</span>
-            .<span class="ident">value</span>()
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">contains_key</span>(<span class="ident">module_name</span>))
-            .<span class="ident">unwrap_or</span>(<span class="bool-val">false</span>)
+    <span class="kw">pub fn </span>has_module(<span class="kw-2">&amp;</span><span class="self">self</span>, module_name: <span class="kw-2">&amp;</span>str) -&gt; bool {
+        <span class="self">self</span>.modules
+            .value()
+            .map(|m| m.contains_key(module_name))
+            .unwrap_or(<span class="bool-val">false</span>)
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sdk_name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">str</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">client_sdk</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">client_sdk</span>.<span class="ident">value</span>() {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">name</span>) <span class="op">=</span> <span class="ident">client_sdk</span>.<span class="ident">name</span>.<span class="ident">as_str</span>() {
-                <span class="kw">return</span> <span class="ident">name</span>;
+    <span class="kw">pub fn </span>sdk_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(client_sdk) = <span class="self">self</span>.client_sdk.value() {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(name) = client_sdk.name.as_str() {
+                <span class="kw">return </span>name;
             }
         }
 
-        <span class="string">&quot;unknown&quot;</span>
-    }
+        <span class="string">&quot;unknown&quot;
+    </span>}
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sdk_version</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">str</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">client_sdk</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">client_sdk</span>.<span class="ident">value</span>() {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">version</span>) <span class="op">=</span> <span class="ident">client_sdk</span>.<span class="ident">version</span>.<span class="ident">as_str</span>() {
-                <span class="kw">return</span> <span class="ident">version</span>;
+    <span class="kw">pub fn </span>sdk_version(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(client_sdk) = <span class="self">self</span>.client_sdk.value() {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(version) = client_sdk.version.as_str() {
+                <span class="kw">return </span>version;
             }
         }
 
-        <span class="string">&quot;unknown&quot;</span>
-    }
+        <span class="string">&quot;unknown&quot;
+    </span>}
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">TimeZone</span>, <span class="ident">Utc</span>};
-    <span class="kw">use</span> <span class="ident">similar_asserts::assert_eq</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>chrono::{TimeZone, Utc};
+    <span class="kw">use </span>similar_asserts::assert_eq;
 
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol::TagEntry</span>;
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Map</span>, <span class="ident">Meta</span>};
+    <span class="kw">use </span><span class="kw">crate</span>::protocol::TagEntry;
+    <span class="kw">use </span><span class="kw">crate</span>::types::{Map, Meta};
 
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_event_roundtrip</span>() {
-        <span class="comment">// NOTE: Interfaces will be tested separately.</span>
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_event_roundtrip() {
+        <span class="comment">// NOTE: Interfaces will be tested separately.
+        </span><span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;event_id&quot;: &quot;52df9022835246eeb317dbd739ccd059&quot;,
   &quot;level&quot;: &quot;debug&quot;,
   &quot;fingerprint&quot;: [
@@ -1455,73 +1455,73 @@
   }
 }&quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">id</span>: <span class="ident">Annotated</span>(
-                <span class="prelude-val">Some</span>(<span class="string">&quot;52df9022-8352-46ee-b317-dbd739ccd059&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-                <span class="ident">Meta::from_error</span>(<span class="ident">ErrorKind::InvalidData</span>),
+        <span class="kw">let </span>event = Annotated::new(Event {
+            id: Annotated(
+                <span class="prelude-val">Some</span>(<span class="string">&quot;52df9022-8352-46ee-b317-dbd739ccd059&quot;</span>.parse().unwrap()),
+                Meta::from_error(ErrorKind::InvalidData),
             ),
-            <span class="ident">level</span>: <span class="ident">Annotated::new</span>(<span class="ident">Level::Debug</span>),
-            <span class="ident">fingerprint</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="string">&quot;myprint&quot;</span>.<span class="ident">to_string</span>()].<span class="ident">into</span>()),
-            <span class="ident">culprit</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;myculprit&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">transaction</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;mytransaction&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">logentry</span>: <span class="ident">Annotated::new</span>(<span class="ident">LogEntry</span> {
-                <span class="ident">formatted</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;mymessage&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-                ..<span class="ident">Default::default</span>()
+            level: Annotated::new(Level::Debug),
+            fingerprint: Annotated::new(<span class="macro">vec!</span>[<span class="string">&quot;myprint&quot;</span>.to_string()].into()),
+            culprit: Annotated::new(<span class="string">&quot;myculprit&quot;</span>.to_string()),
+            transaction: Annotated::new(<span class="string">&quot;mytransaction&quot;</span>.to_string()),
+            logentry: Annotated::new(LogEntry {
+                formatted: Annotated::new(<span class="string">&quot;mymessage&quot;</span>.to_string().into()),
+                ..Default::default()
             }),
-            <span class="ident">logger</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;mylogger&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">modules</span>: {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Map::new</span>();
-                <span class="ident">map</span>.<span class="ident">insert</span>(<span class="string">&quot;mymodule&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Annotated::new</span>(<span class="string">&quot;1.0.0&quot;</span>.<span class="ident">to_string</span>()));
-                <span class="ident">Annotated::new</span>(<span class="ident">map</span>)
+            logger: Annotated::new(<span class="string">&quot;mylogger&quot;</span>.to_string()),
+            modules: {
+                <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
+                map.insert(<span class="string">&quot;mymodule&quot;</span>.to_string(), Annotated::new(<span class="string">&quot;1.0.0&quot;</span>.to_string()));
+                Annotated::new(map)
             },
-            <span class="ident">platform</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;myplatform&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-            <span class="ident">server_name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;myhost&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">release</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;myrelease&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-            <span class="ident">dist</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;mydist&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">environment</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;myenv&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">tags</span>: {
-                <span class="kw">let</span> <span class="ident">items</span> <span class="op">=</span> <span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">TagEntry</span>(
-                    <span class="ident">Annotated::new</span>(<span class="string">&quot;tag&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="ident">Annotated::new</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>()),
+            platform: Annotated::new(<span class="string">&quot;myplatform&quot;</span>.to_string()),
+            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            server_name: Annotated::new(<span class="string">&quot;myhost&quot;</span>.to_string()),
+            release: Annotated::new(<span class="string">&quot;myrelease&quot;</span>.to_string().into()),
+            dist: Annotated::new(<span class="string">&quot;mydist&quot;</span>.to_string()),
+            environment: Annotated::new(<span class="string">&quot;myenv&quot;</span>.to_string()),
+            tags: {
+                <span class="kw">let </span>items = <span class="macro">vec!</span>[Annotated::new(TagEntry(
+                    Annotated::new(<span class="string">&quot;tag&quot;</span>.to_string()),
+                    Annotated::new(<span class="string">&quot;value&quot;</span>.to_string()),
                 ))];
-                <span class="ident">Annotated::new</span>(<span class="ident">Tags</span>(<span class="ident">items</span>.<span class="ident">into</span>()))
+                Annotated::new(Tags(items.into()))
             },
-            <span class="ident">extra</span>: {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Map::new</span>();
-                <span class="ident">map</span>.<span class="ident">insert</span>(
-                    <span class="string">&quot;extra&quot;</span>.<span class="ident">to_string</span>(),
-                    <span class="ident">Annotated::new</span>(<span class="ident">ExtraValue</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>()))),
+            extra: {
+                <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
+                map.insert(
+                    <span class="string">&quot;extra&quot;</span>.to_string(),
+                    Annotated::new(ExtraValue(Value::String(<span class="string">&quot;value&quot;</span>.to_string()))),
                 );
-                <span class="ident">Annotated::new</span>(<span class="ident">map</span>)
+                Annotated::new(map)
             },
-            <span class="ident">other</span>: {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Map::new</span>();
-                <span class="ident">map</span>.<span class="ident">insert</span>(
-                    <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                    <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+            other: {
+                <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
+                map.insert(
+                    <span class="string">&quot;other&quot;</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
                 );
-                <span class="ident">map</span>
+                map
             },
-            ..<span class="ident">Default::default</span>()
+            ..Default::default()
         });
 
-        <span class="macro">assert_eq!</span>(<span class="ident">event</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">event</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(event, Annotated::from_json(json).unwrap());
+        <span class="macro">assert_eq!</span>(json, event.to_json_pretty().unwrap());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_event_default_values</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">&quot;{}&quot;</span>;
-        <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event::default</span>());
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_event_default_values() {
+        <span class="kw">let </span>json = <span class="string">&quot;{}&quot;</span>;
+        <span class="kw">let </span>event = Annotated::new(Event::default());
 
-        <span class="macro">assert_eq!</span>(<span class="ident">event</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">event</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(event, Annotated::from_json(json).unwrap());
+        <span class="macro">assert_eq!</span>(json, event.to_json_pretty().unwrap());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_event_default_values_with_meta</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_event_default_values_with_meta() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;event_id&quot;: &quot;52df9022835246eeb317dbd739ccd059&quot;,
   &quot;fingerprint&quot;: [
     &quot;{{ default }}&quot;
@@ -1552,85 +1552,85 @@
   }
 }&quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">id</span>: <span class="ident">Annotated</span>(
-                <span class="prelude-val">Some</span>(<span class="string">&quot;52df9022-8352-46ee-b317-dbd739ccd059&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-                <span class="ident">Meta::from_error</span>(<span class="ident">ErrorKind::InvalidData</span>),
+        <span class="kw">let </span>event = Annotated::new(Event {
+            id: Annotated(
+                <span class="prelude-val">Some</span>(<span class="string">&quot;52df9022-8352-46ee-b317-dbd739ccd059&quot;</span>.parse().unwrap()),
+                Meta::from_error(ErrorKind::InvalidData),
             ),
-            <span class="ident">fingerprint</span>: <span class="ident">Annotated</span>(
-                <span class="prelude-val">Some</span>(<span class="macro">vec!</span>[<span class="string">&quot;{{ default }}&quot;</span>.<span class="ident">to_string</span>()].<span class="ident">into</span>()),
-                <span class="ident">Meta::from_error</span>(<span class="ident">ErrorKind::InvalidData</span>),
+            fingerprint: Annotated(
+                <span class="prelude-val">Some</span>(<span class="macro">vec!</span>[<span class="string">&quot;{{ default }}&quot;</span>.to_string()].into()),
+                Meta::from_error(ErrorKind::InvalidData),
             ),
-            <span class="ident">platform</span>: <span class="ident">Annotated</span>(
-                <span class="prelude-val">Some</span>(<span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">Meta::from_error</span>(<span class="ident">ErrorKind::InvalidData</span>),
+            platform: Annotated(
+                <span class="prelude-val">Some</span>(<span class="string">&quot;other&quot;</span>.to_string()),
+                Meta::from_error(ErrorKind::InvalidData),
             ),
-            ..<span class="ident">Default::default</span>()
+            ..Default::default()
         });
 
-        <span class="macro">assert_eq!</span>(<span class="ident">event</span>, <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">event</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(event, Annotated::&lt;Event&gt;::from_json(json).unwrap());
+        <span class="macro">assert_eq!</span>(json, event.to_json_pretty().unwrap());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_event_type</span>() {
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_event_type() {
         <span class="macro">assert_eq!</span>(
-            <span class="ident">EventType::Default</span>,
-            <span class="kw-2">*</span><span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">EventType</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="string">&quot;\&quot;default\&quot;&quot;</span>)
-                .<span class="ident">unwrap</span>()
-                .<span class="ident">value</span>()
-                .<span class="ident">unwrap</span>()
+            EventType::Default,
+            <span class="kw-2">*</span>Annotated::&lt;EventType&gt;::from_json(<span class="string">&quot;\&quot;default\&quot;&quot;</span>)
+                .unwrap()
+                .value()
+                .unwrap()
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_fingerprint_empty_string</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;fingerprint&quot;:[&quot;&quot;]}&quot;#</span>;
-        <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">fingerprint</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="string">&quot;&quot;</span>.<span class="ident">to_string</span>()].<span class="ident">into</span>()),
-            ..<span class="ident">Default::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_fingerprint_empty_string() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{&quot;fingerprint&quot;:[&quot;&quot;]}&quot;#</span>;
+        <span class="kw">let </span>event = Annotated::new(Event {
+            fingerprint: Annotated::new(<span class="macro">vec!</span>[<span class="string">&quot;&quot;</span>.to_string()].into()),
+            ..Default::default()
         });
 
-        <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">event</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">event</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(json, event.to_json().unwrap());
+        <span class="macro">assert_eq!</span>(event, Annotated::from_json(json).unwrap());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_fingerprint_null_values</span>() {
-        <span class="kw">let</span> <span class="ident">input</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;fingerprint&quot;:[null]}&quot;#</span>;
-        <span class="kw">let</span> <span class="ident">output</span> <span class="op">=</span> <span class="string">r#&quot;{}&quot;#</span>;
-        <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">fingerprint</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[].<span class="ident">into</span>()),
-            ..<span class="ident">Default::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_fingerprint_null_values() {
+        <span class="kw">let </span>input = <span class="string">r#&quot;{&quot;fingerprint&quot;:[null]}&quot;#</span>;
+        <span class="kw">let </span>output = <span class="string">r#&quot;{}&quot;#</span>;
+        <span class="kw">let </span>event = Annotated::new(Event {
+            fingerprint: Annotated::new(<span class="macro">vec!</span>[].into()),
+            ..Default::default()
         });
 
-        <span class="macro">assert_eq!</span>(<span class="ident">event</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">input</span>).<span class="ident">unwrap</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">output</span>, <span class="ident">event</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(event, Annotated::from_json(input).unwrap());
+        <span class="macro">assert_eq!</span>(output, event.to_json().unwrap());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_empty_threads</span>() {
-        <span class="kw">let</span> <span class="ident">input</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;threads&quot;: {}}&quot;#</span>;
-        <span class="kw">let</span> <span class="ident">output</span> <span class="op">=</span> <span class="string">r#&quot;{}&quot;#</span>;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_empty_threads() {
+        <span class="kw">let </span>input = <span class="string">r#&quot;{&quot;threads&quot;: {}}&quot;#</span>;
+        <span class="kw">let </span>output = <span class="string">r#&quot;{}&quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event::default</span>());
+        <span class="kw">let </span>event = Annotated::new(Event::default());
 
-        <span class="macro">assert_eq!</span>(<span class="ident">event</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">input</span>).<span class="ident">unwrap</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">output</span>, <span class="ident">event</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(event, Annotated::from_json(input).unwrap());
+        <span class="macro">assert_eq!</span>(output, event.to_json().unwrap());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_lenient_release</span>() {
-        <span class="kw">let</span> <span class="ident">input</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;release&quot;:42}&quot;#</span>;
-        <span class="kw">let</span> <span class="ident">output</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;release&quot;:&quot;42&quot;}&quot;#</span>;
-        <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">release</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;42&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-            ..<span class="ident">Default::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_lenient_release() {
+        <span class="kw">let </span>input = <span class="string">r#&quot;{&quot;release&quot;:42}&quot;#</span>;
+        <span class="kw">let </span>output = <span class="string">r#&quot;{&quot;release&quot;:&quot;42&quot;}&quot;#</span>;
+        <span class="kw">let </span>event = Annotated::new(Event {
+            release: Annotated::new(<span class="string">&quot;42&quot;</span>.to_string().into()),
+            ..Default::default()
         });
 
-        <span class="macro">assert_eq!</span>(<span class="ident">event</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">input</span>).<span class="ident">unwrap</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">output</span>, <span class="ident">event</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(event, Annotated::from_json(input).unwrap());
+        <span class="macro">assert_eq!</span>(output, event.to_json().unwrap());
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

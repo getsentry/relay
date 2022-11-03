@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/utils/native.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>native.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/utils/native.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>native.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_server/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -223,228 +223,228 @@
 <span id="221">221</span>
 <span id="222">222</span>
 <span id="223">223</span>
-</pre><pre class="rust"><code><span class="doccomment">//! Utility methods for native event processing.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! These functions are invoked by the `EnvelopeProcessor`, and are used to prepare native event</span>
-<span class="doccomment">//! payloads. See [`process_minidump`] and [`process_apple_crash_report`] for more information.</span>
+</pre><pre class="rust"><code><span class="doccomment">//! Utility methods for native event processing.
+//!
+//! These functions are invoked by the `EnvelopeProcessor`, and are used to prepare native event
+//! payloads. See [`process_minidump`] and [`process_apple_crash_report`] for more information.
 
-<span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
+</span><span class="kw">use </span>std::collections::BTreeMap;
 
-<span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">TimeZone</span>, <span class="ident">Utc</span>};
-<span class="kw">use</span> <span class="ident">minidump</span>::{<span class="ident">MinidumpAnnotation</span>, <span class="ident">MinidumpCrashpadInfo</span>, <span class="ident">MinidumpModuleList</span>, <span class="ident">Module</span>};
+<span class="kw">use </span>chrono::{TimeZone, Utc};
+<span class="kw">use </span>minidump::{MinidumpAnnotation, MinidumpCrashpadInfo, MinidumpModuleList, Module};
 
-<span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{
-    <span class="ident">Context</span>, <span class="ident">ContextInner</span>, <span class="ident">Contexts</span>, <span class="ident">Event</span>, <span class="ident">Exception</span>, <span class="ident">JsonLenientString</span>, <span class="ident">Level</span>, <span class="ident">Mechanism</span>, <span class="ident">Values</span>,
+<span class="kw">use </span>relay_general::protocol::{
+    Context, ContextInner, Contexts, Event, Exception, JsonLenientString, Level, Mechanism, Values,
 };
-<span class="kw">use</span> <span class="ident">relay_general::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Value</span>};
+<span class="kw">use </span>relay_general::types::{Annotated, Value};
 
-<span class="kw">type</span> <span class="ident">Minidump</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">minidump::Minidump</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>]<span class="op">&gt;</span>;
+<span class="kw">type </span>Minidump&lt;<span class="lifetime">&#39;a</span>&gt; = minidump::Minidump&lt;<span class="lifetime">&#39;a</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8]&gt;;
 
-<span class="doccomment">/// Placeholder payload fragments indicating a native event.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// These payload attributes tell the processing pipeline that the event requires attachment</span>
-<span class="doccomment">/// processing and serve as defaults for failed events. When updating these values, also check the</span>
-<span class="doccomment">/// processing pipeline in Sentry.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The [`mechanism_type`](Self::mechanism_type) field is the most important field, as this is the</span>
-<span class="doccomment">/// primary indicator for processing. All other fields are mere defaults.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">struct</span> <span class="ident">NativePlaceholder</span> {
-    <span class="doccomment">/// The `exception.type` attribute value rendered in the issue.</span>
-    <span class="ident">exception_type</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
-    <span class="doccomment">/// The default `exception.value` shown in the issue if processing fails.</span>
-    <span class="ident">exception_value</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
-    <span class="doccomment">/// The `exception.mechanism.type` attribute, which is the primary indicator for processing.</span>
-    <span class="ident">mechanism_type</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+<span class="doccomment">/// Placeholder payload fragments indicating a native event.
+///
+/// These payload attributes tell the processing pipeline that the event requires attachment
+/// processing and serve as defaults for failed events. When updating these values, also check the
+/// processing pipeline in Sentry.
+///
+/// The [`mechanism_type`](Self::mechanism_type) field is the most important field, as this is the
+/// primary indicator for processing. All other fields are mere defaults.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">struct </span>NativePlaceholder {
+    <span class="doccomment">/// The `exception.type` attribute value rendered in the issue.
+    </span>exception_type: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str,
+    <span class="doccomment">/// The default `exception.value` shown in the issue if processing fails.
+    </span>exception_value: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str,
+    <span class="doccomment">/// The `exception.mechanism.type` attribute, which is the primary indicator for processing.
+    </span>mechanism_type: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str,
 }
 
-<span class="doccomment">/// Writes a placeholder to indicate that this event has an associated minidump or an apple</span>
-<span class="doccomment">/// crash report.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This will indicate to the ingestion pipeline that this event will need to be processed. The</span>
-<span class="doccomment">/// payload can be checked via `is_minidump_event`.</span>
-<span class="kw">fn</span> <span class="ident">write_native_placeholder</span>(<span class="ident">event</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Event</span>, <span class="ident">placeholder</span>: <span class="ident">NativePlaceholder</span>) {
-    <span class="comment">// Events must be native platform.</span>
-    <span class="kw">let</span> <span class="ident">platform</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">platform</span>.<span class="ident">value_mut</span>();
-    <span class="kw-2">*</span><span class="ident">platform</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="string">&quot;native&quot;</span>.<span class="ident">to_string</span>());
+<span class="doccomment">/// Writes a placeholder to indicate that this event has an associated minidump or an apple
+/// crash report.
+///
+/// This will indicate to the ingestion pipeline that this event will need to be processed. The
+/// payload can be checked via `is_minidump_event`.
+</span><span class="kw">fn </span>write_native_placeholder(event: <span class="kw-2">&amp;mut </span>Event, placeholder: NativePlaceholder) {
+    <span class="comment">// Events must be native platform.
+    </span><span class="kw">let </span>platform = event.platform.value_mut();
+    <span class="kw-2">*</span>platform = <span class="prelude-val">Some</span>(<span class="string">&quot;native&quot;</span>.to_string());
 
-    <span class="comment">// Assume that this minidump is the result of a crash and assign the fatal</span>
-    <span class="comment">// level. Note that the use of `setdefault` here doesn&#39;t generally allow the</span>
-    <span class="comment">// user to override the minidump&#39;s level as processing will overwrite it</span>
-    <span class="comment">// later.</span>
-    <span class="ident">event</span>.<span class="ident">level</span>.<span class="ident">get_or_insert_with</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Level::Fatal</span>);
+    <span class="comment">// Assume that this minidump is the result of a crash and assign the fatal
+    // level. Note that the use of `setdefault` here doesn&#39;t generally allow the
+    // user to override the minidump&#39;s level as processing will overwrite it
+    // later.
+    </span>event.level.get_or_insert_with(|| Level::Fatal);
 
-    <span class="comment">// Create a placeholder exception. This signals normalization that this is an</span>
-    <span class="comment">// error event and also serves as a placeholder if processing of the minidump</span>
-    <span class="comment">// fails.</span>
-    <span class="kw">let</span> <span class="ident">exceptions</span> <span class="op">=</span> <span class="ident">event</span>
-        .<span class="ident">exceptions</span>
-        .<span class="ident">value_mut</span>()
-        .<span class="ident">get_or_insert_with</span>(<span class="ident">Values::default</span>)
-        .<span class="ident">values</span>
-        .<span class="ident">value_mut</span>()
-        .<span class="ident">get_or_insert_with</span>(<span class="ident">Vec::new</span>);
+    <span class="comment">// Create a placeholder exception. This signals normalization that this is an
+    // error event and also serves as a placeholder if processing of the minidump
+    // fails.
+    </span><span class="kw">let </span>exceptions = event
+        .exceptions
+        .value_mut()
+        .get_or_insert_with(Values::default)
+        .values
+        .value_mut()
+        .get_or_insert_with(Vec::new);
 
-    <span class="ident">exceptions</span>.<span class="ident">clear</span>(); <span class="comment">// clear previous errors if any</span>
+    exceptions.clear(); <span class="comment">// clear previous errors if any
 
-    <span class="ident">exceptions</span>.<span class="ident">push</span>(<span class="ident">Annotated::new</span>(<span class="ident">Exception</span> {
-        <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="ident">placeholder</span>.<span class="ident">exception_type</span>.<span class="ident">to_string</span>()),
-        <span class="ident">value</span>: <span class="ident">Annotated::new</span>(<span class="ident">JsonLenientString</span>(<span class="ident">placeholder</span>.<span class="ident">exception_value</span>.<span class="ident">to_string</span>())),
-        <span class="ident">mechanism</span>: <span class="ident">Annotated::new</span>(<span class="ident">Mechanism</span> {
-            <span class="ident">ty</span>: <span class="ident">Annotated::from</span>(<span class="ident">placeholder</span>.<span class="ident">mechanism_type</span>.<span class="ident">to_string</span>()),
-            <span class="ident">handled</span>: <span class="ident">Annotated::from</span>(<span class="bool-val">false</span>),
-            <span class="ident">synthetic</span>: <span class="ident">Annotated::from</span>(<span class="bool-val">true</span>),
-            ..<span class="ident">Mechanism::default</span>()
+    </span>exceptions.push(Annotated::new(Exception {
+        ty: Annotated::new(placeholder.exception_type.to_string()),
+        value: Annotated::new(JsonLenientString(placeholder.exception_value.to_string())),
+        mechanism: Annotated::new(Mechanism {
+            ty: Annotated::from(placeholder.mechanism_type.to_string()),
+            handled: Annotated::from(<span class="bool-val">false</span>),
+            synthetic: Annotated::from(<span class="bool-val">true</span>),
+            ..Mechanism::default()
         }),
-        ..<span class="ident">Exception::default</span>()
+        ..Exception::default()
     }));
 }
 
-<span class="doccomment">/// Generates crashpad contexts for annotations stored in the minidump.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Returns an error if either the minidump module list or the crashpad information stream cannot be</span>
-<span class="doccomment">/// loaded from the minidump. Returns `Ok(())` in all other cases, including when no annotations are</span>
-<span class="doccomment">/// present.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Crashpad has global annotations, and per-module annotations. For each of these, a separate</span>
-<span class="doccomment">/// context of type &quot;crashpad&quot; is added, which contains the annotations as key-value mapping. List</span>
-<span class="doccomment">/// annotations are added to an &quot;annotations&quot; JSON list.</span>
-<span class="kw">fn</span> <span class="ident">write_crashpad_annotations</span>(
-    <span class="ident">event</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Event</span>,
-    <span class="ident">minidump</span>: <span class="kw-2">&amp;</span><span class="ident">Minidump</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">minidump::Error</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">module_list</span> <span class="op">=</span> <span class="ident">minidump</span>.<span class="ident">get_stream</span>::<span class="op">&lt;</span><span class="ident">MinidumpModuleList</span><span class="op">&gt;</span>()<span class="question-mark">?</span>;
-    <span class="kw">let</span> <span class="ident">crashpad_info</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">minidump</span>.<span class="ident">get_stream</span>::<span class="op">&lt;</span><span class="ident">MinidumpCrashpadInfo</span><span class="op">&gt;</span>() {
-        <span class="prelude-val">Err</span>(<span class="ident">minidump::Error::StreamNotFound</span>) =&gt; <span class="kw">return</span> <span class="prelude-val">Ok</span>(()),
-        <span class="ident">result</span> =&gt; <span class="ident">result</span><span class="question-mark">?</span>,
+<span class="doccomment">/// Generates crashpad contexts for annotations stored in the minidump.
+///
+/// Returns an error if either the minidump module list or the crashpad information stream cannot be
+/// loaded from the minidump. Returns `Ok(())` in all other cases, including when no annotations are
+/// present.
+///
+/// Crashpad has global annotations, and per-module annotations. For each of these, a separate
+/// context of type &quot;crashpad&quot; is added, which contains the annotations as key-value mapping. List
+/// annotations are added to an &quot;annotations&quot; JSON list.
+</span><span class="kw">fn </span>write_crashpad_annotations(
+    event: <span class="kw-2">&amp;mut </span>Event,
+    minidump: <span class="kw-2">&amp;</span>Minidump&lt;<span class="lifetime">&#39;_</span>&gt;,
+) -&gt; <span class="prelude-ty">Result</span>&lt;(), minidump::Error&gt; {
+    <span class="kw">let </span>module_list = minidump.get_stream::&lt;MinidumpModuleList&gt;()<span class="question-mark">?</span>;
+    <span class="kw">let </span>crashpad_info = <span class="kw">match </span>minidump.get_stream::&lt;MinidumpCrashpadInfo&gt;() {
+        <span class="prelude-val">Err</span>(minidump::Error::StreamNotFound) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(()),
+        result =&gt; result<span class="question-mark">?</span>,
     };
 
-    <span class="kw">let</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">contexts</span>.<span class="ident">get_or_insert_with</span>(<span class="ident">Contexts::new</span>);
+    <span class="kw">let </span>contexts = event.contexts.get_or_insert_with(Contexts::new);
 
-    <span class="kw">if</span> <span class="op">!</span><span class="ident">crashpad_info</span>.<span class="ident">simple_annotations</span>.<span class="ident">is_empty</span>() {
-        <span class="comment">// First, create a generic crashpad context with top-level simple annotations. This context does</span>
-        <span class="comment">// not need a type field, since its type matches the the key.</span>
-        <span class="kw">let</span> <span class="ident">crashpad_context</span> <span class="op">=</span> <span class="ident">crashpad_info</span>
-            .<span class="ident">simple_annotations</span>
-            .<span class="ident">into_iter</span>()
-            .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">key</span>, <span class="ident">value</span>)<span class="op">|</span> (<span class="ident">key</span>, <span class="ident">Annotated::new</span>(<span class="ident">Value::from</span>(<span class="ident">value</span>))))
-            .<span class="ident">collect</span>();
+    <span class="kw">if </span>!crashpad_info.simple_annotations.is_empty() {
+        <span class="comment">// First, create a generic crashpad context with top-level simple annotations. This context does
+        // not need a type field, since its type matches the the key.
+        </span><span class="kw">let </span>crashpad_context = crashpad_info
+            .simple_annotations
+            .into_iter()
+            .map(|(key, value)| (key, Annotated::new(Value::from(value))))
+            .collect();
 
-        <span class="ident">contexts</span>.<span class="ident">insert</span>(
-            <span class="string">&quot;crashpad&quot;</span>.<span class="ident">to_string</span>(),
-            <span class="ident">Annotated::new</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Other</span>(<span class="ident">crashpad_context</span>))),
+        contexts.insert(
+            <span class="string">&quot;crashpad&quot;</span>.to_string(),
+            Annotated::new(ContextInner(Context::Other(crashpad_context))),
         );
     }
 
-    <span class="kw">if</span> <span class="ident">crashpad_info</span>.<span class="ident">module_list</span>.<span class="ident">is_empty</span>() {
-        <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
+    <span class="kw">if </span>crashpad_info.module_list.is_empty() {
+        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     }
 
-    <span class="kw">let</span> <span class="ident">modules</span> <span class="op">=</span> <span class="ident">module_list</span>.<span class="ident">iter</span>().<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span><span class="op">&gt;</span>();
+    <span class="kw">let </span>modules = module_list.iter().collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
-    <span class="kw">for</span> <span class="ident">module_info</span> <span class="kw">in</span> <span class="ident">crashpad_info</span>.<span class="ident">module_list</span> {
-        <span class="comment">// Resolve the actual module entry in the minidump module list. This entry should always</span>
-        <span class="comment">// exist and crashpad module info with an invalid link can be discarded. Since this is</span>
-        <span class="comment">// non-essential information, we skip gracefully and only emit debug logs.</span>
-        <span class="kw">let</span> <span class="ident">module</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">modules</span>.<span class="ident">get</span>(<span class="ident">module_info</span>.<span class="ident">module_index</span>) {
-            <span class="prelude-val">Some</span>(<span class="ident">module</span>) =&gt; <span class="ident">module</span>,
-            <span class="prelude-val">None</span> =&gt; {
+    <span class="kw">for </span>module_info <span class="kw">in </span>crashpad_info.module_list {
+        <span class="comment">// Resolve the actual module entry in the minidump module list. This entry should always
+        // exist and crashpad module info with an invalid link can be discarded. Since this is
+        // non-essential information, we skip gracefully and only emit debug logs.
+        </span><span class="kw">let </span>module = <span class="kw">match </span>modules.get(module_info.module_index) {
+            <span class="prelude-val">Some</span>(module) =&gt; module,
+            <span class="prelude-val">None </span>=&gt; {
                 <span class="macro">relay_log::debug!</span>(
                     <span class="string">&quot;Skipping invalid minidump module index {}&quot;</span>,
-                    <span class="ident">module_info</span>.<span class="ident">module_index</span>
+                    module_info.module_index
                 );
                 <span class="kw">continue</span>;
             }
         };
 
-        <span class="comment">// Use the basename of the code file (library or executable name) as context name. The</span>
-        <span class="comment">// context type must be set explicitly in this case, which will render in Sentry as</span>
-        <span class="comment">// &quot;Module.dll (crashpad)&quot;.</span>
-        <span class="kw">let</span> <span class="ident">code_file</span> <span class="op">=</span> <span class="ident">module</span>.<span class="ident">code_file</span>();
-        <span class="kw">let</span> (<span class="kw">_</span>, <span class="ident">module_name</span>) <span class="op">=</span> <span class="ident">symbolic_common::split_path</span>(<span class="kw-2">&amp;</span><span class="ident">code_file</span>);
+        <span class="comment">// Use the basename of the code file (library or executable name) as context name. The
+        // context type must be set explicitly in this case, which will render in Sentry as
+        // &quot;Module.dll (crashpad)&quot;.
+        </span><span class="kw">let </span>code_file = module.code_file();
+        <span class="kw">let </span>(<span class="kw">_</span>, module_name) = symbolic_common::split_path(<span class="kw-2">&amp;</span>code_file);
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">module_context</span> <span class="op">=</span> <span class="ident">BTreeMap::new</span>();
-        <span class="ident">module_context</span>.<span class="ident">insert</span>(
-            <span class="string">&quot;type&quot;</span>.<span class="ident">to_owned</span>(),
-            <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;crashpad&quot;</span>.<span class="ident">to_owned</span>())),
+        <span class="kw">let </span><span class="kw-2">mut </span>module_context = BTreeMap::new();
+        module_context.insert(
+            <span class="string">&quot;type&quot;</span>.to_owned(),
+            Annotated::new(Value::String(<span class="string">&quot;crashpad&quot;</span>.to_owned())),
         );
 
-        <span class="kw">for</span> (<span class="ident">key</span>, <span class="ident">value</span>) <span class="kw">in</span> <span class="ident">module_info</span>.<span class="ident">simple_annotations</span> {
-            <span class="ident">module_context</span>.<span class="ident">insert</span>(<span class="ident">key</span>, <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="ident">value</span>)));
+        <span class="kw">for </span>(key, value) <span class="kw">in </span>module_info.simple_annotations {
+            module_context.insert(key, Annotated::new(Value::String(value)));
         }
 
-        <span class="kw">for</span> (<span class="ident">key</span>, <span class="ident">annotation</span>) <span class="kw">in</span> <span class="ident">module_info</span>.<span class="ident">annotation_objects</span> {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="ident">MinidumpAnnotation::String</span>(<span class="ident">value</span>) <span class="op">=</span> <span class="ident">annotation</span> {
-                <span class="ident">module_context</span>.<span class="ident">insert</span>(<span class="ident">key</span>, <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="ident">value</span>)));
+        <span class="kw">for </span>(key, annotation) <span class="kw">in </span>module_info.annotation_objects {
+            <span class="kw">if let </span>MinidumpAnnotation::String(value) = annotation {
+                module_context.insert(key, Annotated::new(Value::String(value)));
             }
         }
 
-        <span class="kw">if</span> <span class="op">!</span><span class="ident">module_info</span>.<span class="ident">list_annotations</span>.<span class="ident">is_empty</span>() {
-            <span class="comment">// Annotation lists do not maintain a key-value mapping, so instead write them to an</span>
-            <span class="comment">// &quot;annotations&quot; key within the module context. This will render as a JSON list in Sentry.</span>
-            <span class="kw">let</span> <span class="ident">annotation_list</span> <span class="op">=</span> <span class="ident">module_info</span>
-                .<span class="ident">list_annotations</span>
-                .<span class="ident">into_iter</span>()
-                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="ident">s</span>)))
-                .<span class="ident">collect</span>();
+        <span class="kw">if </span>!module_info.list_annotations.is_empty() {
+            <span class="comment">// Annotation lists do not maintain a key-value mapping, so instead write them to an
+            // &quot;annotations&quot; key within the module context. This will render as a JSON list in Sentry.
+            </span><span class="kw">let </span>annotation_list = module_info
+                .list_annotations
+                .into_iter()
+                .map(|s| Annotated::new(Value::String(s)))
+                .collect();
 
-            <span class="ident">module_context</span>.<span class="ident">insert</span>(
-                <span class="string">&quot;annotations&quot;</span>.<span class="ident">to_owned</span>(),
-                <span class="ident">Annotated::new</span>(<span class="ident">Value::Array</span>(<span class="ident">annotation_list</span>)),
+            module_context.insert(
+                <span class="string">&quot;annotations&quot;</span>.to_owned(),
+                Annotated::new(Value::Array(annotation_list)),
             );
         }
 
-        <span class="ident">contexts</span>.<span class="ident">insert</span>(
-            <span class="ident">module_name</span>.<span class="ident">to_owned</span>(),
-            <span class="ident">Annotated::new</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Other</span>(<span class="ident">module_context</span>))),
+        contexts.insert(
+            module_name.to_owned(),
+            Annotated::new(ContextInner(Context::Other(module_context))),
         );
     }
 
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="doccomment">/// Extracts information from the minidump and writes it into the given event.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This function operates at best-effort. It always attaches the placeholder and returns</span>
-<span class="doccomment">/// successfully, even if the minidump or part of its data cannot be parsed.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">process_minidump</span>(<span class="ident">event</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Event</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) {
-    <span class="kw">let</span> <span class="ident">placeholder</span> <span class="op">=</span> <span class="ident">NativePlaceholder</span> {
-        <span class="ident">exception_type</span>: <span class="string">&quot;Minidump&quot;</span>,
-        <span class="ident">exception_value</span>: <span class="string">&quot;Invalid Minidump&quot;</span>,
-        <span class="ident">mechanism_type</span>: <span class="string">&quot;minidump&quot;</span>,
+<span class="doccomment">/// Extracts information from the minidump and writes it into the given event.
+///
+/// This function operates at best-effort. It always attaches the placeholder and returns
+/// successfully, even if the minidump or part of its data cannot be parsed.
+</span><span class="kw">pub fn </span>process_minidump(event: <span class="kw-2">&amp;mut </span>Event, data: <span class="kw-2">&amp;</span>[u8]) {
+    <span class="kw">let </span>placeholder = NativePlaceholder {
+        exception_type: <span class="string">&quot;Minidump&quot;</span>,
+        exception_value: <span class="string">&quot;Invalid Minidump&quot;</span>,
+        mechanism_type: <span class="string">&quot;minidump&quot;</span>,
     };
-    <span class="ident">write_native_placeholder</span>(<span class="ident">event</span>, <span class="ident">placeholder</span>);
+    write_native_placeholder(event, placeholder);
 
-    <span class="kw">let</span> <span class="ident">minidump</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">Minidump::read</span>(<span class="ident">data</span>) {
-        <span class="prelude-val">Ok</span>(<span class="ident">minidump</span>) =&gt; <span class="ident">minidump</span>,
-        <span class="prelude-val">Err</span>(<span class="ident">err</span>) =&gt; {
-            <span class="macro">relay_log::debug!</span>(<span class="string">&quot;Failed to parse minidump: {:?}&quot;</span>, <span class="ident">err</span>);
+    <span class="kw">let </span>minidump = <span class="kw">match </span>Minidump::read(data) {
+        <span class="prelude-val">Ok</span>(minidump) =&gt; minidump,
+        <span class="prelude-val">Err</span>(err) =&gt; {
+            <span class="macro">relay_log::debug!</span>(<span class="string">&quot;Failed to parse minidump: {:?}&quot;</span>, err);
             <span class="kw">return</span>;
         }
     };
 
-    <span class="comment">// Use the minidump&#39;s timestamp as the event&#39;s primary time. This timestamp can lie multiple</span>
-    <span class="comment">// days in the past, in which case the event may be rejected in store normalization.</span>
-    <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">Utc</span>.<span class="ident">timestamp</span>(<span class="ident">minidump</span>.<span class="ident">header</span>.<span class="ident">time_date_stamp</span>.<span class="ident">into</span>(), <span class="number">0</span>);
-    <span class="ident">event</span>.<span class="ident">timestamp</span>.<span class="ident">set_value</span>(<span class="prelude-val">Some</span>(<span class="ident">timestamp</span>.<span class="ident">into</span>()));
+    <span class="comment">// Use the minidump&#39;s timestamp as the event&#39;s primary time. This timestamp can lie multiple
+    // days in the past, in which case the event may be rejected in store normalization.
+    </span><span class="kw">let </span>timestamp = Utc.timestamp(minidump.header.time_date_stamp.into(), <span class="number">0</span>);
+    event.timestamp.set_value(<span class="prelude-val">Some</span>(timestamp.into()));
 
-    <span class="comment">// Write annotations from the crashpad info stream, but skip gracefully on error. Annotations</span>
-    <span class="comment">// are non-essential to processing.</span>
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=</span> <span class="ident">write_crashpad_annotations</span>(<span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="ident">minidump</span>) {
-        <span class="comment">// TODO: Consider adding an event error for failed annotation extraction.</span>
-        <span class="macro">relay_log::debug!</span>(<span class="string">&quot;Failed to parse minidump module list: {:?}&quot;</span>, <span class="ident">err</span>);
+    <span class="comment">// Write annotations from the crashpad info stream, but skip gracefully on error. Annotations
+    // are non-essential to processing.
+    </span><span class="kw">if let </span><span class="prelude-val">Err</span>(err) = write_crashpad_annotations(event, <span class="kw-2">&amp;</span>minidump) {
+        <span class="comment">// TODO: Consider adding an event error for failed annotation extraction.
+        </span><span class="macro">relay_log::debug!</span>(<span class="string">&quot;Failed to parse minidump module list: {:?}&quot;</span>, err);
     }
 }
 
-<span class="doccomment">/// Writes minimal information into the event to indicate it is associated with an Apple Crash</span>
-<span class="doccomment">/// Report.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">process_apple_crash_report</span>(<span class="ident">event</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Event</span>, <span class="ident">_data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) {
-    <span class="kw">let</span> <span class="ident">placeholder</span> <span class="op">=</span> <span class="ident">NativePlaceholder</span> {
-        <span class="ident">exception_type</span>: <span class="string">&quot;AppleCrashReport&quot;</span>,
-        <span class="ident">exception_value</span>: <span class="string">&quot;Invalid Apple Crash Report&quot;</span>,
-        <span class="ident">mechanism_type</span>: <span class="string">&quot;applecrashreport&quot;</span>,
+<span class="doccomment">/// Writes minimal information into the event to indicate it is associated with an Apple Crash
+/// Report.
+</span><span class="kw">pub fn </span>process_apple_crash_report(event: <span class="kw-2">&amp;mut </span>Event, _data: <span class="kw-2">&amp;</span>[u8]) {
+    <span class="kw">let </span>placeholder = NativePlaceholder {
+        exception_type: <span class="string">&quot;AppleCrashReport&quot;</span>,
+        exception_value: <span class="string">&quot;Invalid Apple Crash Report&quot;</span>,
+        mechanism_type: <span class="string">&quot;applecrashreport&quot;</span>,
     };
-    <span class="ident">write_native_placeholder</span>(<span class="ident">event</span>, <span class="ident">placeholder</span>);
+    write_native_placeholder(event, placeholder);
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

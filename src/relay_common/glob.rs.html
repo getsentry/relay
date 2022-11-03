@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-common/src/glob.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>glob.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_common/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_common/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-common/src/glob.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>glob.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_common/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_common/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_common/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -116,99 +116,99 @@
 <span id="114">114</span>
 <span id="115">115</span>
 <span id="116">116</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 
-<span class="kw">use</span> <span class="ident">globset::GlobBuilder</span>;
-<span class="kw">use</span> <span class="ident">lru::LruCache</span>;
-<span class="kw">use</span> <span class="ident">once_cell::sync::Lazy</span>;
-<span class="kw">use</span> <span class="ident">parking_lot::Mutex</span>;
-<span class="kw">use</span> <span class="ident">regex::bytes</span>::{<span class="ident">Regex</span>, <span class="ident">RegexBuilder</span>};
+<span class="kw">use </span>globset::GlobBuilder;
+<span class="kw">use </span>lru::LruCache;
+<span class="kw">use </span>once_cell::sync::Lazy;
+<span class="kw">use </span>parking_lot::Mutex;
+<span class="kw">use </span>regex::bytes::{Regex, RegexBuilder};
 
-<span class="kw">static</span> <span class="ident">GLOB_CACHE</span>: <span class="ident">Lazy</span><span class="op">&lt;</span><span class="ident">Mutex</span><span class="op">&lt;</span><span class="ident">LruCache</span><span class="op">&lt;</span>(<span class="ident">GlobOptions</span>, <span class="ident">String</span>), <span class="ident">Regex</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span>
-    <span class="ident">Lazy::new</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Mutex::new</span>(<span class="ident">LruCache::new</span>(<span class="number">500</span>)));
+<span class="kw">static </span>GLOB_CACHE: Lazy&lt;Mutex&lt;LruCache&lt;(GlobOptions, String), Regex&gt;&gt;&gt; =
+    Lazy::new(|| Mutex::new(LruCache::new(<span class="number">500</span>)));
 
-<span class="doccomment">/// Controls the options of the globber.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Hash</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">GlobOptions</span> {
-    <span class="doccomment">/// When enabled `**` matches over path separators and `*` does not.</span>
-    <span class="kw">pub</span> <span class="ident">double_star</span>: <span class="ident">bool</span>,
-    <span class="doccomment">/// Enables case insensitive path matching.</span>
-    <span class="kw">pub</span> <span class="ident">case_insensitive</span>: <span class="ident">bool</span>,
-    <span class="doccomment">/// Enables path normalization.</span>
-    <span class="kw">pub</span> <span class="ident">path_normalize</span>: <span class="ident">bool</span>,
-    <span class="doccomment">/// Allows newlines.</span>
-    <span class="kw">pub</span> <span class="ident">allow_newline</span>: <span class="ident">bool</span>,
+<span class="doccomment">/// Controls the options of the globber.
+</span><span class="attribute">#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+</span><span class="kw">pub struct </span>GlobOptions {
+    <span class="doccomment">/// When enabled `**` matches over path separators and `*` does not.
+    </span><span class="kw">pub </span>double_star: bool,
+    <span class="doccomment">/// Enables case insensitive path matching.
+    </span><span class="kw">pub </span>case_insensitive: bool,
+    <span class="doccomment">/// Enables path normalization.
+    </span><span class="kw">pub </span>path_normalize: bool,
+    <span class="doccomment">/// Allows newlines.
+    </span><span class="kw">pub </span>allow_newline: bool,
 }
 
-<span class="kw">fn</span> <span class="ident">translate_pattern</span>(<span class="ident">pat</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">options</span>: <span class="ident">GlobOptions</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">builder</span> <span class="op">=</span> <span class="ident">GlobBuilder::new</span>(<span class="ident">pat</span>);
-    <span class="ident">builder</span>.<span class="ident">case_insensitive</span>(<span class="ident">options</span>.<span class="ident">case_insensitive</span>);
-    <span class="ident">builder</span>.<span class="ident">literal_separator</span>(<span class="ident">options</span>.<span class="ident">double_star</span>);
-    <span class="kw">let</span> <span class="ident">glob</span> <span class="op">=</span> <span class="ident">builder</span>.<span class="ident">build</span>().<span class="ident">ok</span>()<span class="question-mark">?</span>;
-    <span class="ident">RegexBuilder::new</span>(<span class="ident">glob</span>.<span class="ident">regex</span>())
-        .<span class="ident">dot_matches_new_line</span>(<span class="ident">options</span>.<span class="ident">allow_newline</span>)
-        .<span class="ident">build</span>()
-        .<span class="ident">ok</span>()
+<span class="kw">fn </span>translate_pattern(pat: <span class="kw-2">&amp;</span>str, options: GlobOptions) -&gt; <span class="prelude-ty">Option</span>&lt;Regex&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>builder = GlobBuilder::new(pat);
+    builder.case_insensitive(options.case_insensitive);
+    builder.literal_separator(options.double_star);
+    <span class="kw">let </span>glob = builder.build().ok()<span class="question-mark">?</span>;
+    RegexBuilder::new(glob.regex())
+        .dot_matches_new_line(options.allow_newline)
+        .build()
+        .ok()
 }
 
-<span class="doccomment">/// Performs a glob operation on bytes.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Returns `true` if the glob matches, `false` otherwise.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">glob_match_bytes</span>(<span class="ident">value</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">pat</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">options</span>: <span class="ident">GlobOptions</span>) -&gt; <span class="ident">bool</span> {
-    <span class="kw">let</span> (<span class="ident">value</span>, <span class="ident">pat</span>) <span class="op">=</span> <span class="kw">if</span> <span class="ident">options</span>.<span class="ident">path_normalize</span> {
+<span class="doccomment">/// Performs a glob operation on bytes.
+///
+/// Returns `true` if the glob matches, `false` otherwise.
+</span><span class="kw">pub fn </span>glob_match_bytes(value: <span class="kw-2">&amp;</span>[u8], pat: <span class="kw-2">&amp;</span>str, options: GlobOptions) -&gt; bool {
+    <span class="kw">let </span>(value, pat) = <span class="kw">if </span>options.path_normalize {
         (
-            <span class="ident">Cow::Owned</span>(
-                <span class="ident">value</span>
-                    .<span class="ident">iter</span>()
-                    .<span class="ident">map</span>(<span class="op">|</span><span class="kw-2">&amp;</span><span class="ident">x</span><span class="op">|</span> <span class="kw">if</span> <span class="ident">x</span> <span class="op">==</span> <span class="string">b&#39;\\&#39;</span> { <span class="string">b&#39;/&#39;</span> } <span class="kw">else</span> { <span class="ident">x</span> })
-                    .<span class="ident">collect</span>(),
+            Cow::Owned(
+                value
+                    .iter()
+                    .map(|<span class="kw-2">&amp;</span>x| <span class="kw">if </span>x == <span class="string">b&#39;\\&#39; </span>{ <span class="string">b&#39;/&#39; </span>} <span class="kw">else </span>{ x })
+                    .collect(),
             ),
-            <span class="ident">pat</span>.<span class="ident">replace</span>(<span class="string">&#39;\\&#39;</span>, <span class="string">&quot;/&quot;</span>),
+            pat.replace(<span class="string">&#39;\\&#39;</span>, <span class="string">&quot;/&quot;</span>),
         )
-    } <span class="kw">else</span> {
-        (<span class="ident">Cow::Borrowed</span>(<span class="ident">value</span>), <span class="ident">pat</span>.<span class="ident">to_string</span>())
+    } <span class="kw">else </span>{
+        (Cow::Borrowed(value), pat.to_string())
     };
-    <span class="kw">let</span> <span class="ident">key</span> <span class="op">=</span> (<span class="ident">options</span>, <span class="ident">pat</span>);
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">cache</span> <span class="op">=</span> <span class="ident">GLOB_CACHE</span>.<span class="ident">lock</span>();
+    <span class="kw">let </span>key = (options, pat);
+    <span class="kw">let </span><span class="kw-2">mut </span>cache = GLOB_CACHE.lock();
 
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">pattern</span>) <span class="op">=</span> <span class="ident">cache</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">key</span>) {
-        <span class="ident">pattern</span>.<span class="ident">is_match</span>(<span class="kw-2">&amp;</span><span class="ident">value</span>)
-    } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">pattern</span>) <span class="op">=</span> <span class="ident">translate_pattern</span>(<span class="kw-2">&amp;</span><span class="ident">key</span>.<span class="number">1</span>, <span class="ident">options</span>) {
-        <span class="kw">let</span> <span class="ident">rv</span> <span class="op">=</span> <span class="ident">pattern</span>.<span class="ident">is_match</span>(<span class="kw-2">&amp;</span><span class="ident">value</span>);
-        <span class="ident">cache</span>.<span class="ident">put</span>(<span class="ident">key</span>, <span class="ident">pattern</span>);
-        <span class="ident">rv</span>
-    } <span class="kw">else</span> {
-        <span class="bool-val">false</span>
-    }
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(pattern) = cache.get(<span class="kw-2">&amp;</span>key) {
+        pattern.is_match(<span class="kw-2">&amp;</span>value)
+    } <span class="kw">else if let </span><span class="prelude-val">Some</span>(pattern) = translate_pattern(<span class="kw-2">&amp;</span>key.<span class="number">1</span>, options) {
+        <span class="kw">let </span>rv = pattern.is_match(<span class="kw-2">&amp;</span>value);
+        cache.put(key, pattern);
+        rv
+    } <span class="kw">else </span>{
+        <span class="bool-val">false
+    </span>}
 }
 
-<span class="doccomment">/// Performs a glob operation.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Returns `true` if the glob matches.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Note that even though this accepts strings, the case insensitivity here is only</span>
-<span class="doccomment">/// applied on ASCII characters as the underlying globber matches on bytes exclusively.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">glob_match</span>(<span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">pat</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">options</span>: <span class="ident">GlobOptions</span>) -&gt; <span class="ident">bool</span> {
-    <span class="ident">glob_match_bytes</span>(<span class="ident">value</span>.<span class="ident">as_bytes</span>(), <span class="ident">pat</span>, <span class="ident">options</span>)
+<span class="doccomment">/// Performs a glob operation.
+///
+/// Returns `true` if the glob matches.
+///
+/// Note that even though this accepts strings, the case insensitivity here is only
+/// applied on ASCII characters as the underlying globber matches on bytes exclusively.
+</span><span class="kw">pub fn </span>glob_match(value: <span class="kw-2">&amp;</span>str, pat: <span class="kw-2">&amp;</span>str, options: GlobOptions) -&gt; bool {
+    glob_match_bytes(value.as_bytes(), pat, options)
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_globs</span>() {
-        <span class="macro">macro_rules!</span> <span class="ident">test_glob</span> {
-            (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>:<span class="ident">expr</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">pat</span>:<span class="ident">expr</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">is_match</span>:<span class="ident">expr</span>, {$(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>:<span class="ident">ident</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>:<span class="ident">expr</span>),<span class="kw-2">*</span>}) =&gt; {{
-                <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::needless_update</span>)]</span>
-                <span class="kw">let</span> <span class="ident">options</span> <span class="op">=</span> <span class="ident">GlobOptions</span> { $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>,)<span class="op">*</span> ..<span class="ident">Default::default</span>() };
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_globs() {
+        <span class="macro">macro_rules! </span>test_glob {
+            (<span class="macro-nonterminal">$value</span>:expr, <span class="macro-nonterminal">$pat</span>:expr, <span class="macro-nonterminal">$is_match</span>:expr, {$(<span class="macro-nonterminal">$k</span>:ident: <span class="macro-nonterminal">$v</span>:expr),<span class="kw-2">*</span>}) =&gt; {{
+                <span class="attribute">#[allow(clippy::needless_update)]
+                </span><span class="kw">let </span>options = GlobOptions { $(<span class="macro-nonterminal">$k</span>: <span class="macro-nonterminal">$v</span>,)* ..Default::default() };
                 <span class="macro">assert!</span>(
-                    <span class="ident">glob_match</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">pat</span>, <span class="ident">options</span>) <span class="op">==</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">is_match</span>,
+                    glob_match(<span class="macro-nonterminal">$value</span>, <span class="macro-nonterminal">$pat</span>, options) == <span class="macro-nonterminal">$is_match</span>,
                     <span class="string">&quot;expected that {} {} {} with options {:?}&quot;</span>,
-                    <span class="macro-nonterminal">$</span><span class="macro-nonterminal">pat</span>,
-                    <span class="kw">if</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">is_match</span> { <span class="string">&quot;matches&quot;</span> } <span class="kw">else</span> { <span class="string">&quot;does not match&quot;</span> },
-                    <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>,
-                    <span class="kw-2">&amp;</span><span class="ident">options</span>,
+                    <span class="macro-nonterminal">$pat</span>,
+                    <span class="kw">if </span><span class="macro-nonterminal">$is_match </span>{ <span class="string">&quot;matches&quot; </span>} <span class="kw">else </span>{ <span class="string">&quot;does not match&quot; </span>},
+                    <span class="macro-nonterminal">$value</span>,
+                    <span class="kw-2">&amp;</span>options,
                 );
             }}
         }
@@ -216,21 +216,21 @@
         <span class="macro">test_glob!</span>(<span class="string">&quot;hello.py&quot;</span>, <span class="string">&quot;*.py&quot;</span>, <span class="bool-val">true</span>, {});
         <span class="macro">test_glob!</span>(<span class="string">&quot;hello.py&quot;</span>, <span class="string">&quot;*.js&quot;</span>, <span class="bool-val">false</span>, {});
         <span class="macro">test_glob!</span>(<span class="string">&quot;foo/hello.py&quot;</span>, <span class="string">&quot;*.py&quot;</span>, <span class="bool-val">true</span>, {});
-        <span class="macro">test_glob!</span>(<span class="string">&quot;foo/hello.py&quot;</span>, <span class="string">&quot;*.py&quot;</span>, <span class="bool-val">false</span>, {<span class="ident">double_star</span>: <span class="bool-val">true</span>});
-        <span class="macro">test_glob!</span>(<span class="string">&quot;foo/hello.py&quot;</span>, <span class="string">&quot;**/*.py&quot;</span>, <span class="bool-val">true</span>, {<span class="ident">double_star</span>: <span class="bool-val">true</span>});
-        <span class="macro">test_glob!</span>(<span class="string">&quot;foo/hello.PY&quot;</span>, <span class="string">&quot;**/*.py&quot;</span>, <span class="bool-val">false</span>, {<span class="ident">double_star</span>: <span class="bool-val">true</span>});
-        <span class="macro">test_glob!</span>(<span class="string">&quot;foo/hello.PY&quot;</span>, <span class="string">&quot;**/*.py&quot;</span>, <span class="bool-val">true</span>, {<span class="ident">double_star</span>: <span class="bool-val">true</span>, <span class="ident">case_insensitive</span>: <span class="bool-val">true</span>});
-        <span class="macro">test_glob!</span>(<span class="string">&quot;foo\\hello\\bar.PY&quot;</span>, <span class="string">&quot;foo/**/*.py&quot;</span>, <span class="bool-val">false</span>, {<span class="ident">double_star</span>: <span class="bool-val">true</span>, <span class="ident">case_insensitive</span>: <span class="bool-val">true</span>});
-        <span class="macro">test_glob!</span>(<span class="string">&quot;foo\\hello\\bar.PY&quot;</span>, <span class="string">&quot;foo/**/*.py&quot;</span>, <span class="bool-val">true</span>, {<span class="ident">double_star</span>: <span class="bool-val">true</span>, <span class="ident">case_insensitive</span>: <span class="bool-val">true</span>, <span class="ident">path_normalize</span>: <span class="bool-val">true</span>});
+        <span class="macro">test_glob!</span>(<span class="string">&quot;foo/hello.py&quot;</span>, <span class="string">&quot;*.py&quot;</span>, <span class="bool-val">false</span>, {double_star: <span class="bool-val">true</span>});
+        <span class="macro">test_glob!</span>(<span class="string">&quot;foo/hello.py&quot;</span>, <span class="string">&quot;**/*.py&quot;</span>, <span class="bool-val">true</span>, {double_star: <span class="bool-val">true</span>});
+        <span class="macro">test_glob!</span>(<span class="string">&quot;foo/hello.PY&quot;</span>, <span class="string">&quot;**/*.py&quot;</span>, <span class="bool-val">false</span>, {double_star: <span class="bool-val">true</span>});
+        <span class="macro">test_glob!</span>(<span class="string">&quot;foo/hello.PY&quot;</span>, <span class="string">&quot;**/*.py&quot;</span>, <span class="bool-val">true</span>, {double_star: <span class="bool-val">true</span>, case_insensitive: <span class="bool-val">true</span>});
+        <span class="macro">test_glob!</span>(<span class="string">&quot;foo\\hello\\bar.PY&quot;</span>, <span class="string">&quot;foo/**/*.py&quot;</span>, <span class="bool-val">false</span>, {double_star: <span class="bool-val">true</span>, case_insensitive: <span class="bool-val">true</span>});
+        <span class="macro">test_glob!</span>(<span class="string">&quot;foo\\hello\\bar.PY&quot;</span>, <span class="string">&quot;foo/**/*.py&quot;</span>, <span class="bool-val">true</span>, {double_star: <span class="bool-val">true</span>, case_insensitive: <span class="bool-val">true</span>, path_normalize: <span class="bool-val">true</span>});
         <span class="macro">test_glob!</span>(<span class="string">&quot;foo\nbar&quot;</span>, <span class="string">&quot;foo*&quot;</span>, <span class="bool-val">false</span>, {});
-        <span class="macro">test_glob!</span>(<span class="string">&quot;foo\nbar&quot;</span>, <span class="string">&quot;foo*&quot;</span>, <span class="bool-val">true</span>, {<span class="ident">allow_newline</span>: <span class="bool-val">true</span>});
+        <span class="macro">test_glob!</span>(<span class="string">&quot;foo\nbar&quot;</span>, <span class="string">&quot;foo*&quot;</span>, <span class="bool-val">true</span>, {allow_newline: <span class="bool-val">true</span>});
         <span class="macro">test_glob!</span>(<span class="string">&quot;1.18.4.2153-2aa83397b&quot;</span>, <span class="string">&quot;1.18.[0-4].*&quot;</span>, <span class="bool-val">true</span>, {});
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">long_string</span> <span class="op">=</span> <span class="string">&quot;x&quot;</span>.<span class="ident">repeat</span>(<span class="number">1_000_000</span>);
-        <span class="ident">long_string</span>.<span class="ident">push_str</span>(<span class="string">&quot;.PY&quot;</span>);
-        <span class="macro">test_glob!</span>(<span class="kw-2">&amp;</span><span class="ident">long_string</span>, <span class="string">&quot;*************************.py&quot;</span>, <span class="bool-val">true</span>, {<span class="ident">double_star</span>: <span class="bool-val">true</span>, <span class="ident">case_insensitive</span>: <span class="bool-val">true</span>, <span class="ident">path_normalize</span>: <span class="bool-val">true</span>});
-        <span class="macro">test_glob!</span>(<span class="kw-2">&amp;</span><span class="ident">long_string</span>, <span class="string">&quot;*************************.js&quot;</span>, <span class="bool-val">false</span>, {<span class="ident">double_star</span>: <span class="bool-val">true</span>, <span class="ident">case_insensitive</span>: <span class="bool-val">true</span>, <span class="ident">path_normalize</span>: <span class="bool-val">true</span>});
+        <span class="kw">let </span><span class="kw-2">mut </span>long_string = <span class="string">&quot;x&quot;</span>.repeat(<span class="number">1_000_000</span>);
+        long_string.push_str(<span class="string">&quot;.PY&quot;</span>);
+        <span class="macro">test_glob!</span>(<span class="kw-2">&amp;</span>long_string, <span class="string">&quot;*************************.py&quot;</span>, <span class="bool-val">true</span>, {double_star: <span class="bool-val">true</span>, case_insensitive: <span class="bool-val">true</span>, path_normalize: <span class="bool-val">true</span>});
+        <span class="macro">test_glob!</span>(<span class="kw-2">&amp;</span>long_string, <span class="string">&quot;*************************.js&quot;</span>, <span class="bool-val">false</span>, {double_star: <span class="bool-val">true</span>, case_insensitive: <span class="bool-val">true</span>, path_normalize: <span class="bool-val">true</span>});
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_common" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_common" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

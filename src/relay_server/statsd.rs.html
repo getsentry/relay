@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/statsd.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>statsd.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_server/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/statsd.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>statsd.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_server/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_server/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -613,618 +613,618 @@
 <span id="611">611</span>
 <span id="612">612</span>
 <span id="613">613</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">relay_statsd</span>::{<span class="ident">CounterMetric</span>, <span class="ident">GaugeMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">TimerMetric</span>};
+</pre><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
-<span class="doccomment">/// Gauge metrics used by Relay</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">RelayGauges</span> {
-    <span class="doccomment">/// The state of Relay with respect to the upstream connection.</span>
-    <span class="doccomment">/// Possible values are `0` for normal operations and `1` for a network outage.</span>
-    <span class="ident">NetworkOutage</span>,
+<span class="doccomment">/// Gauge metrics used by Relay
+</span><span class="kw">pub enum </span>RelayGauges {
+    <span class="doccomment">/// The state of Relay with respect to the upstream connection.
+    /// Possible values are `0` for normal operations and `1` for a network outage.
+    </span>NetworkOutage,
 
-    <span class="doccomment">/// The number of items currently in the garbage disposal queue.</span>
-    <span class="ident">ProjectCacheGarbageQueueSize</span>,
+    <span class="doccomment">/// The number of items currently in the garbage disposal queue.
+    </span>ProjectCacheGarbageQueueSize,
 }
 
-<span class="kw">impl</span> <span class="ident">GaugeMetric</span> <span class="kw">for</span> <span class="ident">RelayGauges</span> {
-    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">RelayGauges::NetworkOutage</span> =&gt; <span class="string">&quot;upstream.network_outage&quot;</span>,
-            <span class="ident">RelayGauges::ProjectCacheGarbageQueueSize</span> =&gt; <span class="string">&quot;project_cache.garbage.queue_size&quot;</span>,
+<span class="kw">impl </span>GaugeMetric <span class="kw">for </span>RelayGauges {
+    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            RelayGauges::NetworkOutage =&gt; <span class="string">&quot;upstream.network_outage&quot;</span>,
+            RelayGauges::ProjectCacheGarbageQueueSize =&gt; <span class="string">&quot;project_cache.garbage.queue_size&quot;</span>,
         }
     }
 }
 
-<span class="doccomment">/// Histogram metrics used by Relay.</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">RelayHistograms</span> {
-    <span class="doccomment">/// The number of envelopes in the queue as a percentage of the maximum number of envelopes that</span>
-    <span class="doccomment">/// can be stored in the queue.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The value ranges from `0` when the queue is empty to `1` when the queue is full and no</span>
-    <span class="doccomment">/// additional events can be added. The queue size can be configured using `event.queue_size`.</span>
-    <span class="ident">EnvelopeQueueSizePct</span>,
-    <span class="doccomment">/// The number of envelopes in the queue.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The queue holds all envelopes that are being processed at a particular time in Relay:</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// - When Relay receives a Request, it ensures the submitted data is wrapped in a single</span>
-    <span class="doccomment">///   envelope.</span>
-    <span class="doccomment">/// - The envelope receives some preliminary processing to determine if it can be processed or</span>
-    <span class="doccomment">///   if it must be rejected.</span>
-    <span class="doccomment">/// - Once this determination has been made, the HTTP request that created the envelope</span>
-    <span class="doccomment">///   terminates and, if the request is to be further processed, the envelope enters a queue.</span>
-    <span class="doccomment">/// - After the envelope finishes processing and is sent upstream, the envelope is considered</span>
-    <span class="doccomment">///   handled and it leaves the queue.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The queue size can be configured with `cache.event_buffer_size`.</span>
-    <span class="ident">EnvelopeQueueSize</span>,
-    <span class="doccomment">/// The size of the HTTP request body as seen by Relay after it is extracted from a request in</span>
-    <span class="doccomment">/// bytes.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// - For envelope requests, this is the full size of the envelope.</span>
-    <span class="doccomment">/// - For JSON store requests, this is the size of the JSON body.</span>
-    <span class="doccomment">/// - For multipart uploads of crash reports and attachments, this is the size of the multipart</span>
-    <span class="doccomment">///   body including boundaries.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// If this request contains a base64 zlib compressed payload without a proper</span>
-    <span class="doccomment">/// `content-encoding` header, then this is the size before decompression.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The maximum request body size can be configured with `limits.max_envelope_size`.</span>
-    <span class="ident">RequestSizeBytesRaw</span>,
-    <span class="doccomment">/// The size of the request body as seen by Relay after decompression and decoding in bytes.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// JSON store requests may contain a base64 zlib compressed payload without proper</span>
-    <span class="doccomment">/// `content-encoding` header. In this case, this metric contains the size after decoding.</span>
-    <span class="doccomment">/// Otherwise, it is always equal to `event.size_bytes.raw`.</span>
-    <span class="ident">RequestSizeBytesUncompressed</span>,
-    <span class="doccomment">/// Number of projects in the in-memory project cache that are waiting for their state to be</span>
-    <span class="doccomment">/// updated.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// See `project_cache.size` for more description of the project cache.</span>
-    <span class="ident">ProjectStatePending</span>,
-    <span class="doccomment">/// Number of project states **requested** from the upstream for each batch request.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// If multiple batches are updated concurrently, this metric is reported multiple times.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The batch size can be configured with `cache.batch_size`. See `project_cache.size` for more</span>
-    <span class="doccomment">/// description of the project cache.</span>
-    <span class="ident">ProjectStateRequestBatchSize</span>,
-    <span class="doccomment">/// Number of project states **returned** from the upstream for each batch request.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// If multiple batches are updated concurrently, this metric is reported multiple times.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// See `project_cache.size` for more description of the project cache.</span>
-    <span class="ident">ProjectStateReceived</span>,
-    <span class="doccomment">/// Number of attempts required to fetch the config for a given project key.</span>
-    <span class="ident">ProjectStateAttempts</span>,
-    <span class="doccomment">/// Number of project states currently held in the in-memory project cache.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The cache duration for project states can be configured with the following options:</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">///  - `cache.project_expiry`: The time after which a project state counts as expired. It is</span>
-    <span class="doccomment">///    automatically refreshed if a request references the project after it has expired.</span>
-    <span class="doccomment">///  - `cache.project_grace_period`: The time after expiry at which the project state will still</span>
-    <span class="doccomment">///    be used to ingest events. Once the grace period expires, the cache is evicted and new</span>
-    <span class="doccomment">///    requests wait for an update.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// There is no limit to the number of cached projects.</span>
-    <span class="ident">ProjectStateCacheSize</span>,
-    <span class="doccomment">/// The size of the compressed project config in the redis cache, in bytes.</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="ident">ProjectStateSizeBytesCompressed</span>,
-    <span class="doccomment">/// The size of the uncompressed project config in the redis cache, in bytes.</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="ident">ProjectStateSizeBytesDecompressed</span>,
-    <span class="doccomment">/// The number of upstream requests queued up for sending.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Relay employs connection keep-alive whenever possible. Connections are kept open for _15_</span>
-    <span class="doccomment">/// seconds of inactivity or _75_ seconds of activity. If all connections are busy, they are</span>
-    <span class="doccomment">/// queued, which is reflected in this metric.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This metric is tagged with:</span>
-    <span class="doccomment">///  - `priority`: The queueing priority of the request, either `&quot;high&quot;` or `&quot;low&quot;`. The</span>
-    <span class="doccomment">///    priority determines precedence in executing requests.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The number of concurrent connections can be configured with:</span>
-    <span class="doccomment">///  - `limits.max_concurrent_requests` for the overall number of connections</span>
-    <span class="doccomment">///  - `limits.max_concurrent_queries` for the number of concurrent high-priority requests</span>
-    <span class="ident">UpstreamMessageQueueSize</span>,
-    <span class="doccomment">/// Counts the number of retries for each upstream http request.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This metric is tagged with:</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">///   - `result`: What happened to the request, an enumeration with the following values:</span>
-    <span class="doccomment">///     * `success`: The request was sent and returned a success code `HTTP 2xx`</span>
-    <span class="doccomment">///     * `response_error`: The request was sent and it returned an HTTP error.</span>
-    <span class="doccomment">///     * `payload_failed`: The request was sent but there was an error in interpreting the response.</span>
-    <span class="doccomment">///     * `send_failed`: Failed to send the request due to a network error.</span>
-    <span class="doccomment">///     * `rate_limited`: The request was rate limited.</span>
-    <span class="doccomment">///     * `invalid_json`: The response could not be parsed back into JSON.</span>
-    <span class="doccomment">///   - `route`: The endpoint that was called on the upstream.</span>
-    <span class="doccomment">///   - `status-code`: The status code of the request when available, otherwise &quot;-&quot;.</span>
-    <span class="ident">UpstreamRetries</span>,
+<span class="doccomment">/// Histogram metrics used by Relay.
+</span><span class="kw">pub enum </span>RelayHistograms {
+    <span class="doccomment">/// The number of envelopes in the queue as a percentage of the maximum number of envelopes that
+    /// can be stored in the queue.
+    ///
+    /// The value ranges from `0` when the queue is empty to `1` when the queue is full and no
+    /// additional events can be added. The queue size can be configured using `event.queue_size`.
+    </span>EnvelopeQueueSizePct,
+    <span class="doccomment">/// The number of envelopes in the queue.
+    ///
+    /// The queue holds all envelopes that are being processed at a particular time in Relay:
+    ///
+    /// - When Relay receives a Request, it ensures the submitted data is wrapped in a single
+    ///   envelope.
+    /// - The envelope receives some preliminary processing to determine if it can be processed or
+    ///   if it must be rejected.
+    /// - Once this determination has been made, the HTTP request that created the envelope
+    ///   terminates and, if the request is to be further processed, the envelope enters a queue.
+    /// - After the envelope finishes processing and is sent upstream, the envelope is considered
+    ///   handled and it leaves the queue.
+    ///
+    /// The queue size can be configured with `cache.event_buffer_size`.
+    </span>EnvelopeQueueSize,
+    <span class="doccomment">/// The size of the HTTP request body as seen by Relay after it is extracted from a request in
+    /// bytes.
+    ///
+    /// - For envelope requests, this is the full size of the envelope.
+    /// - For JSON store requests, this is the size of the JSON body.
+    /// - For multipart uploads of crash reports and attachments, this is the size of the multipart
+    ///   body including boundaries.
+    ///
+    /// If this request contains a base64 zlib compressed payload without a proper
+    /// `content-encoding` header, then this is the size before decompression.
+    ///
+    /// The maximum request body size can be configured with `limits.max_envelope_size`.
+    </span>RequestSizeBytesRaw,
+    <span class="doccomment">/// The size of the request body as seen by Relay after decompression and decoding in bytes.
+    ///
+    /// JSON store requests may contain a base64 zlib compressed payload without proper
+    /// `content-encoding` header. In this case, this metric contains the size after decoding.
+    /// Otherwise, it is always equal to `event.size_bytes.raw`.
+    </span>RequestSizeBytesUncompressed,
+    <span class="doccomment">/// Number of projects in the in-memory project cache that are waiting for their state to be
+    /// updated.
+    ///
+    /// See `project_cache.size` for more description of the project cache.
+    </span>ProjectStatePending,
+    <span class="doccomment">/// Number of project states **requested** from the upstream for each batch request.
+    ///
+    /// If multiple batches are updated concurrently, this metric is reported multiple times.
+    ///
+    /// The batch size can be configured with `cache.batch_size`. See `project_cache.size` for more
+    /// description of the project cache.
+    </span>ProjectStateRequestBatchSize,
+    <span class="doccomment">/// Number of project states **returned** from the upstream for each batch request.
+    ///
+    /// If multiple batches are updated concurrently, this metric is reported multiple times.
+    ///
+    /// See `project_cache.size` for more description of the project cache.
+    </span>ProjectStateReceived,
+    <span class="doccomment">/// Number of attempts required to fetch the config for a given project key.
+    </span>ProjectStateAttempts,
+    <span class="doccomment">/// Number of project states currently held in the in-memory project cache.
+    ///
+    /// The cache duration for project states can be configured with the following options:
+    ///
+    ///  - `cache.project_expiry`: The time after which a project state counts as expired. It is
+    ///    automatically refreshed if a request references the project after it has expired.
+    ///  - `cache.project_grace_period`: The time after expiry at which the project state will still
+    ///    be used to ingest events. Once the grace period expires, the cache is evicted and new
+    ///    requests wait for an update.
+    ///
+    /// There is no limit to the number of cached projects.
+    </span>ProjectStateCacheSize,
+    <span class="doccomment">/// The size of the compressed project config in the redis cache, in bytes.
+    </span><span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span>ProjectStateSizeBytesCompressed,
+    <span class="doccomment">/// The size of the uncompressed project config in the redis cache, in bytes.
+    </span><span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span>ProjectStateSizeBytesDecompressed,
+    <span class="doccomment">/// The number of upstream requests queued up for sending.
+    ///
+    /// Relay employs connection keep-alive whenever possible. Connections are kept open for _15_
+    /// seconds of inactivity or _75_ seconds of activity. If all connections are busy, they are
+    /// queued, which is reflected in this metric.
+    ///
+    /// This metric is tagged with:
+    ///  - `priority`: The queueing priority of the request, either `&quot;high&quot;` or `&quot;low&quot;`. The
+    ///    priority determines precedence in executing requests.
+    ///
+    /// The number of concurrent connections can be configured with:
+    ///  - `limits.max_concurrent_requests` for the overall number of connections
+    ///  - `limits.max_concurrent_queries` for the number of concurrent high-priority requests
+    </span>UpstreamMessageQueueSize,
+    <span class="doccomment">/// Counts the number of retries for each upstream http request.
+    ///
+    /// This metric is tagged with:
+    ///
+    ///   - `result`: What happened to the request, an enumeration with the following values:
+    ///     * `success`: The request was sent and returned a success code `HTTP 2xx`
+    ///     * `response_error`: The request was sent and it returned an HTTP error.
+    ///     * `payload_failed`: The request was sent but there was an error in interpreting the response.
+    ///     * `send_failed`: Failed to send the request due to a network error.
+    ///     * `rate_limited`: The request was rate limited.
+    ///     * `invalid_json`: The response could not be parsed back into JSON.
+    ///   - `route`: The endpoint that was called on the upstream.
+    ///   - `status-code`: The status code of the request when available, otherwise &quot;-&quot;.
+    </span>UpstreamRetries,
 
-    <span class="doccomment">/// Size of emitted kafka message in bytes, tagged by message type.</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="ident">KafkaMessageSize</span>,
+    <span class="doccomment">/// Size of emitted kafka message in bytes, tagged by message type.
+    </span><span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span>KafkaMessageSize,
 
-    <span class="doccomment">/// Size of envelopes sent over HTTP in bytes.</span>
-    <span class="ident">UpstreamQueryBodySize</span>,
+    <span class="doccomment">/// Size of envelopes sent over HTTP in bytes.
+    </span>UpstreamQueryBodySize,
 
-    <span class="doccomment">/// Size of queries (projectconfig queries, i.e. the request payload, not the response) sent by</span>
-    <span class="doccomment">/// Relay over HTTP in bytes.</span>
-    <span class="ident">UpstreamEnvelopeBodySize</span>,
+    <span class="doccomment">/// Size of queries (projectconfig queries, i.e. the request payload, not the response) sent by
+    /// Relay over HTTP in bytes.
+    </span>UpstreamEnvelopeBodySize,
 
-    <span class="doccomment">/// Counts how often a transaction name was changed before submitting the final transaction.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// A value of `0` indicates that the transaction was created with the final transaction name.</span>
-    <span class="doccomment">/// In this case, the DSC will have the correct transaction name guaranteed. However, to</span>
-    <span class="doccomment">/// determine how many traces had wrong transaction names propagated, check the</span>
-    <span class="doccomment">/// `dynamic_sampling.propagations`.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This metric is tagged with:</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">///  - `source`: The transaction source value in the final event payload.</span>
-    <span class="doccomment">///  - `platform`: The SDK platform value of the event payload.</span>
-    <span class="doccomment">///  - `sdk_name`: The name of the client SDK as reported in the event payload.</span>
-    <span class="doccomment">///  - `sdk_version`: The version of the client SDK as reported in the event payload.</span>
-    <span class="ident">DynamicSamplingChanges</span>,
+    <span class="doccomment">/// Counts how often a transaction name was changed before submitting the final transaction.
+    ///
+    /// A value of `0` indicates that the transaction was created with the final transaction name.
+    /// In this case, the DSC will have the correct transaction name guaranteed. However, to
+    /// determine how many traces had wrong transaction names propagated, check the
+    /// `dynamic_sampling.propagations`.
+    ///
+    /// This metric is tagged with:
+    ///
+    ///  - `source`: The transaction source value in the final event payload.
+    ///  - `platform`: The SDK platform value of the event payload.
+    ///  - `sdk_name`: The name of the client SDK as reported in the event payload.
+    ///  - `sdk_version`: The version of the client SDK as reported in the event payload.
+    </span>DynamicSamplingChanges,
 
-    <span class="doccomment">/// Counts the number of propagations before the final transaction name has been determined.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// A value of `0` indicates that the entire trace had identical transaction names in the</span>
-    <span class="doccomment">/// Dynamic Sampling Context (DSC). This means that the entire trace is sampled consistently.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Note that this differs from `dynamic_sampling.changes`, which indicates changes even in the</span>
-    <span class="doccomment">/// absence of propagations.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This metric is tagged with:</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">///  - `source`: The transaction source value in the final event payload.</span>
-    <span class="doccomment">///  - `platform`: The SDK platform value of the event payload.</span>
-    <span class="doccomment">///  - `sdk_name`: The name of the client SDK as reported in the event payload.</span>
-    <span class="doccomment">///  - `sdk_version`: The version of the client SDK as reported in the event payload.</span>
-    <span class="ident">DynamicSamplingPropagationCount</span>,
+    <span class="doccomment">/// Counts the number of propagations before the final transaction name has been determined.
+    ///
+    /// A value of `0` indicates that the entire trace had identical transaction names in the
+    /// Dynamic Sampling Context (DSC). This means that the entire trace is sampled consistently.
+    ///
+    /// Note that this differs from `dynamic_sampling.changes`, which indicates changes even in the
+    /// absence of propagations.
+    ///
+    /// This metric is tagged with:
+    ///
+    ///  - `source`: The transaction source value in the final event payload.
+    ///  - `platform`: The SDK platform value of the event payload.
+    ///  - `sdk_name`: The name of the client SDK as reported in the event payload.
+    ///  - `sdk_version`: The version of the client SDK as reported in the event payload.
+    </span>DynamicSamplingPropagationCount,
 
-    <span class="doccomment">/// The number of propagations before the final transaction name change relative to the total</span>
-    <span class="doccomment">/// number of propagations.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Tracks the same as `dynamic_sampling.propagations`, except that the value of this metric is</span>
-    <span class="doccomment">/// a percentage between `0.0` and `100.0`. A value of `0` means that no propagations occurred,</span>
-    <span class="doccomment">/// and `100` means that all propagations occurred with the wrong transaction name.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This metric is tagged with:</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">///  - `source`: The transaction source value in the final event payload.</span>
-    <span class="doccomment">///  - `platform`: The SDK platform value of the event payload.</span>
-    <span class="doccomment">///  - `sdk_name`: The name of the client SDK as reported in the event payload.</span>
-    <span class="doccomment">///  - `sdk_version`: The version of the client SDK as reported in the event payload.</span>
-    <span class="ident">DynamicSamplingPropagationPercentage</span>,
+    <span class="doccomment">/// The number of propagations before the final transaction name change relative to the total
+    /// number of propagations.
+    ///
+    /// Tracks the same as `dynamic_sampling.propagations`, except that the value of this metric is
+    /// a percentage between `0.0` and `100.0`. A value of `0` means that no propagations occurred,
+    /// and `100` means that all propagations occurred with the wrong transaction name.
+    ///
+    /// This metric is tagged with:
+    ///
+    ///  - `source`: The transaction source value in the final event payload.
+    ///  - `platform`: The SDK platform value of the event payload.
+    ///  - `sdk_name`: The name of the client SDK as reported in the event payload.
+    ///  - `sdk_version`: The version of the client SDK as reported in the event payload.
+    </span>DynamicSamplingPropagationPercentage,
 
-    <span class="doccomment">/// Time in milliseconds from the start of transaction until the final name is determined.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// If the transaction name changes multiple times, this records only the last instance. This</span>
-    <span class="doccomment">/// metric is not logged if there were no changes to the transaction name.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This metric is tagged with:</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">///  - `source`: The transaction source value in the final event payload.</span>
-    <span class="doccomment">///  - `platform`: The SDK platform value of the event payload.</span>
-    <span class="doccomment">///  - `sdk_name`: The name of the client SDK as reported in the event payload.</span>
-    <span class="doccomment">///  - `sdk_version`: The version of the client SDK as reported in the event payload.</span>
-    <span class="ident">DynamicSamplingChangeDuration</span>,
+    <span class="doccomment">/// Time in milliseconds from the start of transaction until the final name is determined.
+    ///
+    /// If the transaction name changes multiple times, this records only the last instance. This
+    /// metric is not logged if there were no changes to the transaction name.
+    ///
+    /// This metric is tagged with:
+    ///
+    ///  - `source`: The transaction source value in the final event payload.
+    ///  - `platform`: The SDK platform value of the event payload.
+    ///  - `sdk_name`: The name of the client SDK as reported in the event payload.
+    ///  - `sdk_version`: The version of the client SDK as reported in the event payload.
+    </span>DynamicSamplingChangeDuration,
 
-    <span class="doccomment">/// Timing relative to the transaction duration until the final name is determined.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This is a percentage between `0.0` and `100.0`.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This metric is tagged with:</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">///  - `source`: The transaction source value in the final event payload.</span>
-    <span class="doccomment">///  - `platform`: The SDK platform value of the event payload.</span>
-    <span class="doccomment">///  - `sdk_name`: The name of the client SDK as reported in the event payload.</span>
-    <span class="doccomment">///  - `sdk_version`: The version of the client SDK as reported in the event payload.</span>
-    <span class="ident">DynamicSamplingChangePercentage</span>,
+    <span class="doccomment">/// Timing relative to the transaction duration until the final name is determined.
+    ///
+    /// This is a percentage between `0.0` and `100.0`.
+    ///
+    /// This metric is tagged with:
+    ///
+    ///  - `source`: The transaction source value in the final event payload.
+    ///  - `platform`: The SDK platform value of the event payload.
+    ///  - `sdk_name`: The name of the client SDK as reported in the event payload.
+    ///  - `sdk_version`: The version of the client SDK as reported in the event payload.
+    </span>DynamicSamplingChangePercentage,
 }
 
-<span class="kw">impl</span> <span class="ident">HistogramMetric</span> <span class="kw">for</span> <span class="ident">RelayHistograms</span> {
-    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">RelayHistograms::EnvelopeQueueSizePct</span> =&gt; <span class="string">&quot;event.queue_size.pct&quot;</span>,
-            <span class="ident">RelayHistograms::EnvelopeQueueSize</span> =&gt; <span class="string">&quot;event.queue_size&quot;</span>,
-            <span class="ident">RelayHistograms::RequestSizeBytesRaw</span> =&gt; <span class="string">&quot;event.size_bytes.raw&quot;</span>,
-            <span class="ident">RelayHistograms::RequestSizeBytesUncompressed</span> =&gt; <span class="string">&quot;event.size_bytes.uncompressed&quot;</span>,
-            <span class="ident">RelayHistograms::ProjectStatePending</span> =&gt; <span class="string">&quot;project_state.pending&quot;</span>,
-            <span class="ident">RelayHistograms::ProjectStateAttempts</span> =&gt; <span class="string">&quot;project_state.attempts&quot;</span>,
-            <span class="ident">RelayHistograms::ProjectStateRequestBatchSize</span> =&gt; <span class="string">&quot;project_state.request.batch_size&quot;</span>,
-            <span class="ident">RelayHistograms::ProjectStateReceived</span> =&gt; <span class="string">&quot;project_state.received&quot;</span>,
-            <span class="ident">RelayHistograms::ProjectStateCacheSize</span> =&gt; <span class="string">&quot;project_cache.size&quot;</span>,
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident">RelayHistograms::ProjectStateSizeBytesCompressed</span> =&gt; {
-                <span class="string">&quot;project_state.size_bytes.compressed&quot;</span>
-            }
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident">RelayHistograms::ProjectStateSizeBytesDecompressed</span> =&gt; {
-                <span class="string">&quot;project_state.size_bytes.decompressed&quot;</span>
-            }
-            <span class="ident">RelayHistograms::UpstreamMessageQueueSize</span> =&gt; <span class="string">&quot;http_queue.size&quot;</span>,
-            <span class="ident">RelayHistograms::UpstreamRetries</span> =&gt; <span class="string">&quot;upstream.retries&quot;</span>,
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident">RelayHistograms::KafkaMessageSize</span> =&gt; <span class="string">&quot;kafka.message_size&quot;</span>,
-            <span class="ident">RelayHistograms::UpstreamQueryBodySize</span> =&gt; <span class="string">&quot;upstream.query.body_size&quot;</span>,
-            <span class="ident">RelayHistograms::UpstreamEnvelopeBodySize</span> =&gt; <span class="string">&quot;upstream.envelope.body_size&quot;</span>,
-            <span class="ident">RelayHistograms::DynamicSamplingChanges</span> =&gt; <span class="string">&quot;dynamic_sampling.changes&quot;</span>,
-            <span class="ident">RelayHistograms::DynamicSamplingPropagationCount</span> =&gt; <span class="string">&quot;dynamic_sampling.propagations&quot;</span>,
-            <span class="ident">RelayHistograms::DynamicSamplingPropagationPercentage</span> =&gt; {
-                <span class="string">&quot;dynamic_sampling.propagation_pct&quot;</span>
-            }
-            <span class="ident">RelayHistograms::DynamicSamplingChangeDuration</span> =&gt; <span class="string">&quot;dynamic_sampling.change_duration&quot;</span>,
-            <span class="ident">RelayHistograms::DynamicSamplingChangePercentage</span> =&gt; <span class="string">&quot;dynamic_sampling.change_pct&quot;</span>,
+<span class="kw">impl </span>HistogramMetric <span class="kw">for </span>RelayHistograms {
+    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            RelayHistograms::EnvelopeQueueSizePct =&gt; <span class="string">&quot;event.queue_size.pct&quot;</span>,
+            RelayHistograms::EnvelopeQueueSize =&gt; <span class="string">&quot;event.queue_size&quot;</span>,
+            RelayHistograms::RequestSizeBytesRaw =&gt; <span class="string">&quot;event.size_bytes.raw&quot;</span>,
+            RelayHistograms::RequestSizeBytesUncompressed =&gt; <span class="string">&quot;event.size_bytes.uncompressed&quot;</span>,
+            RelayHistograms::ProjectStatePending =&gt; <span class="string">&quot;project_state.pending&quot;</span>,
+            RelayHistograms::ProjectStateAttempts =&gt; <span class="string">&quot;project_state.attempts&quot;</span>,
+            RelayHistograms::ProjectStateRequestBatchSize =&gt; <span class="string">&quot;project_state.request.batch_size&quot;</span>,
+            RelayHistograms::ProjectStateReceived =&gt; <span class="string">&quot;project_state.received&quot;</span>,
+            RelayHistograms::ProjectStateCacheSize =&gt; <span class="string">&quot;project_cache.size&quot;</span>,
+            <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span>RelayHistograms::ProjectStateSizeBytesCompressed =&gt; {
+                <span class="string">&quot;project_state.size_bytes.compressed&quot;
+            </span>}
+            <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span>RelayHistograms::ProjectStateSizeBytesDecompressed =&gt; {
+                <span class="string">&quot;project_state.size_bytes.decompressed&quot;
+            </span>}
+            RelayHistograms::UpstreamMessageQueueSize =&gt; <span class="string">&quot;http_queue.size&quot;</span>,
+            RelayHistograms::UpstreamRetries =&gt; <span class="string">&quot;upstream.retries&quot;</span>,
+            <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span>RelayHistograms::KafkaMessageSize =&gt; <span class="string">&quot;kafka.message_size&quot;</span>,
+            RelayHistograms::UpstreamQueryBodySize =&gt; <span class="string">&quot;upstream.query.body_size&quot;</span>,
+            RelayHistograms::UpstreamEnvelopeBodySize =&gt; <span class="string">&quot;upstream.envelope.body_size&quot;</span>,
+            RelayHistograms::DynamicSamplingChanges =&gt; <span class="string">&quot;dynamic_sampling.changes&quot;</span>,
+            RelayHistograms::DynamicSamplingPropagationCount =&gt; <span class="string">&quot;dynamic_sampling.propagations&quot;</span>,
+            RelayHistograms::DynamicSamplingPropagationPercentage =&gt; {
+                <span class="string">&quot;dynamic_sampling.propagation_pct&quot;
+            </span>}
+            RelayHistograms::DynamicSamplingChangeDuration =&gt; <span class="string">&quot;dynamic_sampling.change_duration&quot;</span>,
+            RelayHistograms::DynamicSamplingChangePercentage =&gt; <span class="string">&quot;dynamic_sampling.change_pct&quot;</span>,
         }
     }
 }
 
-<span class="doccomment">/// Timer metrics used by Relay</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">RelayTimers</span> {
-    <span class="doccomment">/// Time in milliseconds spent deserializing an event from JSON bytes into the native data</span>
-    <span class="doccomment">/// structure on which Relay operates.</span>
-    <span class="ident">EventProcessingDeserialize</span>,
-    <span class="doccomment">/// Time in milliseconds spent running light normalization on an event. Light normalization</span>
-    <span class="doccomment">/// happens before envelope filtering and metrics extraction.</span>
-    <span class="ident">EventProcessingLightNormalization</span>,
-    <span class="doccomment">/// Time in milliseconds spent running event processors on an event for normalization. Event</span>
-    <span class="doccomment">/// processing happens before filtering.</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="ident">EventProcessingProcess</span>,
-    <span class="doccomment">/// Time in milliseconds spent running inbound data filters on an event.</span>
-    <span class="ident">EventProcessingFiltering</span>,
-    <span class="doccomment">/// Time in milliseconds spent checking for organization, project, and DSN rate limits.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Not all events reach this point. After an event is rate limited for the first time, the rate</span>
-    <span class="doccomment">/// limit is cached. Events coming in after this will be discarded earlier in the request queue</span>
-    <span class="doccomment">/// and do not reach the processing queue.</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="ident">EventProcessingRateLimiting</span>,
-    <span class="doccomment">/// Time in milliseconds spent in data scrubbing for the current event. Data scrubbing happens</span>
-    <span class="doccomment">/// last before serializing the event back to JSON.</span>
-    <span class="ident">EventProcessingPii</span>,
-    <span class="doccomment">/// Time spent converting the event from its in-memory reprsentation into a JSON string.</span>
-    <span class="ident">EventProcessingSerialization</span>,
-    <span class="doccomment">/// Time spent between the start of request handling and processing of the envelope.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This includes streaming the request body, scheduling overheads, project config fetching,</span>
-    <span class="doccomment">/// batched requests and congestions in the internal processor. This does not include delays in</span>
-    <span class="doccomment">/// the incoming request (body upload) and skips all envelopes that are fast-rejected.</span>
-    <span class="ident">EnvelopeWaitTime</span>,
-    <span class="doccomment">/// Time in milliseconds spent in synchronous processing of envelopes.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This timing covers the end-to-end processing in the CPU pool and comprises:</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">///  - `event_processing.deserialize`</span>
-    <span class="doccomment">///  - `event_processing.pii`</span>
-    <span class="doccomment">///  - `event_processing.serialization`</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// With Relay in processing mode, this also includes the following timings:</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">///  - `event_processing.process`</span>
-    <span class="doccomment">///  - `event_processing.filtering`</span>
-    <span class="doccomment">///  - `event_processing.rate_limiting`</span>
-    <span class="ident">EnvelopeProcessingTime</span>,
-    <span class="doccomment">/// Total time in milliseconds an envelope spends in Relay from the time it is received until it</span>
-    <span class="doccomment">/// finishes processing and has been submitted to the upstream.</span>
-    <span class="ident">EnvelopeTotalTime</span>,
-    <span class="doccomment">/// Total time in milliseconds spent evicting outdated and unused projects happens.</span>
-    <span class="ident">ProjectStateEvictionDuration</span>,
-    <span class="doccomment">/// Total time in milliseconds spent fetching queued project configuration updates requests to</span>
-    <span class="doccomment">/// resolve.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Relay updates projects in batches. Every update cycle, Relay requests</span>
-    <span class="doccomment">/// `limits.max_concurrent_queries * cache.batch_size` projects from the upstream. This metric</span>
-    <span class="doccomment">/// measures the wall clock time for all concurrent requests in this loop.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Note that after an update loop has completed, there may be more projects pending updates.</span>
-    <span class="doccomment">/// This is indicated by `project_state.pending`.</span>
-    <span class="ident">ProjectStateRequestDuration</span>,
-    <span class="doccomment">/// Time in milliseconds required to decompress a project config from redis.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Note that this also times the cases where project config is uncompressed,</span>
-    <span class="doccomment">/// in which case the timer should be very close to zero.</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="ident">ProjectStateDecompression</span>,
-    <span class="doccomment">/// Total duration in milliseconds for handling inbound web requests until the HTTP response is</span>
-    <span class="doccomment">/// returned to the client.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This does **not** correspond to the full event ingestion time. Requests for events that are</span>
-    <span class="doccomment">/// not immediately rejected due to bad data or cached rate limits always return `200 OK`. Full</span>
-    <span class="doccomment">/// validation and normalization occur asynchronously, which is reported by</span>
-    <span class="doccomment">/// `event.processing_time`.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This metric is tagged with:</span>
-    <span class="doccomment">///  - `method`: The HTTP method of the request.</span>
-    <span class="doccomment">///  - `route`: Unique dashed identifier of the endpoint.</span>
-    <span class="ident">RequestsDuration</span>,
-    <span class="doccomment">/// Time spent on minidump scrubbing.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This is the total time spent on parsing and scrubbing the minidump.  Even if no PII</span>
-    <span class="doccomment">/// scrubbing rules applied the minidump will still be parsed and the rules evaluated on</span>
-    <span class="doccomment">/// the parsed minidump, this duration is reported here with status of &quot;n/a&quot;.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This metric is tagged with:</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// - `status`: Scrubbing status: &quot;ok&quot; means successful scrubbed, &quot;error&quot; means there</span>
-    <span class="doccomment">///       was an error during scrubbing and finally &quot;n/a&quot; means scrubbing was successful</span>
-    <span class="doccomment">///       but no scurbbing rules applied.</span>
-    <span class="ident">MinidumpScrubbing</span>,
-    <span class="doccomment">/// Time spend on attachment scrubbing.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This represents the total time spent on evaluating the scrubbing rules for an</span>
-    <span class="doccomment">/// attachment and the attachment scrubbing itself, regardless of whether any rules were</span>
-    <span class="doccomment">/// applied.  Note that minidumps which failed to be parsed (status=&quot;error&quot; in</span>
-    <span class="doccomment">/// scrubbing.minidumps.duration) will be scrubbed as plain attachments and count</span>
-    <span class="doccomment">/// towards this.</span>
-    <span class="ident">AttachmentScrubbing</span>,
-    <span class="doccomment">/// Total time spent to send request to upstream Relay and handle the response.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This metric is tagged with:</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">///   - `result`: What happened to the request, an enumeration with the following values:</span>
-    <span class="doccomment">///     * `success`: The request was sent and returned a success code `HTTP 2xx`</span>
-    <span class="doccomment">///     * `response_error`: The request was sent and it returned an HTTP error.</span>
-    <span class="doccomment">///     * `payload_failed`: The request was sent but there was an error in interpreting the response.</span>
-    <span class="doccomment">///     * `send_failed`: Failed to send the request due to a network error.</span>
-    <span class="doccomment">///     * `rate_limited`: The request was rate limited.</span>
-    <span class="doccomment">///     * `invalid_json`: The response could not be parsed back into JSON.</span>
-    <span class="doccomment">///   - `route`: The endpoint that was called on the upstream.</span>
-    <span class="doccomment">///   - `status-code`: The status code of the request when available, otherwise &quot;-&quot;.</span>
-    <span class="doccomment">///   - `retries`: Number of retries bucket 0, 1, 2, few (3 - 10), many (more than 10).</span>
-    <span class="ident">UpstreamRequestsDuration</span>,
-    <span class="doccomment">/// The delay between the timestamp stated in a payload and the receive time.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// SDKs cannot transmit payloads immediately in all cases. Sometimes, crashes require that</span>
-    <span class="doccomment">/// events are sent after restarting the application. Similarly, SDKs buffer events during</span>
-    <span class="doccomment">/// network downtimes for later transmission. This metric measures the delay between the time of</span>
-    <span class="doccomment">/// the event and the time it arrives in Relay. The delay is measured after clock drift</span>
-    <span class="doccomment">/// correction is applied.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Only payloads with a delay of more than 1 minute are captured.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This metric is tagged with:</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">///  - `category`: The data category of the payload. Can be one of: `event`, `transaction`,</span>
-    <span class="doccomment">///    `security`, or `session`.</span>
-    <span class="ident">TimestampDelay</span>,
-    <span class="doccomment">/// The time it takes the outcome aggregator to flush aggregated outcomes.</span>
-    <span class="ident">OutcomeAggregatorFlushTime</span>,
+<span class="doccomment">/// Timer metrics used by Relay
+</span><span class="kw">pub enum </span>RelayTimers {
+    <span class="doccomment">/// Time in milliseconds spent deserializing an event from JSON bytes into the native data
+    /// structure on which Relay operates.
+    </span>EventProcessingDeserialize,
+    <span class="doccomment">/// Time in milliseconds spent running light normalization on an event. Light normalization
+    /// happens before envelope filtering and metrics extraction.
+    </span>EventProcessingLightNormalization,
+    <span class="doccomment">/// Time in milliseconds spent running event processors on an event for normalization. Event
+    /// processing happens before filtering.
+    </span><span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span>EventProcessingProcess,
+    <span class="doccomment">/// Time in milliseconds spent running inbound data filters on an event.
+    </span>EventProcessingFiltering,
+    <span class="doccomment">/// Time in milliseconds spent checking for organization, project, and DSN rate limits.
+    ///
+    /// Not all events reach this point. After an event is rate limited for the first time, the rate
+    /// limit is cached. Events coming in after this will be discarded earlier in the request queue
+    /// and do not reach the processing queue.
+    </span><span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span>EventProcessingRateLimiting,
+    <span class="doccomment">/// Time in milliseconds spent in data scrubbing for the current event. Data scrubbing happens
+    /// last before serializing the event back to JSON.
+    </span>EventProcessingPii,
+    <span class="doccomment">/// Time spent converting the event from its in-memory reprsentation into a JSON string.
+    </span>EventProcessingSerialization,
+    <span class="doccomment">/// Time spent between the start of request handling and processing of the envelope.
+    ///
+    /// This includes streaming the request body, scheduling overheads, project config fetching,
+    /// batched requests and congestions in the internal processor. This does not include delays in
+    /// the incoming request (body upload) and skips all envelopes that are fast-rejected.
+    </span>EnvelopeWaitTime,
+    <span class="doccomment">/// Time in milliseconds spent in synchronous processing of envelopes.
+    ///
+    /// This timing covers the end-to-end processing in the CPU pool and comprises:
+    ///
+    ///  - `event_processing.deserialize`
+    ///  - `event_processing.pii`
+    ///  - `event_processing.serialization`
+    ///
+    /// With Relay in processing mode, this also includes the following timings:
+    ///
+    ///  - `event_processing.process`
+    ///  - `event_processing.filtering`
+    ///  - `event_processing.rate_limiting`
+    </span>EnvelopeProcessingTime,
+    <span class="doccomment">/// Total time in milliseconds an envelope spends in Relay from the time it is received until it
+    /// finishes processing and has been submitted to the upstream.
+    </span>EnvelopeTotalTime,
+    <span class="doccomment">/// Total time in milliseconds spent evicting outdated and unused projects happens.
+    </span>ProjectStateEvictionDuration,
+    <span class="doccomment">/// Total time in milliseconds spent fetching queued project configuration updates requests to
+    /// resolve.
+    ///
+    /// Relay updates projects in batches. Every update cycle, Relay requests
+    /// `limits.max_concurrent_queries * cache.batch_size` projects from the upstream. This metric
+    /// measures the wall clock time for all concurrent requests in this loop.
+    ///
+    /// Note that after an update loop has completed, there may be more projects pending updates.
+    /// This is indicated by `project_state.pending`.
+    </span>ProjectStateRequestDuration,
+    <span class="doccomment">/// Time in milliseconds required to decompress a project config from redis.
+    ///
+    /// Note that this also times the cases where project config is uncompressed,
+    /// in which case the timer should be very close to zero.
+    </span><span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span>ProjectStateDecompression,
+    <span class="doccomment">/// Total duration in milliseconds for handling inbound web requests until the HTTP response is
+    /// returned to the client.
+    ///
+    /// This does **not** correspond to the full event ingestion time. Requests for events that are
+    /// not immediately rejected due to bad data or cached rate limits always return `200 OK`. Full
+    /// validation and normalization occur asynchronously, which is reported by
+    /// `event.processing_time`.
+    ///
+    /// This metric is tagged with:
+    ///  - `method`: The HTTP method of the request.
+    ///  - `route`: Unique dashed identifier of the endpoint.
+    </span>RequestsDuration,
+    <span class="doccomment">/// Time spent on minidump scrubbing.
+    ///
+    /// This is the total time spent on parsing and scrubbing the minidump.  Even if no PII
+    /// scrubbing rules applied the minidump will still be parsed and the rules evaluated on
+    /// the parsed minidump, this duration is reported here with status of &quot;n/a&quot;.
+    ///
+    /// This metric is tagged with:
+    ///
+    /// - `status`: Scrubbing status: &quot;ok&quot; means successful scrubbed, &quot;error&quot; means there
+    ///       was an error during scrubbing and finally &quot;n/a&quot; means scrubbing was successful
+    ///       but no scurbbing rules applied.
+    </span>MinidumpScrubbing,
+    <span class="doccomment">/// Time spend on attachment scrubbing.
+    ///
+    /// This represents the total time spent on evaluating the scrubbing rules for an
+    /// attachment and the attachment scrubbing itself, regardless of whether any rules were
+    /// applied.  Note that minidumps which failed to be parsed (status=&quot;error&quot; in
+    /// scrubbing.minidumps.duration) will be scrubbed as plain attachments and count
+    /// towards this.
+    </span>AttachmentScrubbing,
+    <span class="doccomment">/// Total time spent to send request to upstream Relay and handle the response.
+    ///
+    /// This metric is tagged with:
+    ///
+    ///   - `result`: What happened to the request, an enumeration with the following values:
+    ///     * `success`: The request was sent and returned a success code `HTTP 2xx`
+    ///     * `response_error`: The request was sent and it returned an HTTP error.
+    ///     * `payload_failed`: The request was sent but there was an error in interpreting the response.
+    ///     * `send_failed`: Failed to send the request due to a network error.
+    ///     * `rate_limited`: The request was rate limited.
+    ///     * `invalid_json`: The response could not be parsed back into JSON.
+    ///   - `route`: The endpoint that was called on the upstream.
+    ///   - `status-code`: The status code of the request when available, otherwise &quot;-&quot;.
+    ///   - `retries`: Number of retries bucket 0, 1, 2, few (3 - 10), many (more than 10).
+    </span>UpstreamRequestsDuration,
+    <span class="doccomment">/// The delay between the timestamp stated in a payload and the receive time.
+    ///
+    /// SDKs cannot transmit payloads immediately in all cases. Sometimes, crashes require that
+    /// events are sent after restarting the application. Similarly, SDKs buffer events during
+    /// network downtimes for later transmission. This metric measures the delay between the time of
+    /// the event and the time it arrives in Relay. The delay is measured after clock drift
+    /// correction is applied.
+    ///
+    /// Only payloads with a delay of more than 1 minute are captured.
+    ///
+    /// This metric is tagged with:
+    ///
+    ///  - `category`: The data category of the payload. Can be one of: `event`, `transaction`,
+    ///    `security`, or `session`.
+    </span>TimestampDelay,
+    <span class="doccomment">/// The time it takes the outcome aggregator to flush aggregated outcomes.
+    </span>OutcomeAggregatorFlushTime,
 
-    <span class="doccomment">/// Time in milliseconds spent on converting a transaction event into a metric.</span>
-    <span class="ident">TransactionMetricsExtraction</span>,
+    <span class="doccomment">/// Time in milliseconds spent on converting a transaction event into a metric.
+    </span>TransactionMetricsExtraction,
 }
 
-<span class="kw">impl</span> <span class="ident">TimerMetric</span> <span class="kw">for</span> <span class="ident">RelayTimers</span> {
-    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">RelayTimers::EventProcessingDeserialize</span> =&gt; <span class="string">&quot;event_processing.deserialize&quot;</span>,
-            <span class="ident">RelayTimers::EventProcessingLightNormalization</span> =&gt; {
-                <span class="string">&quot;event_processing.light_normalization&quot;</span>
-            }
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident">RelayTimers::EventProcessingProcess</span> =&gt; <span class="string">&quot;event_processing.process&quot;</span>,
-            <span class="ident">RelayTimers::EventProcessingFiltering</span> =&gt; <span class="string">&quot;event_processing.filtering&quot;</span>,
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident">RelayTimers::EventProcessingRateLimiting</span> =&gt; <span class="string">&quot;event_processing.rate_limiting&quot;</span>,
-            <span class="ident">RelayTimers::EventProcessingPii</span> =&gt; <span class="string">&quot;event_processing.pii&quot;</span>,
-            <span class="ident">RelayTimers::EventProcessingSerialization</span> =&gt; <span class="string">&quot;event_processing.serialization&quot;</span>,
-            <span class="ident">RelayTimers::EnvelopeWaitTime</span> =&gt; <span class="string">&quot;event.wait_time&quot;</span>,
-            <span class="ident">RelayTimers::EnvelopeProcessingTime</span> =&gt; <span class="string">&quot;event.processing_time&quot;</span>,
-            <span class="ident">RelayTimers::EnvelopeTotalTime</span> =&gt; <span class="string">&quot;event.total_time&quot;</span>,
-            <span class="ident">RelayTimers::ProjectStateEvictionDuration</span> =&gt; <span class="string">&quot;project_state.eviction.duration&quot;</span>,
-            <span class="ident">RelayTimers::ProjectStateRequestDuration</span> =&gt; <span class="string">&quot;project_state.request.duration&quot;</span>,
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident">RelayTimers::ProjectStateDecompression</span> =&gt; <span class="string">&quot;project_state.decompression&quot;</span>,
-            <span class="ident">RelayTimers::RequestsDuration</span> =&gt; <span class="string">&quot;requests.duration&quot;</span>,
-            <span class="ident">RelayTimers::MinidumpScrubbing</span> =&gt; <span class="string">&quot;scrubbing.minidumps.duration&quot;</span>,
-            <span class="ident">RelayTimers::AttachmentScrubbing</span> =&gt; <span class="string">&quot;scrubbing.attachments.duration&quot;</span>,
-            <span class="ident">RelayTimers::UpstreamRequestsDuration</span> =&gt; <span class="string">&quot;upstream.requests.duration&quot;</span>,
-            <span class="ident">RelayTimers::TimestampDelay</span> =&gt; <span class="string">&quot;requests.timestamp_delay&quot;</span>,
-            <span class="ident">RelayTimers::OutcomeAggregatorFlushTime</span> =&gt; <span class="string">&quot;outcomes.aggregator.flush_time&quot;</span>,
-            <span class="ident">RelayTimers::TransactionMetricsExtraction</span> =&gt; <span class="string">&quot;metrics.extraction.transactions&quot;</span>,
+<span class="kw">impl </span>TimerMetric <span class="kw">for </span>RelayTimers {
+    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            RelayTimers::EventProcessingDeserialize =&gt; <span class="string">&quot;event_processing.deserialize&quot;</span>,
+            RelayTimers::EventProcessingLightNormalization =&gt; {
+                <span class="string">&quot;event_processing.light_normalization&quot;
+            </span>}
+            <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span>RelayTimers::EventProcessingProcess =&gt; <span class="string">&quot;event_processing.process&quot;</span>,
+            RelayTimers::EventProcessingFiltering =&gt; <span class="string">&quot;event_processing.filtering&quot;</span>,
+            <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span>RelayTimers::EventProcessingRateLimiting =&gt; <span class="string">&quot;event_processing.rate_limiting&quot;</span>,
+            RelayTimers::EventProcessingPii =&gt; <span class="string">&quot;event_processing.pii&quot;</span>,
+            RelayTimers::EventProcessingSerialization =&gt; <span class="string">&quot;event_processing.serialization&quot;</span>,
+            RelayTimers::EnvelopeWaitTime =&gt; <span class="string">&quot;event.wait_time&quot;</span>,
+            RelayTimers::EnvelopeProcessingTime =&gt; <span class="string">&quot;event.processing_time&quot;</span>,
+            RelayTimers::EnvelopeTotalTime =&gt; <span class="string">&quot;event.total_time&quot;</span>,
+            RelayTimers::ProjectStateEvictionDuration =&gt; <span class="string">&quot;project_state.eviction.duration&quot;</span>,
+            RelayTimers::ProjectStateRequestDuration =&gt; <span class="string">&quot;project_state.request.duration&quot;</span>,
+            <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span>RelayTimers::ProjectStateDecompression =&gt; <span class="string">&quot;project_state.decompression&quot;</span>,
+            RelayTimers::RequestsDuration =&gt; <span class="string">&quot;requests.duration&quot;</span>,
+            RelayTimers::MinidumpScrubbing =&gt; <span class="string">&quot;scrubbing.minidumps.duration&quot;</span>,
+            RelayTimers::AttachmentScrubbing =&gt; <span class="string">&quot;scrubbing.attachments.duration&quot;</span>,
+            RelayTimers::UpstreamRequestsDuration =&gt; <span class="string">&quot;upstream.requests.duration&quot;</span>,
+            RelayTimers::TimestampDelay =&gt; <span class="string">&quot;requests.timestamp_delay&quot;</span>,
+            RelayTimers::OutcomeAggregatorFlushTime =&gt; <span class="string">&quot;outcomes.aggregator.flush_time&quot;</span>,
+            RelayTimers::TransactionMetricsExtraction =&gt; <span class="string">&quot;metrics.extraction.transactions&quot;</span>,
         }
     }
 }
 
-<span class="doccomment">/// Counter metrics used by Relay</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">RelayCounters</span> {
-    <span class="doccomment">/// Number of Events that had corrupted (unprintable) event attributes.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This currently checks for `environment` and `release`, for which we know that</span>
-    <span class="doccomment">/// some SDKs may send corrupted values.</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="ident">EventCorrupted</span>,
-    <span class="doccomment">/// Number of envelopes accepted in the current time slot.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This represents requests that have successfully passed rate limits and filters, and have</span>
-    <span class="doccomment">/// been sent to the upstream.</span>
-    <span class="ident">EnvelopeAccepted</span>,
-    <span class="doccomment">/// Number of envelopes rejected in the current time slot.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This includes envelopes being rejected because they are malformed or any other errors during</span>
-    <span class="doccomment">/// processing (including filtered events, invalid payloads, and rate limits).</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// To check the rejection reason, check `events.outcomes`, instead.</span>
-    <span class="ident">EnvelopeRejected</span>,
-    <span class="doccomment">/// Number of outcomes and reasons for rejected Envelopes.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This metric is tagged with:</span>
-    <span class="doccomment">///  - `outcome`: The basic cause for rejecting the event.</span>
-    <span class="doccomment">///  - `reason`: A more detailed identifier describing the rule or mechanism leading to the</span>
-    <span class="doccomment">///    outcome.</span>
-    <span class="doccomment">///  - `to`: Describes the destination of the outcome. Can be either &#39;kafka&#39; (when in</span>
-    <span class="doccomment">///    processing mode) or &#39;http&#39; (when outcomes are enabled in an external relay).</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Possible outcomes are:</span>
-    <span class="doccomment">///  - `filtered`: Dropped by inbound data filters. The reason specifies the filter that</span>
-    <span class="doccomment">///    matched.</span>
-    <span class="doccomment">///  - `rate_limited`: Dropped by organization, project, or DSN rate limit, as well as exceeding</span>
-    <span class="doccomment">///    the Sentry plan quota. The reason contains the rate limit or quota that was exceeded.</span>
-    <span class="doccomment">///  - `invalid`: Data was considered invalid and could not be recovered. The reason indicates</span>
-    <span class="doccomment">///    the validation that failed.</span>
-    <span class="ident">Outcomes</span>,
-    <span class="doccomment">/// Number of times a project state is looked up from the cache.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This includes lookups for both cached and new projects. As part of this, updates for</span>
-    <span class="doccomment">/// outdated or expired project caches are triggered.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Related metrics:</span>
-    <span class="doccomment">///  - `project_cache.hit`: For successful cache lookups, even for outdated projects.</span>
-    <span class="doccomment">///  - `project_cache.miss`: For failed lookups resulting in an update.</span>
-    <span class="ident">ProjectStateGet</span>,
-    <span class="doccomment">/// Number of project state HTTP requests.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Relay updates projects in batches. Every update cycle, Relay requests</span>
-    <span class="doccomment">/// `limits.max_concurrent_queries` batches of `cache.batch_size` projects from the upstream.</span>
-    <span class="doccomment">/// The duration of these requests is reported via `project_state.request.duration`.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Note that after an update loop has completed, there may be more projects pending updates.</span>
-    <span class="doccomment">/// This is indicated by `project_state.pending`.</span>
-    <span class="ident">ProjectStateRequest</span>,
-    <span class="doccomment">/// Number of times a project config was requested with `.no-cache`.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This effectively counts the number of envelopes or events that have been sent with a</span>
-    <span class="doccomment">/// corresponding DSN. Actual queries to the upstream may still be deduplicated for these</span>
-    <span class="doccomment">/// project state requests.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// A maximum of 1 such requests per second is allowed per project key. This metric counts only</span>
-    <span class="doccomment">/// permitted requests.</span>
-    <span class="ident">ProjectStateNoCache</span>,
-    <span class="doccomment">/// Number of times a project state is requested from the central Redis cache.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This has a tag `hit` with values `true` or `false`.  If false the request will be</span>
-    <span class="doccomment">/// sent to the sentry endpoint.</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="ident">ProjectStateRedis</span>,
-    <span class="doccomment">/// Number of times a project is looked up from the cache.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The cache may contain and outdated or expired project state. In that case, the project state</span>
-    <span class="doccomment">/// is updated even after a cache hit.</span>
-    <span class="ident">ProjectCacheHit</span>,
-    <span class="doccomment">/// Number of times a project lookup failed.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// A cache entry is created immediately and the project state requested from the upstream.</span>
-    <span class="ident">ProjectCacheMiss</span>,
-    <span class="doccomment">/// Number of times an upstream request for a project config is completed.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Completion can be because a result was returned or because the config request was</span>
-    <span class="doccomment">/// dropped after there still was no response after a timeout.  This metrics has tags</span>
-    <span class="doccomment">/// for `result` and `attempts` indicating whether it was succesful or a timeout and how</span>
-    <span class="doccomment">/// many attempts were made respectively.</span>
-    <span class="ident">ProjectUpstreamCompleted</span>,
-    <span class="doccomment">/// Number of Relay server starts.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This can be used to track unwanted restarts due to crashes or termination.</span>
-    <span class="ident">ServerStarting</span>,
-    <span class="doccomment">/// Number of messages placed on the Kafka queues.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// When Relay operates as Sentry service and an Envelope item is successfully processed, each</span>
-    <span class="doccomment">/// Envelope item results in a dedicated message on one of the ingestion topics on Kafka.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This metric is tagged with:</span>
-    <span class="doccomment">///  - `event_type`: The kind of message produced to Kafka.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The message types can be:</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">///  - `event`: An error or transaction event. Error events are sent to `ingest-events`,</span>
-    <span class="doccomment">///    transactions to `ingest-transactions`, and errors with attachments are sent to</span>
-    <span class="doccomment">///    `ingest-attachments`.</span>
-    <span class="doccomment">///  - `attachment`: An attachment file associated with an error event, sent to</span>
-    <span class="doccomment">///    `ingest-attachments`.</span>
-    <span class="doccomment">///  - `user_report`: A message from the user feedback dialog, sent to `ingest-events`.</span>
-    <span class="doccomment">///  - `session`: A release health session update, sent to `ingest-sessions`.</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="ident">ProcessingMessageProduced</span>,
-    <span class="doccomment">/// Number of producer errors occurred after an envelope was already enqueued for sending to</span>
-    <span class="doccomment">/// Kafka.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// These errors include, for example, _&quot;MessageTooLarge&quot;_ errors when the broker does not</span>
-    <span class="doccomment">/// accept the requests over a certain size, which is usually due to invalid or inconsistent</span>
-    <span class="doccomment">/// broker/producer configurations.</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="ident">ProcessingProduceError</span>,
-    <span class="doccomment">/// Number of events that hit any of the store-like endpoints: Envelope, Store, Security,</span>
-    <span class="doccomment">/// Minidump, Unreal.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The events are counted before they are rate limited, filtered, or processed in any way.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This metric is tagged with:</span>
-    <span class="doccomment">///  - `version`: The event protocol version number defaulting to `7`.</span>
-    <span class="ident">EventProtocol</span>,
-    <span class="doccomment">/// The number of transaction events processed by the source of the transaction name.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This metric is tagged with:</span>
-    <span class="doccomment">///  - `platform`: The event&#39;s platform, such as `&quot;javascript&quot;`.</span>
-    <span class="doccomment">///  - `sdk`: The name of the Sentry SDK sending the transaction. This tag is only set for</span>
-    <span class="doccomment">///    Sentry&#39;s SDKs and defaults to &quot;proprietary&quot;.</span>
-    <span class="doccomment">///  - `source`: The source of the transaction name on the client. See the [transaction source</span>
-    <span class="doccomment">///    documentation](https://develop.sentry.dev/sdk/event-payloads/properties/transaction_info/)</span>
-    <span class="doccomment">///    for all valid values.</span>
-    <span class="ident">EventTransactionSource</span>,
-    <span class="doccomment">/// Number of HTTP requests reaching Relay.</span>
-    <span class="ident">Requests</span>,
-    <span class="doccomment">/// Number of completed HTTP requests.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This metric is tagged with:</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">///  - `status_code`: The HTTP status code number.</span>
-    <span class="doccomment">///  - `method`: The HTTP method used in the request in uppercase.</span>
-    <span class="doccomment">///  - `route`: Unique dashed identifier of the endpoint.</span>
-    <span class="ident">ResponsesStatusCodes</span>,
-    <span class="doccomment">/// Number of evicted stale projects from the cache.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Relay scans the in-memory project cache for stale entries in a regular interval configured</span>
-    <span class="doccomment">/// by `cache.eviction_interval`.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The cache duration for project states can be configured with the following options:</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">///  - `cache.project_expiry`: The time after which a project state counts as expired. It is</span>
-    <span class="doccomment">///    automatically refreshed if a request references the project after it has expired.</span>
-    <span class="doccomment">///  - `cache.project_grace_period`: The time after expiry at which the project state will still</span>
-    <span class="doccomment">///    be used to ingest events. Once the grace period expires, the cache is evicted and new</span>
-    <span class="doccomment">///    requests wait for an update.</span>
-    <span class="ident">EvictingStaleProjectCaches</span>,
-    <span class="doccomment">/// Number of times that parsing a metrics bucket item from an envelope failed.</span>
-    <span class="ident">MetricBucketsParsingFailed</span>,
-    <span class="doccomment">/// Count extraction of transaction names. Tag with the decision to drop / replace / use original.</span>
-    <span class="ident">MetricsTransactionNameExtracted</span>,
+<span class="doccomment">/// Counter metrics used by Relay
+</span><span class="kw">pub enum </span>RelayCounters {
+    <span class="doccomment">/// Number of Events that had corrupted (unprintable) event attributes.
+    ///
+    /// This currently checks for `environment` and `release`, for which we know that
+    /// some SDKs may send corrupted values.
+    </span><span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span>EventCorrupted,
+    <span class="doccomment">/// Number of envelopes accepted in the current time slot.
+    ///
+    /// This represents requests that have successfully passed rate limits and filters, and have
+    /// been sent to the upstream.
+    </span>EnvelopeAccepted,
+    <span class="doccomment">/// Number of envelopes rejected in the current time slot.
+    ///
+    /// This includes envelopes being rejected because they are malformed or any other errors during
+    /// processing (including filtered events, invalid payloads, and rate limits).
+    ///
+    /// To check the rejection reason, check `events.outcomes`, instead.
+    </span>EnvelopeRejected,
+    <span class="doccomment">/// Number of outcomes and reasons for rejected Envelopes.
+    ///
+    /// This metric is tagged with:
+    ///  - `outcome`: The basic cause for rejecting the event.
+    ///  - `reason`: A more detailed identifier describing the rule or mechanism leading to the
+    ///    outcome.
+    ///  - `to`: Describes the destination of the outcome. Can be either &#39;kafka&#39; (when in
+    ///    processing mode) or &#39;http&#39; (when outcomes are enabled in an external relay).
+    ///
+    /// Possible outcomes are:
+    ///  - `filtered`: Dropped by inbound data filters. The reason specifies the filter that
+    ///    matched.
+    ///  - `rate_limited`: Dropped by organization, project, or DSN rate limit, as well as exceeding
+    ///    the Sentry plan quota. The reason contains the rate limit or quota that was exceeded.
+    ///  - `invalid`: Data was considered invalid and could not be recovered. The reason indicates
+    ///    the validation that failed.
+    </span>Outcomes,
+    <span class="doccomment">/// Number of times a project state is looked up from the cache.
+    ///
+    /// This includes lookups for both cached and new projects. As part of this, updates for
+    /// outdated or expired project caches are triggered.
+    ///
+    /// Related metrics:
+    ///  - `project_cache.hit`: For successful cache lookups, even for outdated projects.
+    ///  - `project_cache.miss`: For failed lookups resulting in an update.
+    </span>ProjectStateGet,
+    <span class="doccomment">/// Number of project state HTTP requests.
+    ///
+    /// Relay updates projects in batches. Every update cycle, Relay requests
+    /// `limits.max_concurrent_queries` batches of `cache.batch_size` projects from the upstream.
+    /// The duration of these requests is reported via `project_state.request.duration`.
+    ///
+    /// Note that after an update loop has completed, there may be more projects pending updates.
+    /// This is indicated by `project_state.pending`.
+    </span>ProjectStateRequest,
+    <span class="doccomment">/// Number of times a project config was requested with `.no-cache`.
+    ///
+    /// This effectively counts the number of envelopes or events that have been sent with a
+    /// corresponding DSN. Actual queries to the upstream may still be deduplicated for these
+    /// project state requests.
+    ///
+    /// A maximum of 1 such requests per second is allowed per project key. This metric counts only
+    /// permitted requests.
+    </span>ProjectStateNoCache,
+    <span class="doccomment">/// Number of times a project state is requested from the central Redis cache.
+    ///
+    /// This has a tag `hit` with values `true` or `false`.  If false the request will be
+    /// sent to the sentry endpoint.
+    </span><span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span>ProjectStateRedis,
+    <span class="doccomment">/// Number of times a project is looked up from the cache.
+    ///
+    /// The cache may contain and outdated or expired project state. In that case, the project state
+    /// is updated even after a cache hit.
+    </span>ProjectCacheHit,
+    <span class="doccomment">/// Number of times a project lookup failed.
+    ///
+    /// A cache entry is created immediately and the project state requested from the upstream.
+    </span>ProjectCacheMiss,
+    <span class="doccomment">/// Number of times an upstream request for a project config is completed.
+    ///
+    /// Completion can be because a result was returned or because the config request was
+    /// dropped after there still was no response after a timeout.  This metrics has tags
+    /// for `result` and `attempts` indicating whether it was succesful or a timeout and how
+    /// many attempts were made respectively.
+    </span>ProjectUpstreamCompleted,
+    <span class="doccomment">/// Number of Relay server starts.
+    ///
+    /// This can be used to track unwanted restarts due to crashes or termination.
+    </span>ServerStarting,
+    <span class="doccomment">/// Number of messages placed on the Kafka queues.
+    ///
+    /// When Relay operates as Sentry service and an Envelope item is successfully processed, each
+    /// Envelope item results in a dedicated message on one of the ingestion topics on Kafka.
+    ///
+    /// This metric is tagged with:
+    ///  - `event_type`: The kind of message produced to Kafka.
+    ///
+    /// The message types can be:
+    ///
+    ///  - `event`: An error or transaction event. Error events are sent to `ingest-events`,
+    ///    transactions to `ingest-transactions`, and errors with attachments are sent to
+    ///    `ingest-attachments`.
+    ///  - `attachment`: An attachment file associated with an error event, sent to
+    ///    `ingest-attachments`.
+    ///  - `user_report`: A message from the user feedback dialog, sent to `ingest-events`.
+    ///  - `session`: A release health session update, sent to `ingest-sessions`.
+    </span><span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span>ProcessingMessageProduced,
+    <span class="doccomment">/// Number of producer errors occurred after an envelope was already enqueued for sending to
+    /// Kafka.
+    ///
+    /// These errors include, for example, _&quot;MessageTooLarge&quot;_ errors when the broker does not
+    /// accept the requests over a certain size, which is usually due to invalid or inconsistent
+    /// broker/producer configurations.
+    </span><span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span>ProcessingProduceError,
+    <span class="doccomment">/// Number of events that hit any of the store-like endpoints: Envelope, Store, Security,
+    /// Minidump, Unreal.
+    ///
+    /// The events are counted before they are rate limited, filtered, or processed in any way.
+    ///
+    /// This metric is tagged with:
+    ///  - `version`: The event protocol version number defaulting to `7`.
+    </span>EventProtocol,
+    <span class="doccomment">/// The number of transaction events processed by the source of the transaction name.
+    ///
+    /// This metric is tagged with:
+    ///  - `platform`: The event&#39;s platform, such as `&quot;javascript&quot;`.
+    ///  - `sdk`: The name of the Sentry SDK sending the transaction. This tag is only set for
+    ///    Sentry&#39;s SDKs and defaults to &quot;proprietary&quot;.
+    ///  - `source`: The source of the transaction name on the client. See the [transaction source
+    ///    documentation](https://develop.sentry.dev/sdk/event-payloads/properties/transaction_info/)
+    ///    for all valid values.
+    </span>EventTransactionSource,
+    <span class="doccomment">/// Number of HTTP requests reaching Relay.
+    </span>Requests,
+    <span class="doccomment">/// Number of completed HTTP requests.
+    ///
+    /// This metric is tagged with:
+    ///
+    ///  - `status_code`: The HTTP status code number.
+    ///  - `method`: The HTTP method used in the request in uppercase.
+    ///  - `route`: Unique dashed identifier of the endpoint.
+    </span>ResponsesStatusCodes,
+    <span class="doccomment">/// Number of evicted stale projects from the cache.
+    ///
+    /// Relay scans the in-memory project cache for stale entries in a regular interval configured
+    /// by `cache.eviction_interval`.
+    ///
+    /// The cache duration for project states can be configured with the following options:
+    ///
+    ///  - `cache.project_expiry`: The time after which a project state counts as expired. It is
+    ///    automatically refreshed if a request references the project after it has expired.
+    ///  - `cache.project_grace_period`: The time after expiry at which the project state will still
+    ///    be used to ingest events. Once the grace period expires, the cache is evicted and new
+    ///    requests wait for an update.
+    </span>EvictingStaleProjectCaches,
+    <span class="doccomment">/// Number of times that parsing a metrics bucket item from an envelope failed.
+    </span>MetricBucketsParsingFailed,
+    <span class="doccomment">/// Count extraction of transaction names. Tag with the decision to drop / replace / use original.
+    </span>MetricsTransactionNameExtracted,
 }
 
-<span class="kw">impl</span> <span class="ident">CounterMetric</span> <span class="kw">for</span> <span class="ident">RelayCounters</span> {
-    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident">RelayCounters::EventCorrupted</span> =&gt; <span class="string">&quot;event.corrupted&quot;</span>,
-            <span class="ident">RelayCounters::EnvelopeAccepted</span> =&gt; <span class="string">&quot;event.accepted&quot;</span>,
-            <span class="ident">RelayCounters::EnvelopeRejected</span> =&gt; <span class="string">&quot;event.rejected&quot;</span>,
-            <span class="ident">RelayCounters::Outcomes</span> =&gt; <span class="string">&quot;events.outcomes&quot;</span>,
-            <span class="ident">RelayCounters::ProjectStateGet</span> =&gt; <span class="string">&quot;project_state.get&quot;</span>,
-            <span class="ident">RelayCounters::ProjectStateRequest</span> =&gt; <span class="string">&quot;project_state.request&quot;</span>,
-            <span class="ident">RelayCounters::ProjectStateNoCache</span> =&gt; <span class="string">&quot;project_state.no_cache&quot;</span>,
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident">RelayCounters::ProjectStateRedis</span> =&gt; <span class="string">&quot;project_state.redis.requests&quot;</span>,
-            <span class="ident">RelayCounters::ProjectUpstreamCompleted</span> =&gt; <span class="string">&quot;project_upstream.completed&quot;</span>,
-            <span class="ident">RelayCounters::ProjectCacheHit</span> =&gt; <span class="string">&quot;project_cache.hit&quot;</span>,
-            <span class="ident">RelayCounters::ProjectCacheMiss</span> =&gt; <span class="string">&quot;project_cache.miss&quot;</span>,
-            <span class="ident">RelayCounters::ServerStarting</span> =&gt; <span class="string">&quot;server.starting&quot;</span>,
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident">RelayCounters::ProcessingMessageProduced</span> =&gt; <span class="string">&quot;processing.event.produced&quot;</span>,
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident">RelayCounters::ProcessingProduceError</span> =&gt; <span class="string">&quot;processing.produce.error&quot;</span>,
-            <span class="ident">RelayCounters::EventProtocol</span> =&gt; <span class="string">&quot;event.protocol&quot;</span>,
-            <span class="ident">RelayCounters::EventTransactionSource</span> =&gt; <span class="string">&quot;event.transaction_source&quot;</span>,
-            <span class="ident">RelayCounters::Requests</span> =&gt; <span class="string">&quot;requests&quot;</span>,
-            <span class="ident">RelayCounters::ResponsesStatusCodes</span> =&gt; <span class="string">&quot;responses.status_codes&quot;</span>,
-            <span class="ident">RelayCounters::EvictingStaleProjectCaches</span> =&gt; <span class="string">&quot;project_cache.eviction&quot;</span>,
-            <span class="ident">RelayCounters::MetricBucketsParsingFailed</span> =&gt; <span class="string">&quot;metrics.buckets.parsing_failed&quot;</span>,
-            <span class="ident">RelayCounters::MetricsTransactionNameExtracted</span> =&gt; <span class="string">&quot;metrics.transaction_name&quot;</span>,
+<span class="kw">impl </span>CounterMetric <span class="kw">for </span>RelayCounters {
+    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span>RelayCounters::EventCorrupted =&gt; <span class="string">&quot;event.corrupted&quot;</span>,
+            RelayCounters::EnvelopeAccepted =&gt; <span class="string">&quot;event.accepted&quot;</span>,
+            RelayCounters::EnvelopeRejected =&gt; <span class="string">&quot;event.rejected&quot;</span>,
+            RelayCounters::Outcomes =&gt; <span class="string">&quot;events.outcomes&quot;</span>,
+            RelayCounters::ProjectStateGet =&gt; <span class="string">&quot;project_state.get&quot;</span>,
+            RelayCounters::ProjectStateRequest =&gt; <span class="string">&quot;project_state.request&quot;</span>,
+            RelayCounters::ProjectStateNoCache =&gt; <span class="string">&quot;project_state.no_cache&quot;</span>,
+            <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span>RelayCounters::ProjectStateRedis =&gt; <span class="string">&quot;project_state.redis.requests&quot;</span>,
+            RelayCounters::ProjectUpstreamCompleted =&gt; <span class="string">&quot;project_upstream.completed&quot;</span>,
+            RelayCounters::ProjectCacheHit =&gt; <span class="string">&quot;project_cache.hit&quot;</span>,
+            RelayCounters::ProjectCacheMiss =&gt; <span class="string">&quot;project_cache.miss&quot;</span>,
+            RelayCounters::ServerStarting =&gt; <span class="string">&quot;server.starting&quot;</span>,
+            <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span>RelayCounters::ProcessingMessageProduced =&gt; <span class="string">&quot;processing.event.produced&quot;</span>,
+            <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span>RelayCounters::ProcessingProduceError =&gt; <span class="string">&quot;processing.produce.error&quot;</span>,
+            RelayCounters::EventProtocol =&gt; <span class="string">&quot;event.protocol&quot;</span>,
+            RelayCounters::EventTransactionSource =&gt; <span class="string">&quot;event.transaction_source&quot;</span>,
+            RelayCounters::Requests =&gt; <span class="string">&quot;requests&quot;</span>,
+            RelayCounters::ResponsesStatusCodes =&gt; <span class="string">&quot;responses.status_codes&quot;</span>,
+            RelayCounters::EvictingStaleProjectCaches =&gt; <span class="string">&quot;project_cache.eviction&quot;</span>,
+            RelayCounters::MetricBucketsParsingFailed =&gt; <span class="string">&quot;metrics.buckets.parsing_failed&quot;</span>,
+            RelayCounters::MetricsTransactionNameExtracted =&gt; <span class="string">&quot;metrics.transaction_name&quot;</span>,
         }
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

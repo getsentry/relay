@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay/src/cliapp.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>cliapp.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay/src/cliapp.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>cliapp.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -315,170 +315,170 @@
 <span id="313">313</span>
 <span id="314">314</span>
 <span id="315">315</span>
-</pre><pre class="rust"><code><span class="comment">// This module implements the definition of the command line app.</span>
-<span class="comment">//</span>
-<span class="comment">// It must not have any other imports as also the build.rs file to</span>
-<span class="comment">// automatically generate the completion scripts.</span>
-<span class="kw">use</span> <span class="ident">clap</span>::{<span class="ident">App</span>, <span class="ident">AppSettings</span>, <span class="ident">Arg</span>, <span class="ident">ArgGroup</span>, <span class="ident">Shell</span>};
+</pre><pre class="rust"><code><span class="comment">// This module implements the definition of the command line app.
+//
+// It must not have any other imports as also the build.rs file to
+// automatically generate the completion scripts.
+</span><span class="kw">use </span>clap::{App, AppSettings, Arg, ArgGroup, Shell};
 
-<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">VERSION</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="macro">env!</span>(<span class="string">&quot;CARGO_PKG_VERSION&quot;</span>);
-<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">ABOUT</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;The official Sentry Relay.&quot;</span>;
+<span class="kw">pub const </span>VERSION: <span class="kw-2">&amp;</span>str = <span class="macro">env!</span>(<span class="string">&quot;CARGO_PKG_VERSION&quot;</span>);
+<span class="kw">pub const </span>ABOUT: <span class="kw-2">&amp;</span>str = <span class="string">&quot;The official Sentry Relay.&quot;</span>;
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">make_app</span>() -&gt; <span class="ident">App</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span>, <span class="lifetime">&#39;static</span><span class="op">&gt;</span> {
-    <span class="ident">App::new</span>(<span class="string">&quot;relay&quot;</span>)
-        .<span class="ident">global_setting</span>(<span class="ident">AppSettings::UnifiedHelpMessage</span>)
-        .<span class="ident">global_setting</span>(<span class="ident">AppSettings::DisableHelpSubcommand</span>)
-        .<span class="ident">setting</span>(<span class="ident">AppSettings::SubcommandRequiredElseHelp</span>)
-        .<span class="ident">setting</span>(<span class="ident">AppSettings::GlobalVersion</span>)
-        .<span class="ident">max_term_width</span>(<span class="number">79</span>)
-        .<span class="ident">help_message</span>(<span class="string">&quot;Print this help message.&quot;</span>)
-        .<span class="ident">version</span>(<span class="ident">VERSION</span>)
-        .<span class="ident">version_message</span>(<span class="string">&quot;Print version information.&quot;</span>)
-        .<span class="ident">about</span>(<span class="ident">ABOUT</span>)
-        .<span class="ident">arg</span>(
-            <span class="ident">Arg::with_name</span>(<span class="string">&quot;config&quot;</span>)
-                .<span class="ident">value_name</span>(<span class="string">&quot;CONFIG&quot;</span>)
-                .<span class="ident">long</span>(<span class="string">&quot;config&quot;</span>)
-                .<span class="ident">short</span>(<span class="string">&quot;c&quot;</span>)
-                .<span class="ident">global</span>(<span class="bool-val">true</span>)
-                .<span class="ident">help</span>(<span class="string">&quot;The path to the config folder.&quot;</span>),
+<span class="kw">pub fn </span>make_app() -&gt; App&lt;<span class="lifetime">&#39;static</span>, <span class="lifetime">&#39;static</span>&gt; {
+    App::new(<span class="string">&quot;relay&quot;</span>)
+        .global_setting(AppSettings::UnifiedHelpMessage)
+        .global_setting(AppSettings::DisableHelpSubcommand)
+        .setting(AppSettings::SubcommandRequiredElseHelp)
+        .setting(AppSettings::GlobalVersion)
+        .max_term_width(<span class="number">79</span>)
+        .help_message(<span class="string">&quot;Print this help message.&quot;</span>)
+        .version(VERSION)
+        .version_message(<span class="string">&quot;Print version information.&quot;</span>)
+        .about(ABOUT)
+        .arg(
+            Arg::with_name(<span class="string">&quot;config&quot;</span>)
+                .value_name(<span class="string">&quot;CONFIG&quot;</span>)
+                .long(<span class="string">&quot;config&quot;</span>)
+                .short(<span class="string">&quot;c&quot;</span>)
+                .global(<span class="bool-val">true</span>)
+                .help(<span class="string">&quot;The path to the config folder.&quot;</span>),
         )
-        .<span class="ident">subcommand</span>(
-            <span class="ident">App::new</span>(<span class="string">&quot;run&quot;</span>)
-                .<span class="ident">about</span>(<span class="string">&quot;Run the relay&quot;</span>)
-                .<span class="ident">after_help</span>(
+        .subcommand(
+            App::new(<span class="string">&quot;run&quot;</span>)
+                .about(<span class="string">&quot;Run the relay&quot;</span>)
+                .after_help(
                     <span class="string">&quot;This runs the relay in the foreground until it&#39;s shut down.  It will bind \
              to the port and network interface configured in the config file.&quot;</span>,
                 )
-                .<span class="ident">arg</span>(
-                    <span class="ident">Arg::with_name</span>(<span class="string">&quot;mode&quot;</span>)
-                        .<span class="ident">long</span>(<span class="string">&quot;mode&quot;</span>)
-                        .<span class="ident">help</span>(<span class="string">&quot;The relay mode to set&quot;</span>)
-                        .<span class="ident">value_name</span>(<span class="string">&quot;MODE&quot;</span>)
-                        .<span class="ident">possible_values</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;managed&quot;</span>, <span class="string">&quot;proxy&quot;</span>, <span class="string">&quot;static&quot;</span>]),
+                .arg(
+                    Arg::with_name(<span class="string">&quot;mode&quot;</span>)
+                        .long(<span class="string">&quot;mode&quot;</span>)
+                        .help(<span class="string">&quot;The relay mode to set&quot;</span>)
+                        .value_name(<span class="string">&quot;MODE&quot;</span>)
+                        .possible_values(<span class="kw-2">&amp;</span>[<span class="string">&quot;managed&quot;</span>, <span class="string">&quot;proxy&quot;</span>, <span class="string">&quot;static&quot;</span>]),
                 )
-                .<span class="ident">arg</span>(
-                    <span class="ident">Arg::with_name</span>(<span class="string">&quot;secret_key&quot;</span>)
-                        .<span class="ident">long</span>(<span class="string">&quot;secret-key&quot;</span>)
-                        .<span class="ident">short</span>(<span class="string">&quot;s&quot;</span>)
-                        .<span class="ident">value_name</span>(<span class="string">&quot;KEY&quot;</span>)
-                        .<span class="ident">requires</span>(<span class="string">&quot;public_key&quot;</span>)
-                        .<span class="ident">help</span>(<span class="string">&quot;The secret key to set&quot;</span>),
+                .arg(
+                    Arg::with_name(<span class="string">&quot;secret_key&quot;</span>)
+                        .long(<span class="string">&quot;secret-key&quot;</span>)
+                        .short(<span class="string">&quot;s&quot;</span>)
+                        .value_name(<span class="string">&quot;KEY&quot;</span>)
+                        .requires(<span class="string">&quot;public_key&quot;</span>)
+                        .help(<span class="string">&quot;The secret key to set&quot;</span>),
                 )
-                .<span class="ident">arg</span>(
-                    <span class="ident">Arg::with_name</span>(<span class="string">&quot;public_key&quot;</span>)
-                        .<span class="ident">long</span>(<span class="string">&quot;public-key&quot;</span>)
-                        .<span class="ident">short</span>(<span class="string">&quot;p&quot;</span>)
-                        .<span class="ident">value_name</span>(<span class="string">&quot;KEY&quot;</span>)
-                        .<span class="ident">requires</span>(<span class="string">&quot;secret_key&quot;</span>)
-                        .<span class="ident">help</span>(<span class="string">&quot;The public key to set&quot;</span>),
+                .arg(
+                    Arg::with_name(<span class="string">&quot;public_key&quot;</span>)
+                        .long(<span class="string">&quot;public-key&quot;</span>)
+                        .short(<span class="string">&quot;p&quot;</span>)
+                        .value_name(<span class="string">&quot;KEY&quot;</span>)
+                        .requires(<span class="string">&quot;secret_key&quot;</span>)
+                        .help(<span class="string">&quot;The public key to set&quot;</span>),
                 )
-                .<span class="ident">arg</span>(
-                    <span class="ident">Arg::with_name</span>(<span class="string">&quot;id&quot;</span>)
-                        .<span class="ident">long</span>(<span class="string">&quot;id&quot;</span>)
-                        .<span class="ident">short</span>(<span class="string">&quot;i&quot;</span>)
-                        .<span class="ident">value_name</span>(<span class="string">&quot;RELAY_ID&quot;</span>)
-                        .<span class="ident">help</span>(<span class="string">&quot;The relay ID to set&quot;</span>),
+                .arg(
+                    Arg::with_name(<span class="string">&quot;id&quot;</span>)
+                        .long(<span class="string">&quot;id&quot;</span>)
+                        .short(<span class="string">&quot;i&quot;</span>)
+                        .value_name(<span class="string">&quot;RELAY_ID&quot;</span>)
+                        .help(<span class="string">&quot;The relay ID to set&quot;</span>),
                 )
-                .<span class="ident">arg</span>(
-                    <span class="ident">Arg::with_name</span>(<span class="string">&quot;upstream&quot;</span>)
-                        .<span class="ident">value_name</span>(<span class="string">&quot;UPSTREAM_URL&quot;</span>)
-                        .<span class="ident">takes_value</span>(<span class="bool-val">true</span>)
-                        .<span class="ident">short</span>(<span class="string">&quot;u&quot;</span>)
-                        .<span class="ident">long</span>(<span class="string">&quot;upstream&quot;</span>)
-                        .<span class="ident">help</span>(<span class="string">&quot;The upstream server URL.&quot;</span>),
+                .arg(
+                    Arg::with_name(<span class="string">&quot;upstream&quot;</span>)
+                        .value_name(<span class="string">&quot;UPSTREAM_URL&quot;</span>)
+                        .takes_value(<span class="bool-val">true</span>)
+                        .short(<span class="string">&quot;u&quot;</span>)
+                        .long(<span class="string">&quot;upstream&quot;</span>)
+                        .help(<span class="string">&quot;The upstream server URL.&quot;</span>),
                 )
-                .<span class="ident">arg</span>(
-                    <span class="ident">Arg::with_name</span>(<span class="string">&quot;upstream_dsn&quot;</span>)
-                        .<span class="ident">conflicts_with</span>(<span class="string">&quot;upstream&quot;</span>)
-                        .<span class="ident">value_name</span>(<span class="string">&quot;UPSTREAM_DSN&quot;</span>)
-                        .<span class="ident">takes_value</span>(<span class="bool-val">true</span>)
-                        .<span class="ident">long</span>(<span class="string">&quot;upstream-dsn&quot;</span>)
-                        .<span class="ident">help</span>(
+                .arg(
+                    Arg::with_name(<span class="string">&quot;upstream_dsn&quot;</span>)
+                        .conflicts_with(<span class="string">&quot;upstream&quot;</span>)
+                        .value_name(<span class="string">&quot;UPSTREAM_DSN&quot;</span>)
+                        .takes_value(<span class="bool-val">true</span>)
+                        .long(<span class="string">&quot;upstream-dsn&quot;</span>)
+                        .help(
                             <span class="string">&quot;Alternate upstream provided through a Sentry DSN, compatible with the \
                             SENTRY_DSN environment variable. Key and project of the DSN will be \
                             ignored.&quot;</span>,
                         ),
                 )
-                .<span class="ident">arg</span>(
-                    <span class="ident">Arg::with_name</span>(<span class="string">&quot;host&quot;</span>)
-                        .<span class="ident">value_name</span>(<span class="string">&quot;HOST&quot;</span>)
-                        .<span class="ident">takes_value</span>(<span class="bool-val">true</span>)
-                        .<span class="ident">short</span>(<span class="string">&quot;H&quot;</span>)
-                        .<span class="ident">long</span>(<span class="string">&quot;host&quot;</span>)
-                        .<span class="ident">help</span>(<span class="string">&quot;The host dns name.&quot;</span>),
+                .arg(
+                    Arg::with_name(<span class="string">&quot;host&quot;</span>)
+                        .value_name(<span class="string">&quot;HOST&quot;</span>)
+                        .takes_value(<span class="bool-val">true</span>)
+                        .short(<span class="string">&quot;H&quot;</span>)
+                        .long(<span class="string">&quot;host&quot;</span>)
+                        .help(<span class="string">&quot;The host dns name.&quot;</span>),
                 )
-                .<span class="ident">arg</span>(
-                    <span class="ident">Arg::with_name</span>(<span class="string">&quot;port&quot;</span>)
-                        .<span class="ident">value_name</span>(<span class="string">&quot;PORT&quot;</span>)
-                        .<span class="ident">takes_value</span>(<span class="bool-val">true</span>)
-                        .<span class="ident">short</span>(<span class="string">&quot;P&quot;</span>)
-                        .<span class="ident">long</span>(<span class="string">&quot;port&quot;</span>)
-                        .<span class="ident">help</span>(<span class="string">&quot;The server port.&quot;</span>),
+                .arg(
+                    Arg::with_name(<span class="string">&quot;port&quot;</span>)
+                        .value_name(<span class="string">&quot;PORT&quot;</span>)
+                        .takes_value(<span class="bool-val">true</span>)
+                        .short(<span class="string">&quot;P&quot;</span>)
+                        .long(<span class="string">&quot;port&quot;</span>)
+                        .help(<span class="string">&quot;The server port.&quot;</span>),
                 )
-                .<span class="ident">arg</span>(
-                    <span class="ident">Arg::with_name</span>(<span class="string">&quot;processing&quot;</span>)
-                        .<span class="ident">long</span>(<span class="string">&quot;processing&quot;</span>)
-                        .<span class="ident">help</span>(<span class="string">&quot;Enable processing.&quot;</span>),
+                .arg(
+                    Arg::with_name(<span class="string">&quot;processing&quot;</span>)
+                        .long(<span class="string">&quot;processing&quot;</span>)
+                        .help(<span class="string">&quot;Enable processing.&quot;</span>),
                 )
-                .<span class="ident">arg</span>(
-                    <span class="ident">Arg::with_name</span>(<span class="string">&quot;no_processing&quot;</span>)
-                        .<span class="ident">long</span>(<span class="string">&quot;no-processing&quot;</span>)
-                        .<span class="ident">help</span>(<span class="string">&quot;Disable processing.&quot;</span>),
+                .arg(
+                    Arg::with_name(<span class="string">&quot;no_processing&quot;</span>)
+                        .long(<span class="string">&quot;no-processing&quot;</span>)
+                        .help(<span class="string">&quot;Disable processing.&quot;</span>),
                 )
-                .<span class="ident">group</span>(
-                    <span class="ident">ArgGroup::with_name</span>(<span class="string">&quot;processing_group&quot;</span>)
-                        .<span class="ident">args</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;processing&quot;</span>, <span class="string">&quot;no_processing&quot;</span>])
-                        .<span class="ident">multiple</span>(<span class="bool-val">false</span>),
+                .group(
+                    ArgGroup::with_name(<span class="string">&quot;processing_group&quot;</span>)
+                        .args(<span class="kw-2">&amp;</span>[<span class="string">&quot;processing&quot;</span>, <span class="string">&quot;no_processing&quot;</span>])
+                        .multiple(<span class="bool-val">false</span>),
                 )
-                .<span class="ident">arg</span>(
-                    <span class="ident">Arg::with_name</span>(<span class="string">&quot;kafka_broker_url&quot;</span>)
-                        .<span class="ident">value_name</span>(<span class="string">&quot;KAFKA_BROKER_URL&quot;</span>)
-                        .<span class="ident">takes_value</span>(<span class="bool-val">true</span>)
-                        .<span class="ident">long</span>(<span class="string">&quot;kafka-broker-url&quot;</span>)
-                        .<span class="ident">help</span>(<span class="string">&quot;Kafka broker URL.&quot;</span>),
+                .arg(
+                    Arg::with_name(<span class="string">&quot;kafka_broker_url&quot;</span>)
+                        .value_name(<span class="string">&quot;KAFKA_BROKER_URL&quot;</span>)
+                        .takes_value(<span class="bool-val">true</span>)
+                        .long(<span class="string">&quot;kafka-broker-url&quot;</span>)
+                        .help(<span class="string">&quot;Kafka broker URL.&quot;</span>),
                 )
-                .<span class="ident">arg</span>(
-                    <span class="ident">Arg::with_name</span>(<span class="string">&quot;redis_url&quot;</span>)
-                        .<span class="ident">value_name</span>(<span class="string">&quot;REDIS_URL&quot;</span>)
-                        .<span class="ident">takes_value</span>(<span class="bool-val">true</span>)
-                        .<span class="ident">long</span>(<span class="string">&quot;redis-url&quot;</span>)
-                        .<span class="ident">help</span>(<span class="string">&quot;Redis server URL.&quot;</span>),
+                .arg(
+                    Arg::with_name(<span class="string">&quot;redis_url&quot;</span>)
+                        .value_name(<span class="string">&quot;REDIS_URL&quot;</span>)
+                        .takes_value(<span class="bool-val">true</span>)
+                        .long(<span class="string">&quot;redis-url&quot;</span>)
+                        .help(<span class="string">&quot;Redis server URL.&quot;</span>),
                 )
-                .<span class="ident">arg</span>(
-                    <span class="ident">Arg::with_name</span>(<span class="string">&quot;source_id&quot;</span>)
-                        .<span class="ident">value_name</span>(<span class="string">&quot;SOURCE_ID&quot;</span>)
-                        .<span class="ident">takes_value</span>(<span class="bool-val">true</span>)
-                        .<span class="ident">long</span>(<span class="string">&quot;source-id&quot;</span>)
-                        .<span class="ident">env</span>(<span class="string">&quot;RELAY_SOURCE_ID&quot;</span>)
-                        .<span class="ident">help</span>(<span class="string">&quot;Names the current relay in the outcome source.&quot;</span>),
+                .arg(
+                    Arg::with_name(<span class="string">&quot;source_id&quot;</span>)
+                        .value_name(<span class="string">&quot;SOURCE_ID&quot;</span>)
+                        .takes_value(<span class="bool-val">true</span>)
+                        .long(<span class="string">&quot;source-id&quot;</span>)
+                        .env(<span class="string">&quot;RELAY_SOURCE_ID&quot;</span>)
+                        .help(<span class="string">&quot;Names the current relay in the outcome source.&quot;</span>),
                 )
-                .<span class="ident">arg</span>(
-                    <span class="ident">Arg::with_name</span>(<span class="string">&quot;shutdown_timeout&quot;</span>)
-                        .<span class="ident">value_name</span>(<span class="string">&quot;SHUTDOWN_TIMEOUT&quot;</span>)
-                        .<span class="ident">takes_value</span>(<span class="bool-val">true</span>)
-                        .<span class="ident">long</span>(<span class="string">&quot;shutdown-timeout&quot;</span>)
-                        .<span class="ident">help</span>(
+                .arg(
+                    Arg::with_name(<span class="string">&quot;shutdown_timeout&quot;</span>)
+                        .value_name(<span class="string">&quot;SHUTDOWN_TIMEOUT&quot;</span>)
+                        .takes_value(<span class="bool-val">true</span>)
+                        .long(<span class="string">&quot;shutdown-timeout&quot;</span>)
+                        .help(
                             <span class="string">&quot;Maximum number of seconds to wait for pending envelopes on shutdown.&quot;</span>,
                         ),
                 )
-                .<span class="ident">arg</span>(
-                    <span class="ident">Arg::with_name</span>(<span class="string">&quot;aws_runtime_api&quot;</span>)
-                        .<span class="ident">value_name</span>(<span class="string">&quot;AWS_LAMBDA_RUNTIME_API&quot;</span>)
-                        .<span class="ident">takes_value</span>(<span class="bool-val">true</span>)
-                        .<span class="ident">long</span>(<span class="string">&quot;aws-runtime-api&quot;</span>)
-                        .<span class="ident">help</span>(
+                .arg(
+                    Arg::with_name(<span class="string">&quot;aws_runtime_api&quot;</span>)
+                        .value_name(<span class="string">&quot;AWS_LAMBDA_RUNTIME_API&quot;</span>)
+                        .takes_value(<span class="bool-val">true</span>)
+                        .long(<span class="string">&quot;aws-runtime-api&quot;</span>)
+                        .help(
                             <span class="string">&quot;Host and port of the AWS lambda extensions API, usually provided in \
                             the AWS_LAMBDA_RUNTIME_API environment variable. This integrates Relay \
                             with the lambda execution environment lifecycle.&quot;</span>,
                         ),
                 ),
         )
-        .<span class="ident">subcommand</span>(
-            <span class="ident">App::new</span>(<span class="string">&quot;credentials&quot;</span>)
-                .<span class="ident">setting</span>(<span class="ident">AppSettings::SubcommandRequiredElseHelp</span>)
-                .<span class="ident">about</span>(<span class="string">&quot;Manage the relay credentials&quot;</span>)
-                .<span class="ident">after_help</span>(
+        .subcommand(
+            App::new(<span class="string">&quot;credentials&quot;</span>)
+                .setting(AppSettings::SubcommandRequiredElseHelp)
+                .about(<span class="string">&quot;Manage the relay credentials&quot;</span>)
+                .after_help(
                     <span class="string">&quot;This command can be used to manage the stored credentials of \
                      the relay.  These credentials are used to authenticate with the \
                      upstream sentry.  A sentry organization trusts a certain public \
@@ -489,109 +489,109 @@
                      by the ID) has signed in with a certain key it cannot be changed \
                      any more.&quot;</span>,
                 )
-                .<span class="ident">subcommand</span>(
-                    <span class="ident">App::new</span>(<span class="string">&quot;generate&quot;</span>)
-                        .<span class="ident">about</span>(<span class="string">&quot;Generate new credentials&quot;</span>)
-                        .<span class="ident">after_help</span>(
+                .subcommand(
+                    App::new(<span class="string">&quot;generate&quot;</span>)
+                        .about(<span class="string">&quot;Generate new credentials&quot;</span>)
+                        .after_help(
                             <span class="string">&quot;This generates new credentials for the relay and stores \
                              them.  In case the relay already has credentials stored \
                              this command will error unless the &#39;--overwrite&#39; option \
                              has been passed.&quot;</span>,
                         )
-                        .<span class="ident">arg</span>(
-                            <span class="ident">Arg::with_name</span>(<span class="string">&quot;overwrite&quot;</span>)
-                                .<span class="ident">long</span>(<span class="string">&quot;overwrite&quot;</span>)
-                                .<span class="ident">help</span>(<span class="string">&quot;Overwrite already existing credentials instead of failing&quot;</span>),
+                        .arg(
+                            Arg::with_name(<span class="string">&quot;overwrite&quot;</span>)
+                                .long(<span class="string">&quot;overwrite&quot;</span>)
+                                .help(<span class="string">&quot;Overwrite already existing credentials instead of failing&quot;</span>),
                         )
-                        .<span class="ident">arg</span>(
-                            <span class="ident">Arg::with_name</span>(<span class="string">&quot;stdout&quot;</span>)
-                                .<span class="ident">long</span>(<span class="string">&quot;stdout&quot;</span>)
-                                .<span class="ident">help</span>(<span class="string">&quot;Write credentials to stdout instead of credentials.json&quot;</span>),
+                        .arg(
+                            Arg::with_name(<span class="string">&quot;stdout&quot;</span>)
+                                .long(<span class="string">&quot;stdout&quot;</span>)
+                                .help(<span class="string">&quot;Write credentials to stdout instead of credentials.json&quot;</span>),
                         ),
                 )
-                .<span class="ident">subcommand</span>(
-                    <span class="ident">App::new</span>(<span class="string">&quot;remove&quot;</span>)
-                        .<span class="ident">about</span>(<span class="string">&quot;Remove credentials&quot;</span>)
-                        .<span class="ident">after_help</span>(
+                .subcommand(
+                    App::new(<span class="string">&quot;remove&quot;</span>)
+                        .about(<span class="string">&quot;Remove credentials&quot;</span>)
+                        .after_help(
                             <span class="string">&quot;This command removes already stored credentials from the \
                              relay.&quot;</span>,
                         )
-                        .<span class="ident">arg</span>(
-                            <span class="ident">Arg::with_name</span>(<span class="string">&quot;yes&quot;</span>)
-                                .<span class="ident">long</span>(<span class="string">&quot;yes&quot;</span>)
-                                .<span class="ident">help</span>(<span class="string">&quot;Do not prompt for confirmation&quot;</span>),
+                        .arg(
+                            Arg::with_name(<span class="string">&quot;yes&quot;</span>)
+                                .long(<span class="string">&quot;yes&quot;</span>)
+                                .help(<span class="string">&quot;Do not prompt for confirmation&quot;</span>),
                         ),
                 )
-                .<span class="ident">subcommand</span>(
-                    <span class="ident">App::new</span>(<span class="string">&quot;show&quot;</span>)
-                        .<span class="ident">about</span>(<span class="string">&quot;Show currently stored credentials.&quot;</span>)
-                        .<span class="ident">after_help</span>(<span class="string">&quot;This prints out the agent ID and public key.&quot;</span>),
+                .subcommand(
+                    App::new(<span class="string">&quot;show&quot;</span>)
+                        .about(<span class="string">&quot;Show currently stored credentials.&quot;</span>)
+                        .after_help(<span class="string">&quot;This prints out the agent ID and public key.&quot;</span>),
                 )
-                .<span class="ident">subcommand</span>(
-                    <span class="ident">App::new</span>(<span class="string">&quot;set&quot;</span>)
-                        .<span class="ident">about</span>(<span class="string">&quot;Set new credentials&quot;</span>)
-                        .<span class="ident">after_help</span>(
+                .subcommand(
+                    App::new(<span class="string">&quot;set&quot;</span>)
+                        .about(<span class="string">&quot;Set new credentials&quot;</span>)
+                        .after_help(
                             <span class="string">&quot;Credentials can be stored by providing them on the command \
                              line.  If just an agent id (or secret/public key pair) is \
                              provided that part of the credentials are overwritten.  If \
                              no credentials are stored yet at all and no parameters are \
                              supplied the command will prompt for the appropriate values.&quot;</span>,
                         )
-                        .<span class="ident">arg</span>(
-                            <span class="ident">Arg::with_name</span>(<span class="string">&quot;mode&quot;</span>)
-                                .<span class="ident">long</span>(<span class="string">&quot;mode&quot;</span>)
-                                .<span class="ident">help</span>(<span class="string">&quot;The relay mode to set&quot;</span>)
-                                .<span class="ident">value_name</span>(<span class="string">&quot;MODE&quot;</span>)
-                                .<span class="ident">possible_values</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;managed&quot;</span>, <span class="string">&quot;proxy&quot;</span>, <span class="string">&quot;static&quot;</span>]),
+                        .arg(
+                            Arg::with_name(<span class="string">&quot;mode&quot;</span>)
+                                .long(<span class="string">&quot;mode&quot;</span>)
+                                .help(<span class="string">&quot;The relay mode to set&quot;</span>)
+                                .value_name(<span class="string">&quot;MODE&quot;</span>)
+                                .possible_values(<span class="kw-2">&amp;</span>[<span class="string">&quot;managed&quot;</span>, <span class="string">&quot;proxy&quot;</span>, <span class="string">&quot;static&quot;</span>]),
                         )
-                        .<span class="ident">arg</span>(
-                            <span class="ident">Arg::with_name</span>(<span class="string">&quot;secret_key&quot;</span>)
-                                .<span class="ident">long</span>(<span class="string">&quot;secret-key&quot;</span>)
-                                .<span class="ident">short</span>(<span class="string">&quot;s&quot;</span>)
-                                .<span class="ident">value_name</span>(<span class="string">&quot;KEY&quot;</span>)
-                                .<span class="ident">requires</span>(<span class="string">&quot;public_key&quot;</span>)
-                                .<span class="ident">help</span>(<span class="string">&quot;The secret key to set&quot;</span>),
+                        .arg(
+                            Arg::with_name(<span class="string">&quot;secret_key&quot;</span>)
+                                .long(<span class="string">&quot;secret-key&quot;</span>)
+                                .short(<span class="string">&quot;s&quot;</span>)
+                                .value_name(<span class="string">&quot;KEY&quot;</span>)
+                                .requires(<span class="string">&quot;public_key&quot;</span>)
+                                .help(<span class="string">&quot;The secret key to set&quot;</span>),
                         )
-                        .<span class="ident">arg</span>(
-                            <span class="ident">Arg::with_name</span>(<span class="string">&quot;public_key&quot;</span>)
-                                .<span class="ident">long</span>(<span class="string">&quot;public-key&quot;</span>)
-                                .<span class="ident">short</span>(<span class="string">&quot;p&quot;</span>)
-                                .<span class="ident">value_name</span>(<span class="string">&quot;KEY&quot;</span>)
-                                .<span class="ident">requires</span>(<span class="string">&quot;secret_key&quot;</span>)
-                                .<span class="ident">help</span>(<span class="string">&quot;The public key to set&quot;</span>),
+                        .arg(
+                            Arg::with_name(<span class="string">&quot;public_key&quot;</span>)
+                                .long(<span class="string">&quot;public-key&quot;</span>)
+                                .short(<span class="string">&quot;p&quot;</span>)
+                                .value_name(<span class="string">&quot;KEY&quot;</span>)
+                                .requires(<span class="string">&quot;secret_key&quot;</span>)
+                                .help(<span class="string">&quot;The public key to set&quot;</span>),
                         )
-                        .<span class="ident">arg</span>(
-                            <span class="ident">Arg::with_name</span>(<span class="string">&quot;id&quot;</span>)
-                                .<span class="ident">long</span>(<span class="string">&quot;id&quot;</span>)
-                                .<span class="ident">short</span>(<span class="string">&quot;i&quot;</span>)
-                                .<span class="ident">value_name</span>(<span class="string">&quot;RELAY_ID&quot;</span>)
-                                .<span class="ident">help</span>(<span class="string">&quot;The relay ID to set&quot;</span>),
+                        .arg(
+                            Arg::with_name(<span class="string">&quot;id&quot;</span>)
+                                .long(<span class="string">&quot;id&quot;</span>)
+                                .short(<span class="string">&quot;i&quot;</span>)
+                                .value_name(<span class="string">&quot;RELAY_ID&quot;</span>)
+                                .help(<span class="string">&quot;The relay ID to set&quot;</span>),
                         ),
                 ),
         )
-        .<span class="ident">subcommand</span>(
-            <span class="ident">App::new</span>(<span class="string">&quot;config&quot;</span>)
-                .<span class="ident">about</span>(<span class="string">&quot;Manage the relay config&quot;</span>)
-                .<span class="ident">after_help</span>(
+        .subcommand(
+            App::new(<span class="string">&quot;config&quot;</span>)
+                .about(<span class="string">&quot;Manage the relay config&quot;</span>)
+                .after_help(
                     <span class="string">&quot;This command provides basic config management.  It can be \
                      used primarily to initialize a new relay config and to \
                      print out the current config.&quot;</span>,
                 )
-                .<span class="ident">setting</span>(<span class="ident">AppSettings::SubcommandRequiredElseHelp</span>)
-                .<span class="ident">subcommand</span>(
-                    <span class="ident">App::new</span>(<span class="string">&quot;init&quot;</span>)
-                        .<span class="ident">about</span>(<span class="string">&quot;Initialize a new relay config&quot;</span>)
-                        .<span class="ident">after_help</span>(
+                .setting(AppSettings::SubcommandRequiredElseHelp)
+                .subcommand(
+                    App::new(<span class="string">&quot;init&quot;</span>)
+                        .about(<span class="string">&quot;Initialize a new relay config&quot;</span>)
+                        .after_help(
                             <span class="string">&quot;For new relay installations this will guide through \
                              the initial config process and create the necessary \
                              files.  It will create an initial config as well as \
                              set of credentials.&quot;</span>,
                         ),
                 )
-                .<span class="ident">subcommand</span>(
-                    <span class="ident">App::new</span>(<span class="string">&quot;show&quot;</span>)
-                        .<span class="ident">about</span>(<span class="string">&quot;Show the entire config out for debugging purposes&quot;</span>)
-                        .<span class="ident">after_help</span>(
+                .subcommand(
+                    App::new(<span class="string">&quot;show&quot;</span>)
+                        .about(<span class="string">&quot;Show the entire config out for debugging purposes&quot;</span>)
+                        .after_help(
                             <span class="string">&quot;This dumps out the entire config including the values \
                              which are not in the config file but filled in from \
                              defaults.  The default output format is YAML but \
@@ -599,31 +599,31 @@
                              to understand how the relay interprets the individual \
                              values.&quot;</span>,
                         )
-                        .<span class="ident">arg</span>(
-                            <span class="ident">Arg::with_name</span>(<span class="string">&quot;format&quot;</span>)
-                                .<span class="ident">short</span>(<span class="string">&quot;f&quot;</span>)
-                                .<span class="ident">long</span>(<span class="string">&quot;format&quot;</span>)
-                                .<span class="ident">possible_values</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;debug&quot;</span>, <span class="string">&quot;yaml&quot;</span>])
-                                .<span class="ident">default_value</span>(<span class="string">&quot;yaml&quot;</span>)
-                                .<span class="ident">help</span>(<span class="string">&quot;The output format&quot;</span>),
+                        .arg(
+                            Arg::with_name(<span class="string">&quot;format&quot;</span>)
+                                .short(<span class="string">&quot;f&quot;</span>)
+                                .long(<span class="string">&quot;format&quot;</span>)
+                                .possible_values(<span class="kw-2">&amp;</span>[<span class="string">&quot;debug&quot;</span>, <span class="string">&quot;yaml&quot;</span>])
+                                .default_value(<span class="string">&quot;yaml&quot;</span>)
+                                .help(<span class="string">&quot;The output format&quot;</span>),
                         ),
                 ),
         )
-        .<span class="ident">subcommand</span>(
-            <span class="ident">App::new</span>(<span class="string">&quot;generate-completions&quot;</span>)
-                .<span class="ident">about</span>(<span class="string">&quot;Generate shell completion file&quot;</span>)
-                .<span class="ident">after_help</span>(
+        .subcommand(
+            App::new(<span class="string">&quot;generate-completions&quot;</span>)
+                .about(<span class="string">&quot;Generate shell completion file&quot;</span>)
+                .after_help(
                     <span class="string">&quot;This generates a completions file for the shell of choice. \
                      The default selection will be an educated guess for the currently \
                      running shell.&quot;</span>,
                 )
-                .<span class="ident">arg</span>(
-                    <span class="ident">Arg::with_name</span>(<span class="string">&quot;format&quot;</span>)
-                        .<span class="ident">short</span>(<span class="string">&quot;f&quot;</span>)
-                        .<span class="ident">long</span>(<span class="string">&quot;format&quot;</span>)
-                        .<span class="ident">value_name</span>(<span class="string">&quot;FORMAT&quot;</span>)
-                        .<span class="ident">possible_values</span>(<span class="kw-2">&amp;</span><span class="ident">Shell::variants</span>()[..])
-                        .<span class="ident">help</span>(
+                .arg(
+                    Arg::with_name(<span class="string">&quot;format&quot;</span>)
+                        .short(<span class="string">&quot;f&quot;</span>)
+                        .long(<span class="string">&quot;format&quot;</span>)
+                        .value_name(<span class="string">&quot;FORMAT&quot;</span>)
+                        .possible_values(<span class="kw-2">&amp;</span>Shell::variants()[..])
+                        .help(
                             <span class="string">&quot;Explicitly pick the shell to generate a completion file \
                              for.  The default is autodetection&quot;</span>,
                         ),
@@ -631,4 +631,4 @@
         )
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

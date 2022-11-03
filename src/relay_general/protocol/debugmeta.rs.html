@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/protocol/debugmeta.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>debugmeta.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/protocol/debugmeta.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>debugmeta.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_general/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -913,533 +913,533 @@
 <span id="911">911</span>
 <span id="912">912</span>
 <span id="913">913</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
-<span class="kw">use</span> <span class="ident">std::ops</span>::{<span class="ident">Deref</span>, <span class="ident">DerefMut</span>};
-<span class="kw">use</span> <span class="ident">std::str::FromStr</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::ops::{Deref, DerefMut};
+<span class="kw">use </span>std::str::FromStr;
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident">schemars::gen::SchemaGenerator</span>;
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident">schemars::schema::Schema</span>;
+<span class="attribute">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+</span><span class="kw">use </span>schemars::gen::SchemaGenerator;
+<span class="attribute">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+</span><span class="kw">use </span>schemars::schema::Schema;
 
-<span class="kw">use</span> <span class="ident">enumset::EnumSet</span>;
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
-<span class="kw">use</span> <span class="ident">uuid::Uuid</span>;
+<span class="kw">use </span>enumset::EnumSet;
+<span class="kw">use </span>serde::{Deserialize, Serialize};
+<span class="kw">use </span>uuid::Uuid;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor</span>::{<span class="ident">ProcessValue</span>, <span class="ident">ProcessingState</span>, <span class="ident">Processor</span>, <span class="ident">ValueType</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol::Addr</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{
-    <span class="ident">Annotated</span>, <span class="ident">Array</span>, <span class="ident">Empty</span>, <span class="ident">Error</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">Meta</span>, <span class="ident">Object</span>, <span class="ident">ProcessingResult</span>,
-    <span class="ident">SkipSerialization</span>, <span class="ident">Value</span>,
+<span class="kw">use </span><span class="kw">crate</span>::processor::{ProcessValue, ProcessingState, Processor, ValueType};
+<span class="kw">use </span><span class="kw">crate</span>::protocol::Addr;
+<span class="kw">use </span><span class="kw">crate</span>::types::{
+    Annotated, Array, Empty, Error, FromValue, IntoValue, Meta, Object, ProcessingResult,
+    SkipSerialization, Value,
 };
 
-<span class="doccomment">/// A type for strings that are generally paths, might contain system user names, but still cannot</span>
-<span class="doccomment">/// be stripped liberally because it would break processing for certain platforms.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Those strings get special treatment in our PII processor to avoid stripping the basename.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">Empty</span>, <span class="ident">Clone</span>, <span class="ident">PartialEq</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
-<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">NativeImagePath</span>(<span class="kw">pub</span> <span class="ident">String</span>);
+<span class="doccomment">/// A type for strings that are generally paths, might contain system user names, but still cannot
+/// be stripped liberally because it would break processing for certain platforms.
+///
+/// Those strings get special treatment in our PII processor to avoid stripping the basename.
+</span><span class="attribute">#[derive(Debug, FromValue, IntoValue, Empty, Clone, PartialEq, Deserialize, Serialize)]
+#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+</span><span class="kw">pub struct </span>NativeImagePath(<span class="kw">pub </span>String);
 
-<span class="kw">impl</span> <span class="ident">NativeImagePath</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">str</span> {
-        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">as_str</span>()
+<span class="kw">impl </span>NativeImagePath {
+    <span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+        <span class="self">self</span>.<span class="number">0</span>.as_str()
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">NativeImagePath</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">value</span>: <span class="ident">T</span>) -&gt; <span class="ident">NativeImagePath</span> {
-        <span class="ident">NativeImagePath</span>(<span class="ident">value</span>.<span class="ident">into</span>())
+<span class="kw">impl</span>&lt;T: Into&lt;String&gt;&gt; From&lt;T&gt; <span class="kw">for </span>NativeImagePath {
+    <span class="kw">fn </span>from(value: T) -&gt; NativeImagePath {
+        NativeImagePath(value.into())
     }
 }
 
-<span class="kw">impl</span> <span class="ident">ProcessValue</span> <span class="kw">for</span> <span class="ident">NativeImagePath</span> {
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">value_type</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">EnumSet</span><span class="op">&lt;</span><span class="ident">ValueType</span><span class="op">&gt;</span> {
-        <span class="comment">// Explicit decision not to expose NativeImagePath as valuetype, as people should not be</span>
-        <span class="comment">// able to address processing internals.</span>
-        <span class="comment">//</span>
-        <span class="comment">// Also decided against exposing a $filepath (&quot;things that may contain filenames&quot;) because</span>
-        <span class="comment">// ruletypes/regexes are better suited for this, and in the case of $frame.package (where</span>
-        <span class="comment">// it depends on platform) it&#39;s really not that useful.</span>
-        <span class="ident">EnumSet::only</span>(<span class="ident">ValueType::String</span>)
+<span class="kw">impl </span>ProcessValue <span class="kw">for </span>NativeImagePath {
+    <span class="attribute">#[inline]
+    </span><span class="kw">fn </span>value_type(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; EnumSet&lt;ValueType&gt; {
+        <span class="comment">// Explicit decision not to expose NativeImagePath as valuetype, as people should not be
+        // able to address processing internals.
+        //
+        // Also decided against exposing a $filepath (&quot;things that may contain filenames&quot;) because
+        // ruletypes/regexes are better suited for this, and in the case of $frame.package (where
+        // it depends on platform) it&#39;s really not that useful.
+        </span>EnumSet::only(ValueType::String)
     }
 
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">process_value</span><span class="op">&lt;</span><span class="ident">P</span><span class="op">&gt;</span>(
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
-        <span class="ident">meta</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Meta</span>,
-        <span class="ident">processor</span>: <span class="kw-2">&amp;mut</span> <span class="ident">P</span>,
-        <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="ident">ProcessingResult</span>
-    <span class="kw">where</span>
-        <span class="ident">P</span>: <span class="ident">Processor</span>,
+    <span class="attribute">#[inline]
+    </span><span class="kw">fn </span>process_value&lt;P&gt;(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        meta: <span class="kw-2">&amp;mut </span>Meta,
+        processor: <span class="kw-2">&amp;mut </span>P,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+    ) -&gt; ProcessingResult
+    <span class="kw">where
+        </span>P: Processor,
     {
-        <span class="ident">processor</span>.<span class="ident">process_native_image_path</span>(<span class="self">self</span>, <span class="ident">meta</span>, <span class="ident">state</span>)
+        processor.process_native_image_path(<span class="self">self</span>, meta, state)
     }
 
-    <span class="kw">fn</span> <span class="ident">process_child_values</span><span class="op">&lt;</span><span class="ident">P</span><span class="op">&gt;</span>(
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
-        <span class="ident">_processor</span>: <span class="kw-2">&amp;mut</span> <span class="ident">P</span>,
-        <span class="ident">_state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="ident">ProcessingResult</span>
-    <span class="kw">where</span>
-        <span class="ident">P</span>: <span class="ident">Processor</span>,
+    <span class="kw">fn </span>process_child_values&lt;P&gt;(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        _processor: <span class="kw-2">&amp;mut </span>P,
+        _state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+    ) -&gt; ProcessingResult
+    <span class="kw">where
+        </span>P: Processor,
     {
         <span class="prelude-val">Ok</span>(())
     }
 }
 
-<span class="doccomment">/// Holds information about the system SDK.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This is relevant for iOS and other platforms that have a system</span>
-<span class="doccomment">/// SDK.  Not to be confused with the client SDK.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>)]</span>
-<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SystemSdkInfo</span> {
-    <span class="doccomment">/// The internal name of the SDK.</span>
-    <span class="kw">pub</span> <span class="ident">sdk_name</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Holds information about the system SDK.
+///
+/// This is relevant for iOS and other platforms that have a system
+/// SDK.  Not to be confused with the client SDK.
+</span><span class="attribute">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+</span><span class="kw">pub struct </span>SystemSdkInfo {
+    <span class="doccomment">/// The internal name of the SDK.
+    </span><span class="kw">pub </span>sdk_name: Annotated&lt;String&gt;,
 
-    <span class="doccomment">/// The major version of the SDK as integer or 0.</span>
-    <span class="kw">pub</span> <span class="ident">version_major</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The major version of the SDK as integer or 0.
+    </span><span class="kw">pub </span>version_major: Annotated&lt;u64&gt;,
 
-    <span class="doccomment">/// The minor version of the SDK as integer or 0.</span>
-    <span class="kw">pub</span> <span class="ident">version_minor</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The minor version of the SDK as integer or 0.
+    </span><span class="kw">pub </span>version_minor: Annotated&lt;u64&gt;,
 
-    <span class="doccomment">/// The patch version of the SDK as integer or 0.</span>
-    <span class="kw">pub</span> <span class="ident">version_patchlevel</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The patch version of the SDK as integer or 0.
+    </span><span class="kw">pub </span>version_patchlevel: Annotated&lt;u64&gt;,
 
-    <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">additional_properties</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">other</span>: <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
+    </span><span class="attribute">#[metastructure(additional_properties)]
+    </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
 }
 
-<span class="doccomment">/// Legacy apple debug images (MachO).</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This was also used for non-apple platforms with similar debug setups.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>)]</span>
-<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AppleDebugImage</span> {
-    <span class="doccomment">/// Path and name of the debug image (required).</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">required</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">name</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Legacy apple debug images (MachO).
+///
+/// This was also used for non-apple platforms with similar debug setups.
+</span><span class="attribute">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+</span><span class="kw">pub struct </span>AppleDebugImage {
+    <span class="doccomment">/// Path and name of the debug image (required).
+    </span><span class="attribute">#[metastructure(required = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="kw">pub </span>name: Annotated&lt;String&gt;,
 
-    <span class="doccomment">/// CPU architecture target.</span>
-    <span class="kw">pub</span> <span class="ident">arch</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// CPU architecture target.
+    </span><span class="kw">pub </span>arch: Annotated&lt;String&gt;,
 
-    <span class="doccomment">/// MachO CPU type identifier.</span>
-    <span class="kw">pub</span> <span class="ident">cpu_type</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// MachO CPU type identifier.
+    </span><span class="kw">pub </span>cpu_type: Annotated&lt;u64&gt;,
 
-    <span class="doccomment">/// MachO CPU subtype identifier.</span>
-    <span class="kw">pub</span> <span class="ident">cpu_subtype</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// MachO CPU subtype identifier.
+    </span><span class="kw">pub </span>cpu_subtype: Annotated&lt;u64&gt;,
 
-    <span class="doccomment">/// Starting memory address of the image (required).</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">required</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">image_addr</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Addr</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Starting memory address of the image (required).
+    </span><span class="attribute">#[metastructure(required = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="kw">pub </span>image_addr: Annotated&lt;Addr&gt;,
 
-    <span class="doccomment">/// Size of the image in bytes (required).</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">required</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">image_size</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Size of the image in bytes (required).
+    </span><span class="attribute">#[metastructure(required = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="kw">pub </span>image_size: Annotated&lt;u64&gt;,
 
-    <span class="doccomment">/// Loading address in virtual memory.</span>
-    <span class="kw">pub</span> <span class="ident">image_vmaddr</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Addr</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Loading address in virtual memory.
+    </span><span class="kw">pub </span>image_vmaddr: Annotated&lt;Addr&gt;,
 
-    <span class="doccomment">/// The unique UUID of the image.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">required</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">uuid</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Uuid</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The unique UUID of the image.
+    </span><span class="attribute">#[metastructure(required = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="kw">pub </span>uuid: Annotated&lt;Uuid&gt;,
 
-    <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">additional_properties</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">other</span>: <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
+    </span><span class="attribute">#[metastructure(additional_properties)]
+    </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
 }
 
-<span class="macro">macro_rules!</span> <span class="ident">impl_traits</span> {
-    (<span class="macro-nonterminal">$</span><span class="kw">type</span>:<span class="macro-nonterminal">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">inner</span>:<span class="ident">path</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">expectation</span>:<span class="ident">literal</span>) =&gt; {
-        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>)]</span>
-        <span class="kw">impl</span> <span class="ident">schemars::JsonSchema</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
-            <span class="kw">fn</span> <span class="macro-nonterminal">schema_name</span>() -&gt; <span class="ident">String</span> {
+<span class="macro">macro_rules! </span>impl_traits {
+    (<span class="macro-nonterminal">$</span><span class="kw">type</span>:<span class="macro-nonterminal">ident</span>, <span class="macro-nonterminal">$inner</span>:path, <span class="macro-nonterminal">$expectation</span>:literal) =&gt; {
+        <span class="attribute">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+        </span><span class="kw">impl </span>schemars::JsonSchema <span class="kw">for </span><span class="macro-nonterminal">$</span><span class="kw">type </span>{
+            <span class="kw">fn </span><span class="macro-nonterminal">schema_name</span>() -&gt; String {
                 <span class="macro">stringify!</span>(<span class="macro-nonterminal">$</span><span class="kw">type</span>).<span class="macro-nonterminal">to_owned</span>()
             }
 
-            <span class="kw">fn</span> <span class="ident">json_schema</span>(<span class="ident">gen</span>: <span class="kw-2">&amp;mut</span> <span class="ident">SchemaGenerator</span>) -&gt; <span class="ident">Schema</span> {
-                <span class="ident">String::json_schema</span>(<span class="ident">gen</span>)
+            <span class="kw">fn </span>json_schema(gen: <span class="kw-2">&amp;mut </span>SchemaGenerator) -&gt; Schema {
+                String::json_schema(gen)
             }
         }
 
-        <span class="kw">impl</span> <span class="ident">Empty</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
-            <span class="attribute">#[<span class="macro-nonterminal">inline</span>]</span>
-            <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-                <span class="self">self</span>.<span class="ident">is_nil</span>()
+        <span class="kw">impl </span>Empty <span class="kw">for </span><span class="macro-nonterminal">$</span><span class="kw">type </span>{
+            <span class="attribute">#[<span class="macro-nonterminal">inline</span>]
+            </span><span class="kw">fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+                <span class="self">self</span>.is_nil()
             }
         }
 
-        <span class="kw">impl</span> <span class="ident">FromValue</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
-            <span class="kw">fn</span> <span class="macro-nonterminal">from_value</span>(<span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-                <span class="kw">match</span> <span class="ident">value</span> {
-                    <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value::String</span>(<span class="ident">value</span>)), <span class="kw-2">mut</span> <span class="ident">meta</span>) =&gt; <span class="kw">match</span> <span class="ident">value</span>.<span class="ident">parse</span>() {
-                        <span class="prelude-val">Ok</span>(<span class="ident">value</span>) =&gt; <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="ident">meta</span>),
-                        <span class="prelude-val">Err</span>(<span class="ident">err</span>) =&gt; {
-                            <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::invalid</span>(<span class="ident">err</span>));
-                            <span class="ident">meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>));
-                            <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>)
+        <span class="kw">impl </span>FromValue <span class="kw">for </span><span class="macro-nonterminal">$</span><span class="kw">type </span>{
+            <span class="kw">fn </span><span class="macro-nonterminal">from_value</span>(value: Annotated&lt;Value&gt;) -&gt; Annotated&lt;<span class="self">Self</span>&gt; {
+                <span class="kw">match </span>value {
+                    Annotated(<span class="prelude-val">Some</span>(Value::String(value)), <span class="kw-2">mut </span>meta) =&gt; <span class="kw">match </span>value.parse() {
+                        <span class="prelude-val">Ok</span>(value) =&gt; Annotated(<span class="prelude-val">Some</span>(value), meta),
+                        <span class="prelude-val">Err</span>(err) =&gt; {
+                            meta.add_error(Error::invalid(err));
+                            meta.set_original_value(<span class="prelude-val">Some</span>(value));
+                            Annotated(<span class="prelude-val">None</span>, meta)
                         }
                     },
-                    <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="kw-2">mut</span> <span class="ident">meta</span>) =&gt; {
-                        <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::expected</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">expectation</span>));
-                        <span class="ident">meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>));
-                        <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>)
+                    Annotated(<span class="prelude-val">Some</span>(value), <span class="kw-2">mut </span>meta) =&gt; {
+                        meta.add_error(Error::expected(<span class="macro-nonterminal">$expectation</span>));
+                        meta.set_original_value(<span class="prelude-val">Some</span>(value));
+                        Annotated(<span class="prelude-val">None</span>, meta)
                     }
-                    <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>) =&gt; <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>),
+                    Annotated(<span class="prelude-val">None</span>, meta) =&gt; Annotated(<span class="prelude-val">None</span>, meta),
                 }
             }
         }
 
-        <span class="kw">impl</span> <span class="ident">IntoValue</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
-            <span class="kw">fn</span> <span class="macro-nonterminal">into_value</span>(<span class="self">self</span>) -&gt; <span class="ident">Value</span> {
-                <span class="ident">Value::String</span>(<span class="self">self</span>.<span class="ident">to_string</span>())
+        <span class="kw">impl </span>IntoValue <span class="kw">for </span><span class="macro-nonterminal">$</span><span class="kw">type </span>{
+            <span class="kw">fn </span><span class="macro-nonterminal">into_value</span>(<span class="self">self</span>) -&gt; Value {
+                Value::String(<span class="self">self</span>.to_string())
             }
 
-            <span class="kw">fn</span> <span class="ident">serialize_payload</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(
+            <span class="kw">fn </span>serialize_payload&lt;S&gt;(
                 <span class="kw-2">&amp;</span><span class="self">self</span>,
-                <span class="ident">s</span>: <span class="ident">S</span>,
-                <span class="ident">_behavior</span>: <span class="ident">SkipSerialization</span>,
-            ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
-            <span class="kw">where</span>
-                <span class="ident">S</span>: <span class="ident">serde::Serializer</span>,
+                s: S,
+                _behavior: SkipSerialization,
+            ) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
+            <span class="kw">where
+                </span>S: serde::Serializer,
             {
-                <span class="ident">serde::Serialize::serialize</span>(<span class="self">self</span>, <span class="ident">s</span>)
+                serde::Serialize::serialize(<span class="self">self</span>, s)
             }
         }
 
-        <span class="kw">impl</span> <span class="ident">ProcessValue</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {}
+        <span class="kw">impl </span>ProcessValue <span class="kw">for </span><span class="macro-nonterminal">$</span><span class="kw">type </span>{}
 
-        <span class="kw">impl</span> <span class="macro-nonterminal">fmt::Display</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
-            <span class="kw">fn</span> <span class="macro-nonterminal">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-                <span class="self">self</span>.<span class="number">0</span>.<span class="ident">fmt</span>(<span class="ident">f</span>)
+        <span class="kw">impl </span><span class="macro-nonterminal">fmt::Display </span><span class="kw">for </span><span class="macro-nonterminal">$</span><span class="kw">type </span>{
+            <span class="kw">fn </span><span class="macro-nonterminal">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+                <span class="self">self</span>.<span class="number">0</span>.fmt(f)
             }
         }
 
-        <span class="kw">impl</span> <span class="ident">FromStr</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
-            <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">inner</span> <span class="kw">as</span> <span class="ident">FromStr</span><span class="op">&gt;</span><span class="ident">::Err</span>;
+        <span class="kw">impl </span>FromStr <span class="kw">for </span><span class="macro-nonterminal">$</span><span class="kw">type </span>{
+            <span class="kw">type </span><span class="prelude-val">Err </span>= &lt;<span class="macro-nonterminal">$inner </span><span class="kw">as </span>FromStr&gt;::Err;
 
-            <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
-                <span class="ident">FromStr::from_str</span>(<span class="ident">s</span>).<span class="ident">map</span>(<span class="macro-nonterminal">$</span><span class="kw">type</span>)
+            <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
+                FromStr::from_str(s).map(<span class="macro-nonterminal">$</span><span class="kw">type</span>)
             }
         }
 
-        <span class="kw">impl</span> <span class="macro-nonterminal">Deref</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
-            <span class="kw">type</span> <span class="macro-nonterminal">Target</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">inner</span>;
+        <span class="kw">impl </span><span class="macro-nonterminal">Deref </span><span class="kw">for </span><span class="macro-nonterminal">$</span><span class="kw">type </span>{
+            <span class="kw">type </span><span class="macro-nonterminal">Target </span>= <span class="macro-nonterminal">$inner</span>;
 
-            <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident"><span class="self">Self</span>::Target</span> {
-                <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>
-            }
+            <span class="kw">fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Target {
+                <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0
+            </span>}
         }
 
-        <span class="kw">impl</span> <span class="ident">DerefMut</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
-            <span class="kw">fn</span> <span class="macro-nonterminal">deref_mut</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Target</span> {
-                <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="number">0</span>
-            }
+        <span class="kw">impl </span>DerefMut <span class="kw">for </span><span class="macro-nonterminal">$</span><span class="kw">type </span>{
+            <span class="kw">fn </span><span class="macro-nonterminal">deref_mut</span>(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Target {
+                <span class="kw-2">&amp;mut </span><span class="self">self</span>.<span class="number">0
+            </span>}
         }
     };
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">DebugId</span>(<span class="kw">pub</span> <span class="ident">debugid::DebugId</span>);
+<span class="attribute">#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+</span><span class="kw">pub struct </span>DebugId(<span class="kw">pub </span>debugid::DebugId);
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">CodeId</span>(<span class="kw">pub</span> <span class="ident">debugid::CodeId</span>);
+<span class="attribute">#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+</span><span class="kw">pub struct </span>CodeId(<span class="kw">pub </span>debugid::CodeId);
 
-<span class="macro">impl_traits!</span>(<span class="ident">CodeId</span>, <span class="ident">debugid::CodeId</span>, <span class="string">&quot;a code identifier&quot;</span>);
-<span class="macro">impl_traits!</span>(<span class="ident">DebugId</span>, <span class="ident">debugid::DebugId</span>, <span class="string">&quot;a debug identifier&quot;</span>);
+<span class="macro">impl_traits!</span>(CodeId, debugid::CodeId, <span class="string">&quot;a code identifier&quot;</span>);
+<span class="macro">impl_traits!</span>(DebugId, debugid::DebugId, <span class="string">&quot;a debug identifier&quot;</span>);
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">DebugId</span>
-<span class="kw">where</span>
-    <span class="ident">debugid::DebugId</span>: <span class="ident">From</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
+<span class="kw">impl</span>&lt;T&gt; From&lt;T&gt; <span class="kw">for </span>DebugId
+<span class="kw">where
+    </span>debugid::DebugId: From&lt;T&gt;,
 {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">t</span>: <span class="ident">T</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">DebugId</span>(<span class="ident">t</span>.<span class="ident">into</span>())
+    <span class="kw">fn </span>from(t: T) -&gt; <span class="self">Self </span>{
+        DebugId(t.into())
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">CodeId</span>
-<span class="kw">where</span>
-    <span class="ident">debugid::CodeId</span>: <span class="ident">From</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
+<span class="kw">impl</span>&lt;T&gt; From&lt;T&gt; <span class="kw">for </span>CodeId
+<span class="kw">where
+    </span>debugid::CodeId: From&lt;T&gt;,
 {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">t</span>: <span class="ident">T</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">CodeId</span>(<span class="ident">t</span>.<span class="ident">into</span>())
+    <span class="kw">fn </span>from(t: T) -&gt; <span class="self">Self </span>{
+        CodeId(t.into())
     }
 }
 
-<span class="doccomment">/// A generic (new-style) native platform debug information file.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The `type` key must be one of:</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// - `macho`</span>
-<span class="doccomment">/// - `elf`: ELF images are used on Linux platforms. Their structure is identical to other native images.</span>
-<span class="doccomment">/// - `pe`</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Examples:</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```json</span>
-<span class="doccomment">/// {</span>
-<span class="doccomment">///   &quot;type&quot;: &quot;elf&quot;,</span>
-<span class="doccomment">///   &quot;code_id&quot;: &quot;68220ae2c65d65c1b6aaa12fa6765a6ec2f5f434&quot;,</span>
-<span class="doccomment">///   &quot;code_file&quot;: &quot;/lib/x86_64-linux-gnu/libgcc_s.so.1&quot;,</span>
-<span class="doccomment">///   &quot;debug_id&quot;: &quot;e20a2268-5dc6-c165-b6aa-a12fa6765a6e&quot;,</span>
-<span class="doccomment">///   &quot;image_addr&quot;: &quot;0x7f5140527000&quot;,</span>
-<span class="doccomment">///   &quot;image_size&quot;: 90112,</span>
-<span class="doccomment">///   &quot;image_vmaddr&quot;: &quot;0x40000&quot;,</span>
-<span class="doccomment">///   &quot;arch&quot;: &quot;x86_64&quot;</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```json</span>
-<span class="doccomment">/// {</span>
-<span class="doccomment">///   &quot;type&quot;: &quot;pe&quot;,</span>
-<span class="doccomment">///   &quot;code_id&quot;: &quot;57898e12145000&quot;,</span>
-<span class="doccomment">///   &quot;code_file&quot;: &quot;C:\\Windows\\System32\\dbghelp.dll&quot;,</span>
-<span class="doccomment">///   &quot;debug_id&quot;: &quot;9c2a902b-6fdf-40ad-8308-588a41d572a0-1&quot;,</span>
-<span class="doccomment">///   &quot;debug_file&quot;: &quot;dbghelp.pdb&quot;,</span>
-<span class="doccomment">///   &quot;image_addr&quot;: &quot;0x70850000&quot;,</span>
-<span class="doccomment">///   &quot;image_size&quot;: &quot;1331200&quot;,</span>
-<span class="doccomment">///   &quot;image_vmaddr&quot;: &quot;0x40000&quot;,</span>
-<span class="doccomment">///   &quot;arch&quot;: &quot;x86&quot;</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```json</span>
-<span class="doccomment">/// {</span>
-<span class="doccomment">///   &quot;type&quot;: &quot;macho&quot;,</span>
-<span class="doccomment">///   &quot;debug_id&quot;: &quot;84a04d24-0e60-3810-a8c0-90a65e2df61a&quot;,</span>
-<span class="doccomment">///   &quot;debug_file&quot;: &quot;libDiagnosticMessagesClient.dylib&quot;,</span>
-<span class="doccomment">///   &quot;code_file&quot;: &quot;/usr/lib/libDiagnosticMessagesClient.dylib&quot;,</span>
-<span class="doccomment">///   &quot;image_addr&quot;: &quot;0x7fffe668e000&quot;,</span>
-<span class="doccomment">///   &quot;image_size&quot;: 8192,</span>
-<span class="doccomment">///   &quot;image_vmaddr&quot;: &quot;0x40000&quot;,</span>
-<span class="doccomment">///   &quot;arch&quot;: &quot;x86_64&quot;,</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">/// ```</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>)]</span>
-<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">NativeDebugImage</span> {
-    <span class="doccomment">/// Optional identifier of the code file.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// - `elf`: If the program was compiled with a relatively recent compiler, this should be the hex representation of the `NT_GNU_BUILD_ID` program header (type `PT_NOTE`), or the value of the `.note.gnu.build-id` note section (type `SHT_NOTE`). Otherwise, leave this value empty.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">///   Certain symbol servers use the code identifier to locate debug information for ELF images, in which case this field should be included if possible.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// - `pe`: Identifier of the executable or DLL. It contains the values of the `time_date_stamp` from the COFF header and `size_of_image` from the optional header formatted together into a hex string using `%08x%X` (note that the second value is not padded):</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">///   ```text</span>
-    <span class="doccomment">///   time_date_stamp: 0x5ab38077</span>
-    <span class="doccomment">///   size_of_image:           0x9000</span>
-    <span class="doccomment">///   code_id:           5ab380779000</span>
-    <span class="doccomment">///   ```</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">///   The code identifier should be provided to allow server-side stack walking of binary crash reports, such as Minidumps.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// - `macho`: Identifier of the dynamic library or executable. It is the value of the `LC_UUID` load command in the Mach header, formatted as UUID. Can be empty for Mach images, as it is equivalent to the debug identifier.</span>
-    <span class="kw">pub</span> <span class="ident">code_id</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">CodeId</span><span class="op">&gt;</span>,
+<span class="doccomment">/// A generic (new-style) native platform debug information file.
+///
+/// The `type` key must be one of:
+///
+/// - `macho`
+/// - `elf`: ELF images are used on Linux platforms. Their structure is identical to other native images.
+/// - `pe`
+///
+/// Examples:
+///
+/// ```json
+/// {
+///   &quot;type&quot;: &quot;elf&quot;,
+///   &quot;code_id&quot;: &quot;68220ae2c65d65c1b6aaa12fa6765a6ec2f5f434&quot;,
+///   &quot;code_file&quot;: &quot;/lib/x86_64-linux-gnu/libgcc_s.so.1&quot;,
+///   &quot;debug_id&quot;: &quot;e20a2268-5dc6-c165-b6aa-a12fa6765a6e&quot;,
+///   &quot;image_addr&quot;: &quot;0x7f5140527000&quot;,
+///   &quot;image_size&quot;: 90112,
+///   &quot;image_vmaddr&quot;: &quot;0x40000&quot;,
+///   &quot;arch&quot;: &quot;x86_64&quot;
+/// }
+/// ```
+///
+/// ```json
+/// {
+///   &quot;type&quot;: &quot;pe&quot;,
+///   &quot;code_id&quot;: &quot;57898e12145000&quot;,
+///   &quot;code_file&quot;: &quot;C:\\Windows\\System32\\dbghelp.dll&quot;,
+///   &quot;debug_id&quot;: &quot;9c2a902b-6fdf-40ad-8308-588a41d572a0-1&quot;,
+///   &quot;debug_file&quot;: &quot;dbghelp.pdb&quot;,
+///   &quot;image_addr&quot;: &quot;0x70850000&quot;,
+///   &quot;image_size&quot;: &quot;1331200&quot;,
+///   &quot;image_vmaddr&quot;: &quot;0x40000&quot;,
+///   &quot;arch&quot;: &quot;x86&quot;
+/// }
+/// ```
+///
+/// ```json
+/// {
+///   &quot;type&quot;: &quot;macho&quot;,
+///   &quot;debug_id&quot;: &quot;84a04d24-0e60-3810-a8c0-90a65e2df61a&quot;,
+///   &quot;debug_file&quot;: &quot;libDiagnosticMessagesClient.dylib&quot;,
+///   &quot;code_file&quot;: &quot;/usr/lib/libDiagnosticMessagesClient.dylib&quot;,
+///   &quot;image_addr&quot;: &quot;0x7fffe668e000&quot;,
+///   &quot;image_size&quot;: 8192,
+///   &quot;image_vmaddr&quot;: &quot;0x40000&quot;,
+///   &quot;arch&quot;: &quot;x86_64&quot;,
+/// }
+/// ```
+</span><span class="attribute">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+</span><span class="kw">pub struct </span>NativeDebugImage {
+    <span class="doccomment">/// Optional identifier of the code file.
+    ///
+    /// - `elf`: If the program was compiled with a relatively recent compiler, this should be the hex representation of the `NT_GNU_BUILD_ID` program header (type `PT_NOTE`), or the value of the `.note.gnu.build-id` note section (type `SHT_NOTE`). Otherwise, leave this value empty.
+    ///
+    ///   Certain symbol servers use the code identifier to locate debug information for ELF images, in which case this field should be included if possible.
+    ///
+    /// - `pe`: Identifier of the executable or DLL. It contains the values of the `time_date_stamp` from the COFF header and `size_of_image` from the optional header formatted together into a hex string using `%08x%X` (note that the second value is not padded):
+    ///
+    ///   ```text
+    ///   time_date_stamp: 0x5ab38077
+    ///   size_of_image:           0x9000
+    ///   code_id:           5ab380779000
+    ///   ```
+    ///
+    ///   The code identifier should be provided to allow server-side stack walking of binary crash reports, such as Minidumps.
+    ///
+    ///
+    /// - `macho`: Identifier of the dynamic library or executable. It is the value of the `LC_UUID` load command in the Mach header, formatted as UUID. Can be empty for Mach images, as it is equivalent to the debug identifier.
+    </span><span class="kw">pub </span>code_id: Annotated&lt;CodeId&gt;,
 
-    <span class="doccomment">/// Path and name of the image file (required).</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The absolute path to the dynamic library or executable. This helps to locate the file if it is missing on Sentry.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// - `pe`: The code file should be provided to allow server-side stack walking of binary crash reports, such as Minidumps.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">required</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>, <span class="ident">legacy_alias</span> <span class="op">=</span> <span class="string">&quot;name&quot;</span>)]</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">code_file</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">NativeImagePath</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Path and name of the image file (required).
+    ///
+    /// The absolute path to the dynamic library or executable. This helps to locate the file if it is missing on Sentry.
+    ///
+    /// - `pe`: The code file should be provided to allow server-side stack walking of binary crash reports, such as Minidumps.
+    </span><span class="attribute">#[metastructure(required = <span class="string">&quot;true&quot;</span>, legacy_alias = <span class="string">&quot;name&quot;</span>)]
+    #[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="kw">pub </span>code_file: Annotated&lt;NativeImagePath&gt;,
 
-    <span class="doccomment">/// Unique debug identifier of the image.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// - `elf`: Debug identifier of the dynamic library or executable. If a code identifier is available, the debug identifier is the little-endian UUID representation of the first 16-bytes of that</span>
-    <span class="doccomment">/// identifier. Spaces are inserted for readability, note the byte order of the first fields:</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">///   ```text</span>
-    <span class="doccomment">///   code id:  f1c3bcc0 2798 65fe 3058 404b2831d9e6 4135386c</span>
-    <span class="doccomment">///   debug id: c0bcc3f1-9827-fe65-3058-404b2831d9e6</span>
-    <span class="doccomment">///   ```</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">///   If no code id is available, the debug id should be computed by XORing the first 4096 bytes of the `.text` section in 16-byte chunks, and representing it as a little-endian UUID (again swapping the byte order).</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// - `pe`: `signature` and `age` of the PDB file. Both values can be read from the CodeView PDB70 debug information header in the PE. The value should be represented as little-endian UUID, with the age appended at the end. Note that the byte order of the UUID fields must be swapped (spaces inserted for readability):</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">///   ```text</span>
-    <span class="doccomment">///   signature: f1c3bcc0 2798 65fe 3058 404b2831d9e6</span>
-    <span class="doccomment">///   age:                                            1</span>
-    <span class="doccomment">///   debug_id:  c0bcc3f1-9827-fe65-3058-404b2831d9e6-1</span>
-    <span class="doccomment">///   ```</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// - `macho`: Identifier of the dynamic library or executable. It is the value of the `LC_UUID` load command in the Mach header, formatted as UUID.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">required</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>, <span class="ident">legacy_alias</span> <span class="op">=</span> <span class="string">&quot;id&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">debug_id</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">DebugId</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Unique debug identifier of the image.
+    ///
+    /// - `elf`: Debug identifier of the dynamic library or executable. If a code identifier is available, the debug identifier is the little-endian UUID representation of the first 16-bytes of that
+    /// identifier. Spaces are inserted for readability, note the byte order of the first fields:
+    ///
+    ///   ```text
+    ///   code id:  f1c3bcc0 2798 65fe 3058 404b2831d9e6 4135386c
+    ///   debug id: c0bcc3f1-9827-fe65-3058-404b2831d9e6
+    ///   ```
+    ///
+    ///   If no code id is available, the debug id should be computed by XORing the first 4096 bytes of the `.text` section in 16-byte chunks, and representing it as a little-endian UUID (again swapping the byte order).
+    ///
+    /// - `pe`: `signature` and `age` of the PDB file. Both values can be read from the CodeView PDB70 debug information header in the PE. The value should be represented as little-endian UUID, with the age appended at the end. Note that the byte order of the UUID fields must be swapped (spaces inserted for readability):
+    ///
+    ///   ```text
+    ///   signature: f1c3bcc0 2798 65fe 3058 404b2831d9e6
+    ///   age:                                            1
+    ///   debug_id:  c0bcc3f1-9827-fe65-3058-404b2831d9e6-1
+    ///   ```
+    ///
+    /// - `macho`: Identifier of the dynamic library or executable. It is the value of the `LC_UUID` load command in the Mach header, formatted as UUID.
+    </span><span class="attribute">#[metastructure(required = <span class="string">&quot;true&quot;</span>, legacy_alias = <span class="string">&quot;id&quot;</span>)]
+    </span><span class="kw">pub </span>debug_id: Annotated&lt;DebugId&gt;,
 
-    <span class="doccomment">/// Path and name of the debug companion file.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// - `elf`: Name or absolute path to the file containing stripped debug information for this image. This value might be _required_ to retrieve debug files from certain symbol servers.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// - `pe`: Name of the PDB file containing debug information for this image. This value is often required to retrieve debug files from specific symbol servers.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// - `macho`: Name or absolute path to the dSYM file containing debug information for this image. This value might be required to retrieve debug files from certain symbol servers.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">debug_file</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">NativeImagePath</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Path and name of the debug companion file.
+    ///
+    /// - `elf`: Name or absolute path to the file containing stripped debug information for this image. This value might be _required_ to retrieve debug files from certain symbol servers.
+    ///
+    /// - `pe`: Name of the PDB file containing debug information for this image. This value is often required to retrieve debug files from specific symbol servers.
+    ///
+    /// - `macho`: Name or absolute path to the dSYM file containing debug information for this image. This value might be required to retrieve debug files from certain symbol servers.
+    </span><span class="attribute">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="kw">pub </span>debug_file: Annotated&lt;NativeImagePath&gt;,
 
-    <span class="doccomment">/// The optional checksum of the debug companion file.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// - `pe_dotnet`: This is the hash algorithm and hex-formatted checksum of the associated PDB file.</span>
-    <span class="doccomment">///  This should have the format `$algorithm:$hash`, for example `SHA256:aabbccddeeff...`.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">///   See: &lt;https://github.com/dotnet/runtime/blob/main/docs/design/specs/PE-COFF.md#pdb-checksum-debug-directory-entry-type-19&gt;</span>
-    <span class="kw">pub</span> <span class="ident">debug_checksum</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The optional checksum of the debug companion file.
+    ///
+    /// - `pe_dotnet`: This is the hash algorithm and hex-formatted checksum of the associated PDB file.
+    ///  This should have the format `$algorithm:$hash`, for example `SHA256:aabbccddeeff...`.
+    ///
+    ///   See: &lt;https://github.com/dotnet/runtime/blob/main/docs/design/specs/PE-COFF.md#pdb-checksum-debug-directory-entry-type-19&gt;
+    </span><span class="kw">pub </span>debug_checksum: Annotated&lt;String&gt;,
 
-    <span class="doccomment">/// CPU architecture target.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Architecture of the module. If missing, this will be backfilled by Sentry.</span>
-    <span class="kw">pub</span> <span class="ident">arch</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// CPU architecture target.
+    ///
+    /// Architecture of the module. If missing, this will be backfilled by Sentry.
+    </span><span class="kw">pub </span>arch: Annotated&lt;String&gt;,
 
-    <span class="doccomment">/// Starting memory address of the image (required).</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Memory address, at which the image is mounted in the virtual address space of the process. Should be a string in hex representation prefixed with `&quot;0x&quot;`.</span>
-    <span class="kw">pub</span> <span class="ident">image_addr</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Addr</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Starting memory address of the image (required).
+    ///
+    /// Memory address, at which the image is mounted in the virtual address space of the process. Should be a string in hex representation prefixed with `&quot;0x&quot;`.
+    </span><span class="kw">pub </span>image_addr: Annotated&lt;Addr&gt;,
 
-    <span class="doccomment">/// Size of the image in bytes (required).</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The size of the image in virtual memory. If missing, Sentry will assume that the image spans up to the next image, which might lead to invalid stack traces.</span>
-    <span class="kw">pub</span> <span class="ident">image_size</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Size of the image in bytes (required).
+    ///
+    /// The size of the image in virtual memory. If missing, Sentry will assume that the image spans up to the next image, which might lead to invalid stack traces.
+    </span><span class="kw">pub </span>image_size: Annotated&lt;u64&gt;,
 
-    <span class="doccomment">/// Loading address in virtual memory.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Preferred load address of the image in virtual memory, as declared in the headers of the</span>
-    <span class="doccomment">/// image. When loading an image, the operating system may still choose to place it at a</span>
-    <span class="doccomment">/// different address.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Symbols and addresses in the native image are always relative to the start of the image and do not consider the preferred load address. It is merely a hint to the loader.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// - `elf`/`macho`: If this value is non-zero, all symbols and addresses declared in the native image start at this address, rather than 0. By contrast, Sentry deals with addresses relative to the start of the image. For example, with `image_vmaddr: 0x40000`, a symbol located at `0x401000` has a relative address of `0x1000`.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">///   Relative addresses used in Apple Crash Reports and `addr2line` are usually in the preferred address space, and not relative address space.</span>
-    <span class="kw">pub</span> <span class="ident">image_vmaddr</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Addr</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Loading address in virtual memory.
+    ///
+    /// Preferred load address of the image in virtual memory, as declared in the headers of the
+    /// image. When loading an image, the operating system may still choose to place it at a
+    /// different address.
+    ///
+    /// Symbols and addresses in the native image are always relative to the start of the image and do not consider the preferred load address. It is merely a hint to the loader.
+    ///
+    /// - `elf`/`macho`: If this value is non-zero, all symbols and addresses declared in the native image start at this address, rather than 0. By contrast, Sentry deals with addresses relative to the start of the image. For example, with `image_vmaddr: 0x40000`, a symbol located at `0x401000` has a relative address of `0x1000`.
+    ///
+    ///   Relative addresses used in Apple Crash Reports and `addr2line` are usually in the preferred address space, and not relative address space.
+    </span><span class="kw">pub </span>image_vmaddr: Annotated&lt;Addr&gt;,
 
-    <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">additional_properties</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">other</span>: <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
+    </span><span class="attribute">#[metastructure(additional_properties)]
+    </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
 }
 
-<span class="doccomment">/// Proguard mapping file.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Proguard images refer to `mapping.txt` files generated when Proguard obfuscates function names. The Java SDK integrations assign this file a unique identifier, which has to be included in the list of images.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>)]</span>
-<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ProguardDebugImage</span> {
-    <span class="doccomment">/// UUID computed from the file contents, assigned by the Java SDK.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">required</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">uuid</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Uuid</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Proguard mapping file.
+///
+/// Proguard images refer to `mapping.txt` files generated when Proguard obfuscates function names. The Java SDK integrations assign this file a unique identifier, which has to be included in the list of images.
+</span><span class="attribute">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+</span><span class="kw">pub struct </span>ProguardDebugImage {
+    <span class="doccomment">/// UUID computed from the file contents, assigned by the Java SDK.
+    </span><span class="attribute">#[metastructure(required = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="kw">pub </span>uuid: Annotated&lt;Uuid&gt;,
 
-    <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">additional_properties</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">other</span>: <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
+    </span><span class="attribute">#[metastructure(additional_properties)]
+    </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
 }
 
-<span class="doccomment">/// A debug information file (debug image).</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>)]</span>
-<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
-<span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">process_func</span> <span class="op">=</span> <span class="string">&quot;process_debug_image&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">DebugImage</span> {
-    <span class="doccomment">/// Legacy apple debug images (MachO).</span>
-    <span class="ident">Apple</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">AppleDebugImage</span><span class="op">&gt;</span>),
-    <span class="doccomment">/// A generic (new-style) native platform debug information file.</span>
-    <span class="ident">Symbolic</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">NativeDebugImage</span><span class="op">&gt;</span>),
-    <span class="doccomment">/// MachO (macOS and iOS) debug image.</span>
-    <span class="ident">MachO</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">NativeDebugImage</span><span class="op">&gt;</span>),
-    <span class="doccomment">/// ELF (Linux) debug image.</span>
-    <span class="ident">Elf</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">NativeDebugImage</span><span class="op">&gt;</span>),
-    <span class="doccomment">/// PE (Windows) debug image.</span>
-    <span class="ident">Pe</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">NativeDebugImage</span><span class="op">&gt;</span>),
-    <span class="doccomment">/// .NET PE debug image with associated Portable PDB debug companion.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">tag</span> <span class="op">=</span> <span class="string">&quot;pe_dotnet&quot;</span>)]</span>
-    <span class="ident">PeDotnet</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">NativeDebugImage</span><span class="op">&gt;</span>),
-    <span class="doccomment">/// A reference to a proguard debug file.</span>
-    <span class="ident">Proguard</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">ProguardDebugImage</span><span class="op">&gt;</span>),
-    <span class="doccomment">/// WASM debug image.</span>
-    <span class="ident">Wasm</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">NativeDebugImage</span><span class="op">&gt;</span>),
-    <span class="doccomment">/// A debug image that is unknown to this protocol specification.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">fallback_variant</span>)]</span>
-    <span class="ident">Other</span>(<span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>),
+<span class="doccomment">/// A debug information file (debug image).
+</span><span class="attribute">#[derive(Clone, Debug, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[metastructure(process_func = <span class="string">&quot;process_debug_image&quot;</span>)]
+</span><span class="kw">pub enum </span>DebugImage {
+    <span class="doccomment">/// Legacy apple debug images (MachO).
+    </span>Apple(Box&lt;AppleDebugImage&gt;),
+    <span class="doccomment">/// A generic (new-style) native platform debug information file.
+    </span>Symbolic(Box&lt;NativeDebugImage&gt;),
+    <span class="doccomment">/// MachO (macOS and iOS) debug image.
+    </span>MachO(Box&lt;NativeDebugImage&gt;),
+    <span class="doccomment">/// ELF (Linux) debug image.
+    </span>Elf(Box&lt;NativeDebugImage&gt;),
+    <span class="doccomment">/// PE (Windows) debug image.
+    </span>Pe(Box&lt;NativeDebugImage&gt;),
+    <span class="doccomment">/// .NET PE debug image with associated Portable PDB debug companion.
+    </span><span class="attribute">#[metastructure(tag = <span class="string">&quot;pe_dotnet&quot;</span>)]
+    </span>PeDotnet(Box&lt;NativeDebugImage&gt;),
+    <span class="doccomment">/// A reference to a proguard debug file.
+    </span>Proguard(Box&lt;ProguardDebugImage&gt;),
+    <span class="doccomment">/// WASM debug image.
+    </span>Wasm(Box&lt;NativeDebugImage&gt;),
+    <span class="doccomment">/// A debug image that is unknown to this protocol specification.
+    </span><span class="attribute">#[metastructure(fallback_variant)]
+    </span>Other(Object&lt;Value&gt;),
 }
 
-<span class="doccomment">/// Debugging and processing meta information.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The debug meta interface carries debug information for processing errors and crash reports.</span>
-<span class="doccomment">/// Sentry amends the information in this interface.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Example (look at field types to see more detail):</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```json</span>
-<span class="doccomment">/// {</span>
-<span class="doccomment">///   &quot;debug_meta&quot;: {</span>
-<span class="doccomment">///     &quot;images&quot;: [],</span>
-<span class="doccomment">///     &quot;sdk_info&quot;: {</span>
-<span class="doccomment">///       &quot;sdk_name&quot;: &quot;iOS&quot;,</span>
-<span class="doccomment">///       &quot;version_major&quot;: 10,</span>
-<span class="doccomment">///       &quot;version_minor&quot;: 3,</span>
-<span class="doccomment">///       &quot;version_patchlevel&quot;: 0</span>
-<span class="doccomment">///     }</span>
-<span class="doccomment">///   }</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">/// ```</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>)]</span>
-<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
-<span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">process_func</span> <span class="op">=</span> <span class="string">&quot;process_debug_meta&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">DebugMeta</span> {
-    <span class="doccomment">/// Information about the system SDK (e.g. iOS SDK).</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">field</span> <span class="op">=</span> <span class="string">&quot;sdk_info&quot;</span>)]</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">system_sdk</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">SystemSdkInfo</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Debugging and processing meta information.
+///
+/// The debug meta interface carries debug information for processing errors and crash reports.
+/// Sentry amends the information in this interface.
+///
+/// Example (look at field types to see more detail):
+///
+/// ```json
+/// {
+///   &quot;debug_meta&quot;: {
+///     &quot;images&quot;: [],
+///     &quot;sdk_info&quot;: {
+///       &quot;sdk_name&quot;: &quot;iOS&quot;,
+///       &quot;version_major&quot;: 10,
+///       &quot;version_minor&quot;: 3,
+///       &quot;version_patchlevel&quot;: 0
+///     }
+///   }
+/// }
+/// ```
+</span><span class="attribute">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[metastructure(process_func = <span class="string">&quot;process_debug_meta&quot;</span>)]
+</span><span class="kw">pub struct </span>DebugMeta {
+    <span class="doccomment">/// Information about the system SDK (e.g. iOS SDK).
+    </span><span class="attribute">#[metastructure(field = <span class="string">&quot;sdk_info&quot;</span>)]
+    #[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="kw">pub </span>system_sdk: Annotated&lt;SystemSdkInfo&gt;,
 
-    <span class="doccomment">/// List of debug information files (debug images).</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">images</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Array</span><span class="op">&lt;</span><span class="ident">DebugImage</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// List of debug information files (debug images).
+    </span><span class="attribute">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="kw">pub </span>images: Annotated&lt;Array&lt;DebugImage&gt;&gt;,
 
-    <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">additional_properties</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">other</span>: <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
+    </span><span class="attribute">#[metastructure(additional_properties)]
+    </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">similar_asserts::assert_eq</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>similar_asserts::assert_eq;
 
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types::Map</span>;
+    <span class="kw">use </span><span class="kw">crate</span>::types::Map;
 
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_debug_image_proguard_roundtrip</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_debug_image_proguard_roundtrip() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;uuid&quot;: &quot;395835f4-03e0-4436-80d3-136f0749a893&quot;,
   &quot;other&quot;: &quot;value&quot;,
   &quot;type&quot;: &quot;proguard&quot;
 }&quot;#</span>;
-        <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">DebugImage::Proguard</span>(<span class="ident">Box::new</span>(<span class="ident">ProguardDebugImage</span> {
-            <span class="ident">uuid</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;395835f4-03e0-4436-80d3-136f0749a893&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-            <span class="ident">other</span>: {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                <span class="ident">map</span>.<span class="ident">insert</span>(
-                    <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                    <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+        <span class="kw">let </span>image = Annotated::new(DebugImage::Proguard(Box::new(ProguardDebugImage {
+            uuid: Annotated::new(<span class="string">&quot;395835f4-03e0-4436-80d3-136f0749a893&quot;</span>.parse().unwrap()),
+            other: {
+                <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
+                map.insert(
+                    <span class="string">&quot;other&quot;</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
                 );
-                <span class="ident">map</span>
+                map
             },
         })));
 
-        <span class="macro">assert_eq!</span>(<span class="ident">image</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">image</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(image, Annotated::from_json(json).unwrap());
+        <span class="macro">assert_eq!</span>(json, image.to_json_pretty().unwrap());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_debug_image_apple_roundtrip</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_debug_image_apple_roundtrip() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;name&quot;: &quot;CoreFoundation&quot;,
   &quot;arch&quot;: &quot;arm64&quot;,
   &quot;cpu_type&quot;: 1233,
@@ -1452,32 +1452,32 @@
   &quot;type&quot;: &quot;apple&quot;
 }&quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">DebugImage::Apple</span>(<span class="ident">Box::new</span>(<span class="ident">AppleDebugImage</span> {
-            <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;CoreFoundation&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">arch</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">cpu_type</span>: <span class="ident">Annotated::new</span>(<span class="number">1233</span>),
-            <span class="ident">cpu_subtype</span>: <span class="ident">Annotated::new</span>(<span class="number">3</span>),
-            <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
-            <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">4096</span>),
-            <span class="ident">image_vmaddr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">32768</span>)),
-            <span class="ident">uuid</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;494f3aea-88fa-4296-9644-fa8ef5d139b6&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-            <span class="ident">other</span>: {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                <span class="ident">map</span>.<span class="ident">insert</span>(
-                    <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                    <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+        <span class="kw">let </span>image = Annotated::new(DebugImage::Apple(Box::new(AppleDebugImage {
+            name: Annotated::new(<span class="string">&quot;CoreFoundation&quot;</span>.to_string()),
+            arch: Annotated::new(<span class="string">&quot;arm64&quot;</span>.to_string()),
+            cpu_type: Annotated::new(<span class="number">1233</span>),
+            cpu_subtype: Annotated::new(<span class="number">3</span>),
+            image_addr: Annotated::new(Addr(<span class="number">0</span>)),
+            image_size: Annotated::new(<span class="number">4096</span>),
+            image_vmaddr: Annotated::new(Addr(<span class="number">32768</span>)),
+            uuid: Annotated::new(<span class="string">&quot;494f3aea-88fa-4296-9644-fa8ef5d139b6&quot;</span>.parse().unwrap()),
+            other: {
+                <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
+                map.insert(
+                    <span class="string">&quot;other&quot;</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
                 );
-                <span class="ident">map</span>
+                map
             },
         })));
 
-        <span class="macro">assert_eq!</span>(<span class="ident">image</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">image</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(image, Annotated::from_json(json).unwrap());
+        <span class="macro">assert_eq!</span>(json, image.to_json_pretty().unwrap());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_debug_image_apple_default_values</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_debug_image_apple_default_values() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;name&quot;: &quot;CoreFoundation&quot;,
   &quot;image_addr&quot;: &quot;0x0&quot;,
   &quot;image_size&quot;: 4096,
@@ -1485,21 +1485,21 @@
   &quot;type&quot;: &quot;apple&quot;
 }&quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">DebugImage::Apple</span>(<span class="ident">Box::new</span>(<span class="ident">AppleDebugImage</span> {
-            <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;CoreFoundation&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
-            <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">4096</span>),
-            <span class="ident">uuid</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;494f3aea-88fa-4296-9644-fa8ef5d139b6&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-            ..<span class="ident">Default::default</span>()
+        <span class="kw">let </span>image = Annotated::new(DebugImage::Apple(Box::new(AppleDebugImage {
+            name: Annotated::new(<span class="string">&quot;CoreFoundation&quot;</span>.to_string()),
+            image_addr: Annotated::new(Addr(<span class="number">0</span>)),
+            image_size: Annotated::new(<span class="number">4096</span>),
+            uuid: Annotated::new(<span class="string">&quot;494f3aea-88fa-4296-9644-fa8ef5d139b6&quot;</span>.parse().unwrap()),
+            ..Default::default()
         })));
 
-        <span class="macro">assert_eq!</span>(<span class="ident">image</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">image</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(image, Annotated::from_json(json).unwrap());
+        <span class="macro">assert_eq!</span>(json, image.to_json_pretty().unwrap());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_debug_image_symbolic_roundtrip</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_debug_image_symbolic_roundtrip() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;code_id&quot;: &quot;59b0d8f3183000&quot;,
   &quot;code_file&quot;: &quot;C:\\Windows\\System32\\ntdll.dll&quot;,
   &quot;debug_id&quot;: &quot;971f98e5-ce60-41ff-b2d7-235bbeb34578-1&quot;,
@@ -1512,33 +1512,33 @@
   &quot;type&quot;: &quot;symbolic&quot;
 }&quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">DebugImage::Symbolic</span>(<span class="ident">Box::new</span>(<span class="ident">NativeDebugImage</span> {
-            <span class="ident">code_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;59b0d8f3183000&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-            <span class="ident">code_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;C:\\Windows\\System32\\ntdll.dll&quot;</span>.<span class="ident">into</span>()),
-            <span class="ident">debug_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;971f98e5-ce60-41ff-b2d7-235bbeb34578-1&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-            <span class="ident">debug_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;wntdll.pdb&quot;</span>.<span class="ident">into</span>()),
-            <span class="ident">debug_checksum</span>: <span class="ident">Annotated::empty</span>(),
-            <span class="ident">arch</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
-            <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">4096</span>),
-            <span class="ident">image_vmaddr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">32768</span>)),
-            <span class="ident">other</span>: {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                <span class="ident">map</span>.<span class="ident">insert</span>(
-                    <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                    <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+        <span class="kw">let </span>image = Annotated::new(DebugImage::Symbolic(Box::new(NativeDebugImage {
+            code_id: Annotated::new(<span class="string">&quot;59b0d8f3183000&quot;</span>.parse().unwrap()),
+            code_file: Annotated::new(<span class="string">&quot;C:\\Windows\\System32\\ntdll.dll&quot;</span>.into()),
+            debug_id: Annotated::new(<span class="string">&quot;971f98e5-ce60-41ff-b2d7-235bbeb34578-1&quot;</span>.parse().unwrap()),
+            debug_file: Annotated::new(<span class="string">&quot;wntdll.pdb&quot;</span>.into()),
+            debug_checksum: Annotated::empty(),
+            arch: Annotated::new(<span class="string">&quot;arm64&quot;</span>.to_string()),
+            image_addr: Annotated::new(Addr(<span class="number">0</span>)),
+            image_size: Annotated::new(<span class="number">4096</span>),
+            image_vmaddr: Annotated::new(Addr(<span class="number">32768</span>)),
+            other: {
+                <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
+                map.insert(
+                    <span class="string">&quot;other&quot;</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
                 );
-                <span class="ident">map</span>
+                map
             },
         })));
 
-        <span class="macro">assert_eq!</span>(<span class="ident">image</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">image</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(image, Annotated::from_json(json).unwrap());
+        <span class="macro">assert_eq!</span>(json, image.to_json_pretty().unwrap());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_debug_image_symbolic_legacy</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_debug_image_symbolic_legacy() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;name&quot;: &quot;CoreFoundation&quot;,
   &quot;arch&quot;: &quot;arm64&quot;,
   &quot;image_addr&quot;: &quot;0x0&quot;,
@@ -1549,32 +1549,32 @@
   &quot;type&quot;: &quot;symbolic&quot;
 }&quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">DebugImage::Symbolic</span>(<span class="ident">Box::new</span>(<span class="ident">NativeDebugImage</span> {
-            <span class="ident">code_id</span>: <span class="ident">Annotated::empty</span>(),
-            <span class="ident">code_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;CoreFoundation&quot;</span>.<span class="ident">into</span>()),
-            <span class="ident">debug_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;494f3aea-88fa-4296-9644-fa8ef5d139b6-1234&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-            <span class="ident">debug_file</span>: <span class="ident">Annotated::empty</span>(),
-            <span class="ident">debug_checksum</span>: <span class="ident">Annotated::empty</span>(),
-            <span class="ident">arch</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
-            <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">4096</span>),
-            <span class="ident">image_vmaddr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">32768</span>)),
-            <span class="ident">other</span>: {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                <span class="ident">map</span>.<span class="ident">insert</span>(
-                    <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                    <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+        <span class="kw">let </span>image = Annotated::new(DebugImage::Symbolic(Box::new(NativeDebugImage {
+            code_id: Annotated::empty(),
+            code_file: Annotated::new(<span class="string">&quot;CoreFoundation&quot;</span>.into()),
+            debug_id: Annotated::new(<span class="string">&quot;494f3aea-88fa-4296-9644-fa8ef5d139b6-1234&quot;</span>.parse().unwrap()),
+            debug_file: Annotated::empty(),
+            debug_checksum: Annotated::empty(),
+            arch: Annotated::new(<span class="string">&quot;arm64&quot;</span>.to_string()),
+            image_addr: Annotated::new(Addr(<span class="number">0</span>)),
+            image_size: Annotated::new(<span class="number">4096</span>),
+            image_vmaddr: Annotated::new(Addr(<span class="number">32768</span>)),
+            other: {
+                <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
+                map.insert(
+                    <span class="string">&quot;other&quot;</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
                 );
-                <span class="ident">map</span>
+                map
             },
         })));
 
-        <span class="macro">assert_eq!</span>(<span class="ident">image</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(image, Annotated::from_json(json).unwrap());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_debug_image_symbolic_default_values</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_debug_image_symbolic_default_values() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;code_file&quot;: &quot;CoreFoundation&quot;,
   &quot;debug_id&quot;: &quot;494f3aea-88fa-4296-9644-fa8ef5d139b6-1234&quot;,
   &quot;image_addr&quot;: &quot;0x0&quot;,
@@ -1582,25 +1582,25 @@
   &quot;type&quot;: &quot;symbolic&quot;
 }&quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">DebugImage::Symbolic</span>(<span class="ident">Box::new</span>(<span class="ident">NativeDebugImage</span> {
-            <span class="ident">code_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;CoreFoundation&quot;</span>.<span class="ident">into</span>()),
-            <span class="ident">debug_id</span>: <span class="ident">Annotated::new</span>(
-                <span class="string">&quot;494f3aea-88fa-4296-9644-fa8ef5d139b6-1234&quot;</span>
-                    .<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">DebugId</span><span class="op">&gt;</span>()
-                    .<span class="ident">unwrap</span>(),
+        <span class="kw">let </span>image = Annotated::new(DebugImage::Symbolic(Box::new(NativeDebugImage {
+            code_file: Annotated::new(<span class="string">&quot;CoreFoundation&quot;</span>.into()),
+            debug_id: Annotated::new(
+                <span class="string">&quot;494f3aea-88fa-4296-9644-fa8ef5d139b6-1234&quot;
+                    </span>.parse::&lt;DebugId&gt;()
+                    .unwrap(),
             ),
-            <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
-            <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">4096</span>),
-            ..<span class="ident">Default::default</span>()
+            image_addr: Annotated::new(Addr(<span class="number">0</span>)),
+            image_size: Annotated::new(<span class="number">4096</span>),
+            ..Default::default()
         })));
 
-        <span class="macro">assert_eq!</span>(<span class="ident">image</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">image</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(image, Annotated::from_json(json).unwrap());
+        <span class="macro">assert_eq!</span>(json, image.to_json_pretty().unwrap());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_debug_image_elf_roundtrip</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_debug_image_elf_roundtrip() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;code_id&quot;: &quot;f1c3bcc0279865fe3058404b2831d9e64135386c&quot;,
   &quot;code_file&quot;: &quot;crash&quot;,
   &quot;debug_id&quot;: &quot;c0bcc3f1-9827-fe65-3058-404b2831d9e6&quot;,
@@ -1612,59 +1612,59 @@
   &quot;type&quot;: &quot;elf&quot;
 }&quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">DebugImage::Elf</span>(<span class="ident">Box::new</span>(<span class="ident">NativeDebugImage</span> {
-            <span class="ident">code_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;f1c3bcc0279865fe3058404b2831d9e64135386c&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-            <span class="ident">code_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;crash&quot;</span>.<span class="ident">into</span>()),
-            <span class="ident">debug_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;c0bcc3f1-9827-fe65-3058-404b2831d9e6&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-            <span class="ident">debug_file</span>: <span class="ident">Annotated::empty</span>(),
-            <span class="ident">debug_checksum</span>: <span class="ident">Annotated::empty</span>(),
-            <span class="ident">arch</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
-            <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">4096</span>),
-            <span class="ident">image_vmaddr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">32768</span>)),
-            <span class="ident">other</span>: {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                <span class="ident">map</span>.<span class="ident">insert</span>(
-                    <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                    <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+        <span class="kw">let </span>image = Annotated::new(DebugImage::Elf(Box::new(NativeDebugImage {
+            code_id: Annotated::new(<span class="string">&quot;f1c3bcc0279865fe3058404b2831d9e64135386c&quot;</span>.parse().unwrap()),
+            code_file: Annotated::new(<span class="string">&quot;crash&quot;</span>.into()),
+            debug_id: Annotated::new(<span class="string">&quot;c0bcc3f1-9827-fe65-3058-404b2831d9e6&quot;</span>.parse().unwrap()),
+            debug_file: Annotated::empty(),
+            debug_checksum: Annotated::empty(),
+            arch: Annotated::new(<span class="string">&quot;arm64&quot;</span>.to_string()),
+            image_addr: Annotated::new(Addr(<span class="number">0</span>)),
+            image_size: Annotated::new(<span class="number">4096</span>),
+            image_vmaddr: Annotated::new(Addr(<span class="number">32768</span>)),
+            other: {
+                <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
+                map.insert(
+                    <span class="string">&quot;other&quot;</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
                 );
-                <span class="ident">map</span>
+                map
             },
         })));
 
-        <span class="macro">assert_eq!</span>(<span class="ident">image</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">image</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(image, Annotated::from_json(json).unwrap());
+        <span class="macro">assert_eq!</span>(json, image.to_json_pretty().unwrap());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_debug_image_pe_dotnet_roundtrip</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_debug_image_pe_dotnet_roundtrip() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;debug_id&quot;: &quot;4e2ca887-825e-46f3-968f-25b41ae1b5f3-cc3f6d9e&quot;,
   &quot;debug_file&quot;: &quot;TimeZoneConverter.pdb&quot;,
   &quot;debug_checksum&quot;: &quot;SHA256:87a82c4e5e82f386968f25b41ae1b5f3cc3f6d9e79cfb4464f8240400fc47dcd79&quot;,
   &quot;type&quot;: &quot;pe_dotnet&quot;
 }&quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">DebugImage::PeDotnet</span>(<span class="ident">Box::new</span>(<span class="ident">NativeDebugImage</span> {
-            <span class="ident">debug_id</span>: <span class="ident">Annotated::new</span>(
-                <span class="string">&quot;4e2ca887-825e-46f3-968f-25b41ae1b5f3-cc3f6d9e&quot;</span>
-                    .<span class="ident">parse</span>()
-                    .<span class="ident">unwrap</span>(),
+        <span class="kw">let </span>image = Annotated::new(DebugImage::PeDotnet(Box::new(NativeDebugImage {
+            debug_id: Annotated::new(
+                <span class="string">&quot;4e2ca887-825e-46f3-968f-25b41ae1b5f3-cc3f6d9e&quot;
+                    </span>.parse()
+                    .unwrap(),
             ),
-            <span class="ident">debug_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;TimeZoneConverter.pdb&quot;</span>.<span class="ident">into</span>()),
-            <span class="ident">debug_checksum</span>: <span class="ident">Annotated::new</span>(
-                <span class="string">&quot;SHA256:87a82c4e5e82f386968f25b41ae1b5f3cc3f6d9e79cfb4464f8240400fc47dcd79&quot;</span>.<span class="ident">into</span>(),
+            debug_file: Annotated::new(<span class="string">&quot;TimeZoneConverter.pdb&quot;</span>.into()),
+            debug_checksum: Annotated::new(
+                <span class="string">&quot;SHA256:87a82c4e5e82f386968f25b41ae1b5f3cc3f6d9e79cfb4464f8240400fc47dcd79&quot;</span>.into(),
             ),
-            ..<span class="ident">Default::default</span>()
+            ..Default::default()
         })));
 
-        <span class="macro">assert_eq!</span>(<span class="ident">image</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">image</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(image, Annotated::from_json(json).unwrap());
+        <span class="macro">assert_eq!</span>(json, image.to_json_pretty().unwrap());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_debug_image_macho_roundtrip</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_debug_image_macho_roundtrip() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;code_id&quot;: &quot;67E9247C-814E-392B-A027-DBDE6748FCBF&quot;,
   &quot;code_file&quot;: &quot;crash&quot;,
   &quot;debug_id&quot;: &quot;67e9247c-814e-392b-a027-dbde6748fcbf&quot;,
@@ -1676,32 +1676,32 @@
   &quot;type&quot;: &quot;macho&quot;
 }&quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">DebugImage::MachO</span>(<span class="ident">Box::new</span>(<span class="ident">NativeDebugImage</span> {
-            <span class="ident">code_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;67E9247C-814E-392B-A027-DBDE6748FCBF&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-            <span class="ident">code_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;crash&quot;</span>.<span class="ident">into</span>()),
-            <span class="ident">debug_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;67e9247c-814e-392b-a027-dbde6748fcbf&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-            <span class="ident">debug_file</span>: <span class="ident">Annotated::empty</span>(),
-            <span class="ident">debug_checksum</span>: <span class="ident">Annotated::empty</span>(),
-            <span class="ident">arch</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
-            <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">4096</span>),
-            <span class="ident">image_vmaddr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">32768</span>)),
-            <span class="ident">other</span>: {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                <span class="ident">map</span>.<span class="ident">insert</span>(
-                    <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                    <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+        <span class="kw">let </span>image = Annotated::new(DebugImage::MachO(Box::new(NativeDebugImage {
+            code_id: Annotated::new(<span class="string">&quot;67E9247C-814E-392B-A027-DBDE6748FCBF&quot;</span>.parse().unwrap()),
+            code_file: Annotated::new(<span class="string">&quot;crash&quot;</span>.into()),
+            debug_id: Annotated::new(<span class="string">&quot;67e9247c-814e-392b-a027-dbde6748fcbf&quot;</span>.parse().unwrap()),
+            debug_file: Annotated::empty(),
+            debug_checksum: Annotated::empty(),
+            arch: Annotated::new(<span class="string">&quot;arm64&quot;</span>.to_string()),
+            image_addr: Annotated::new(Addr(<span class="number">0</span>)),
+            image_size: Annotated::new(<span class="number">4096</span>),
+            image_vmaddr: Annotated::new(Addr(<span class="number">32768</span>)),
+            other: {
+                <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
+                map.insert(
+                    <span class="string">&quot;other&quot;</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
                 );
-                <span class="ident">map</span>
+                map
             },
         })));
 
-        <span class="macro">assert_eq!</span>(<span class="ident">image</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(image, Annotated::from_json(json).unwrap());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_debug_image_pe_roundtrip</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_debug_image_pe_roundtrip() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;code_id&quot;: &quot;59b0d8f3183000&quot;,
   &quot;code_file&quot;: &quot;C:\\Windows\\System32\\ntdll.dll&quot;,
   &quot;debug_id&quot;: &quot;971f98e5-ce60-41ff-b2d7-235bbeb34578-1&quot;,
@@ -1714,70 +1714,70 @@
   &quot;type&quot;: &quot;pe&quot;
 }&quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">DebugImage::Pe</span>(<span class="ident">Box::new</span>(<span class="ident">NativeDebugImage</span> {
-            <span class="ident">code_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;59b0d8f3183000&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-            <span class="ident">code_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;C:\\Windows\\System32\\ntdll.dll&quot;</span>.<span class="ident">into</span>()),
-            <span class="ident">debug_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;971f98e5-ce60-41ff-b2d7-235bbeb34578-1&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-            <span class="ident">debug_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;wntdll.pdb&quot;</span>.<span class="ident">into</span>()),
-            <span class="ident">debug_checksum</span>: <span class="ident">Annotated::empty</span>(),
-            <span class="ident">arch</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
-            <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">4096</span>),
-            <span class="ident">image_vmaddr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">32768</span>)),
-            <span class="ident">other</span>: {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                <span class="ident">map</span>.<span class="ident">insert</span>(
-                    <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                    <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+        <span class="kw">let </span>image = Annotated::new(DebugImage::Pe(Box::new(NativeDebugImage {
+            code_id: Annotated::new(<span class="string">&quot;59b0d8f3183000&quot;</span>.parse().unwrap()),
+            code_file: Annotated::new(<span class="string">&quot;C:\\Windows\\System32\\ntdll.dll&quot;</span>.into()),
+            debug_id: Annotated::new(<span class="string">&quot;971f98e5-ce60-41ff-b2d7-235bbeb34578-1&quot;</span>.parse().unwrap()),
+            debug_file: Annotated::new(<span class="string">&quot;wntdll.pdb&quot;</span>.into()),
+            debug_checksum: Annotated::empty(),
+            arch: Annotated::new(<span class="string">&quot;arm64&quot;</span>.to_string()),
+            image_addr: Annotated::new(Addr(<span class="number">0</span>)),
+            image_size: Annotated::new(<span class="number">4096</span>),
+            image_vmaddr: Annotated::new(Addr(<span class="number">32768</span>)),
+            other: {
+                <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
+                map.insert(
+                    <span class="string">&quot;other&quot;</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
                 );
-                <span class="ident">map</span>
+                map
             },
         })));
 
-        <span class="macro">assert_eq!</span>(<span class="ident">image</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">image</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(image, Annotated::from_json(json).unwrap());
+        <span class="macro">assert_eq!</span>(json, image.to_json_pretty().unwrap());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_debug_image_other_roundtrip</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;other&quot;:&quot;value&quot;,&quot;type&quot;:&quot;mytype&quot;}&quot;#</span>;
-        <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">DebugImage::Other</span>({
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Map::new</span>();
-            <span class="ident">map</span>.<span class="ident">insert</span>(
-                <span class="string">&quot;type&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;mytype&quot;</span>.<span class="ident">to_string</span>())),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_debug_image_other_roundtrip() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{&quot;other&quot;:&quot;value&quot;,&quot;type&quot;:&quot;mytype&quot;}&quot;#</span>;
+        <span class="kw">let </span>image = Annotated::new(DebugImage::Other({
+            <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
+            map.insert(
+                <span class="string">&quot;type&quot;</span>.to_string(),
+                Annotated::new(Value::String(<span class="string">&quot;mytype&quot;</span>.to_string())),
             );
-            <span class="ident">map</span>.<span class="ident">insert</span>(
-                <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+            map.insert(
+                <span class="string">&quot;other&quot;</span>.to_string(),
+                Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
             );
-            <span class="ident">map</span>
+            map
         }));
 
-        <span class="macro">assert_eq!</span>(<span class="ident">image</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">image</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(image, Annotated::from_json(json).unwrap());
+        <span class="macro">assert_eq!</span>(json, image.to_json().unwrap());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_debug_image_untagged_roundtrip</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;other&quot;:&quot;value&quot;}&quot;#</span>;
-        <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">DebugImage::Other</span>({
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Map::new</span>();
-            <span class="ident">map</span>.<span class="ident">insert</span>(
-                <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_debug_image_untagged_roundtrip() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{&quot;other&quot;:&quot;value&quot;}&quot;#</span>;
+        <span class="kw">let </span>image = Annotated::new(DebugImage::Other({
+            <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
+            map.insert(
+                <span class="string">&quot;other&quot;</span>.to_string(),
+                Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
             );
-            <span class="ident">map</span>
+            map
         }));
 
-        <span class="macro">assert_eq!</span>(<span class="ident">image</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">image</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(image, Annotated::from_json(json).unwrap());
+        <span class="macro">assert_eq!</span>(json, image.to_json().unwrap());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_debug_meta_roundtrip</span>() {
-        <span class="comment">// NOTE: images are tested separately</span>
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_debug_meta_roundtrip() {
+        <span class="comment">// NOTE: images are tested separately
+        </span><span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;sdk_info&quot;: {
     &quot;sdk_name&quot;: &quot;iOS&quot;,
     &quot;version_major&quot;: 10,
@@ -1787,44 +1787,44 @@
   },
   &quot;other&quot;: &quot;value&quot;
 }&quot;#</span>;
-        <span class="kw">let</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">DebugMeta</span> {
-            <span class="ident">system_sdk</span>: <span class="ident">Annotated::new</span>(<span class="ident">SystemSdkInfo</span> {
-                <span class="ident">sdk_name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;iOS&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">version_major</span>: <span class="ident">Annotated::new</span>(<span class="number">10</span>),
-                <span class="ident">version_minor</span>: <span class="ident">Annotated::new</span>(<span class="number">3</span>),
-                <span class="ident">version_patchlevel</span>: <span class="ident">Annotated::new</span>(<span class="number">0</span>),
-                <span class="ident">other</span>: {
-                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Map::new</span>();
-                    <span class="ident">map</span>.<span class="ident">insert</span>(
-                        <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                        <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+        <span class="kw">let </span>meta = Annotated::new(DebugMeta {
+            system_sdk: Annotated::new(SystemSdkInfo {
+                sdk_name: Annotated::new(<span class="string">&quot;iOS&quot;</span>.to_string()),
+                version_major: Annotated::new(<span class="number">10</span>),
+                version_minor: Annotated::new(<span class="number">3</span>),
+                version_patchlevel: Annotated::new(<span class="number">0</span>),
+                other: {
+                    <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
+                    map.insert(
+                        <span class="string">&quot;other&quot;</span>.to_string(),
+                        Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
                     );
-                    <span class="ident">map</span>
+                    map
                 },
             }),
-            <span class="ident">other</span>: {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Map::new</span>();
-                <span class="ident">map</span>.<span class="ident">insert</span>(
-                    <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                    <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+            other: {
+                <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
+                map.insert(
+                    <span class="string">&quot;other&quot;</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
                 );
-                <span class="ident">map</span>
+                map
             },
-            ..<span class="ident">Default::default</span>()
+            ..Default::default()
         });
 
-        <span class="macro">assert_eq!</span>(<span class="ident">meta</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">meta</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(meta, Annotated::from_json(json).unwrap());
+        <span class="macro">assert_eq!</span>(json, meta.to_json_pretty().unwrap());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_debug_meta_default_values</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">&quot;{}&quot;</span>;
-        <span class="kw">let</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">DebugMeta::default</span>());
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_debug_meta_default_values() {
+        <span class="kw">let </span>json = <span class="string">&quot;{}&quot;</span>;
+        <span class="kw">let </span>meta = Annotated::new(DebugMeta::default());
 
-        <span class="macro">assert_eq!</span>(<span class="ident">meta</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">meta</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(meta, Annotated::from_json(json).unwrap());
+        <span class="macro">assert_eq!</span>(json, meta.to_json_pretty().unwrap());
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Utilities for error handling in FFI bindings."><meta name="keywords" content="rust, rustlang, rust-lang, relay_ffi"><title>relay_ffi - Rust</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../dark.css" disabled><link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../storage.js"></script><script defer src="../crates.js"></script><script defer src="../main.js"></script><noscript><link rel="stylesheet" href="../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../relay_ffi/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../relay_ffi/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Utilities for error handling in FFI bindings."><meta name="keywords" content="rust, rustlang, rust-lang, relay_ffi"><title>relay_ffi - Rust</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../normalize.css"><link rel="stylesheet" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../ayu.css" disabled><link rel="stylesheet" href="../dark.css" disabled><link rel="stylesheet" href="../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../storage.js"></script><script defer src="../crates.js"></script><script defer src="../main.js"></script><noscript><link rel="stylesheet" href="../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../relay_ffi/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../relay_ffi/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"><a href="#">Crate relay_ffi</a></h2><div class="sidebar-elems"><div class="block"><ul><li class="version">Version 22.10.0</li><li><a id="all-types" href="all.html">All Items</a></li></ul></div><section><div class="block"><ul><li><a href="#structs">Structs</a></li><li><a href="#functions">Functions</a></li><li><a href="#attributes">Attribute Macros</a></li></ul></div></section></div></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../relay_ffi/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="main-heading"><h1 class="fqn"><span class="in-band">Crate <a class="mod" href="#">relay_ffi</a><button id="copy-path" onclick="copy_path(this)" title="Copy item path to clipboard"><img src="../clipboard.svg" width="19" height="18" alt="Copy item path"></button></span></h1><span class="out-of-band"><a class="srclink" href="../src/relay_ffi/lib.rs.html#1-293">source</a> · <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span></div><details class="rustdoc-toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Utilities for error handling in FFI bindings.</p>
 <p>This crate facilitates an <a href="https://man7.org/linux/man-pages/man3/errno.3.html"><code>errno</code></a>-like error handling pattern: On success, the result of a
@@ -9,16 +9,16 @@ error, message, and a backtrace if available.</p>
 the use of the questionmark operator <code>?</code> in a function that does not return <code>Result</code>. The error
 is then available using <a href="fn.with_last_error.html" title="with_last_error"><code>with_last_error</code></a>:</p>
 
-<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use</span> <span class="ident">relay_ffi::catch_unwind</span>;
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>relay_ffi::catch_unwind;
 
-<span class="attribute">#[<span class="ident">catch_unwind</span>]</span>
-<span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">parse_number</span>() -&gt; <span class="ident">i32</span> {
-    <span class="comment">// use the questionmark operator for errors:</span>
-    <span class="kw">let</span> <span class="ident">number</span>: <span class="ident">i32</span> <span class="op">=</span> <span class="string">&quot;42&quot;</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>;
+<span class="attribute">#[catch_unwind]
+</span><span class="kw">unsafe fn </span>parse_number() -&gt; i32 {
+    <span class="comment">// use the questionmark operator for errors:
+    </span><span class="kw">let </span>number: i32 = <span class="string">&quot;42&quot;</span>.parse()<span class="question-mark">?</span>;
 
-    <span class="comment">// return the value directly, not `Ok`:</span>
-    <span class="ident">number</span> <span class="op">*</span> <span class="number">2</span>
-}</code></pre></div>
+    <span class="comment">// return the value directly, not `Ok`:
+    </span>number * <span class="number">2
+</span>}</code></pre></div>
 <h2 id="safety"><a href="#safety">Safety</a></h2>
 <p>Since function calls always need to return a value, this crate has to return
 <code>std::mem::zeroed()</code> as a placeholder in case of an error. This is unsafe for reference types
@@ -30,58 +30,53 @@ however, and document the behavior of custom structures in case of an error.</p>
 <p>Annotate FFI functions with <a href="attr.catch_unwind.html" title="catch_unwind"><code>catch_unwind</code></a> to capture errors. The error can be inspected via
 <a href="fn.with_last_error.html" title="with_last_error"><code>with_last_error</code></a>:</p>
 
-<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use</span> <span class="ident">relay_ffi</span>::{<span class="ident">catch_unwind</span>, <span class="ident">with_last_error</span>};
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>relay_ffi::{catch_unwind, with_last_error};
 
-<span class="attribute">#[<span class="ident">catch_unwind</span>]</span>
-<span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">parse_number</span>() -&gt; <span class="ident">i32</span> {
-    <span class="string">&quot;42&quot;</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>
-}
+<span class="attribute">#[catch_unwind]
+</span><span class="kw">unsafe fn </span>parse_number() -&gt; i32 {
+    <span class="string">&quot;42&quot;</span>.parse()<span class="question-mark">?
+</span>}
 
-<span class="kw">let</span> <span class="ident">parsed</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">parse_number</span>() };
-<span class="kw">match</span> <span class="ident">with_last_error</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">e</span>.<span class="ident">to_string</span>()) {
-    <span class="prelude-val">Some</span>(<span class="ident">error</span>) =&gt; <span class="macro">println!</span>(<span class="string">&quot;errored with: {}&quot;</span>, <span class="ident">error</span>),
-    <span class="prelude-val">None</span> =&gt; <span class="macro">println!</span>(<span class="string">&quot;result: {}&quot;</span>, <span class="ident">parsed</span>),
+<span class="kw">let </span>parsed = <span class="kw">unsafe </span>{ parse_number() };
+<span class="kw">match </span>with_last_error(|e| e.to_string()) {
+    <span class="prelude-val">Some</span>(error) =&gt; <span class="macro">println!</span>(<span class="string">&quot;errored with: {}&quot;</span>, error),
+    <span class="prelude-val">None </span>=&gt; <span class="macro">println!</span>(<span class="string">&quot;result: {}&quot;</span>, parsed),
 }</code></pre></div>
 <p>To capture panics, register the panic hook early during library initialization:</p>
 
-<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use</span> <span class="ident">relay_ffi</span>::{<span class="ident">catch_unwind</span>, <span class="ident">with_last_error</span>};
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>relay_ffi::{catch_unwind, with_last_error};
 
-<span class="ident">relay_ffi::set_panic_hook</span>();
+relay_ffi::set_panic_hook();
 
-<span class="attribute">#[<span class="ident">catch_unwind</span>]</span>
-<span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">fail</span>() {
+<span class="attribute">#[catch_unwind]
+</span><span class="kw">unsafe fn </span>fail() {
     <span class="macro">panic!</span>(<span class="string">&quot;expected panic&quot;</span>);
 }
 
-<span class="kw">unsafe</span> { <span class="ident">fail</span>() };
+<span class="kw">unsafe </span>{ fail() };
 
-<span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">description</span>) <span class="op">=</span> <span class="ident">with_last_error</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">e</span>.<span class="ident">to_string</span>()) {
-    <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">description</span>);
+<span class="kw">if let </span><span class="prelude-val">Some</span>(description) = with_last_error(|e| e.to_string()) {
+    <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, description);
 }</code></pre></div>
 <h2 id="creating-c-apis"><a href="#creating-c-apis">Creating C-APIs</a></h2>
 <p>This is an example for exposing an API to C:</p>
 
-<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use</span> <span class="ident">std::ffi::CString</span>;
-<span class="kw">use</span> <span class="ident">std::os::raw::c_char</span>;
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>std::ffi::CString;
+<span class="kw">use </span>std::os::raw::c_char;
 
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">init_ffi</span>() {
-    <span class="ident">relay_ffi::set_panic_hook</span>();
+<span class="attribute">#[no_mangle]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>init_ffi() {
+    relay_ffi::set_panic_hook();
 }
 
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">last_strerror</span>() -&gt; <span class="kw-2">*mut</span> <span class="ident">c_char</span> {
-    <span class="kw">let</span> <span class="ident">ptr_opt</span> <span class="op">=</span> <span class="ident">relay_ffi::with_last_error</span>(<span class="op">|</span><span class="ident">err</span><span class="op">|</span> {
-        <span class="ident">CString::new</span>(<span class="ident">err</span>.<span class="ident">to_string</span>())
-            .<span class="ident">unwrap_or_default</span>()
-            .<span class="ident">into_raw</span>()
+<span class="attribute">#[no_mangle]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>last_strerror() -&gt; <span class="kw-2">*mut </span>c_char {
+    <span class="kw">let </span>ptr_opt = relay_ffi::with_last_error(|err| {
+        CString::new(err.to_string())
+            .unwrap_or_default()
+            .into_raw()
     });
 
-    <span class="ident">ptr_opt</span>.<span class="ident">unwrap_or</span>(<span class="ident">std::ptr::null_mut</span>())
+    ptr_opt.unwrap_or(std::ptr::null_mut())
 }</code></pre></div>
-</div></details><h2 id="structs" class="small-section-header"><a href="#structs">Structs</a></h2><div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.Panic.html" title="relay_ffi::Panic struct">Panic</a></div><div class="item-right docblock-short"><p>An error representing a panic carrying the message as payload.</p>
-</div></div></div><h2 id="functions" class="small-section-header"><a href="#functions">Functions</a></h2><div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="fn" href="fn.set_panic_hook.html" title="relay_ffi::set_panic_hook fn">set_panic_hook</a></div><div class="item-right docblock-short"><p>Registers a hook for capturing panics with backtraces.</p>
-</div></div><div class="item-row"><div class="item-left module-item"><a class="fn" href="fn.take_last_error.html" title="relay_ffi::take_last_error fn">take_last_error</a></div><div class="item-right docblock-short"><p>Takes the last error, leaving <code>None</code> in its place.</p>
-</div></div><div class="item-row"><div class="item-left module-item"><a class="fn" href="fn.with_last_error.html" title="relay_ffi::with_last_error fn">with_last_error</a></div><div class="item-right docblock-short"><p>Acquires a reference to the last error and passes it to the callback, if any.</p>
-</div></div></div><h2 id="attributes" class="small-section-header"><a href="#attributes">Attribute Macros</a></h2><div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="attr" href="attr.catch_unwind.html" title="relay_ffi::catch_unwind attr">catch_unwind</a></div><div class="item-right docblock-short"><p>Captures errors and panics in a thread-local on <code>unsafe</code> functions.</p>
-</div></div></div></section></div></main><div id="rustdoc-vars" data-root-path="../" data-current-crate="relay_ffi" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</div></details><h2 id="structs" class="small-section-header"><a href="#structs">Structs</a></h2><div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.Panic.html" title="relay_ffi::Panic struct">Panic</a></div><div class="item-right docblock-short">An error representing a panic carrying the message as payload.</div></div></div><h2 id="functions" class="small-section-header"><a href="#functions">Functions</a></h2><div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="fn" href="fn.set_panic_hook.html" title="relay_ffi::set_panic_hook fn">set_panic_hook</a></div><div class="item-right docblock-short">Registers a hook for capturing panics with backtraces.</div></div><div class="item-row"><div class="item-left module-item"><a class="fn" href="fn.take_last_error.html" title="relay_ffi::take_last_error fn">take_last_error</a></div><div class="item-right docblock-short">Takes the last error, leaving <code>None</code> in its place.</div></div><div class="item-row"><div class="item-left module-item"><a class="fn" href="fn.with_last_error.html" title="relay_ffi::with_last_error fn">with_last_error</a></div><div class="item-right docblock-short">Acquires a reference to the last error and passes it to the callback, if any.</div></div></div><h2 id="attributes" class="small-section-header"><a href="#attributes">Attribute Macros</a></h2><div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="attr" href="attr.catch_unwind.html" title="relay_ffi::catch_unwind attr">catch_unwind</a></div><div class="item-right docblock-short">Captures errors and panics in a thread-local on <code>unsafe</code> functions.</div></div></div></section></div></main><div id="rustdoc-vars" data-root-path="../" data-current-crate="relay_ffi" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-log/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_log/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_log/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-log/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_log/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_log/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_log/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -140,145 +140,145 @@
 <span id="138">138</span>
 <span id="139">139</span>
 <span id="140">140</span>
-</pre><pre class="rust"><code><span class="doccomment">//! Error reporting and logging facade for Relay.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! # Setup</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! To enable logging, invoke the [`init`] function with [`logging`](LogConfig) and</span>
-<span class="doccomment">//! [`sentry`](SentryConfig) configuration. The configuration implements `serde` traits, so it can</span>
-<span class="doccomment">//! be obtained from configuration files.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//! use relay_log::{LogConfig, SentryConfig};</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! let log_config = LogConfig {</span>
-<span class="doccomment">//!     enable_backtraces: true,</span>
-<span class="doccomment">//!     ..LogConfig::default()</span>
-<span class="doccomment">//! };</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! let sentry_config = SentryConfig {</span>
-<span class="doccomment">//!     enabled: true,</span>
-<span class="doccomment">//!     ..SentryConfig::default()</span>
-<span class="doccomment">//! };</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! relay_log::init(&amp;log_config, &amp;sentry_config);</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! # Logging</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! The basic use of the log crate is through the five logging macros: [`error!`], [`warn!`],</span>
-<span class="doccomment">//! [`info!`], [`debug!`] and [`trace!`] where `error!` represents the highest-priority log messages</span>
-<span class="doccomment">//! and `trace!` the lowest. The log messages are filtered by configuring the log level to exclude</span>
-<span class="doccomment">//! messages with a lower priority. Each of these macros accept format strings similarly to</span>
-<span class="doccomment">//! [`println!`].</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ## Conventions</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Log messages should start lowercase and end without punctuation. Prefer short and precise log</span>
-<span class="doccomment">//! messages over verbose text. Choose the log level according to these rules:</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! - [`error!`] for bugs and invalid behavior. This will also be reported to Sentry.</span>
-<span class="doccomment">//! - [`warn!`] for undesirable behavior.</span>
-<span class="doccomment">//! - [`info!`] for messages relevant to the average user.</span>
-<span class="doccomment">//! - [`debug!`] for messages usually relevant to debugging.</span>
-<span class="doccomment">//! - [`trace!`] for full auxiliary information.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ## Examples</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//! use relay_log::{LogConfig, SentryConfig};</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! relay_log::info!(&quot;startup complete&quot;);</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! # Error Reporting</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! `sentry` is used for error reporting of all messages logged with an error level. To add custom</span>
-<span class="doccomment">//! scope information, use [`configure_scope`] or [`with_scope`].</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ## Scopes</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//! use relay_log::{LogConfig, SentryConfig};</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! relay_log::with_scope(|scope| scope.set_tag(&quot;custom&quot;, &quot;value&quot;), || {</span>
-<span class="doccomment">//!     relay_log::error!(&quot;this message has a custom tag&quot;);</span>
-<span class="doccomment">//! });</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ## Logging Error Types</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! To log [`Fail`](failure::Fail) errors to both Sentry and the error stream, use the [`LogError`] wrapper. It</span>
-<span class="doccomment">//! formats the error with all its causes, and ensures the format is suitable for error reporting to</span>
-<span class="doccomment">//! Sentry.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//! use std::io::{Error, ErrorKind};</span>
-<span class="doccomment">//! use relay_log::{LogConfig, SentryConfig, LogError};</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! let custom_error = Error::new(ErrorKind::Other, &quot;oh no!&quot;);</span>
-<span class="doccomment">//! relay_log::error!(&quot;operation failed: {}&quot;, LogError(&amp;custom_error));</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ## Capturing without Logging</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Additionally, errors can be captured without logging.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//! use std::io::{Error, ErrorKind};</span>
-<span class="doccomment">//! use relay_log::{LogConfig, SentryConfig};</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! let custom_error = Error::new(ErrorKind::Other, &quot;oh no!&quot;);</span>
-<span class="doccomment">//! relay_log::capture_error(&amp;custom_error);</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! # Testing</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! For unit testing, there is a separate initialization macro [`init_test!`] that should be called</span>
-<span class="doccomment">//! at the beginning of test method. It enables test mode of the logger and customizes log levels</span>
-<span class="doccomment">//! for the current crate.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//! #[test]</span>
-<span class="doccomment">//! fn test_something() {</span>
-<span class="doccomment">//!     relay_log::init_test!();</span>
-<span class="doccomment">//! }</span>
-<span class="doccomment">//! ```</span>
+</pre><pre class="rust"><code><span class="doccomment">//! Error reporting and logging facade for Relay.
+//!
+//! # Setup
+//!
+//! To enable logging, invoke the [`init`] function with [`logging`](LogConfig) and
+//! [`sentry`](SentryConfig) configuration. The configuration implements `serde` traits, so it can
+//! be obtained from configuration files.
+//!
+//! ```
+//! use relay_log::{LogConfig, SentryConfig};
+//!
+//! let log_config = LogConfig {
+//!     enable_backtraces: true,
+//!     ..LogConfig::default()
+//! };
+//!
+//! let sentry_config = SentryConfig {
+//!     enabled: true,
+//!     ..SentryConfig::default()
+//! };
+//!
+//! relay_log::init(&amp;log_config, &amp;sentry_config);
+//! ```
+//!
+//! # Logging
+//!
+//! The basic use of the log crate is through the five logging macros: [`error!`], [`warn!`],
+//! [`info!`], [`debug!`] and [`trace!`] where `error!` represents the highest-priority log messages
+//! and `trace!` the lowest. The log messages are filtered by configuring the log level to exclude
+//! messages with a lower priority. Each of these macros accept format strings similarly to
+//! [`println!`].
+//!
+//! ## Conventions
+//!
+//! Log messages should start lowercase and end without punctuation. Prefer short and precise log
+//! messages over verbose text. Choose the log level according to these rules:
+//!
+//! - [`error!`] for bugs and invalid behavior. This will also be reported to Sentry.
+//! - [`warn!`] for undesirable behavior.
+//! - [`info!`] for messages relevant to the average user.
+//! - [`debug!`] for messages usually relevant to debugging.
+//! - [`trace!`] for full auxiliary information.
+//!
+//! ## Examples
+//!
+//! ```
+//! use relay_log::{LogConfig, SentryConfig};
+//!
+//! relay_log::info!(&quot;startup complete&quot;);
+//! ```
+//!
+//! # Error Reporting
+//!
+//! `sentry` is used for error reporting of all messages logged with an error level. To add custom
+//! scope information, use [`configure_scope`] or [`with_scope`].
+//!
+//! ## Scopes
+//!
+//! ```
+//! use relay_log::{LogConfig, SentryConfig};
+//!
+//! relay_log::with_scope(|scope| scope.set_tag(&quot;custom&quot;, &quot;value&quot;), || {
+//!     relay_log::error!(&quot;this message has a custom tag&quot;);
+//! });
+//! ```
+//!
+//! ## Logging Error Types
+//!
+//! To log [`Fail`](failure::Fail) errors to both Sentry and the error stream, use the [`LogError`] wrapper. It
+//! formats the error with all its causes, and ensures the format is suitable for error reporting to
+//! Sentry.
+//!
+//! ```
+//! use std::io::{Error, ErrorKind};
+//! use relay_log::{LogConfig, SentryConfig, LogError};
+//!
+//! let custom_error = Error::new(ErrorKind::Other, &quot;oh no!&quot;);
+//! relay_log::error!(&quot;operation failed: {}&quot;, LogError(&amp;custom_error));
+//! ```
+//!
+//! ## Capturing without Logging
+//!
+//! Additionally, errors can be captured without logging.
+//!
+//! ```
+//! use std::io::{Error, ErrorKind};
+//! use relay_log::{LogConfig, SentryConfig};
+//!
+//! let custom_error = Error::new(ErrorKind::Other, &quot;oh no!&quot;);
+//! relay_log::capture_error(&amp;custom_error);
+//! ```
+//!
+//! # Testing
+//!
+//! For unit testing, there is a separate initialization macro [`init_test!`] that should be called
+//! at the beginning of test method. It enables test mode of the logger and customizes log levels
+//! for the current crate.
+//!
+//! ```
+//! #[test]
+//! fn test_something() {
+//!     relay_log::init_test!();
+//! }
+//! ```
 
-<span class="attribute">#![<span class="ident">warn</span>(<span class="ident">missing_docs</span>)]</span>
-<span class="attribute">#![<span class="ident">doc</span>(
-    <span class="ident">html_logo_url</span> <span class="op">=</span> <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
-    <span class="ident">html_favicon_url</span> <span class="op">=</span> <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>
-)]</span>
-<span class="attribute">#![<span class="ident">allow</span>(<span class="ident">clippy::derive_partial_eq_without_eq</span>)]</span>
+</span><span class="attribute">#![warn(missing_docs)]
+#![doc(
+    html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
+    html_favicon_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;
+</span>)]
+#![allow(clippy::derive_partial_eq_without_eq)]
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;sentry&quot;</span>)]</span>
-<span class="kw">mod</span> <span class="ident">sentry_failure</span>;
+#[cfg(feature = <span class="string">&quot;sentry&quot;</span>)]
+</span><span class="kw">mod </span>sentry_failure;
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;init&quot;</span>)]</span>
-<span class="kw">mod</span> <span class="ident">setup</span>;
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;init&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">setup</span>::<span class="kw-2">*</span>;
+<span class="attribute">#[cfg(feature = <span class="string">&quot;init&quot;</span>)]
+</span><span class="kw">mod </span>setup;
+<span class="attribute">#[cfg(feature = <span class="string">&quot;init&quot;</span>)]
+</span><span class="kw">pub use </span>setup::<span class="kw-2">*</span>;
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;test&quot;</span>)]</span>
-<span class="kw">mod</span> <span class="ident">test</span>;
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;test&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">test</span>::<span class="kw-2">*</span>;
+<span class="attribute">#[cfg(feature = <span class="string">&quot;test&quot;</span>)]
+</span><span class="kw">mod </span>test;
+<span class="attribute">#[cfg(feature = <span class="string">&quot;test&quot;</span>)]
+</span><span class="kw">pub use </span>test::<span class="kw-2">*</span>;
 
-<span class="kw">mod</span> <span class="ident">utils</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">utils</span>::<span class="kw-2">*</span>;
+<span class="kw">mod </span>utils;
+<span class="kw">pub use </span>utils::<span class="kw-2">*</span>;
 
-<span class="comment">// Expose the minimal log facade.</span>
-<span class="attribute">#[<span class="ident">doc</span>(<span class="ident">inline</span>)]</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">log</span>::{<span class="ident">debug</span>, <span class="ident">error</span>, <span class="ident">info</span>, <span class="ident">log</span>, <span class="ident">trace</span>, <span class="ident">warn</span>};
+<span class="comment">// Expose the minimal log facade.
+</span><span class="attribute">#[doc(inline)]
+</span><span class="kw">pub use </span>log::{debug, error, info, log, trace, warn};
 
-<span class="comment">// Expose the minimal error reporting API.</span>
-<span class="attribute">#[<span class="ident">doc</span>(<span class="ident">inline</span>)]</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">sentry_core</span>::{<span class="ident">capture_error</span>, <span class="ident">configure_scope</span>, <span class="ident">protocol</span>, <span class="ident">with_scope</span>, <span class="ident">Hub</span>};
+<span class="comment">// Expose the minimal error reporting API.
+</span><span class="attribute">#[doc(inline)]
+</span><span class="kw">pub use </span>sentry_core::{capture_error, configure_scope, protocol, with_scope, Hub};
 
-<span class="comment">// Required for the temporarily vendored actix integration.</span>
-<span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;sentry&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">use</span> {<span class="ident">sentry</span> <span class="kw">as</span> <span class="ident">_sentry</span>, <span class="ident">sentry_failure::exception_from_single_fail</span>};
+<span class="comment">// Required for the temporarily vendored actix integration.
+</span><span class="attribute">#[doc(hidden)]
+#[cfg(feature = <span class="string">&quot;sentry&quot;</span>)]
+</span><span class="kw">pub use </span>{sentry <span class="kw">as </span>_sentry, sentry_failure::exception_from_single_fail};
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_log" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_log" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

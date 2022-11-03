@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/metrics_extraction/sessions.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>sessions.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/metrics_extraction/sessions.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>sessions.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_server/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -556,246 +556,246 @@
 <span id="554">554</span>
 <span id="555">555</span>
 <span id="556">556</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
-<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">UnixTimestamp</span>, <span class="ident">Uuid</span>};
-<span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{<span class="ident">SessionAttributes</span>, <span class="ident">SessionErrored</span>, <span class="ident">SessionLike</span>, <span class="ident">SessionStatus</span>};
-<span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">DurationUnit</span>, <span class="ident">Metric</span>, <span class="ident">MetricNamespace</span>, <span class="ident">MetricUnit</span>, <span class="ident">MetricValue</span>};
+<span class="kw">use </span>relay_common::{UnixTimestamp, Uuid};
+<span class="kw">use </span>relay_general::protocol::{SessionAttributes, SessionErrored, SessionLike, SessionStatus};
+<span class="kw">use </span>relay_metrics::{DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">super</span>::utils::with_tag</span>;
+<span class="kw">use </span><span class="kw">super</span>::utils::with_tag;
 
-<span class="doccomment">/// Namespace of session metricsfor the MRI.</span>
-<span class="kw">const</span> <span class="ident">METRIC_NAMESPACE</span>: <span class="ident">MetricNamespace</span> <span class="op">=</span> <span class="ident">MetricNamespace::Sessions</span>;
+<span class="doccomment">/// Namespace of session metricsfor the MRI.
+</span><span class="kw">const </span>METRIC_NAMESPACE: MetricNamespace = MetricNamespace::Sessions;
 
-<span class="doccomment">/// Current version of metrics extraction.</span>
-<span class="kw">const</span> <span class="ident">EXTRACT_VERSION</span>: <span class="ident">u16</span> <span class="op">=</span> <span class="number">1</span>;
+<span class="doccomment">/// Current version of metrics extraction.
+</span><span class="kw">const </span>EXTRACT_VERSION: u16 = <span class="number">1</span>;
 
-<span class="doccomment">/// Configuration for metric extraction from sessions.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Default</span>, <span class="ident">serde::Deserialize</span>, <span class="ident">serde::Serialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SessionMetricsConfig</span> {
-    <span class="doccomment">/// The revision of the extraction algorithm.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Provided the revision is lower than or equal to the revision supported by this Relay,</span>
-    <span class="doccomment">/// metrics are extracted. If the revision is higher than what this Relay supports, it does not</span>
-    <span class="doccomment">/// extract metrics from sessions, and instead forwards them to the upstream.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Version `0` (default) disables extraction.</span>
-    <span class="ident">version</span>: <span class="ident">u16</span>,
+<span class="doccomment">/// Configuration for metric extraction from sessions.
+</span><span class="attribute">#[derive(Debug, Clone, Copy, Default, serde::Deserialize, serde::Serialize)]
+#[serde(default, rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+</span><span class="kw">pub struct </span>SessionMetricsConfig {
+    <span class="doccomment">/// The revision of the extraction algorithm.
+    ///
+    /// Provided the revision is lower than or equal to the revision supported by this Relay,
+    /// metrics are extracted. If the revision is higher than what this Relay supports, it does not
+    /// extract metrics from sessions, and instead forwards them to the upstream.
+    ///
+    /// Version `0` (default) disables extraction.
+    </span>version: u16,
 
-    <span class="doccomment">/// Drop sessions after successfully extracting metrics.</span>
-    <span class="ident">drop</span>: <span class="ident">bool</span>,
+    <span class="doccomment">/// Drop sessions after successfully extracting metrics.
+    </span>drop: bool,
 }
 
-<span class="kw">impl</span> <span class="ident">SessionMetricsConfig</span> {
-    <span class="doccomment">/// Returns `true` if session metrics is enabled and compatible.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_enabled</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">version</span> <span class="op">&gt;</span> <span class="number">0</span> <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">version</span> <span class="op">&lt;</span><span class="op">=</span> <span class="ident">EXTRACT_VERSION</span>
+<span class="kw">impl </span>SessionMetricsConfig {
+    <span class="doccomment">/// Returns `true` if session metrics is enabled and compatible.
+    </span><span class="kw">pub fn </span>is_enabled(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.version &gt; <span class="number">0 </span>&amp;&amp; <span class="self">self</span>.version &lt;= EXTRACT_VERSION
     }
 
-    <span class="doccomment">/// Returns `true` if Relay should not extract metrics from sessions.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_disabled</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="op">!</span><span class="self">self</span>.<span class="ident">is_enabled</span>()
+    <span class="doccomment">/// Returns `true` if Relay should not extract metrics from sessions.
+    </span><span class="kw">pub fn </span>is_disabled(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        !<span class="self">self</span>.is_enabled()
     }
 
-    <span class="doccomment">/// Returns `true` if the session should be dropped after extracting metrics.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">should_drop</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">drop</span>
+    <span class="doccomment">/// Returns `true` if the session should be dropped after extracting metrics.
+    </span><span class="kw">pub fn </span>should_drop(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.drop
     }
 }
 
-<span class="doccomment">/// Convert contained nil UUIDs to None</span>
-<span class="kw">fn</span> <span class="ident">nil_to_none</span>(<span class="ident">distinct_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">String</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">String</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">distinct_id</span> <span class="op">=</span> <span class="ident">distinct_id</span><span class="question-mark">?</span>;
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">uuid</span>) <span class="op">=</span> <span class="ident">distinct_id</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">Uuid</span><span class="op">&gt;</span>() {
-        <span class="kw">if</span> <span class="ident">uuid</span>.<span class="ident">is_nil</span>() {
-            <span class="kw">return</span> <span class="prelude-val">None</span>;
+<span class="doccomment">/// Convert contained nil UUIDs to None
+</span><span class="kw">fn </span>nil_to_none(distinct_id: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>String&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>String&gt; {
+    <span class="kw">let </span>distinct_id = distinct_id<span class="question-mark">?</span>;
+    <span class="kw">if let </span><span class="prelude-val">Ok</span>(uuid) = distinct_id.parse::&lt;Uuid&gt;() {
+        <span class="kw">if </span>uuid.is_nil() {
+            <span class="kw">return </span><span class="prelude-val">None</span>;
         }
     }
 
-    <span class="prelude-val">Some</span>(<span class="ident">distinct_id</span>)
+    <span class="prelude-val">Some</span>(distinct_id)
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">extract_session_metrics</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">SessionLike</span><span class="op">&gt;</span>(
-    <span class="ident">attributes</span>: <span class="kw-2">&amp;</span><span class="ident">SessionAttributes</span>,
-    <span class="ident">session</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>,
-    <span class="ident">client</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>,
-    <span class="ident">target</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Metric</span><span class="op">&gt;</span>,
+<span class="kw">pub fn </span>extract_session_metrics&lt;T: SessionLike&gt;(
+    attributes: <span class="kw-2">&amp;</span>SessionAttributes,
+    session: <span class="kw-2">&amp;</span>T,
+    client: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
+    target: <span class="kw-2">&amp;mut </span>Vec&lt;Metric&gt;,
 ) {
-    <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">UnixTimestamp::from_datetime</span>(<span class="ident">session</span>.<span class="ident">started</span>()) {
-        <span class="prelude-val">Some</span>(<span class="ident">ts</span>) =&gt; <span class="ident">ts</span>,
-        <span class="prelude-val">None</span> =&gt; {
-            <span class="macro">relay_log::error!</span>(<span class="string">&quot;invalid session started timestamp: {}&quot;</span>, <span class="ident">session</span>.<span class="ident">started</span>());
+    <span class="kw">let </span>timestamp = <span class="kw">match </span>UnixTimestamp::from_datetime(session.started()) {
+        <span class="prelude-val">Some</span>(ts) =&gt; ts,
+        <span class="prelude-val">None </span>=&gt; {
+            <span class="macro">relay_log::error!</span>(<span class="string">&quot;invalid session started timestamp: {}&quot;</span>, session.started());
             <span class="kw">return</span>;
         }
     };
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">tags</span> <span class="op">=</span> <span class="ident">BTreeMap::new</span>();
-    <span class="ident">tags</span>.<span class="ident">insert</span>(<span class="string">&quot;release&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">attributes</span>.<span class="ident">release</span>.<span class="ident">clone</span>());
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">environment</span>) <span class="op">=</span> <span class="ident">attributes</span>.<span class="ident">environment</span> {
-        <span class="ident">tags</span>.<span class="ident">insert</span>(<span class="string">&quot;environment&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">environment</span>.<span class="ident">clone</span>());
+    <span class="kw">let </span><span class="kw-2">mut </span>tags = BTreeMap::new();
+    tags.insert(<span class="string">&quot;release&quot;</span>.to_owned(), attributes.release.clone());
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>environment) = attributes.environment {
+        tags.insert(<span class="string">&quot;environment&quot;</span>.to_owned(), environment.clone());
     }
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">client</span>) <span class="op">=</span> <span class="ident">client</span> {
-        <span class="ident">tags</span>.<span class="ident">insert</span>(<span class="string">&quot;sdk&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">client</span>.<span class="ident">to_owned</span>());
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(client) = client {
+        tags.insert(<span class="string">&quot;sdk&quot;</span>.to_owned(), client.to_owned());
     }
 
-    <span class="comment">// Always capture with &quot;init&quot; tag for the first session update of a session. This is used</span>
-    <span class="comment">// for adoption and as baseline for crash rates.</span>
-    <span class="kw">if</span> <span class="ident">session</span>.<span class="ident">total_count</span>() <span class="op">&gt;</span> <span class="number">0</span> {
-        <span class="ident">target</span>.<span class="ident">push</span>(<span class="ident">Metric::new_mri</span>(
-            <span class="ident">METRIC_NAMESPACE</span>,
+    <span class="comment">// Always capture with &quot;init&quot; tag for the first session update of a session. This is used
+    // for adoption and as baseline for crash rates.
+    </span><span class="kw">if </span>session.total_count() &gt; <span class="number">0 </span>{
+        target.push(Metric::new_mri(
+            METRIC_NAMESPACE,
             <span class="string">&quot;session&quot;</span>,
-            <span class="ident">MetricUnit::None</span>,
-            <span class="ident">MetricValue::Counter</span>(<span class="ident">session</span>.<span class="ident">total_count</span>() <span class="kw">as</span> <span class="ident">f64</span>),
-            <span class="ident">timestamp</span>,
-            <span class="ident">with_tag</span>(<span class="kw-2">&amp;</span><span class="ident">tags</span>, <span class="string">&quot;session.status&quot;</span>, <span class="string">&quot;init&quot;</span>),
+            MetricUnit::None,
+            MetricValue::Counter(session.total_count() <span class="kw">as </span>f64),
+            timestamp,
+            with_tag(<span class="kw-2">&amp;</span>tags, <span class="string">&quot;session.status&quot;</span>, <span class="string">&quot;init&quot;</span>),
         ));
     }
 
-    <span class="comment">// Mark the session as errored, which includes fatal sessions.</span>
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">errors</span>) <span class="op">=</span> <span class="ident">session</span>.<span class="ident">all_errors</span>() {
-        <span class="ident">target</span>.<span class="ident">push</span>(<span class="kw">match</span> <span class="ident">errors</span> {
-            <span class="ident">SessionErrored::Individual</span>(<span class="ident">session_id</span>) =&gt; <span class="ident">Metric::new_mri</span>(
-                <span class="ident">METRIC_NAMESPACE</span>,
+    <span class="comment">// Mark the session as errored, which includes fatal sessions.
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(errors) = session.all_errors() {
+        target.push(<span class="kw">match </span>errors {
+            SessionErrored::Individual(session_id) =&gt; Metric::new_mri(
+                METRIC_NAMESPACE,
                 <span class="string">&quot;error&quot;</span>,
-                <span class="ident">MetricUnit::None</span>,
-                <span class="ident">MetricValue::set_from_display</span>(<span class="ident">session_id</span>),
-                <span class="ident">timestamp</span>,
-                <span class="ident">tags</span>.<span class="ident">clone</span>(),
+                MetricUnit::None,
+                MetricValue::set_from_display(session_id),
+                timestamp,
+                tags.clone(),
             ),
-            <span class="ident">SessionErrored::Aggregated</span>(<span class="ident">count</span>) =&gt; <span class="ident">Metric::new_mri</span>(
-                <span class="ident">METRIC_NAMESPACE</span>,
+            SessionErrored::Aggregated(count) =&gt; Metric::new_mri(
+                METRIC_NAMESPACE,
                 <span class="string">&quot;session&quot;</span>,
-                <span class="ident">MetricUnit::None</span>,
-                <span class="ident">MetricValue::Counter</span>(<span class="ident">count</span> <span class="kw">as</span> <span class="ident">f64</span>),
-                <span class="ident">timestamp</span>,
-                <span class="ident">with_tag</span>(<span class="kw-2">&amp;</span><span class="ident">tags</span>, <span class="string">&quot;session.status&quot;</span>, <span class="string">&quot;errored_preaggr&quot;</span>),
+                MetricUnit::None,
+                MetricValue::Counter(count <span class="kw">as </span>f64),
+                timestamp,
+                with_tag(<span class="kw-2">&amp;</span>tags, <span class="string">&quot;session.status&quot;</span>, <span class="string">&quot;errored_preaggr&quot;</span>),
             ),
         });
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">distinct_id</span>) <span class="op">=</span> <span class="ident">nil_to_none</span>(<span class="ident">session</span>.<span class="ident">distinct_id</span>()) {
-            <span class="ident">target</span>.<span class="ident">push</span>(<span class="ident">Metric::new_mri</span>(
-                <span class="ident">METRIC_NAMESPACE</span>,
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(distinct_id) = nil_to_none(session.distinct_id()) {
+            target.push(Metric::new_mri(
+                METRIC_NAMESPACE,
                 <span class="string">&quot;user&quot;</span>,
-                <span class="ident">MetricUnit::None</span>,
-                <span class="ident">MetricValue::set_from_str</span>(<span class="ident">distinct_id</span>),
-                <span class="ident">timestamp</span>,
-                <span class="ident">with_tag</span>(<span class="kw-2">&amp;</span><span class="ident">tags</span>, <span class="string">&quot;session.status&quot;</span>, <span class="string">&quot;errored&quot;</span>),
+                MetricUnit::None,
+                MetricValue::set_from_str(distinct_id),
+                timestamp,
+                with_tag(<span class="kw-2">&amp;</span>tags, <span class="string">&quot;session.status&quot;</span>, <span class="string">&quot;errored&quot;</span>),
             ));
         }
-    } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">distinct_id</span>) <span class="op">=</span> <span class="ident">nil_to_none</span>(<span class="ident">session</span>.<span class="ident">distinct_id</span>()) {
-        <span class="comment">// For session updates without errors, we collect the user without a session.status tag.</span>
-        <span class="comment">// To get the number of healthy users (i.e. users without a single errored session), query</span>
-        <span class="comment">// |users| - |users{session.status:errored}|</span>
-        <span class="ident">target</span>.<span class="ident">push</span>(<span class="ident">Metric::new_mri</span>(
-            <span class="ident">METRIC_NAMESPACE</span>,
+    } <span class="kw">else if let </span><span class="prelude-val">Some</span>(distinct_id) = nil_to_none(session.distinct_id()) {
+        <span class="comment">// For session updates without errors, we collect the user without a session.status tag.
+        // To get the number of healthy users (i.e. users without a single errored session), query
+        // |users| - |users{session.status:errored}|
+        </span>target.push(Metric::new_mri(
+            METRIC_NAMESPACE,
             <span class="string">&quot;user&quot;</span>,
-            <span class="ident">MetricUnit::None</span>,
-            <span class="ident">MetricValue::set_from_str</span>(<span class="ident">distinct_id</span>),
-            <span class="ident">timestamp</span>,
-            <span class="ident">tags</span>.<span class="ident">clone</span>(),
+            MetricUnit::None,
+            MetricValue::set_from_str(distinct_id),
+            timestamp,
+            tags.clone(),
         ));
     }
 
-    <span class="comment">// Record fatal sessions for crash rate computation. This is a strict subset of errored</span>
-    <span class="comment">// sessions above.</span>
-    <span class="kw">if</span> <span class="ident">session</span>.<span class="ident">abnormal_count</span>() <span class="op">&gt;</span> <span class="number">0</span> {
-        <span class="ident">target</span>.<span class="ident">push</span>(<span class="ident">Metric::new_mri</span>(
-            <span class="ident">METRIC_NAMESPACE</span>,
+    <span class="comment">// Record fatal sessions for crash rate computation. This is a strict subset of errored
+    // sessions above.
+    </span><span class="kw">if </span>session.abnormal_count() &gt; <span class="number">0 </span>{
+        target.push(Metric::new_mri(
+            METRIC_NAMESPACE,
             <span class="string">&quot;session&quot;</span>,
-            <span class="ident">MetricUnit::None</span>,
-            <span class="ident">MetricValue::Counter</span>(<span class="ident">session</span>.<span class="ident">abnormal_count</span>() <span class="kw">as</span> <span class="ident">f64</span>),
-            <span class="ident">timestamp</span>,
-            <span class="ident">with_tag</span>(<span class="kw-2">&amp;</span><span class="ident">tags</span>, <span class="string">&quot;session.status&quot;</span>, <span class="ident">SessionStatus::Abnormal</span>),
+            MetricUnit::None,
+            MetricValue::Counter(session.abnormal_count() <span class="kw">as </span>f64),
+            timestamp,
+            with_tag(<span class="kw-2">&amp;</span>tags, <span class="string">&quot;session.status&quot;</span>, SessionStatus::Abnormal),
         ));
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">distinct_id</span>) <span class="op">=</span> <span class="ident">nil_to_none</span>(<span class="ident">session</span>.<span class="ident">distinct_id</span>()) {
-            <span class="ident">target</span>.<span class="ident">push</span>(<span class="ident">Metric::new_mri</span>(
-                <span class="ident">METRIC_NAMESPACE</span>,
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(distinct_id) = nil_to_none(session.distinct_id()) {
+            target.push(Metric::new_mri(
+                METRIC_NAMESPACE,
                 <span class="string">&quot;user&quot;</span>,
-                <span class="ident">MetricUnit::None</span>,
-                <span class="ident">MetricValue::set_from_str</span>(<span class="ident">distinct_id</span>),
-                <span class="ident">timestamp</span>,
-                <span class="ident">with_tag</span>(<span class="kw-2">&amp;</span><span class="ident">tags</span>, <span class="string">&quot;session.status&quot;</span>, <span class="ident">SessionStatus::Abnormal</span>),
+                MetricUnit::None,
+                MetricValue::set_from_str(distinct_id),
+                timestamp,
+                with_tag(<span class="kw-2">&amp;</span>tags, <span class="string">&quot;session.status&quot;</span>, SessionStatus::Abnormal),
             ));
         }
     }
 
-    <span class="kw">if</span> <span class="ident">session</span>.<span class="ident">crashed_count</span>() <span class="op">&gt;</span> <span class="number">0</span> {
-        <span class="ident">target</span>.<span class="ident">push</span>(<span class="ident">Metric::new_mri</span>(
-            <span class="ident">METRIC_NAMESPACE</span>,
+    <span class="kw">if </span>session.crashed_count() &gt; <span class="number">0 </span>{
+        target.push(Metric::new_mri(
+            METRIC_NAMESPACE,
             <span class="string">&quot;session&quot;</span>,
-            <span class="ident">MetricUnit::None</span>,
-            <span class="ident">MetricValue::Counter</span>(<span class="ident">session</span>.<span class="ident">crashed_count</span>() <span class="kw">as</span> <span class="ident">f64</span>),
-            <span class="ident">timestamp</span>,
-            <span class="ident">with_tag</span>(<span class="kw-2">&amp;</span><span class="ident">tags</span>, <span class="string">&quot;session.status&quot;</span>, <span class="ident">SessionStatus::Crashed</span>),
+            MetricUnit::None,
+            MetricValue::Counter(session.crashed_count() <span class="kw">as </span>f64),
+            timestamp,
+            with_tag(<span class="kw-2">&amp;</span>tags, <span class="string">&quot;session.status&quot;</span>, SessionStatus::Crashed),
         ));
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">distinct_id</span>) <span class="op">=</span> <span class="ident">nil_to_none</span>(<span class="ident">session</span>.<span class="ident">distinct_id</span>()) {
-            <span class="ident">target</span>.<span class="ident">push</span>(<span class="ident">Metric::new_mri</span>(
-                <span class="ident">METRIC_NAMESPACE</span>,
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(distinct_id) = nil_to_none(session.distinct_id()) {
+            target.push(Metric::new_mri(
+                METRIC_NAMESPACE,
                 <span class="string">&quot;user&quot;</span>,
-                <span class="ident">MetricUnit::None</span>,
-                <span class="ident">MetricValue::set_from_str</span>(<span class="ident">distinct_id</span>),
-                <span class="ident">timestamp</span>,
-                <span class="ident">with_tag</span>(<span class="kw-2">&amp;</span><span class="ident">tags</span>, <span class="string">&quot;session.status&quot;</span>, <span class="ident">SessionStatus::Crashed</span>),
+                MetricUnit::None,
+                MetricValue::set_from_str(distinct_id),
+                timestamp,
+                with_tag(<span class="kw-2">&amp;</span>tags, <span class="string">&quot;session.status&quot;</span>, SessionStatus::Crashed),
             ));
         }
     }
 
-    <span class="comment">// Count durations only for exited sessions, since Sentry doesn&#39;t use durations for other types of sessions.</span>
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="ident">duration</span>, <span class="ident">status</span>)) <span class="op">=</span> <span class="ident">session</span>.<span class="ident">final_duration</span>() {
-        <span class="kw">if</span> <span class="ident">status</span> <span class="op">==</span> <span class="ident">SessionStatus::Exited</span> {
-            <span class="ident">target</span>.<span class="ident">push</span>(<span class="ident">Metric::new_mri</span>(
-                <span class="ident">METRIC_NAMESPACE</span>,
+    <span class="comment">// Count durations only for exited sessions, since Sentry doesn&#39;t use durations for other types of sessions.
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>((duration, status)) = session.final_duration() {
+        <span class="kw">if </span>status == SessionStatus::Exited {
+            target.push(Metric::new_mri(
+                METRIC_NAMESPACE,
                 <span class="string">&quot;duration&quot;</span>,
-                <span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::Second</span>),
-                <span class="ident">MetricValue::Distribution</span>(<span class="ident">duration</span>),
-                <span class="ident">timestamp</span>,
-                <span class="ident">with_tag</span>(<span class="kw-2">&amp;</span><span class="ident">tags</span>, <span class="string">&quot;session.status&quot;</span>, <span class="ident">status</span>),
+                MetricUnit::Duration(DurationUnit::Second),
+                MetricValue::Distribution(duration),
+                timestamp,
+                with_tag(<span class="kw-2">&amp;</span>tags, <span class="string">&quot;session.status&quot;</span>, status),
             ));
         }
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{<span class="ident">SessionAggregates</span>, <span class="ident">SessionUpdate</span>};
-    <span class="kw">use</span> <span class="ident">relay_metrics::MetricValue</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>relay_general::protocol::{SessionAggregates, SessionUpdate};
+    <span class="kw">use </span>relay_metrics::MetricValue;
 
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">fn</span> <span class="ident">started</span>() -&gt; <span class="ident">UnixTimestamp</span> {
-        <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">1619420400</span>)
+    <span class="kw">fn </span>started() -&gt; UnixTimestamp {
+        UnixTimestamp::from_secs(<span class="number">1619420400</span>)
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_nil_to_none</span>() {
-        <span class="macro">assert!</span>(<span class="ident">nil_to_none</span>(<span class="prelude-val">None</span>).<span class="ident">is_none</span>());
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_nil_to_none() {
+        <span class="macro">assert!</span>(nil_to_none(<span class="prelude-val">None</span>).is_none());
 
-        <span class="kw">let</span> <span class="ident">asdf</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="string">&quot;asdf&quot;</span>.<span class="ident">to_owned</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">nil_to_none</span>(<span class="ident">asdf</span>.<span class="ident">as_ref</span>()).<span class="ident">unwrap</span>(), <span class="string">&quot;asdf&quot;</span>);
+        <span class="kw">let </span>asdf = <span class="prelude-val">Some</span>(<span class="string">&quot;asdf&quot;</span>.to_owned());
+        <span class="macro">assert_eq!</span>(nil_to_none(asdf.as_ref()).unwrap(), <span class="string">&quot;asdf&quot;</span>);
 
-        <span class="kw">let</span> <span class="ident">nil</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="string">&quot;00000000-0000-0000-0000-000000000000&quot;</span>.<span class="ident">to_owned</span>());
-        <span class="macro">assert!</span>(<span class="ident">nil_to_none</span>(<span class="ident">nil</span>.<span class="ident">as_ref</span>()).<span class="ident">is_none</span>());
+        <span class="kw">let </span>nil = <span class="prelude-val">Some</span>(<span class="string">&quot;00000000-0000-0000-0000-000000000000&quot;</span>.to_owned());
+        <span class="macro">assert!</span>(nil_to_none(nil.as_ref()).is_none());
 
-        <span class="kw">let</span> <span class="ident">nil2</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="string">&quot;00000000000000000000000000000000&quot;</span>.<span class="ident">to_owned</span>());
-        <span class="macro">assert!</span>(<span class="ident">nil_to_none</span>(<span class="ident">nil2</span>.<span class="ident">as_ref</span>()).<span class="ident">is_none</span>());
+        <span class="kw">let </span>nil2 = <span class="prelude-val">Some</span>(<span class="string">&quot;00000000000000000000000000000000&quot;</span>.to_owned());
+        <span class="macro">assert!</span>(nil_to_none(nil2.as_ref()).is_none());
 
-        <span class="kw">let</span> <span class="ident">not_nil</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="string">&quot;00000000-0000-0000-0000-000000000123&quot;</span>.<span class="ident">to_owned</span>());
+        <span class="kw">let </span>not_nil = <span class="prelude-val">Some</span>(<span class="string">&quot;00000000-0000-0000-0000-000000000123&quot;</span>.to_owned());
         <span class="macro">assert_eq!</span>(
-            <span class="ident">nil_to_none</span>(<span class="ident">not_nil</span>.<span class="ident">as_ref</span>()).<span class="ident">unwrap</span>(),
-            <span class="ident">not_nil</span>.<span class="ident">as_ref</span>().<span class="ident">unwrap</span>()
+            nil_to_none(not_nil.as_ref()).unwrap(),
+            not_nil.as_ref().unwrap()
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="kw">fn</span> <span class="ident">test_extract_session_metrics</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
+    <span class="attribute">#[test]
+    #[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span><span class="kw">fn </span>test_extract_session_metrics() {
+        <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
 
-        <span class="kw">let</span> <span class="ident">client</span> <span class="op">=</span> <span class="string">&quot;sentry-test/1.0&quot;</span>;
-        <span class="kw">let</span> <span class="ident">session</span> <span class="op">=</span> <span class="ident">SessionUpdate::parse</span>(
+        <span class="kw">let </span>client = <span class="string">&quot;sentry-test/1.0&quot;</span>;
+        <span class="kw">let </span>session = SessionUpdate::parse(
             <span class="string">r#&quot;{
             &quot;init&quot;: true,
             &quot;started&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
@@ -803,37 +803,37 @@
                 &quot;release&quot;: &quot;1.0.0&quot;
             },
             &quot;did&quot;: &quot;user123&quot;
-        }&quot;#</span>
-            .<span class="ident">as_bytes</span>(),
+        }&quot;#
+            </span>.as_bytes(),
         )
-        .<span class="ident">unwrap</span>();
+        .unwrap();
 
-        <span class="ident">extract_session_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">session</span>.<span class="ident">attributes</span>, <span class="kw-2">&amp;</span><span class="ident">session</span>, <span class="prelude-val">Some</span>(<span class="ident">client</span>), <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
+        extract_session_metrics(<span class="kw-2">&amp;</span>session.attributes, <span class="kw-2">&amp;</span>session, <span class="prelude-val">Some</span>(client), <span class="kw-2">&amp;mut </span>metrics);
 
-        <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>.<span class="ident">len</span>(), <span class="number">2</span>);
+        <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">2</span>);
 
-        <span class="kw">let</span> <span class="ident">session_metric</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">metrics</span>[<span class="number">0</span>];
-        <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">timestamp</span>, <span class="ident">started</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">name</span>, <span class="string">&quot;c:sessions/session@none&quot;</span>);
-        <span class="macro">assert!</span>(<span class="macro">matches!</span>(<span class="ident">session_metric</span>.<span class="ident">value</span>, <span class="ident">MetricValue::Counter</span>(<span class="kw">_</span>)));
-        <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;session.status&quot;</span>], <span class="string">&quot;init&quot;</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;release&quot;</span>], <span class="string">&quot;1.0.0&quot;</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;sdk&quot;</span>], <span class="ident">client</span>);
+        <span class="kw">let </span>session_metric = <span class="kw-2">&amp;</span>metrics[<span class="number">0</span>];
+        <span class="macro">assert_eq!</span>(session_metric.timestamp, started());
+        <span class="macro">assert_eq!</span>(session_metric.name, <span class="string">&quot;c:sessions/session@none&quot;</span>);
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(session_metric.value, MetricValue::Counter(<span class="kw">_</span>)));
+        <span class="macro">assert_eq!</span>(session_metric.tags[<span class="string">&quot;session.status&quot;</span>], <span class="string">&quot;init&quot;</span>);
+        <span class="macro">assert_eq!</span>(session_metric.tags[<span class="string">&quot;release&quot;</span>], <span class="string">&quot;1.0.0&quot;</span>);
+        <span class="macro">assert_eq!</span>(session_metric.tags[<span class="string">&quot;sdk&quot;</span>], client);
 
-        <span class="kw">let</span> <span class="ident">user_metric</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">metrics</span>[<span class="number">1</span>];
-        <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">timestamp</span>, <span class="ident">started</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">name</span>, <span class="string">&quot;s:sessions/user@none&quot;</span>);
-        <span class="macro">assert!</span>(<span class="macro">matches!</span>(<span class="ident">user_metric</span>.<span class="ident">value</span>, <span class="ident">MetricValue::Set</span>(<span class="kw">_</span>)));
-        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">user_metric</span>.<span class="ident">tags</span>.<span class="ident">contains_key</span>(<span class="string">&quot;session.status&quot;</span>));
-        <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;release&quot;</span>], <span class="string">&quot;1.0.0&quot;</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;sdk&quot;</span>], <span class="ident">client</span>);
+        <span class="kw">let </span>user_metric = <span class="kw-2">&amp;</span>metrics[<span class="number">1</span>];
+        <span class="macro">assert_eq!</span>(user_metric.timestamp, started());
+        <span class="macro">assert_eq!</span>(user_metric.name, <span class="string">&quot;s:sessions/user@none&quot;</span>);
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(user_metric.value, MetricValue::Set(<span class="kw">_</span>)));
+        <span class="macro">assert!</span>(!user_metric.tags.contains_key(<span class="string">&quot;session.status&quot;</span>));
+        <span class="macro">assert_eq!</span>(user_metric.tags[<span class="string">&quot;release&quot;</span>], <span class="string">&quot;1.0.0&quot;</span>);
+        <span class="macro">assert_eq!</span>(user_metric.tags[<span class="string">&quot;sdk&quot;</span>], client);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_extract_session_metrics_ok</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_extract_session_metrics_ok() {
+        <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
 
-        <span class="kw">let</span> <span class="ident">session</span> <span class="op">=</span> <span class="ident">SessionUpdate::parse</span>(
+        <span class="kw">let </span>session = SessionUpdate::parse(
             <span class="string">r#&quot;{
                 &quot;init&quot;: false,
                 &quot;started&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
@@ -841,24 +841,24 @@
                     &quot;release&quot;: &quot;1.0.0&quot;
                 },
                 &quot;did&quot;: &quot;user123&quot;
-            }&quot;#</span>
-            .<span class="ident">as_bytes</span>(),
+            }&quot;#
+            </span>.as_bytes(),
         )
-        .<span class="ident">unwrap</span>();
+        .unwrap();
 
-        <span class="ident">extract_session_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">session</span>.<span class="ident">attributes</span>, <span class="kw-2">&amp;</span><span class="ident">session</span>, <span class="prelude-val">None</span>, <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
+        extract_session_metrics(<span class="kw-2">&amp;</span>session.attributes, <span class="kw-2">&amp;</span>session, <span class="prelude-val">None</span>, <span class="kw-2">&amp;mut </span>metrics);
 
-        <span class="comment">// A none-initial update which is not errored/crashed/abnormal will only emit a user metric.</span>
-        <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>.<span class="ident">len</span>(), <span class="number">1</span>);
-        <span class="kw">let</span> <span class="ident">user_metric</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">metrics</span>[<span class="number">0</span>];
-        <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">name</span>, <span class="string">&quot;s:sessions/user@none&quot;</span>);
-        <span class="macro">assert!</span>(<span class="macro">matches!</span>(<span class="ident">user_metric</span>.<span class="ident">value</span>, <span class="ident">MetricValue::Set</span>(<span class="kw">_</span>)));
-        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">user_metric</span>.<span class="ident">tags</span>.<span class="ident">contains_key</span>(<span class="string">&quot;session.status&quot;</span>));
+        <span class="comment">// A none-initial update which is not errored/crashed/abnormal will only emit a user metric.
+        </span><span class="macro">assert_eq!</span>(metrics.len(), <span class="number">1</span>);
+        <span class="kw">let </span>user_metric = <span class="kw-2">&amp;</span>metrics[<span class="number">0</span>];
+        <span class="macro">assert_eq!</span>(user_metric.name, <span class="string">&quot;s:sessions/user@none&quot;</span>);
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(user_metric.value, MetricValue::Set(<span class="kw">_</span>)));
+        <span class="macro">assert!</span>(!user_metric.tags.contains_key(<span class="string">&quot;session.status&quot;</span>));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_extract_session_metrics_errored</span>() {
-        <span class="kw">let</span> <span class="ident">update1</span> <span class="op">=</span> <span class="ident">SessionUpdate::parse</span>(
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_extract_session_metrics_errored() {
+        <span class="kw">let </span>update1 = SessionUpdate::parse(
             <span class="string">r#&quot;{
                 &quot;init&quot;: true,
                 &quot;started&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
@@ -867,47 +867,47 @@
                 },
                 &quot;did&quot;: &quot;user123&quot;,
                 &quot;status&quot;: &quot;errored&quot;
-            }&quot;#</span>
-            .<span class="ident">as_bytes</span>(),
+            }&quot;#
+            </span>.as_bytes(),
         )
-        .<span class="ident">unwrap</span>();
+        .unwrap();
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">update2</span> <span class="op">=</span> <span class="ident">update1</span>.<span class="ident">clone</span>();
-        <span class="ident">update2</span>.<span class="ident">init</span> <span class="op">=</span> <span class="bool-val">false</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>update2 = update1.clone();
+        update2.init = <span class="bool-val">false</span>;
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">update3</span> <span class="op">=</span> <span class="ident">update2</span>.<span class="ident">clone</span>();
-        <span class="ident">update3</span>.<span class="ident">status</span> <span class="op">=</span> <span class="ident">SessionStatus::Ok</span>;
-        <span class="ident">update3</span>.<span class="ident">errors</span> <span class="op">=</span> <span class="number">123</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>update3 = update2.clone();
+        update3.status = SessionStatus::Ok;
+        update3.errors = <span class="number">123</span>;
 
-        <span class="kw">for</span> (<span class="ident">update</span>, <span class="ident">expected_metrics</span>) <span class="kw">in</span> <span class="macro">vec!</span>[
-            (<span class="ident">update1</span>, <span class="number">3</span>), <span class="comment">// init == true, so expect 3 metrics</span>
-            (<span class="ident">update2</span>, <span class="number">2</span>),
-            (<span class="ident">update3</span>, <span class="number">2</span>),
+        <span class="kw">for </span>(update, expected_metrics) <span class="kw">in </span><span class="macro">vec!</span>[
+            (update1, <span class="number">3</span>), <span class="comment">// init == true, so expect 3 metrics
+            </span>(update2, <span class="number">2</span>),
+            (update3, <span class="number">2</span>),
         ] {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
-            <span class="ident">extract_session_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">update</span>.<span class="ident">attributes</span>, <span class="kw-2">&amp;</span><span class="ident">update</span>, <span class="prelude-val">None</span>, <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
+            <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
+            extract_session_metrics(<span class="kw-2">&amp;</span>update.attributes, <span class="kw-2">&amp;</span>update, <span class="prelude-val">None</span>, <span class="kw-2">&amp;mut </span>metrics);
 
-            <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>.<span class="ident">len</span>(), <span class="ident">expected_metrics</span>);
+            <span class="macro">assert_eq!</span>(metrics.len(), expected_metrics);
 
-            <span class="kw">let</span> <span class="ident">session_metric</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">metrics</span>[<span class="ident">expected_metrics</span> <span class="op">-</span> <span class="number">2</span>];
-            <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">timestamp</span>, <span class="ident">started</span>());
-            <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">name</span>, <span class="string">&quot;s:sessions/error@none&quot;</span>);
-            <span class="macro">assert!</span>(<span class="macro">matches!</span>(<span class="ident">session_metric</span>.<span class="ident">value</span>, <span class="ident">MetricValue::Set</span>(<span class="kw">_</span>)));
-            <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">tags</span>.<span class="ident">len</span>(), <span class="number">1</span>); <span class="comment">// Only the release tag</span>
+            <span class="kw">let </span>session_metric = <span class="kw-2">&amp;</span>metrics[expected_metrics - <span class="number">2</span>];
+            <span class="macro">assert_eq!</span>(session_metric.timestamp, started());
+            <span class="macro">assert_eq!</span>(session_metric.name, <span class="string">&quot;s:sessions/error@none&quot;</span>);
+            <span class="macro">assert!</span>(<span class="macro">matches!</span>(session_metric.value, MetricValue::Set(<span class="kw">_</span>)));
+            <span class="macro">assert_eq!</span>(session_metric.tags.len(), <span class="number">1</span>); <span class="comment">// Only the release tag
 
-            <span class="kw">let</span> <span class="ident">user_metric</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">metrics</span>[<span class="ident">expected_metrics</span> <span class="op">-</span> <span class="number">1</span>];
-            <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">timestamp</span>, <span class="ident">started</span>());
-            <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">name</span>, <span class="string">&quot;s:sessions/user@none&quot;</span>);
-            <span class="macro">assert!</span>(<span class="macro">matches!</span>(<span class="ident">user_metric</span>.<span class="ident">value</span>, <span class="ident">MetricValue::Set</span>(<span class="kw">_</span>)));
-            <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;session.status&quot;</span>], <span class="string">&quot;errored&quot;</span>);
-            <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;release&quot;</span>], <span class="string">&quot;1.0.0&quot;</span>);
+            </span><span class="kw">let </span>user_metric = <span class="kw-2">&amp;</span>metrics[expected_metrics - <span class="number">1</span>];
+            <span class="macro">assert_eq!</span>(user_metric.timestamp, started());
+            <span class="macro">assert_eq!</span>(user_metric.name, <span class="string">&quot;s:sessions/user@none&quot;</span>);
+            <span class="macro">assert!</span>(<span class="macro">matches!</span>(user_metric.value, MetricValue::Set(<span class="kw">_</span>)));
+            <span class="macro">assert_eq!</span>(user_metric.tags[<span class="string">&quot;session.status&quot;</span>], <span class="string">&quot;errored&quot;</span>);
+            <span class="macro">assert_eq!</span>(user_metric.tags[<span class="string">&quot;release&quot;</span>], <span class="string">&quot;1.0.0&quot;</span>);
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_extract_session_metrics_fatal</span>() {
-        <span class="kw">for</span> <span class="ident">status</span> <span class="kw">in</span> <span class="kw-2">&amp;</span>[<span class="ident">SessionStatus::Crashed</span>, <span class="ident">SessionStatus::Abnormal</span>] {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">session</span> <span class="op">=</span> <span class="ident">SessionUpdate::parse</span>(
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_extract_session_metrics_fatal() {
+        <span class="kw">for </span>status <span class="kw">in </span><span class="kw-2">&amp;</span>[SessionStatus::Crashed, SessionStatus::Abnormal] {
+            <span class="kw">let </span><span class="kw-2">mut </span>session = SessionUpdate::parse(
                 <span class="string">r#&quot;{
                     &quot;init&quot;: false,
                     &quot;started&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
@@ -915,41 +915,41 @@
                         &quot;release&quot;: &quot;1.0.0&quot;
                     },
                     &quot;did&quot;: &quot;user123&quot;
-                }&quot;#</span>
-                .<span class="ident">as_bytes</span>(),
+                }&quot;#
+                </span>.as_bytes(),
             )
-            .<span class="ident">unwrap</span>();
-            <span class="ident">session</span>.<span class="ident">status</span> <span class="op">=</span> <span class="kw-2">*</span><span class="ident">status</span>;
+            .unwrap();
+            session.status = <span class="kw-2">*</span>status;
 
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
+            <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
 
-            <span class="ident">extract_session_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">session</span>.<span class="ident">attributes</span>, <span class="kw-2">&amp;</span><span class="ident">session</span>, <span class="prelude-val">None</span>, <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
+            extract_session_metrics(<span class="kw-2">&amp;</span>session.attributes, <span class="kw-2">&amp;</span>session, <span class="prelude-val">None</span>, <span class="kw-2">&amp;mut </span>metrics);
 
-            <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>.<span class="ident">len</span>(), <span class="number">4</span>);
+            <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">4</span>);
 
-            <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>[<span class="number">0</span>].<span class="ident">name</span>, <span class="string">&quot;s:sessions/error@none&quot;</span>);
-            <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>[<span class="number">1</span>].<span class="ident">name</span>, <span class="string">&quot;s:sessions/user@none&quot;</span>);
-            <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>[<span class="number">1</span>].<span class="ident">tags</span>[<span class="string">&quot;session.status&quot;</span>], <span class="string">&quot;errored&quot;</span>);
+            <span class="macro">assert_eq!</span>(metrics[<span class="number">0</span>].name, <span class="string">&quot;s:sessions/error@none&quot;</span>);
+            <span class="macro">assert_eq!</span>(metrics[<span class="number">1</span>].name, <span class="string">&quot;s:sessions/user@none&quot;</span>);
+            <span class="macro">assert_eq!</span>(metrics[<span class="number">1</span>].tags[<span class="string">&quot;session.status&quot;</span>], <span class="string">&quot;errored&quot;</span>);
 
-            <span class="kw">let</span> <span class="ident">session_metric</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">metrics</span>[<span class="number">2</span>];
-            <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">timestamp</span>, <span class="ident">started</span>());
-            <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">name</span>, <span class="string">&quot;c:sessions/session@none&quot;</span>);
-            <span class="macro">assert!</span>(<span class="macro">matches!</span>(<span class="ident">session_metric</span>.<span class="ident">value</span>, <span class="ident">MetricValue::Counter</span>(<span class="kw">_</span>)));
-            <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;session.status&quot;</span>], <span class="ident">status</span>.<span class="ident">to_string</span>());
+            <span class="kw">let </span>session_metric = <span class="kw-2">&amp;</span>metrics[<span class="number">2</span>];
+            <span class="macro">assert_eq!</span>(session_metric.timestamp, started());
+            <span class="macro">assert_eq!</span>(session_metric.name, <span class="string">&quot;c:sessions/session@none&quot;</span>);
+            <span class="macro">assert!</span>(<span class="macro">matches!</span>(session_metric.value, MetricValue::Counter(<span class="kw">_</span>)));
+            <span class="macro">assert_eq!</span>(session_metric.tags[<span class="string">&quot;session.status&quot;</span>], status.to_string());
 
-            <span class="kw">let</span> <span class="ident">user_metric</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">metrics</span>[<span class="number">3</span>];
-            <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">timestamp</span>, <span class="ident">started</span>());
-            <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">name</span>, <span class="string">&quot;s:sessions/user@none&quot;</span>);
-            <span class="macro">assert!</span>(<span class="macro">matches!</span>(<span class="ident">user_metric</span>.<span class="ident">value</span>, <span class="ident">MetricValue::Set</span>(<span class="kw">_</span>)));
-            <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;session.status&quot;</span>], <span class="ident">status</span>.<span class="ident">to_string</span>());
+            <span class="kw">let </span>user_metric = <span class="kw-2">&amp;</span>metrics[<span class="number">3</span>];
+            <span class="macro">assert_eq!</span>(user_metric.timestamp, started());
+            <span class="macro">assert_eq!</span>(user_metric.name, <span class="string">&quot;s:sessions/user@none&quot;</span>);
+            <span class="macro">assert!</span>(<span class="macro">matches!</span>(user_metric.value, MetricValue::Set(<span class="kw">_</span>)));
+            <span class="macro">assert_eq!</span>(user_metric.tags[<span class="string">&quot;session.status&quot;</span>], status.to_string());
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_extract_session_metrics_duration</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_extract_session_metrics_duration() {
+        <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
 
-        <span class="kw">let</span> <span class="ident">session</span> <span class="op">=</span> <span class="ident">SessionUpdate::parse</span>(
+        <span class="kw">let </span>session = SessionUpdate::parse(
             <span class="string">r#&quot;{
             &quot;init&quot;: false,
             &quot;started&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
@@ -959,34 +959,34 @@
             &quot;did&quot;: &quot;user123&quot;,
             &quot;status&quot;: &quot;exited&quot;,
             &quot;duration&quot;: 123.4
-        }&quot;#</span>
-            .<span class="ident">as_bytes</span>(),
+        }&quot;#
+            </span>.as_bytes(),
         )
-        .<span class="ident">unwrap</span>();
+        .unwrap();
 
-        <span class="ident">extract_session_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">session</span>.<span class="ident">attributes</span>, <span class="kw-2">&amp;</span><span class="ident">session</span>, <span class="prelude-val">None</span>, <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
+        extract_session_metrics(<span class="kw-2">&amp;</span>session.attributes, <span class="kw-2">&amp;</span>session, <span class="prelude-val">None</span>, <span class="kw-2">&amp;mut </span>metrics);
 
-        <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>.<span class="ident">len</span>(), <span class="number">2</span>); <span class="comment">// duration and user ID</span>
+        <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">2</span>); <span class="comment">// duration and user ID
 
-        <span class="kw">let</span> <span class="ident">duration_metric</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">metrics</span>[<span class="number">1</span>];
-        <span class="macro">assert_eq!</span>(<span class="ident">duration_metric</span>.<span class="ident">name</span>, <span class="string">&quot;d:sessions/duration@second&quot;</span>);
+        </span><span class="kw">let </span>duration_metric = <span class="kw-2">&amp;</span>metrics[<span class="number">1</span>];
+        <span class="macro">assert_eq!</span>(duration_metric.name, <span class="string">&quot;d:sessions/duration@second&quot;</span>);
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-            <span class="ident">duration_metric</span>.<span class="ident">value</span>,
-            <span class="ident">MetricValue::Distribution</span>(<span class="kw">_</span>)
+            duration_metric.value,
+            MetricValue::Distribution(<span class="kw">_</span>)
         ));
 
-        <span class="kw">let</span> <span class="ident">user_metric</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">metrics</span>[<span class="number">0</span>];
-        <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">name</span>, <span class="string">&quot;s:sessions/user@none&quot;</span>);
-        <span class="macro">assert!</span>(<span class="macro">matches!</span>(<span class="ident">user_metric</span>.<span class="ident">value</span>, <span class="ident">MetricValue::Set</span>(<span class="kw">_</span>)));
-        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">user_metric</span>.<span class="ident">tags</span>.<span class="ident">contains_key</span>(<span class="string">&quot;session.status&quot;</span>));
+        <span class="kw">let </span>user_metric = <span class="kw-2">&amp;</span>metrics[<span class="number">0</span>];
+        <span class="macro">assert_eq!</span>(user_metric.name, <span class="string">&quot;s:sessions/user@none&quot;</span>);
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(user_metric.value, MetricValue::Set(<span class="kw">_</span>)));
+        <span class="macro">assert!</span>(!user_metric.tags.contains_key(<span class="string">&quot;session.status&quot;</span>));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_extract_session_metrics_aggregate</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_extract_session_metrics_aggregate() {
+        <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
 
-        <span class="kw">let</span> <span class="ident">client</span> <span class="op">=</span> <span class="string">&quot;sentry-test/1.0&quot;</span>;
-        <span class="kw">let</span> <span class="ident">session</span> <span class="op">=</span> <span class="ident">SessionAggregates::parse</span>(
+        <span class="kw">let </span>client = <span class="string">&quot;sentry-test/1.0&quot;</span>;
+        <span class="kw">let </span>session = SessionAggregates::parse(
             <span class="string">r#&quot;{
                 &quot;aggregates&quot;: [
                     {
@@ -1006,16 +1006,16 @@
                     &quot;release&quot;: &quot;my-project-name@1.0.0&quot;,
                     &quot;environment&quot;: &quot;development&quot;
                 }
-            }&quot;#</span>
-            .<span class="ident">as_bytes</span>(),
+            }&quot;#
+            </span>.as_bytes(),
         )
-        .<span class="ident">unwrap</span>();
+        .unwrap();
 
-        <span class="kw">for</span> <span class="ident">aggregate</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">session</span>.<span class="ident">aggregates</span> {
-            <span class="ident">extract_session_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">session</span>.<span class="ident">attributes</span>, <span class="ident">aggregate</span>, <span class="prelude-val">Some</span>(<span class="ident">client</span>), <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
+        <span class="kw">for </span>aggregate <span class="kw">in </span><span class="kw-2">&amp;</span>session.aggregates {
+            extract_session_metrics(<span class="kw-2">&amp;</span>session.attributes, aggregate, <span class="prelude-val">Some</span>(client), <span class="kw-2">&amp;mut </span>metrics);
         }
 
-        <span class="macro">insta::assert_debug_snapshot!</span>(<span class="ident">metrics</span>, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###&quot;
         [
             Metric {
                 name: &quot;c:sessions/session@none&quot;,
@@ -1113,4 +1113,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

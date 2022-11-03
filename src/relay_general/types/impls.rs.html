@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/types/impls.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>impls.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/types/impls.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>impls.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_general/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -1050,43 +1050,43 @@
 <span id="1048">1048</span>
 <span id="1049">1049</span>
 <span id="1050">1050</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">serde::ser</span>::{<span class="ident">SerializeMap</span>, <span class="ident">SerializeSeq</span>};
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Serialize</span>, <span class="ident">Serializer</span>};
-<span class="kw">use</span> <span class="ident">uuid::Uuid</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>serde::ser::{SerializeMap, SerializeSeq};
+<span class="kw">use </span>serde::{Serialize, Serializer};
+<span class="kw">use </span>uuid::Uuid;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::macros::derive_string_meta_structure</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{
-    <span class="ident">Annotated</span>, <span class="ident">Array</span>, <span class="ident">Empty</span>, <span class="ident">Error</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">Map</span>, <span class="ident">Meta</span>, <span class="ident">MetaMap</span>, <span class="ident">MetaTree</span>, <span class="ident">Object</span>,
-    <span class="ident">SkipSerialization</span>, <span class="ident">Value</span>,
+<span class="kw">use </span><span class="kw">crate</span>::macros::derive_string_meta_structure;
+<span class="kw">use </span><span class="kw">crate</span>::types::{
+    Annotated, Array, Empty, Error, FromValue, IntoValue, Map, Meta, MetaMap, MetaTree, Object,
+    SkipSerialization, Value,
 };
 
-<span class="comment">// This needs to be public because the derive crate emits it</span>
-<span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SerializePayload</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span>(<span class="kw">pub</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>, <span class="kw">pub</span> <span class="ident">SkipSerialization</span>);
+<span class="comment">// This needs to be public because the derive crate emits it
+</span><span class="attribute">#[doc(hidden)]
+</span><span class="kw">pub struct </span>SerializePayload&lt;<span class="lifetime">&#39;a</span>, T&gt;(<span class="kw">pub </span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Annotated&lt;T&gt;, <span class="kw">pub </span>SkipSerialization);
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span>: <span class="ident">IntoValue</span><span class="op">&gt;</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">SerializePayload</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">S</span>: <span class="ident">Serializer</span>,
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, T: IntoValue&gt; Serialize <span class="kw">for </span>SerializePayload&lt;<span class="lifetime">&#39;a</span>, T&gt; {
+    <span class="kw">fn </span>serialize&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
+    <span class="kw">where
+        </span>S: Serializer,
     {
-        <span class="kw">match</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">value</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">value</span>) =&gt; <span class="ident">value</span>.<span class="ident">serialize_payload</span>(<span class="ident">serializer</span>, <span class="self">self</span>.<span class="number">1</span>),
-            <span class="prelude-val">None</span> =&gt; <span class="ident">serializer</span>.<span class="ident">serialize_unit</span>(),
+        <span class="kw">match </span><span class="self">self</span>.<span class="number">0</span>.value() {
+            <span class="prelude-val">Some</span>(value) =&gt; value.serialize_payload(serializer, <span class="self">self</span>.<span class="number">1</span>),
+            <span class="prelude-val">None </span>=&gt; serializer.serialize_unit(),
         }
     }
 }
 
-<span class="macro">macro_rules!</span> <span class="ident">derive_from_value</span> {
-    (<span class="macro-nonterminal">$</span><span class="kw">type</span>:<span class="macro-nonterminal">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">meta_type</span>:<span class="ident">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">expectation</span>:<span class="ident">expr</span>) =&gt; {
-        <span class="kw">impl</span> <span class="ident">FromValue</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
-            <span class="kw">fn</span> <span class="macro-nonterminal">from_value</span>(<span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-                <span class="kw">match</span> <span class="ident">value</span> {
-                    <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value</span>::<span class="macro-nonterminal">$</span><span class="macro-nonterminal">meta_type</span>(<span class="ident">value</span>)), <span class="ident">meta</span>) =&gt; <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="ident">meta</span>),
-                    <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>) =&gt; <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>),
-                    <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="kw-2">mut</span> <span class="ident">meta</span>) =&gt; {
-                        <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::expected</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">expectation</span>));
-                        <span class="ident">meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>));
-                        <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>)
+<span class="macro">macro_rules! </span>derive_from_value {
+    (<span class="macro-nonterminal">$</span><span class="kw">type</span>:<span class="macro-nonterminal">ident</span>, <span class="macro-nonterminal">$meta_type</span>:ident, <span class="macro-nonterminal">$expectation</span>:expr) =&gt; {
+        <span class="kw">impl </span>FromValue <span class="kw">for </span><span class="macro-nonterminal">$</span><span class="kw">type </span>{
+            <span class="kw">fn </span><span class="macro-nonterminal">from_value</span>(value: Annotated&lt;Value&gt;) -&gt; Annotated&lt;<span class="self">Self</span>&gt; {
+                <span class="kw">match </span>value {
+                    Annotated(<span class="prelude-val">Some</span>(Value::<span class="macro-nonterminal">$meta_type</span>(value)), meta) =&gt; Annotated(<span class="prelude-val">Some</span>(value), meta),
+                    Annotated(<span class="prelude-val">None</span>, meta) =&gt; Annotated(<span class="prelude-val">None</span>, meta),
+                    Annotated(<span class="prelude-val">Some</span>(value), <span class="kw-2">mut </span>meta) =&gt; {
+                        meta.add_error(Error::expected(<span class="macro-nonterminal">$expectation</span>));
+                        meta.set_original_value(<span class="prelude-val">Some</span>(value));
+                        Annotated(<span class="prelude-val">None</span>, meta)
                     }
                 }
             }
@@ -1094,1011 +1094,1011 @@
     };
 }
 
-<span class="macro">macro_rules!</span> <span class="ident">derive_to_value</span> {
-    (<span class="macro-nonterminal">$</span><span class="kw">type</span>:<span class="macro-nonterminal">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">meta_type</span>:<span class="ident">ident</span>) =&gt; {
-        <span class="kw">impl</span> <span class="ident">IntoValue</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
-            <span class="kw">fn</span> <span class="macro-nonterminal">into_value</span>(<span class="self">self</span>) -&gt; <span class="ident">Value</span> {
-                <span class="ident">Value</span>::<span class="macro-nonterminal">$</span><span class="macro-nonterminal">meta_type</span>(<span class="self">self</span>)
+<span class="macro">macro_rules! </span>derive_to_value {
+    (<span class="macro-nonterminal">$</span><span class="kw">type</span>:<span class="macro-nonterminal">ident</span>, <span class="macro-nonterminal">$meta_type</span>:ident) =&gt; {
+        <span class="kw">impl </span>IntoValue <span class="kw">for </span><span class="macro-nonterminal">$</span><span class="kw">type </span>{
+            <span class="kw">fn </span><span class="macro-nonterminal">into_value</span>(<span class="self">self</span>) -&gt; Value {
+                Value::<span class="macro-nonterminal">$meta_type</span>(<span class="self">self</span>)
             }
 
-            <span class="kw">fn</span> <span class="ident">serialize_payload</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(
+            <span class="kw">fn </span>serialize_payload&lt;S&gt;(
                 <span class="kw-2">&amp;</span><span class="self">self</span>,
-                <span class="ident">s</span>: <span class="ident">S</span>,
-                <span class="ident">_behavior</span>: <span class="ident">SkipSerialization</span>,
-            ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
-            <span class="kw">where</span>
-                <span class="self">Self</span>: <span class="ident">Sized</span>,
-                <span class="ident">S</span>: <span class="ident">Serializer</span>,
+                s: S,
+                _behavior: SkipSerialization,
+            ) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
+            <span class="kw">where
+                </span><span class="self">Self</span>: Sized,
+                S: Serializer,
             {
-                <span class="self">self</span>.<span class="ident">serialize</span>(<span class="ident">s</span>)
+                <span class="self">self</span>.serialize(s)
             }
         }
     };
 }
 
-<span class="macro">macro_rules!</span> <span class="ident">derive_numeric_meta_structure</span> {
-    (<span class="macro-nonterminal">$</span><span class="kw">type</span>:<span class="macro-nonterminal">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">meta_type</span>:<span class="ident">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">expectation</span>:<span class="ident">expr</span>) =&gt; {
-        <span class="kw">impl</span> <span class="ident">FromValue</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
-            <span class="kw">fn</span> <span class="macro-nonterminal">from_value</span>(<span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-                <span class="ident">value</span>.<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">value</span><span class="op">|</span> {
-                    <span class="kw">let</span> <span class="ident">number</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">value</span> {
-                        <span class="ident">Value::U64</span>(<span class="ident">x</span>) =&gt; <span class="ident">num_traits::cast</span>(<span class="ident">x</span>),
-                        <span class="ident">Value::I64</span>(<span class="ident">x</span>) =&gt; <span class="ident">num_traits::cast</span>(<span class="ident">x</span>),
-                        <span class="ident">Value::F64</span>(<span class="ident">x</span>) =&gt; <span class="ident">num_traits::cast</span>(<span class="ident">x</span>),
-                        <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
+<span class="macro">macro_rules! </span>derive_numeric_meta_structure {
+    (<span class="macro-nonterminal">$</span><span class="kw">type</span>:<span class="macro-nonterminal">ident</span>, <span class="macro-nonterminal">$meta_type</span>:ident, <span class="macro-nonterminal">$expectation</span>:expr) =&gt; {
+        <span class="kw">impl </span>FromValue <span class="kw">for </span><span class="macro-nonterminal">$</span><span class="kw">type </span>{
+            <span class="kw">fn </span><span class="macro-nonterminal">from_value</span>(value: Annotated&lt;Value&gt;) -&gt; Annotated&lt;<span class="self">Self</span>&gt; {
+                value.and_then(|value| {
+                    <span class="kw">let </span>number = <span class="kw">match </span>value {
+                        Value::U64(x) =&gt; num_traits::cast(x),
+                        Value::I64(x) =&gt; num_traits::cast(x),
+                        Value::F64(x) =&gt; num_traits::cast(x),
+                        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
                     };
 
-                    <span class="kw">match</span> <span class="ident">number</span> {
-                        <span class="prelude-val">Some</span>(<span class="ident">x</span>) =&gt; <span class="ident">Annotated::new</span>(<span class="ident">x</span>),
-                        <span class="prelude-val">None</span> =&gt; {
-                            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident">Meta::default</span>();
-                            <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::expected</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">expectation</span>));
-                            <span class="ident">meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>));
-                            <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>)
+                    <span class="kw">match </span>number {
+                        <span class="prelude-val">Some</span>(x) =&gt; Annotated::new(x),
+                        <span class="prelude-val">None </span>=&gt; {
+                            <span class="kw">let </span><span class="kw-2">mut </span>meta = Meta::default();
+                            meta.add_error(Error::expected(<span class="macro-nonterminal">$expectation</span>));
+                            meta.set_original_value(<span class="prelude-val">Some</span>(value));
+                            Annotated(<span class="prelude-val">None</span>, meta)
                         }
                     }
                 })
             }
         }
 
-        <span class="macro">derive_to_value!</span>(<span class="macro-nonterminal">$</span><span class="kw">type</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">meta_type</span>);
+        <span class="macro">derive_to_value!</span>(<span class="macro-nonterminal">$</span><span class="kw">type</span>, <span class="macro-nonterminal">$meta_type</span>);
     };
 }
 
-<span class="kw">impl</span> <span class="ident">Empty</span> <span class="kw">for</span> <span class="ident">String</span> {
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">is_empty</span>()
+<span class="kw">impl </span>Empty <span class="kw">for </span>String {
+    <span class="attribute">#[inline]
+    </span><span class="kw">fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.is_empty()
     }
 }
 
-<span class="macro">derive_from_value!</span>(<span class="ident">String</span>, <span class="ident">String</span>, <span class="string">&quot;a string&quot;</span>);
-<span class="macro">derive_to_value!</span>(<span class="ident">String</span>, <span class="ident">String</span>);
+<span class="macro">derive_from_value!</span>(String, String, <span class="string">&quot;a string&quot;</span>);
+<span class="macro">derive_to_value!</span>(String, String);
 
-<span class="kw">impl</span> <span class="ident">Empty</span> <span class="kw">for</span> <span class="ident">bool</span> {
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="bool-val">false</span>
-    }
+<span class="kw">impl </span>Empty <span class="kw">for </span>bool {
+    <span class="attribute">#[inline]
+    </span><span class="kw">fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="bool-val">false
+    </span>}
 }
 
-<span class="macro">derive_from_value!</span>(<span class="ident">bool</span>, <span class="ident">Bool</span>, <span class="string">&quot;a boolean&quot;</span>);
-<span class="macro">derive_to_value!</span>(<span class="ident">bool</span>, <span class="ident">Bool</span>);
+<span class="macro">derive_from_value!</span>(bool, Bool, <span class="string">&quot;a boolean&quot;</span>);
+<span class="macro">derive_to_value!</span>(bool, Bool);
 
-<span class="macro">derive_numeric_meta_structure!</span>(<span class="ident">u64</span>, <span class="ident">U64</span>, <span class="string">&quot;an unsigned integer&quot;</span>);
-<span class="macro">derive_numeric_meta_structure!</span>(<span class="ident">i64</span>, <span class="ident">I64</span>, <span class="string">&quot;a signed integer&quot;</span>);
-<span class="macro">derive_numeric_meta_structure!</span>(<span class="ident">f64</span>, <span class="ident">F64</span>, <span class="string">&quot;a floating point number&quot;</span>);
+<span class="macro">derive_numeric_meta_structure!</span>(u64, U64, <span class="string">&quot;an unsigned integer&quot;</span>);
+<span class="macro">derive_numeric_meta_structure!</span>(i64, I64, <span class="string">&quot;a signed integer&quot;</span>);
+<span class="macro">derive_numeric_meta_structure!</span>(f64, F64, <span class="string">&quot;a floating point number&quot;</span>);
 
-<span class="kw">impl</span> <span class="ident">Empty</span> <span class="kw">for</span> <span class="ident">u64</span> {
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="bool-val">false</span>
-    }
+<span class="kw">impl </span>Empty <span class="kw">for </span>u64 {
+    <span class="attribute">#[inline]
+    </span><span class="kw">fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="bool-val">false
+    </span>}
 }
 
-<span class="kw">impl</span> <span class="ident">Empty</span> <span class="kw">for</span> <span class="ident">i64</span> {
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="bool-val">false</span>
-    }
+<span class="kw">impl </span>Empty <span class="kw">for </span>i64 {
+    <span class="attribute">#[inline]
+    </span><span class="kw">fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="bool-val">false
+    </span>}
 }
 
-<span class="kw">impl</span> <span class="ident">Empty</span> <span class="kw">for</span> <span class="ident">f64</span> {
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="bool-val">false</span>
-    }
+<span class="kw">impl </span>Empty <span class="kw">for </span>f64 {
+    <span class="attribute">#[inline]
+    </span><span class="kw">fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="bool-val">false
+    </span>}
 }
 
-<span class="macro">derive_string_meta_structure!</span>(<span class="ident">Uuid</span>, <span class="string">&quot;a uuid&quot;</span>);
+<span class="macro">derive_string_meta_structure!</span>(Uuid, <span class="string">&quot;a uuid&quot;</span>);
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Empty</span> <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;_</span> <span class="ident">T</span>
-<span class="kw">where</span>
-    <span class="ident">T</span>: <span class="ident">Empty</span>,
+<span class="kw">impl</span>&lt;T&gt; Empty <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span>T
+<span class="kw">where
+    </span>T: Empty,
 {
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        (<span class="kw-2">*</span><span class="self">self</span>).<span class="ident">is_empty</span>()
+    <span class="attribute">#[inline]
+    </span><span class="kw">fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        (<span class="kw-2">*</span><span class="self">self</span>).is_empty()
     }
 
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">is_deep_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        (<span class="kw-2">*</span><span class="self">self</span>).<span class="ident">is_deep_empty</span>()
-    }
-}
-
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Empty</span> <span class="kw">for</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">T</span>: <span class="ident">Empty</span>,
-{
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">as_ref</span>().<span class="ident">map_or</span>(<span class="bool-val">true</span>, <span class="ident">Empty::is_empty</span>)
-    }
-
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">is_deep_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">as_ref</span>().<span class="ident">map_or</span>(<span class="bool-val">true</span>, <span class="ident">Empty::is_deep_empty</span>)
+    <span class="attribute">#[inline]
+    </span><span class="kw">fn </span>is_deep_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        (<span class="kw-2">*</span><span class="self">self</span>).is_deep_empty()
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Empty</span> <span class="kw">for</span> <span class="ident">Array</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">T</span>: <span class="ident">Empty</span>,
+<span class="kw">impl</span>&lt;T&gt; Empty <span class="kw">for </span><span class="prelude-ty">Option</span>&lt;T&gt;
+<span class="kw">where
+    </span>T: Empty,
 {
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">is_empty</span>()
+    <span class="attribute">#[inline]
+    </span><span class="kw">fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.as_ref().map_or(<span class="bool-val">true</span>, Empty::is_empty)
     }
 
-    <span class="kw">fn</span> <span class="ident">is_deep_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">iter</span>().<span class="ident">all</span>(<span class="ident">Empty::is_deep_empty</span>)
+    <span class="attribute">#[inline]
+    </span><span class="kw">fn </span>is_deep_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.as_ref().map_or(<span class="bool-val">true</span>, Empty::is_deep_empty)
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">FromValue</span> <span class="kw">for</span> <span class="ident">Array</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">T</span>: <span class="ident">FromValue</span>,
+<span class="kw">impl</span>&lt;T&gt; Empty <span class="kw">for </span>Array&lt;T&gt;
+<span class="kw">where
+    </span>T: Empty,
 {
-    <span class="kw">fn</span> <span class="ident">from_value</span>(<span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="ident">value</span> {
-            <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value::Array</span>(<span class="ident">items</span>)), <span class="ident">meta</span>) =&gt; <span class="ident">Annotated</span>(
-                <span class="prelude-val">Some</span>(<span class="ident">items</span>.<span class="ident">into_iter</span>().<span class="ident">map</span>(<span class="ident">FromValue::from_value</span>).<span class="ident">collect</span>()),
-                <span class="ident">meta</span>,
+    <span class="attribute">#[inline]
+    </span><span class="kw">fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.is_empty()
+    }
+
+    <span class="kw">fn </span>is_deep_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.iter().all(Empty::is_deep_empty)
+    }
+}
+
+<span class="kw">impl</span>&lt;T&gt; FromValue <span class="kw">for </span>Array&lt;T&gt;
+<span class="kw">where
+    </span>T: FromValue,
+{
+    <span class="kw">fn </span>from_value(value: Annotated&lt;Value&gt;) -&gt; Annotated&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">match </span>value {
+            Annotated(<span class="prelude-val">Some</span>(Value::Array(items)), meta) =&gt; Annotated(
+                <span class="prelude-val">Some</span>(items.into_iter().map(FromValue::from_value).collect()),
+                meta,
             ),
-            <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>) =&gt; <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>),
-            <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="kw-2">mut</span> <span class="ident">meta</span>) =&gt; {
-                <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::expected</span>(<span class="string">&quot;an array&quot;</span>));
-                <span class="ident">meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>));
-                <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>)
+            Annotated(<span class="prelude-val">None</span>, meta) =&gt; Annotated(<span class="prelude-val">None</span>, meta),
+            Annotated(<span class="prelude-val">Some</span>(value), <span class="kw-2">mut </span>meta) =&gt; {
+                meta.add_error(Error::expected(<span class="string">&quot;an array&quot;</span>));
+                meta.set_original_value(<span class="prelude-val">Some</span>(value));
+                Annotated(<span class="prelude-val">None</span>, meta)
             }
         }
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">IntoValue</span> <span class="kw">for</span> <span class="ident">Array</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">T</span>: <span class="ident">IntoValue</span>,
+<span class="kw">impl</span>&lt;T&gt; IntoValue <span class="kw">for </span>Array&lt;T&gt;
+<span class="kw">where
+    </span>T: IntoValue,
 {
-    <span class="kw">fn</span> <span class="ident">into_value</span>(<span class="self">self</span>) -&gt; <span class="ident">Value</span> {
-        <span class="ident">Value::Array</span>(
-            <span class="self">self</span>.<span class="ident">into_iter</span>()
-                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">Annotated::map_value</span>(<span class="ident">x</span>, <span class="ident">IntoValue::into_value</span>))
-                .<span class="ident">collect</span>(),
+    <span class="kw">fn </span>into_value(<span class="self">self</span>) -&gt; Value {
+        Value::Array(
+            <span class="self">self</span>.into_iter()
+                .map(|x| Annotated::map_value(x, IntoValue::into_value))
+                .collect(),
         )
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_payload</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">s</span>: <span class="ident">S</span>, <span class="ident">behavior</span>: <span class="ident">SkipSerialization</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="self">Self</span>: <span class="ident">Sized</span>,
-        <span class="ident">S</span>: <span class="ident">Serializer</span>,
+    <span class="kw">fn </span>serialize_payload&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, s: S, behavior: SkipSerialization) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
+    <span class="kw">where
+        </span><span class="self">Self</span>: Sized,
+        S: Serializer,
     {
-        <span class="kw">let</span> <span class="ident">behavior</span> <span class="op">=</span> <span class="ident">behavior</span>.<span class="ident">descend</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">seq_ser</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">serialize_seq</span>(<span class="prelude-val">Some</span>(<span class="self">self</span>.<span class="ident">len</span>()))<span class="question-mark">?</span>;
-        <span class="kw">for</span> <span class="ident">item</span> <span class="kw">in</span> <span class="self">self</span> {
-            <span class="kw">if</span> <span class="op">!</span><span class="ident">item</span>.<span class="ident">skip_serialization</span>(<span class="ident">behavior</span>) {
-                <span class="ident">seq_ser</span>.<span class="ident">serialize_element</span>(<span class="kw-2">&amp;</span><span class="ident">SerializePayload</span>(<span class="ident">item</span>, <span class="ident">behavior</span>))<span class="question-mark">?</span>;
+        <span class="kw">let </span>behavior = behavior.descend();
+        <span class="kw">let </span><span class="kw-2">mut </span>seq_ser = s.serialize_seq(<span class="prelude-val">Some</span>(<span class="self">self</span>.len()))<span class="question-mark">?</span>;
+        <span class="kw">for </span>item <span class="kw">in </span><span class="self">self </span>{
+            <span class="kw">if </span>!item.skip_serialization(behavior) {
+                seq_ser.serialize_element(<span class="kw-2">&amp;</span>SerializePayload(item, behavior))<span class="question-mark">?</span>;
             }
         }
-        <span class="ident">seq_ser</span>.<span class="ident">end</span>()
+        seq_ser.end()
     }
 
-    <span class="kw">fn</span> <span class="ident">extract_child_meta</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">MetaMap</span>
-    <span class="kw">where</span>
-        <span class="self">Self</span>: <span class="ident">Sized</span>,
+    <span class="kw">fn </span>extract_child_meta(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; MetaMap
+    <span class="kw">where
+        </span><span class="self">Self</span>: Sized,
     {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">children</span> <span class="op">=</span> <span class="ident">MetaMap::new</span>();
-        <span class="kw">for</span> (<span class="ident">idx</span>, <span class="ident">item</span>) <span class="kw">in</span> <span class="self">self</span>.<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
-            <span class="kw">let</span> <span class="ident">tree</span> <span class="op">=</span> <span class="ident">IntoValue::extract_meta_tree</span>(<span class="ident">item</span>);
-            <span class="kw">if</span> <span class="op">!</span><span class="ident">tree</span>.<span class="ident">is_empty</span>() {
-                <span class="ident">children</span>.<span class="ident">insert</span>(<span class="ident">idx</span>.<span class="ident">to_string</span>(), <span class="ident">tree</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>children = MetaMap::new();
+        <span class="kw">for </span>(idx, item) <span class="kw">in </span><span class="self">self</span>.iter().enumerate() {
+            <span class="kw">let </span>tree = IntoValue::extract_meta_tree(item);
+            <span class="kw">if </span>!tree.is_empty() {
+                children.insert(idx.to_string(), tree);
             }
         }
-        <span class="ident">children</span>
+        children
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Empty</span> <span class="kw">for</span> <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">T</span>: <span class="ident">Empty</span>,
+<span class="kw">impl</span>&lt;T&gt; Empty <span class="kw">for </span>Object&lt;T&gt;
+<span class="kw">where
+    </span>T: Empty,
 {
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">is_empty</span>()
+    <span class="attribute">#[inline]
+    </span><span class="kw">fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.is_empty()
     }
 
-    <span class="kw">fn</span> <span class="ident">is_deep_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">values</span>().<span class="ident">all</span>(<span class="ident">Empty::is_deep_empty</span>)
+    <span class="kw">fn </span>is_deep_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.values().all(Empty::is_deep_empty)
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">FromValue</span> <span class="kw">for</span> <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">T</span>: <span class="ident">FromValue</span>,
+<span class="kw">impl</span>&lt;T&gt; FromValue <span class="kw">for </span>Object&lt;T&gt;
+<span class="kw">where
+    </span>T: FromValue,
 {
-    <span class="kw">fn</span> <span class="ident">from_value</span>(<span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="ident">value</span> {
-            <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value::Object</span>(<span class="ident">items</span>)), <span class="ident">meta</span>) =&gt; <span class="ident">Annotated</span>(
+    <span class="kw">fn </span>from_value(value: Annotated&lt;Value&gt;) -&gt; Annotated&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">match </span>value {
+            Annotated(<span class="prelude-val">Some</span>(Value::Object(items)), meta) =&gt; Annotated(
                 <span class="prelude-val">Some</span>(
-                    <span class="ident">items</span>
-                        .<span class="ident">into_iter</span>()
-                        .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">k</span>, <span class="ident">v</span>)<span class="op">|</span> (<span class="ident">k</span>, <span class="ident">FromValue::from_value</span>(<span class="ident">v</span>)))
-                        .<span class="ident">collect</span>(),
+                    items
+                        .into_iter()
+                        .map(|(k, v)| (k, FromValue::from_value(v)))
+                        .collect(),
                 ),
-                <span class="ident">meta</span>,
+                meta,
             ),
-            <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>) =&gt; <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>),
-            <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="kw-2">mut</span> <span class="ident">meta</span>) =&gt; {
-                <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::expected</span>(<span class="string">&quot;an object&quot;</span>));
-                <span class="ident">meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>));
-                <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>)
+            Annotated(<span class="prelude-val">None</span>, meta) =&gt; Annotated(<span class="prelude-val">None</span>, meta),
+            Annotated(<span class="prelude-val">Some</span>(value), <span class="kw-2">mut </span>meta) =&gt; {
+                meta.add_error(Error::expected(<span class="string">&quot;an object&quot;</span>));
+                meta.set_original_value(<span class="prelude-val">Some</span>(value));
+                Annotated(<span class="prelude-val">None</span>, meta)
             }
         }
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">IntoValue</span> <span class="kw">for</span> <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">T</span>: <span class="ident">IntoValue</span>,
+<span class="kw">impl</span>&lt;T&gt; IntoValue <span class="kw">for </span>Object&lt;T&gt;
+<span class="kw">where
+    </span>T: IntoValue,
 {
-    <span class="kw">fn</span> <span class="ident">into_value</span>(<span class="self">self</span>) -&gt; <span class="ident">Value</span> {
-        <span class="ident">Value::Object</span>(
-            <span class="self">self</span>.<span class="ident">into_iter</span>()
-                .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">k</span>, <span class="ident">v</span>)<span class="op">|</span> (<span class="ident">k</span>, <span class="ident">Annotated::map_value</span>(<span class="ident">v</span>, <span class="ident">IntoValue::into_value</span>)))
-                .<span class="ident">collect</span>(),
+    <span class="kw">fn </span>into_value(<span class="self">self</span>) -&gt; Value {
+        Value::Object(
+            <span class="self">self</span>.into_iter()
+                .map(|(k, v)| (k, Annotated::map_value(v, IntoValue::into_value)))
+                .collect(),
         )
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_payload</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">s</span>: <span class="ident">S</span>, <span class="ident">behavior</span>: <span class="ident">SkipSerialization</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="self">Self</span>: <span class="ident">Sized</span>,
-        <span class="ident">S</span>: <span class="ident">Serializer</span>,
+    <span class="kw">fn </span>serialize_payload&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, s: S, behavior: SkipSerialization) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
+    <span class="kw">where
+        </span><span class="self">Self</span>: Sized,
+        S: Serializer,
     {
-        <span class="kw">let</span> <span class="ident">behavior</span> <span class="op">=</span> <span class="ident">behavior</span>.<span class="ident">descend</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map_ser</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">serialize_map</span>(<span class="prelude-val">Some</span>(<span class="self">self</span>.<span class="ident">len</span>()))<span class="question-mark">?</span>;
-        <span class="kw">for</span> (<span class="ident">key</span>, <span class="ident">value</span>) <span class="kw">in</span> <span class="self">self</span> {
-            <span class="kw">if</span> <span class="op">!</span><span class="ident">value</span>.<span class="ident">skip_serialization</span>(<span class="ident">behavior</span>) {
-                <span class="ident">map_ser</span>.<span class="ident">serialize_key</span>(<span class="kw-2">&amp;</span><span class="ident">key</span>)<span class="question-mark">?</span>;
-                <span class="ident">map_ser</span>.<span class="ident">serialize_value</span>(<span class="kw-2">&amp;</span><span class="ident">SerializePayload</span>(<span class="ident">value</span>, <span class="ident">behavior</span>))<span class="question-mark">?</span>;
+        <span class="kw">let </span>behavior = behavior.descend();
+        <span class="kw">let </span><span class="kw-2">mut </span>map_ser = s.serialize_map(<span class="prelude-val">Some</span>(<span class="self">self</span>.len()))<span class="question-mark">?</span>;
+        <span class="kw">for </span>(key, value) <span class="kw">in </span><span class="self">self </span>{
+            <span class="kw">if </span>!value.skip_serialization(behavior) {
+                map_ser.serialize_key(<span class="kw-2">&amp;</span>key)<span class="question-mark">?</span>;
+                map_ser.serialize_value(<span class="kw-2">&amp;</span>SerializePayload(value, behavior))<span class="question-mark">?</span>;
             }
         }
-        <span class="ident">map_ser</span>.<span class="ident">end</span>()
+        map_ser.end()
     }
 
-    <span class="kw">fn</span> <span class="ident">extract_child_meta</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Map</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">MetaTree</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="self">Self</span>: <span class="ident">Sized</span>,
+    <span class="kw">fn </span>extract_child_meta(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Map&lt;String, MetaTree&gt;
+    <span class="kw">where
+        </span><span class="self">Self</span>: Sized,
     {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">children</span> <span class="op">=</span> <span class="ident">MetaMap::new</span>();
-        <span class="kw">for</span> (<span class="ident">key</span>, <span class="ident">value</span>) <span class="kw">in</span> <span class="self">self</span>.<span class="ident">iter</span>() {
-            <span class="kw">let</span> <span class="ident">tree</span> <span class="op">=</span> <span class="ident">IntoValue::extract_meta_tree</span>(<span class="ident">value</span>);
-            <span class="kw">if</span> <span class="op">!</span><span class="ident">tree</span>.<span class="ident">is_empty</span>() {
-                <span class="ident">children</span>.<span class="ident">insert</span>(<span class="ident">key</span>.<span class="ident">to_string</span>(), <span class="ident">tree</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>children = MetaMap::new();
+        <span class="kw">for </span>(key, value) <span class="kw">in </span><span class="self">self</span>.iter() {
+            <span class="kw">let </span>tree = IntoValue::extract_meta_tree(value);
+            <span class="kw">if </span>!tree.is_empty() {
+                children.insert(key.to_string(), tree);
             }
         }
-        <span class="ident">children</span>
+        children
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Empty</span> <span class="kw">for</span> <span class="ident">Value</span> {
-    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">Value::Bool</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
-            <span class="ident">Value::I64</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
-            <span class="ident">Value::U64</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
-            <span class="ident">Value::F64</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
-            <span class="ident">Value::String</span>(<span class="ident">v</span>) =&gt; <span class="ident">v</span>.<span class="ident">is_empty</span>(),
-            <span class="ident">Value::Array</span>(<span class="ident">v</span>) =&gt; <span class="ident">v</span>.<span class="ident">is_empty</span>(),
-            <span class="ident">Value::Object</span>(<span class="ident">v</span>) =&gt; <span class="ident">v</span>.<span class="ident">is_empty</span>(),
+<span class="kw">impl </span>Empty <span class="kw">for </span>Value {
+    <span class="kw">fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="kw">match </span><span class="self">self </span>{
+            Value::Bool(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
+            Value::I64(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
+            Value::U64(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
+            Value::F64(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
+            Value::String(v) =&gt; v.is_empty(),
+            Value::Array(v) =&gt; v.is_empty(),
+            Value::Object(v) =&gt; v.is_empty(),
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">is_deep_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">Value::Bool</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
-            <span class="ident">Value::I64</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
-            <span class="ident">Value::U64</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
-            <span class="ident">Value::F64</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
-            <span class="ident">Value::String</span>(<span class="ident">v</span>) =&gt; <span class="ident">v</span>.<span class="ident">is_deep_empty</span>(),
-            <span class="ident">Value::Array</span>(<span class="ident">v</span>) =&gt; <span class="ident">v</span>.<span class="ident">is_deep_empty</span>(),
-            <span class="ident">Value::Object</span>(<span class="ident">v</span>) =&gt; <span class="ident">v</span>.<span class="ident">is_deep_empty</span>(),
+    <span class="kw">fn </span>is_deep_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="kw">match </span><span class="self">self </span>{
+            Value::Bool(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
+            Value::I64(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
+            Value::U64(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
+            Value::F64(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
+            Value::String(v) =&gt; v.is_deep_empty(),
+            Value::Array(v) =&gt; v.is_deep_empty(),
+            Value::Object(v) =&gt; v.is_deep_empty(),
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">FromValue</span> <span class="kw">for</span> <span class="ident">Value</span> {
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">from_value</span>(<span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span> {
-        <span class="ident">value</span>
+<span class="kw">impl </span>FromValue <span class="kw">for </span>Value {
+    <span class="attribute">#[inline]
+    </span><span class="kw">fn </span>from_value(value: Annotated&lt;Value&gt;) -&gt; Annotated&lt;Value&gt; {
+        value
     }
 }
 
-<span class="kw">impl</span> <span class="ident">IntoValue</span> <span class="kw">for</span> <span class="ident">Value</span> {
-    <span class="kw">fn</span> <span class="ident">into_value</span>(<span class="self">self</span>) -&gt; <span class="ident">Value</span> {
-        <span class="self">self</span>
+<span class="kw">impl </span>IntoValue <span class="kw">for </span>Value {
+    <span class="kw">fn </span>into_value(<span class="self">self</span>) -&gt; Value {
+        <span class="self">self
+    </span>}
+
+    <span class="kw">fn </span>serialize_payload&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, s: S, _behavior: SkipSerialization) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
+    <span class="kw">where
+        </span><span class="self">Self</span>: Sized,
+        S: Serializer,
+    {
+        Serialize::serialize(<span class="self">self</span>, s)
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_payload</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">s</span>: <span class="ident">S</span>, <span class="ident">_behavior</span>: <span class="ident">SkipSerialization</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="self">Self</span>: <span class="ident">Sized</span>,
-        <span class="ident">S</span>: <span class="ident">Serializer</span>,
+    <span class="kw">fn </span>extract_child_meta(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Map&lt;String, MetaTree&gt;
+    <span class="kw">where
+        </span><span class="self">Self</span>: Sized,
     {
-        <span class="ident">Serialize::serialize</span>(<span class="self">self</span>, <span class="ident">s</span>)
-    }
-
-    <span class="kw">fn</span> <span class="ident">extract_child_meta</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Map</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">MetaTree</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="self">Self</span>: <span class="ident">Sized</span>,
-    {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">children</span> <span class="op">=</span> <span class="ident">MetaMap::new</span>();
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">Value::Object</span>(<span class="ident">items</span>) =&gt; {
-                <span class="kw">for</span> (<span class="ident">key</span>, <span class="ident">value</span>) <span class="kw">in</span> <span class="ident">items</span>.<span class="ident">iter</span>() {
-                    <span class="kw">let</span> <span class="ident">tree</span> <span class="op">=</span> <span class="ident">IntoValue::extract_meta_tree</span>(<span class="ident">value</span>);
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">tree</span>.<span class="ident">is_empty</span>() {
-                        <span class="ident">children</span>.<span class="ident">insert</span>(<span class="ident">key</span>.<span class="ident">to_string</span>(), <span class="ident">tree</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>children = MetaMap::new();
+        <span class="kw">match </span><span class="self">self </span>{
+            Value::Object(items) =&gt; {
+                <span class="kw">for </span>(key, value) <span class="kw">in </span>items.iter() {
+                    <span class="kw">let </span>tree = IntoValue::extract_meta_tree(value);
+                    <span class="kw">if </span>!tree.is_empty() {
+                        children.insert(key.to_string(), tree);
                     }
                 }
             }
-            <span class="ident">Value::Array</span>(<span class="ident">items</span>) =&gt; {
-                <span class="kw">for</span> (<span class="ident">idx</span>, <span class="ident">item</span>) <span class="kw">in</span> <span class="ident">items</span>.<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
-                    <span class="kw">let</span> <span class="ident">tree</span> <span class="op">=</span> <span class="ident">IntoValue::extract_meta_tree</span>(<span class="ident">item</span>);
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">tree</span>.<span class="ident">is_empty</span>() {
-                        <span class="ident">children</span>.<span class="ident">insert</span>(<span class="ident">idx</span>.<span class="ident">to_string</span>(), <span class="ident">tree</span>);
+            Value::Array(items) =&gt; {
+                <span class="kw">for </span>(idx, item) <span class="kw">in </span>items.iter().enumerate() {
+                    <span class="kw">let </span>tree = IntoValue::extract_meta_tree(item);
+                    <span class="kw">if </span>!tree.is_empty() {
+                        children.insert(idx.to_string(), tree);
                     }
                 }
             }
-            <span class="kw">_</span> =&gt; {}
+            <span class="kw">_ </span>=&gt; {}
         }
-        <span class="ident">children</span>
+        children
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">FromValue</span> <span class="kw">for</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">T</span>: <span class="ident">FromValue</span>,
+<span class="kw">impl</span>&lt;T&gt; FromValue <span class="kw">for </span>Box&lt;T&gt;
+<span class="kw">where
+    </span>T: FromValue,
 {
-    <span class="kw">fn</span> <span class="ident">from_value</span>(<span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="self">Self</span>: <span class="ident">Sized</span>,
+    <span class="kw">fn </span>from_value(value: Annotated&lt;Value&gt;) -&gt; Annotated&lt;<span class="self">Self</span>&gt;
+    <span class="kw">where
+        </span><span class="self">Self</span>: Sized,
     {
-        <span class="kw">let</span> <span class="ident">annotated</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">FromValue::from_value</span>(<span class="ident">value</span>);
-        <span class="ident">Annotated</span>(<span class="ident">annotated</span>.<span class="number">0</span>.<span class="ident">map</span>(<span class="ident">Box::new</span>), <span class="ident">annotated</span>.<span class="number">1</span>)
+        <span class="kw">let </span>annotated: Annotated&lt;T&gt; = FromValue::from_value(value);
+        Annotated(annotated.<span class="number">0</span>.map(Box::new), annotated.<span class="number">1</span>)
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">IntoValue</span> <span class="kw">for</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">T</span>: <span class="ident">IntoValue</span>,
+<span class="kw">impl</span>&lt;T&gt; IntoValue <span class="kw">for </span>Box&lt;T&gt;
+<span class="kw">where
+    </span>T: IntoValue,
 {
-    <span class="kw">fn</span> <span class="ident">into_value</span>(<span class="self">self</span>) -&gt; <span class="ident">Value</span>
-    <span class="kw">where</span>
-        <span class="self">Self</span>: <span class="ident">Sized</span>,
+    <span class="kw">fn </span>into_value(<span class="self">self</span>) -&gt; Value
+    <span class="kw">where
+        </span><span class="self">Self</span>: Sized,
     {
-        <span class="ident">IntoValue::into_value</span>(<span class="kw-2">*</span><span class="self">self</span>)
+        IntoValue::into_value(<span class="kw-2">*</span><span class="self">self</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">extract_child_meta</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">MetaMap</span>
-    <span class="kw">where</span>
-        <span class="self">Self</span>: <span class="ident">Sized</span>,
+    <span class="kw">fn </span>extract_child_meta(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; MetaMap
+    <span class="kw">where
+        </span><span class="self">Self</span>: Sized,
     {
-        <span class="ident">IntoValue::extract_child_meta</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="self">self</span>)
+        IntoValue::extract_child_meta(<span class="kw-2">&amp;**</span><span class="self">self</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_payload</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">s</span>: <span class="ident">S</span>, <span class="ident">behavior</span>: <span class="ident">SkipSerialization</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="self">Self</span>: <span class="ident">Sized</span>,
-        <span class="ident">S</span>: <span class="ident">Serializer</span>,
+    <span class="kw">fn </span>serialize_payload&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, s: S, behavior: SkipSerialization) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
+    <span class="kw">where
+        </span><span class="self">Self</span>: Sized,
+        S: Serializer,
     {
-        <span class="ident">IntoValue::serialize_payload</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="self">self</span>, <span class="ident">s</span>, <span class="ident">behavior</span>)
+        IntoValue::serialize_payload(<span class="kw-2">&amp;**</span><span class="self">self</span>, s, behavior)
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Empty</span> <span class="kw">for</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">T</span>: <span class="ident">Empty</span>,
+<span class="kw">impl</span>&lt;T&gt; Empty <span class="kw">for </span>Box&lt;T&gt;
+<span class="kw">where
+    </span>T: Empty,
 {
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">as_ref</span>().<span class="ident">is_empty</span>()
+    <span class="attribute">#[inline]
+    </span><span class="kw">fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.as_ref().is_empty()
     }
 
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">is_deep_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">as_ref</span>().<span class="ident">is_deep_empty</span>()
+    <span class="attribute">#[inline]
+    </span><span class="kw">fn </span>is_deep_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.as_ref().is_deep_empty()
     }
 }
 
-<span class="doccomment">/// Checks whether annotated data contains either a value or meta data.</span>
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Empty</span> <span class="kw">for</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">T</span>: <span class="ident">Empty</span>,
+<span class="doccomment">/// Checks whether annotated data contains either a value or meta data.
+</span><span class="kw">impl</span>&lt;T&gt; Empty <span class="kw">for </span>Annotated&lt;T&gt;
+<span class="kw">where
+    </span>T: Empty,
 {
-    <span class="doccomment">/// Returns if this object contains data to be serialized.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// **Caution:** This has different behavior than `annotated.value().is_empty()`! Annotated is</span>
-    <span class="doccomment">/// **not** empty if there is meta data that needs to be serialized. This is in line with the</span>
-    <span class="doccomment">/// derived implementation of `Empty` on structs, which calls `Annotated::is_empty` on every</span>
-    <span class="doccomment">/// child.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// To check if a value is missing or empty, use `Option::is_empty` on the value instead.</span>
-    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">skip_serialization</span>(<span class="ident">SkipSerialization::Empty</span>(<span class="bool-val">false</span>))
+    <span class="doccomment">/// Returns if this object contains data to be serialized.
+    ///
+    /// **Caution:** This has different behavior than `annotated.value().is_empty()`! Annotated is
+    /// **not** empty if there is meta data that needs to be serialized. This is in line with the
+    /// derived implementation of `Empty` on structs, which calls `Annotated::is_empty` on every
+    /// child.
+    ///
+    /// To check if a value is missing or empty, use `Option::is_empty` on the value instead.
+    </span><span class="kw">fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.skip_serialization(SkipSerialization::Empty(<span class="bool-val">false</span>))
     }
 
-    <span class="doccomment">/// Returns if this object contains nested data to be serialized.</span>
-    <span class="kw">fn</span> <span class="ident">is_deep_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">skip_serialization</span>(<span class="ident">SkipSerialization::Empty</span>(<span class="bool-val">true</span>))
+    <span class="doccomment">/// Returns if this object contains nested data to be serialized.
+    </span><span class="kw">fn </span>is_deep_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.skip_serialization(SkipSerialization::Empty(<span class="bool-val">true</span>))
     }
 }
 
-<span class="macro">macro_rules!</span> <span class="ident">tuple_meta_structure</span> {
-    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">count</span>: <span class="ident">literal</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>: <span class="ident">ident</span>),<span class="op">+</span>) =&gt; {
-        <span class="kw">impl</span><span class="op">&lt;</span> $( <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>: <span class="ident">FromValue</span> ),<span class="op">*</span> <span class="op">&gt;</span> <span class="ident">FromValue</span> <span class="kw">for</span> ( $( <span class="ident">Annotated</span><span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span><span class="op">&gt;</span>, )<span class="op">*</span> ) {
-            <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">non_snake_case</span>, <span class="ident">unused_variables</span>)]</span>
-            <span class="kw">fn</span> <span class="ident">from_value</span>(<span class="ident">annotated</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-                <span class="kw">let</span> <span class="ident">expectation</span> <span class="op">=</span> <span class="kw">match</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">count</span> {
-                    <span class="number">1</span> =&gt; <span class="string">&quot;a single element&quot;</span>,
-                    <span class="number">2</span> =&gt; <span class="string">&quot;a tuple&quot;</span>,
-                    <span class="kw">_</span> =&gt; <span class="macro">concat!</span>(<span class="string">&quot;a &quot;</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">count</span>, <span class="string">&quot;-tuple&quot;</span>),
+<span class="macro">macro_rules! </span>tuple_meta_structure {
+    (<span class="macro-nonterminal">$count</span>: literal, $(<span class="macro-nonterminal">$name</span>: ident),+) =&gt; {
+        <span class="kw">impl</span>&lt; $( <span class="macro-nonterminal">$name</span>: FromValue ),* &gt; FromValue <span class="kw">for </span>( $( Annotated&lt;<span class="macro-nonterminal">$name</span>&gt;, )* ) {
+            <span class="attribute">#[allow(non_snake_case, unused_variables)]
+            </span><span class="kw">fn </span>from_value(annotated: Annotated&lt;Value&gt;) -&gt; Annotated&lt;<span class="self">Self</span>&gt; {
+                <span class="kw">let </span>expectation = <span class="kw">match </span><span class="macro-nonterminal">$count </span>{
+                    <span class="number">1 </span>=&gt; <span class="string">&quot;a single element&quot;</span>,
+                    <span class="number">2 </span>=&gt; <span class="string">&quot;a tuple&quot;</span>,
+                    <span class="kw">_ </span>=&gt; <span class="macro">concat!</span>(<span class="string">&quot;a &quot;</span>, <span class="macro-nonterminal">$count</span>, <span class="string">&quot;-tuple&quot;</span>),
                 };
 
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">n</span> <span class="op">=</span> <span class="number">0</span>;
-                $(<span class="kw">let</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span> <span class="op">=</span> (); <span class="ident">n</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;)<span class="op">*</span>
-                <span class="kw">match</span> <span class="ident">annotated</span> {
-                    <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value::Array</span>(<span class="ident">items</span>)), <span class="kw-2">mut</span> <span class="ident">meta</span>) =&gt; {
-                        <span class="kw">if</span> <span class="ident">items</span>.<span class="ident">len</span>() <span class="op">!</span><span class="op">=</span> <span class="ident">n</span> {
-                            <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::expected</span>(<span class="ident">expectation</span>));
-                            <span class="ident">meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">items</span>));
-                            <span class="kw">return</span> <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>);
+                <span class="kw">let </span><span class="kw-2">mut </span>n = <span class="number">0</span>;
+                $(<span class="kw">let </span><span class="macro-nonterminal">$name </span>= (); n += <span class="number">1</span>;)*
+                <span class="kw">match </span>annotated {
+                    Annotated(<span class="prelude-val">Some</span>(Value::Array(items)), <span class="kw-2">mut </span>meta) =&gt; {
+                        <span class="kw">if </span>items.len() != n {
+                            meta.add_error(Error::expected(expectation));
+                            meta.set_original_value(<span class="prelude-val">Some</span>(items));
+                            <span class="kw">return </span>Annotated(<span class="prelude-val">None</span>, meta);
                         }
 
-                        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">iter</span> <span class="op">=</span> <span class="ident">items</span>.<span class="ident">into_iter</span>();
-                        <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>((
+                        <span class="kw">let </span><span class="kw-2">mut </span>iter = items.into_iter();
+                        Annotated(<span class="prelude-val">Some</span>((
                             $({
-                                <span class="kw">let</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span> <span class="op">=</span> ();
-                                <span class="ident">FromValue::from_value</span>(<span class="ident">iter</span>.<span class="ident">next</span>().<span class="ident">unwrap</span>())
-                            },)<span class="op">*</span>
-                        )), <span class="ident">meta</span>)
+                                <span class="kw">let </span><span class="macro-nonterminal">$name </span>= ();
+                                FromValue::from_value(iter.next().unwrap())
+                            },)*
+                        )), meta)
                     }
-                    <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="kw-2">mut</span> <span class="ident">meta</span>) =&gt; {
-                        <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::expected</span>(<span class="ident">expectation</span>));
-                        <span class="ident">meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>));
-                        <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>)
+                    Annotated(<span class="prelude-val">Some</span>(value), <span class="kw-2">mut </span>meta) =&gt; {
+                        meta.add_error(Error::expected(expectation));
+                        meta.set_original_value(<span class="prelude-val">Some</span>(value));
+                        Annotated(<span class="prelude-val">None</span>, meta)
                     }
-                    <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>) =&gt; <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>)
+                    Annotated(<span class="prelude-val">None</span>, meta) =&gt; Annotated(<span class="prelude-val">None</span>, meta)
                 }
             }
         }
 
-        <span class="kw">impl</span><span class="op">&lt;</span> $( <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>: <span class="ident">IntoValue</span> ),<span class="op">*</span> <span class="op">&gt;</span> <span class="ident">IntoValue</span> <span class="kw">for</span> ( $( <span class="ident">Annotated</span><span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span><span class="op">&gt;</span>, )<span class="op">*</span> ) {
-            <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">non_snake_case</span>, <span class="ident">unused_variables</span>)]</span>
-            <span class="kw">fn</span> <span class="ident">into_value</span>(<span class="self">self</span>) -&gt; <span class="ident">Value</span> {
-                <span class="kw">let</span> ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>,)<span class="kw-2">*</span>) <span class="op">=</span> <span class="self">self</span>;
-                <span class="ident">Value::Array</span>(<span class="macro">vec!</span>[$(<span class="ident">Annotated::map_value</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>, <span class="ident">IntoValue::into_value</span>),)<span class="kw-2">*</span>])
+        <span class="kw">impl</span>&lt; $( <span class="macro-nonterminal">$name</span>: IntoValue ),* &gt; IntoValue <span class="kw">for </span>( $( Annotated&lt;<span class="macro-nonterminal">$name</span>&gt;, )* ) {
+            <span class="attribute">#[allow(non_snake_case, unused_variables)]
+            </span><span class="kw">fn </span>into_value(<span class="self">self</span>) -&gt; Value {
+                <span class="kw">let </span>($(<span class="macro-nonterminal">$name</span>,)<span class="kw-2">*</span>) = <span class="self">self</span>;
+                Value::Array(<span class="macro">vec!</span>[$(Annotated::map_value(<span class="macro-nonterminal">$name</span>, IntoValue::into_value),)<span class="kw-2">*</span>])
             }
 
-            <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">non_snake_case</span>, <span class="ident">unused_variables</span>)]</span>
-            <span class="kw">fn</span> <span class="ident">serialize_payload</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">s</span>: <span class="ident">S</span>, <span class="ident">behavior</span>: <span class="ident"><span class="kw">crate</span>::types::SkipSerialization</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
-            <span class="kw">where</span>
-                <span class="ident">S</span>: <span class="ident">Serializer</span>,
+            <span class="attribute">#[allow(non_snake_case, unused_variables)]
+            </span><span class="kw">fn </span>serialize_payload&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, s: S, behavior: <span class="kw">crate</span>::types::SkipSerialization) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
+            <span class="kw">where
+                </span>S: Serializer,
             {
-                <span class="kw">let</span> <span class="ident">behavior</span> <span class="op">=</span> <span class="ident">behavior</span>.<span class="ident">descend</span>();
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">s</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">serialize_seq</span>(<span class="prelude-val">None</span>)<span class="question-mark">?</span>;
-                <span class="kw">let</span> ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>,)<span class="kw-2">*</span>) <span class="op">=</span> <span class="self">self</span>;
-                $(<span class="ident">s</span>.<span class="ident">serialize_element</span>(<span class="kw-2">&amp;</span><span class="ident">SerializePayload</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>, <span class="ident">behavior</span>))<span class="question-mark">?</span>;)<span class="op">*</span>
-                <span class="ident">s</span>.<span class="ident">end</span>()
+                <span class="kw">let </span>behavior = behavior.descend();
+                <span class="kw">let </span><span class="kw-2">mut </span>s = s.serialize_seq(<span class="prelude-val">None</span>)<span class="question-mark">?</span>;
+                <span class="kw">let </span>($(<span class="macro-nonterminal">$name</span>,)<span class="kw-2">*</span>) = <span class="self">self</span>;
+                $(s.serialize_element(<span class="kw-2">&amp;</span>SerializePayload(<span class="macro-nonterminal">$name</span>, behavior))<span class="question-mark">?</span>;)*
+                s.end()
             }
 
-            <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">non_snake_case</span>, <span class="ident">unused_variables</span>, <span class="ident">unused_assignments</span>)]</span>
-            <span class="kw">fn</span> <span class="ident">extract_child_meta</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">MetaMap</span>
-            <span class="kw">where</span>
-                <span class="self">Self</span>: <span class="ident">Sized</span>,
+            <span class="attribute">#[allow(non_snake_case, unused_variables, unused_assignments)]
+            </span><span class="kw">fn </span>extract_child_meta(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; MetaMap
+            <span class="kw">where
+                </span><span class="self">Self</span>: Sized,
             {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">children</span> <span class="op">=</span> <span class="ident">MetaMap::new</span>();
-                <span class="kw">let</span> ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>,)<span class="kw-2">*</span>) <span class="op">=</span> <span class="self">self</span>;
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">idx</span> <span class="op">=</span> <span class="number">0</span>;
+                <span class="kw">let </span><span class="kw-2">mut </span>children = MetaMap::new();
+                <span class="kw">let </span>($(<span class="macro-nonterminal">$name</span>,)<span class="kw-2">*</span>) = <span class="self">self</span>;
+                <span class="kw">let </span><span class="kw-2">mut </span>idx = <span class="number">0</span>;
                 $({
-                    <span class="kw">let</span> <span class="ident">tree</span> <span class="op">=</span> <span class="ident">IntoValue::extract_meta_tree</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>);
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">tree</span>.<span class="ident">is_empty</span>() {
-                        <span class="ident">children</span>.<span class="ident">insert</span>(<span class="ident">idx</span>.<span class="ident">to_string</span>(), <span class="ident">tree</span>);
+                    <span class="kw">let </span>tree = IntoValue::extract_meta_tree(<span class="macro-nonterminal">$name</span>);
+                    <span class="kw">if </span>!tree.is_empty() {
+                        children.insert(idx.to_string(), tree);
                     }
-                    <span class="ident">idx</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
+                    idx += <span class="number">1</span>;
                 })<span class="kw-2">*</span>;
-                <span class="ident">children</span>
+                children
             }
         }
 
-        <span class="kw">impl</span><span class="op">&lt;</span> $( <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>: <span class="ident">Empty</span> ),<span class="op">*</span> <span class="op">&gt;</span> <span class="ident">Empty</span> <span class="kw">for</span> ( $( <span class="ident">Annotated</span><span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span><span class="op">&gt;</span>, )<span class="op">*</span> ) {
-            <span class="attribute">#[<span class="ident">inline</span>]</span>
-            <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-                <span class="bool-val">false</span>
-            }
+        <span class="kw">impl</span>&lt; $( <span class="macro-nonterminal">$name</span>: Empty ),* &gt; Empty <span class="kw">for </span>( $( Annotated&lt;<span class="macro-nonterminal">$name</span>&gt;, )* ) {
+            <span class="attribute">#[inline]
+            </span><span class="kw">fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+                <span class="bool-val">false
+            </span>}
 
-            <span class="attribute">#[<span class="ident">inline</span>]</span>
-            <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">non_snake_case</span>)]</span>
-            <span class="kw">fn</span> <span class="ident">is_deep_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-                <span class="kw">let</span> ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>,)<span class="kw-2">*</span>) <span class="op">=</span> <span class="self">self</span>;
-                <span class="bool-val">true</span> $(<span class="op">&amp;&amp;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>.<span class="ident">is_deep_empty</span>())<span class="op">*</span>
+            <span class="attribute">#[inline]
+            #[allow(non_snake_case)]
+            </span><span class="kw">fn </span>is_deep_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+                <span class="kw">let </span>($(<span class="macro-nonterminal">$name</span>,)<span class="kw-2">*</span>) = <span class="self">self</span>;
+                <span class="bool-val">true </span>$(&amp;&amp; <span class="macro-nonterminal">$name</span>.is_deep_empty())*
             }
         }
     }
 }
 
-<span class="macro">tuple_meta_structure!</span>(<span class="number">1</span>, <span class="ident">T1</span>);
-<span class="macro">tuple_meta_structure!</span>(<span class="number">2</span>, <span class="ident">T1</span>, <span class="ident">T2</span>);
-<span class="macro">tuple_meta_structure!</span>(<span class="number">3</span>, <span class="ident">T1</span>, <span class="ident">T2</span>, <span class="ident">T3</span>);
-<span class="macro">tuple_meta_structure!</span>(<span class="number">4</span>, <span class="ident">T1</span>, <span class="ident">T2</span>, <span class="ident">T3</span>, <span class="ident">T4</span>);
-<span class="macro">tuple_meta_structure!</span>(<span class="number">5</span>, <span class="ident">T1</span>, <span class="ident">T2</span>, <span class="ident">T3</span>, <span class="ident">T4</span>, <span class="ident">T5</span>);
-<span class="macro">tuple_meta_structure!</span>(<span class="number">6</span>, <span class="ident">T1</span>, <span class="ident">T2</span>, <span class="ident">T3</span>, <span class="ident">T4</span>, <span class="ident">T5</span>, <span class="ident">T6</span>);
-<span class="macro">tuple_meta_structure!</span>(<span class="number">7</span>, <span class="ident">T1</span>, <span class="ident">T2</span>, <span class="ident">T3</span>, <span class="ident">T4</span>, <span class="ident">T5</span>, <span class="ident">T6</span>, <span class="ident">T7</span>);
-<span class="macro">tuple_meta_structure!</span>(<span class="number">8</span>, <span class="ident">T1</span>, <span class="ident">T2</span>, <span class="ident">T3</span>, <span class="ident">T4</span>, <span class="ident">T5</span>, <span class="ident">T6</span>, <span class="ident">T7</span>, <span class="ident">T8</span>);
-<span class="macro">tuple_meta_structure!</span>(<span class="number">9</span>, <span class="ident">T1</span>, <span class="ident">T2</span>, <span class="ident">T3</span>, <span class="ident">T4</span>, <span class="ident">T5</span>, <span class="ident">T6</span>, <span class="ident">T7</span>, <span class="ident">T8</span>, <span class="ident">T9</span>);
-<span class="macro">tuple_meta_structure!</span>(<span class="number">10</span>, <span class="ident">T1</span>, <span class="ident">T2</span>, <span class="ident">T3</span>, <span class="ident">T4</span>, <span class="ident">T5</span>, <span class="ident">T6</span>, <span class="ident">T7</span>, <span class="ident">T8</span>, <span class="ident">T9</span>, <span class="ident">T10</span>);
-<span class="macro">tuple_meta_structure!</span>(<span class="number">11</span>, <span class="ident">T1</span>, <span class="ident">T2</span>, <span class="ident">T3</span>, <span class="ident">T4</span>, <span class="ident">T5</span>, <span class="ident">T6</span>, <span class="ident">T7</span>, <span class="ident">T8</span>, <span class="ident">T9</span>, <span class="ident">T10</span>, <span class="ident">T11</span>);
-<span class="macro">tuple_meta_structure!</span>(<span class="number">12</span>, <span class="ident">T1</span>, <span class="ident">T2</span>, <span class="ident">T3</span>, <span class="ident">T4</span>, <span class="ident">T5</span>, <span class="ident">T6</span>, <span class="ident">T7</span>, <span class="ident">T8</span>, <span class="ident">T9</span>, <span class="ident">T10</span>, <span class="ident">T11</span>, <span class="ident">T12</span>);
+<span class="macro">tuple_meta_structure!</span>(<span class="number">1</span>, T1);
+<span class="macro">tuple_meta_structure!</span>(<span class="number">2</span>, T1, T2);
+<span class="macro">tuple_meta_structure!</span>(<span class="number">3</span>, T1, T2, T3);
+<span class="macro">tuple_meta_structure!</span>(<span class="number">4</span>, T1, T2, T3, T4);
+<span class="macro">tuple_meta_structure!</span>(<span class="number">5</span>, T1, T2, T3, T4, T5);
+<span class="macro">tuple_meta_structure!</span>(<span class="number">6</span>, T1, T2, T3, T4, T5, T6);
+<span class="macro">tuple_meta_structure!</span>(<span class="number">7</span>, T1, T2, T3, T4, T5, T6, T7);
+<span class="macro">tuple_meta_structure!</span>(<span class="number">8</span>, T1, T2, T3, T4, T5, T6, T7, T8);
+<span class="macro">tuple_meta_structure!</span>(<span class="number">9</span>, T1, T2, T3, T4, T5, T6, T7, T8, T9);
+<span class="macro">tuple_meta_structure!</span>(<span class="number">10</span>, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10);
+<span class="macro">tuple_meta_structure!</span>(<span class="number">11</span>, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11);
+<span class="macro">tuple_meta_structure!</span>(<span class="number">12</span>, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12);
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">similar_asserts::assert_eq</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>similar_asserts::assert_eq;
 
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_unsigned_integers</span>() {
-        <span class="macro">assert_eq!</span>(<span class="ident">Annotated::new</span>(<span class="number">1u64</span>), <span class="ident">Annotated::from_json</span>(<span class="string">&quot;1&quot;</span>).<span class="ident">unwrap</span>(),);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_unsigned_integers() {
+        <span class="macro">assert_eq!</span>(Annotated::new(<span class="number">1u64</span>), Annotated::from_json(<span class="string">&quot;1&quot;</span>).unwrap(),);
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">Annotated::from_error</span>(<span class="ident">Error::expected</span>(<span class="string">&quot;an unsigned integer&quot;</span>), <span class="prelude-val">Some</span>(<span class="ident">Value::I64</span>(<span class="op">-</span><span class="number">1</span>))),
-            <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="string">&quot;-1&quot;</span>).<span class="ident">unwrap</span>(),
+            Annotated::from_error(Error::expected(<span class="string">&quot;an unsigned integer&quot;</span>), <span class="prelude-val">Some</span>(Value::I64(-<span class="number">1</span>))),
+            Annotated::&lt;u64&gt;::from_json(<span class="string">&quot;-1&quot;</span>).unwrap(),
         );
 
-        <span class="comment">// Floats are rounded implicitly</span>
-        <span class="macro">assert_eq!</span>(<span class="ident">Annotated::new</span>(<span class="number">4u64</span>), <span class="ident">Annotated::from_json</span>(<span class="string">&quot;4.2&quot;</span>).<span class="ident">unwrap</span>(),);
+        <span class="comment">// Floats are rounded implicitly
+        </span><span class="macro">assert_eq!</span>(Annotated::new(<span class="number">4u64</span>), Annotated::from_json(<span class="string">&quot;4.2&quot;</span>).unwrap(),);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_signed_integers</span>() {
-        <span class="macro">assert_eq!</span>(<span class="ident">Annotated::new</span>(<span class="number">1i64</span>), <span class="ident">Annotated::from_json</span>(<span class="string">&quot;1&quot;</span>).<span class="ident">unwrap</span>(),);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_signed_integers() {
+        <span class="macro">assert_eq!</span>(Annotated::new(<span class="number">1i64</span>), Annotated::from_json(<span class="string">&quot;1&quot;</span>).unwrap(),);
 
-        <span class="macro">assert_eq!</span>(<span class="ident">Annotated::new</span>(<span class="op">-</span><span class="number">1i64</span>), <span class="ident">Annotated::from_json</span>(<span class="string">&quot;-1&quot;</span>).<span class="ident">unwrap</span>(),);
+        <span class="macro">assert_eq!</span>(Annotated::new(-<span class="number">1i64</span>), Annotated::from_json(<span class="string">&quot;-1&quot;</span>).unwrap(),);
 
-        <span class="comment">// Floats are rounded implicitly</span>
-        <span class="macro">assert_eq!</span>(<span class="ident">Annotated::new</span>(<span class="number">4u64</span>), <span class="ident">Annotated::from_json</span>(<span class="string">&quot;4.2&quot;</span>).<span class="ident">unwrap</span>(),);
+        <span class="comment">// Floats are rounded implicitly
+        </span><span class="macro">assert_eq!</span>(Annotated::new(<span class="number">4u64</span>), Annotated::from_json(<span class="string">&quot;4.2&quot;</span>).unwrap(),);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_floats</span>() {
-        <span class="macro">assert_eq!</span>(<span class="ident">Annotated::new</span>(<span class="number">1f64</span>), <span class="ident">Annotated::from_json</span>(<span class="string">&quot;1&quot;</span>).<span class="ident">unwrap</span>(),);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_floats() {
+        <span class="macro">assert_eq!</span>(Annotated::new(<span class="number">1f64</span>), Annotated::from_json(<span class="string">&quot;1&quot;</span>).unwrap(),);
 
-        <span class="macro">assert_eq!</span>(<span class="ident">Annotated::new</span>(<span class="op">-</span><span class="number">1f64</span>), <span class="ident">Annotated::from_json</span>(<span class="string">&quot;-1&quot;</span>).<span class="ident">unwrap</span>(),);
+        <span class="macro">assert_eq!</span>(Annotated::new(-<span class="number">1f64</span>), Annotated::from_json(<span class="string">&quot;-1&quot;</span>).unwrap(),);
 
-        <span class="macro">assert_eq!</span>(<span class="ident">Annotated::new</span>(<span class="number">4.2f64</span>), <span class="ident">Annotated::from_json</span>(<span class="string">&quot;4.2&quot;</span>).<span class="ident">unwrap</span>(),);
+        <span class="macro">assert_eq!</span>(Annotated::new(<span class="number">4.2f64</span>), Annotated::from_json(<span class="string">&quot;4.2&quot;</span>).unwrap(),);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_skip_array_never</span>() {
-        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Empty</span>, <span class="ident">IntoValue</span>)]</span>
-        <span class="kw">struct</span> <span class="ident">Helper</span> {
-            <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;never&quot;</span>)]</span>
-            <span class="ident">items</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Array</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_skip_array_never() {
+        <span class="attribute">#[derive(Debug, Empty, IntoValue)]
+        </span><span class="kw">struct </span>Helper {
+            <span class="attribute">#[metastructure(skip_serialization = <span class="string">&quot;never&quot;</span>)]
+            </span>items: Annotated&lt;Array&lt;String&gt;&gt;,
         }
 
-        <span class="comment">// &quot;never&quot; always serializes</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::default</span>(),
+        <span class="comment">// &quot;never&quot; always serializes
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::default(),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{&quot;items&quot;:null}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{&quot;items&quot;:null}&quot;#</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_skip_array_null</span>() {
-        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Empty</span>, <span class="ident">IntoValue</span>)]</span>
-        <span class="kw">struct</span> <span class="ident">Helper</span> {
-            <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;null&quot;</span>)]</span>
-            <span class="ident">items</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Array</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_skip_array_null() {
+        <span class="attribute">#[derive(Debug, Empty, IntoValue)]
+        </span><span class="kw">struct </span>Helper {
+            <span class="attribute">#[metastructure(skip_serialization = <span class="string">&quot;null&quot;</span>)]
+            </span>items: Annotated&lt;Array&lt;String&gt;&gt;,
         }
 
-        <span class="comment">// &quot;null&quot; applies to null</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::default</span>(),
+        <span class="comment">// &quot;null&quot; applies to null
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::default(),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{}&quot;#</span>);
 
-        <span class="comment">// &quot;null&quot; does not apply to empty</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[]),
+        <span class="comment">// &quot;null&quot; does not apply to empty
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::new(<span class="macro">vec!</span>[]),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{&quot;items&quot;:[]}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{&quot;items&quot;:[]}&quot;#</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_skip_array_null_deep</span>() {
-        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Empty</span>, <span class="ident">IntoValue</span>)]</span>
-        <span class="kw">struct</span> <span class="ident">Helper</span> {
-            <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;null_deep&quot;</span>)]</span>
-            <span class="ident">items</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Array</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_skip_array_null_deep() {
+        <span class="attribute">#[derive(Debug, Empty, IntoValue)]
+        </span><span class="kw">struct </span>Helper {
+            <span class="attribute">#[metastructure(skip_serialization = <span class="string">&quot;null_deep&quot;</span>)]
+            </span>items: Annotated&lt;Array&lt;String&gt;&gt;,
         }
 
-        <span class="comment">// &quot;null_deep&quot; applies to null</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::default</span>(),
+        <span class="comment">// &quot;null_deep&quot; applies to null
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::default(),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{}&quot;#</span>);
 
-        <span class="comment">// &quot;null_deep&quot; applies to nested null</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::default</span>()]),
+        <span class="comment">// &quot;null_deep&quot; applies to nested null
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::new(<span class="macro">vec!</span>[Annotated::default()]),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{&quot;items&quot;:[]}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{&quot;items&quot;:[]}&quot;#</span>);
 
-        <span class="comment">// &quot;null_deep&quot; does not apply to nested empty</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">String::new</span>())]),
+        <span class="comment">// &quot;null_deep&quot; does not apply to nested empty
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::new(<span class="macro">vec!</span>[Annotated::new(String::new())]),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{&quot;items&quot;:[&quot;&quot;]}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{&quot;items&quot;:[&quot;&quot;]}&quot;#</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_skip_array_empty</span>() {
-        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Empty</span>, <span class="ident">IntoValue</span>)]</span>
-        <span class="kw">struct</span> <span class="ident">Helper</span> {
-            <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>)]</span>
-            <span class="ident">items</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Array</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_skip_array_empty() {
+        <span class="attribute">#[derive(Debug, Empty, IntoValue)]
+        </span><span class="kw">struct </span>Helper {
+            <span class="attribute">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+            </span>items: Annotated&lt;Array&lt;String&gt;&gt;,
         }
 
-        <span class="comment">// &quot;empty&quot; applies to null</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::default</span>(),
+        <span class="comment">// &quot;empty&quot; applies to null
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::default(),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{}&quot;#</span>);
 
-        <span class="comment">// &quot;empty&quot; applies to empty</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[]),
+        <span class="comment">// &quot;empty&quot; applies to empty
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::new(<span class="macro">vec!</span>[]),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{}&quot;#</span>);
 
-        <span class="comment">// &quot;empty&quot; -&gt; &quot;never&quot; nested</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::default</span>()]),
+        <span class="comment">// &quot;empty&quot; -&gt; &quot;never&quot; nested
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::new(<span class="macro">vec!</span>[Annotated::default()]),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{&quot;items&quot;:[null]}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{&quot;items&quot;:[null]}&quot;#</span>);
 
-        <span class="comment">// &quot;empty&quot; does not apply to nested empty</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">String::new</span>())]),
+        <span class="comment">// &quot;empty&quot; does not apply to nested empty
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::new(<span class="macro">vec!</span>[Annotated::new(String::new())]),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{&quot;items&quot;:[&quot;&quot;]}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{&quot;items&quot;:[&quot;&quot;]}&quot;#</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_skip_array_empty_deep</span>() {
-        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Empty</span>, <span class="ident">IntoValue</span>)]</span>
-        <span class="kw">struct</span> <span class="ident">Helper</span> {
-            <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty_deep&quot;</span>)]</span>
-            <span class="ident">items</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Array</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_skip_array_empty_deep() {
+        <span class="attribute">#[derive(Debug, Empty, IntoValue)]
+        </span><span class="kw">struct </span>Helper {
+            <span class="attribute">#[metastructure(skip_serialization = <span class="string">&quot;empty_deep&quot;</span>)]
+            </span>items: Annotated&lt;Array&lt;String&gt;&gt;,
         }
 
-        <span class="comment">// &quot;empty_deep&quot; applies to null</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::default</span>(),
+        <span class="comment">// &quot;empty_deep&quot; applies to null
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::default(),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{}&quot;#</span>);
 
-        <span class="comment">// &quot;empty_deep&quot; applies to empty nested</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">String::new</span>())]),
+        <span class="comment">// &quot;empty_deep&quot; applies to empty nested
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::new(<span class="macro">vec!</span>[Annotated::new(String::new())]),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{}&quot;#</span>);
 
-        <span class="comment">// &quot;empty_deep&quot; does not apply to non-empty value</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="string">&quot;some&quot;</span>.<span class="ident">to_string</span>())]),
+        <span class="comment">// &quot;empty_deep&quot; does not apply to non-empty value
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">&quot;some&quot;</span>.to_string())]),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{&quot;items&quot;:[&quot;some&quot;]}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{&quot;items&quot;:[&quot;some&quot;]}&quot;#</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_skip_object_never</span>() {
-        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Empty</span>, <span class="ident">IntoValue</span>)]</span>
-        <span class="kw">struct</span> <span class="ident">Helper</span> {
-            <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;never&quot;</span>)]</span>
-            <span class="ident">items</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Object</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_skip_object_never() {
+        <span class="attribute">#[derive(Debug, Empty, IntoValue)]
+        </span><span class="kw">struct </span>Helper {
+            <span class="attribute">#[metastructure(skip_serialization = <span class="string">&quot;never&quot;</span>)]
+            </span>items: Annotated&lt;Object&lt;String&gt;&gt;,
         }
 
-        <span class="comment">// &quot;never&quot; always serializes</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::default</span>(),
+        <span class="comment">// &quot;never&quot; always serializes
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::default(),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{&quot;items&quot;:null}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{&quot;items&quot;:null}&quot;#</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_skip_object_null</span>() {
-        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Empty</span>, <span class="ident">IntoValue</span>)]</span>
-        <span class="kw">struct</span> <span class="ident">Helper</span> {
-            <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;null&quot;</span>)]</span>
-            <span class="ident">items</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Object</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_skip_object_null() {
+        <span class="attribute">#[derive(Debug, Empty, IntoValue)]
+        </span><span class="kw">struct </span>Helper {
+            <span class="attribute">#[metastructure(skip_serialization = <span class="string">&quot;null&quot;</span>)]
+            </span>items: Annotated&lt;Object&lt;String&gt;&gt;,
         }
 
-        <span class="comment">// &quot;null&quot; applies to null</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::default</span>(),
+        <span class="comment">// &quot;null&quot; applies to null
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::default(),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{}&quot;#</span>);
 
-        <span class="comment">// &quot;null&quot; does not apply to empty</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::new</span>(<span class="ident">Object::new</span>()),
+        <span class="comment">// &quot;null&quot; does not apply to empty
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::new(Object::new()),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{&quot;items&quot;:{}}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{&quot;items&quot;:{}}&quot;#</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_skip_object_null_deep</span>() {
-        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Empty</span>, <span class="ident">IntoValue</span>)]</span>
-        <span class="kw">struct</span> <span class="ident">Helper</span> {
-            <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;null_deep&quot;</span>)]</span>
-            <span class="ident">items</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Object</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_skip_object_null_deep() {
+        <span class="attribute">#[derive(Debug, Empty, IntoValue)]
+        </span><span class="kw">struct </span>Helper {
+            <span class="attribute">#[metastructure(skip_serialization = <span class="string">&quot;null_deep&quot;</span>)]
+            </span>items: Annotated&lt;Object&lt;String&gt;&gt;,
         }
 
-        <span class="comment">// &quot;null_deep&quot; applies to null</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::default</span>(),
+        <span class="comment">// &quot;null_deep&quot; applies to null
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::default(),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{}&quot;#</span>);
 
-        <span class="comment">// &quot;null_deep&quot; applies to nested null</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::new</span>({
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">obj</span> <span class="op">=</span> <span class="ident">Object</span>::<span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span><span class="ident">::new</span>();
-                <span class="ident">obj</span>.<span class="ident">insert</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Annotated::default</span>());
-                <span class="ident">obj</span>
+        <span class="comment">// &quot;null_deep&quot; applies to nested null
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::new({
+                <span class="kw">let </span><span class="kw-2">mut </span>obj = Object::&lt;String&gt;::new();
+                obj.insert(<span class="string">&quot;foo&quot;</span>.to_string(), Annotated::default());
+                obj
             }),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{&quot;items&quot;:{}}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{&quot;items&quot;:{}}&quot;#</span>);
 
-        <span class="comment">// &quot;null_deep&quot; does not apply to nested empty</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::new</span>({
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">obj</span> <span class="op">=</span> <span class="ident">Object</span>::<span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span><span class="ident">::new</span>();
-                <span class="ident">obj</span>.<span class="ident">insert</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Annotated::new</span>(<span class="ident">String::new</span>()));
-                <span class="ident">obj</span>
+        <span class="comment">// &quot;null_deep&quot; does not apply to nested empty
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::new({
+                <span class="kw">let </span><span class="kw-2">mut </span>obj = Object::&lt;String&gt;::new();
+                obj.insert(<span class="string">&quot;foo&quot;</span>.to_string(), Annotated::new(String::new()));
+                obj
             }),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{&quot;items&quot;:{&quot;foo&quot;:&quot;&quot;}}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{&quot;items&quot;:{&quot;foo&quot;:&quot;&quot;}}&quot;#</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_skip_object_empty</span>() {
-        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Empty</span>, <span class="ident">IntoValue</span>)]</span>
-        <span class="kw">struct</span> <span class="ident">Helper</span> {
-            <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>)]</span>
-            <span class="ident">items</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Object</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_skip_object_empty() {
+        <span class="attribute">#[derive(Debug, Empty, IntoValue)]
+        </span><span class="kw">struct </span>Helper {
+            <span class="attribute">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+            </span>items: Annotated&lt;Object&lt;String&gt;&gt;,
         }
 
-        <span class="comment">// &quot;empty&quot; applies to null</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::default</span>(),
+        <span class="comment">// &quot;empty&quot; applies to null
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::default(),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{}&quot;#</span>);
 
-        <span class="comment">// &quot;empty&quot; applies to empty</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::new</span>(<span class="ident">Object::new</span>()),
+        <span class="comment">// &quot;empty&quot; applies to empty
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::new(Object::new()),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{}&quot;#</span>);
 
-        <span class="comment">// &quot;empty&quot; -&gt; &quot;never&quot; nested</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::new</span>({
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">obj</span> <span class="op">=</span> <span class="ident">Object</span>::<span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span><span class="ident">::new</span>();
-                <span class="ident">obj</span>.<span class="ident">insert</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Annotated::default</span>());
-                <span class="ident">obj</span>
+        <span class="comment">// &quot;empty&quot; -&gt; &quot;never&quot; nested
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::new({
+                <span class="kw">let </span><span class="kw-2">mut </span>obj = Object::&lt;String&gt;::new();
+                obj.insert(<span class="string">&quot;foo&quot;</span>.to_string(), Annotated::default());
+                obj
             }),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{&quot;items&quot;:{&quot;foo&quot;:null}}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{&quot;items&quot;:{&quot;foo&quot;:null}}&quot;#</span>);
 
-        <span class="comment">// &quot;empty&quot; does not apply to nested empty</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::new</span>({
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">obj</span> <span class="op">=</span> <span class="ident">Object</span>::<span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span><span class="ident">::new</span>();
-                <span class="ident">obj</span>.<span class="ident">insert</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Annotated::new</span>(<span class="ident">String::new</span>()));
-                <span class="ident">obj</span>
+        <span class="comment">// &quot;empty&quot; does not apply to nested empty
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::new({
+                <span class="kw">let </span><span class="kw-2">mut </span>obj = Object::&lt;String&gt;::new();
+                obj.insert(<span class="string">&quot;foo&quot;</span>.to_string(), Annotated::new(String::new()));
+                obj
             }),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{&quot;items&quot;:{&quot;foo&quot;:&quot;&quot;}}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{&quot;items&quot;:{&quot;foo&quot;:&quot;&quot;}}&quot;#</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_skip_object_empty_deep</span>() {
-        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Empty</span>, <span class="ident">IntoValue</span>)]</span>
-        <span class="kw">struct</span> <span class="ident">Helper</span> {
-            <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty_deep&quot;</span>)]</span>
-            <span class="ident">items</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Object</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_skip_object_empty_deep() {
+        <span class="attribute">#[derive(Debug, Empty, IntoValue)]
+        </span><span class="kw">struct </span>Helper {
+            <span class="attribute">#[metastructure(skip_serialization = <span class="string">&quot;empty_deep&quot;</span>)]
+            </span>items: Annotated&lt;Object&lt;String&gt;&gt;,
         }
 
-        <span class="comment">// &quot;empty_deep&quot; applies to null</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::default</span>(),
+        <span class="comment">// &quot;empty_deep&quot; applies to null
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::default(),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{}&quot;#</span>);
 
-        <span class="comment">// &quot;empty_deep&quot; applies to empty nested</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::new</span>({
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">obj</span> <span class="op">=</span> <span class="ident">Object</span>::<span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span><span class="ident">::new</span>();
-                <span class="ident">obj</span>.<span class="ident">insert</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Annotated::new</span>(<span class="ident">String::new</span>()));
-                <span class="ident">obj</span>
+        <span class="comment">// &quot;empty_deep&quot; applies to empty nested
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::new({
+                <span class="kw">let </span><span class="kw-2">mut </span>obj = Object::&lt;String&gt;::new();
+                obj.insert(<span class="string">&quot;foo&quot;</span>.to_string(), Annotated::new(String::new()));
+                obj
             }),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{}&quot;#</span>);
 
-        <span class="comment">// &quot;empty_deep&quot; does not apply to non-empty value</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::new</span>({
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">obj</span> <span class="op">=</span> <span class="ident">Object</span>::<span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span><span class="ident">::new</span>();
-                <span class="ident">obj</span>.<span class="ident">insert</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Annotated::new</span>(<span class="string">&quot;some&quot;</span>.<span class="ident">to_string</span>()));
-                <span class="ident">obj</span>
+        <span class="comment">// &quot;empty_deep&quot; does not apply to non-empty value
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::new({
+                <span class="kw">let </span><span class="kw-2">mut </span>obj = Object::&lt;String&gt;::new();
+                obj.insert(<span class="string">&quot;foo&quot;</span>.to_string(), Annotated::new(<span class="string">&quot;some&quot;</span>.to_string()));
+                obj
             }),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{&quot;items&quot;:{&quot;foo&quot;:&quot;some&quot;}}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{&quot;items&quot;:{&quot;foo&quot;:&quot;some&quot;}}&quot;#</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_skip_tuple_never</span>() {
-        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Empty</span>, <span class="ident">IntoValue</span>)]</span>
-        <span class="kw">struct</span> <span class="ident">Helper</span> {
-            <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;never&quot;</span>)]</span>
-            <span class="ident">items</span>: <span class="ident">Annotated</span><span class="op">&lt;</span>(<span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,)<span class="op">&gt;</span>,
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_skip_tuple_never() {
+        <span class="attribute">#[derive(Debug, Empty, IntoValue)]
+        </span><span class="kw">struct </span>Helper {
+            <span class="attribute">#[metastructure(skip_serialization = <span class="string">&quot;never&quot;</span>)]
+            </span>items: Annotated&lt;(Annotated&lt;String&gt;,)&gt;,
         }
 
-        <span class="comment">// &quot;never&quot; always serializes</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::default</span>(),
+        <span class="comment">// &quot;never&quot; always serializes
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::default(),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{&quot;items&quot;:null}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{&quot;items&quot;:null}&quot;#</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_skip_tuple_null</span>() {
-        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Empty</span>, <span class="ident">IntoValue</span>)]</span>
-        <span class="kw">struct</span> <span class="ident">Helper</span> {
-            <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;null&quot;</span>)]</span>
-            <span class="ident">items</span>: <span class="ident">Annotated</span><span class="op">&lt;</span>(<span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,)<span class="op">&gt;</span>,
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_skip_tuple_null() {
+        <span class="attribute">#[derive(Debug, Empty, IntoValue)]
+        </span><span class="kw">struct </span>Helper {
+            <span class="attribute">#[metastructure(skip_serialization = <span class="string">&quot;null&quot;</span>)]
+            </span>items: Annotated&lt;(Annotated&lt;String&gt;,)&gt;,
         }
 
-        <span class="comment">// &quot;null&quot; applies to null</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::default</span>(),
+        <span class="comment">// &quot;null&quot; applies to null
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::default(),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{}&quot;#</span>);
 
-        <span class="comment">// &quot;null&quot; does not apply to nested</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::new</span>((<span class="ident">Annotated::default</span>(),)),
+        <span class="comment">// &quot;null&quot; does not apply to nested
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::new((Annotated::default(),)),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{&quot;items&quot;:[null]}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{&quot;items&quot;:[null]}&quot;#</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_skip_tuple_null_deep</span>() {
-        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Empty</span>, <span class="ident">IntoValue</span>)]</span>
-        <span class="kw">struct</span> <span class="ident">Helper</span> {
-            <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;null_deep&quot;</span>)]</span>
-            <span class="ident">items</span>: <span class="ident">Annotated</span><span class="op">&lt;</span>(<span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,)<span class="op">&gt;</span>,
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_skip_tuple_null_deep() {
+        <span class="attribute">#[derive(Debug, Empty, IntoValue)]
+        </span><span class="kw">struct </span>Helper {
+            <span class="attribute">#[metastructure(skip_serialization = <span class="string">&quot;null_deep&quot;</span>)]
+            </span>items: Annotated&lt;(Annotated&lt;String&gt;,)&gt;,
         }
 
-        <span class="comment">// &quot;null_deep&quot; applies to null</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::default</span>(),
+        <span class="comment">// &quot;null_deep&quot; applies to null
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::default(),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{}&quot;#</span>);
 
-        <span class="comment">// &quot;null_deep&quot; cannot remove tuple items</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::new</span>((<span class="ident">Annotated::default</span>(),)),
+        <span class="comment">// &quot;null_deep&quot; cannot remove tuple items
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::new((Annotated::default(),)),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{&quot;items&quot;:[null]}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{&quot;items&quot;:[null]}&quot;#</span>);
 
-        <span class="comment">// &quot;null_deep&quot; does not apply to nested empty</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::new</span>((<span class="ident">Annotated::new</span>(<span class="ident">String::new</span>()),)),
+        <span class="comment">// &quot;null_deep&quot; does not apply to nested empty
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::new((Annotated::new(String::new()),)),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{&quot;items&quot;:[&quot;&quot;]}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{&quot;items&quot;:[&quot;&quot;]}&quot;#</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_skip_tuple_empty</span>() {
-        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Empty</span>, <span class="ident">IntoValue</span>)]</span>
-        <span class="kw">struct</span> <span class="ident">Helper</span> {
-            <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>)]</span>
-            <span class="ident">items</span>: <span class="ident">Annotated</span><span class="op">&lt;</span>(<span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,)<span class="op">&gt;</span>,
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_skip_tuple_empty() {
+        <span class="attribute">#[derive(Debug, Empty, IntoValue)]
+        </span><span class="kw">struct </span>Helper {
+            <span class="attribute">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+            </span>items: Annotated&lt;(Annotated&lt;String&gt;,)&gt;,
         }
 
-        <span class="comment">// &quot;empty&quot; applies to null</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::default</span>(),
+        <span class="comment">// &quot;empty&quot; applies to null
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::default(),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{}&quot;#</span>);
 
-        <span class="comment">// &quot;empty&quot; -&gt; &quot;null_deep&quot; nested, but cannot remove tuple item</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::new</span>((<span class="ident">Annotated::default</span>(),)),
+        <span class="comment">// &quot;empty&quot; -&gt; &quot;null_deep&quot; nested, but cannot remove tuple item
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::new((Annotated::default(),)),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{&quot;items&quot;:[null]}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{&quot;items&quot;:[null]}&quot;#</span>);
 
-        <span class="comment">// &quot;empty&quot; does not apply to nested empty</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::new</span>((<span class="ident">Annotated::new</span>(<span class="ident">String::new</span>()),)),
+        <span class="comment">// &quot;empty&quot; does not apply to nested empty
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::new((Annotated::new(String::new()),)),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{&quot;items&quot;:[&quot;&quot;]}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{&quot;items&quot;:[&quot;&quot;]}&quot;#</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_skip_tuple_empty_deep</span>() {
-        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Empty</span>, <span class="ident">IntoValue</span>)]</span>
-        <span class="kw">struct</span> <span class="ident">Helper</span> {
-            <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty_deep&quot;</span>)]</span>
-            <span class="ident">items</span>: <span class="ident">Annotated</span><span class="op">&lt;</span>(<span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,)<span class="op">&gt;</span>,
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_skip_tuple_empty_deep() {
+        <span class="attribute">#[derive(Debug, Empty, IntoValue)]
+        </span><span class="kw">struct </span>Helper {
+            <span class="attribute">#[metastructure(skip_serialization = <span class="string">&quot;empty_deep&quot;</span>)]
+            </span>items: Annotated&lt;(Annotated&lt;String&gt;,)&gt;,
         }
 
-        <span class="comment">// &quot;empty_deep&quot; applies to null</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::default</span>(),
+        <span class="comment">// &quot;empty_deep&quot; applies to null
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::default(),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{}&quot;#</span>);
 
-        <span class="comment">// &quot;empty_deep&quot; applies to empty nested</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::new</span>((<span class="ident">Annotated::new</span>(<span class="ident">String::new</span>()),)),
+        <span class="comment">// &quot;empty_deep&quot; applies to empty nested
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::new((Annotated::new(String::new()),)),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{}&quot;#</span>);
 
-        <span class="comment">// &quot;empty_deep&quot; does not apply to non-empty value</span>
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::new</span>((<span class="ident">Annotated::new</span>(<span class="string">&quot;some&quot;</span>.<span class="ident">to_string</span>()),)),
+        <span class="comment">// &quot;empty_deep&quot; does not apply to non-empty value
+        </span><span class="kw">let </span>helper = Annotated::new(Helper {
+            items: Annotated::new((Annotated::new(<span class="string">&quot;some&quot;</span>.to_string()),)),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{&quot;items&quot;:[&quot;some&quot;]}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{&quot;items&quot;:[&quot;some&quot;]}&quot;#</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_wrapper_structs_and_skip_serialization</span>() {
-        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Empty</span>, <span class="ident">IntoValue</span>)]</span>
-        <span class="kw">struct</span> <span class="ident">BasicWrapper</span>(<span class="ident">Array</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_wrapper_structs_and_skip_serialization() {
+        <span class="attribute">#[derive(Debug, Empty, IntoValue)]
+        </span><span class="kw">struct </span>BasicWrapper(Array&lt;String&gt;);
 
-        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Empty</span>, <span class="ident">IntoValue</span>)]</span>
-        <span class="kw">struct</span> <span class="ident">BasicHelper</span> {
-            <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>)]</span>
-            <span class="ident">items</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">BasicWrapper</span><span class="op">&gt;</span>,
+        <span class="attribute">#[derive(Debug, Empty, IntoValue)]
+        </span><span class="kw">struct </span>BasicHelper {
+            <span class="attribute">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+            </span>items: Annotated&lt;BasicWrapper&gt;,
         }
 
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">BasicHelper</span> {
-            <span class="ident">items</span>: <span class="ident">Annotated::new</span>(<span class="ident">BasicWrapper</span>(<span class="macro">vec!</span>[])),
+        <span class="kw">let </span>helper = Annotated::new(BasicHelper {
+            items: Annotated::new(BasicWrapper(<span class="macro">vec!</span>[])),
         });
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">&quot;{}&quot;</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">&quot;{}&quot;</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_skip_serialization_on_regular_structs</span>() {
-        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">Empty</span>, <span class="ident">IntoValue</span>)]</span>
-        <span class="kw">struct</span> <span class="ident">Wrapper</span> {
-            <span class="ident">foo</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_skip_serialization_on_regular_structs() {
+        <span class="attribute">#[derive(Debug, Default, Empty, IntoValue)]
+        </span><span class="kw">struct </span>Wrapper {
+            foo: Annotated&lt;u64&gt;,
         }
 
-        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">Empty</span>, <span class="ident">IntoValue</span>)]</span>
-        <span class="kw">struct</span> <span class="ident">Helper</span> {
-            <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;null&quot;</span>)]</span>
-            <span class="ident">foo</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Wrapper</span><span class="op">&gt;</span>,
+        <span class="attribute">#[derive(Debug, Default, Empty, IntoValue)]
+        </span><span class="kw">struct </span>Helper {
+            <span class="attribute">#[metastructure(skip_serialization = <span class="string">&quot;null&quot;</span>)]
+            </span>foo: Annotated&lt;Wrapper&gt;,
         }
 
-        <span class="kw">let</span> <span class="ident">helper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Helper</span> {
-            <span class="ident">foo</span>: <span class="ident">Annotated::new</span>(<span class="ident">Wrapper::default</span>()),
+        <span class="kw">let </span>helper = Annotated::new(Helper {
+            foo: Annotated::new(Wrapper::default()),
         });
 
-        <span class="macro">assert_eq!</span>(<span class="ident">helper</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(), <span class="string">r#&quot;{&quot;foo&quot;:{}}&quot;#</span>);
+        <span class="macro">assert_eq!</span>(helper.to_json().unwrap(), <span class="string">r#&quot;{&quot;foo&quot;:{}}&quot;#</span>);
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

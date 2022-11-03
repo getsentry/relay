@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/extractors/decoder.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>decoder.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/extractors/decoder.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>decoder.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_server/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -262,267 +262,267 @@
 <span id="260">260</span>
 <span id="261">261</span>
 <span id="262">262</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
-<span class="kw">use</span> <span class="ident">std::io</span>::{<span class="self">self</span>, <span class="ident">Write</span>};
+</pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::io::{<span class="self">self</span>, Write};
 
-<span class="kw">use</span> <span class="ident">actix_web::error::PayloadError</span>;
-<span class="kw">use</span> <span class="ident">actix_web::http::header::CONTENT_ENCODING</span>;
-<span class="kw">use</span> <span class="ident">actix_web</span>::{<span class="ident">HttpMessage</span>, <span class="ident">HttpRequest</span>};
-<span class="kw">use</span> <span class="ident">brotli2::write::BrotliDecoder</span>;
-<span class="kw">use</span> <span class="ident">bytes::Bytes</span>;
-<span class="kw">use</span> <span class="ident">flate2::write</span>::{<span class="ident">GzDecoder</span>, <span class="ident">ZlibDecoder</span>};
-<span class="kw">use</span> <span class="ident">futures01</span>::{<span class="ident">Async</span>, <span class="ident">Poll</span>, <span class="ident">Stream</span>};
-<span class="kw">use</span> <span class="ident">relay_config::HttpEncoding</span>;
+<span class="kw">use </span>actix_web::error::PayloadError;
+<span class="kw">use </span>actix_web::http::header::CONTENT_ENCODING;
+<span class="kw">use </span>actix_web::{HttpMessage, HttpRequest};
+<span class="kw">use </span>brotli2::write::BrotliDecoder;
+<span class="kw">use </span>bytes::Bytes;
+<span class="kw">use </span>flate2::write::{GzDecoder, ZlibDecoder};
+<span class="kw">use </span>futures01::{Async, Poll, Stream};
+<span class="kw">use </span>relay_config::HttpEncoding;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::extractors::SharedPayload</span>;
+<span class="kw">use </span><span class="kw">crate</span>::extractors::SharedPayload;
 
-<span class="doccomment">/// Start size for the [`Decoder`]&#39;s internal target buffer.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The allocated buffer will be smaller if the `Decoder`&#39;s limit is set to a lower value. Likewise,</span>
-<span class="doccomment">/// the buffer grows dynamically up to the limit as large payloads are being decompressed.</span>
-<span class="kw">const</span> <span class="ident">DECODE_BUFFER_SIZE</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">8192</span>;
+<span class="doccomment">/// Start size for the [`Decoder`]&#39;s internal target buffer.
+///
+/// The allocated buffer will be smaller if the `Decoder`&#39;s limit is set to a lower value. Likewise,
+/// the buffer grows dynamically up to the limit as large payloads are being decompressed.
+</span><span class="kw">const </span>DECODE_BUFFER_SIZE: usize = <span class="number">8192</span>;
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Default</span>)]</span>
-<span class="doccomment">/// A plain sink for chunks of binary data with a limit.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The sink will grow to the stated `limit` and then stop writing more data. When used in</span>
-<span class="doccomment">/// combination with [`Write::write_all`], this will result in [`ErrorKind::WriteZero`] when the</span>
-<span class="doccomment">/// sink overflows.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// [`ErrorKind::WriteZero`]: std::io::ErrorKind::WriteZero</span>
-<span class="kw">struct</span> <span class="ident">Sink</span> {
-    <span class="ident">buffer</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
-    <span class="ident">remaining</span>: <span class="ident">usize</span>,
+<span class="attribute">#[derive(Debug, Default)]
+</span><span class="doccomment">/// A plain sink for chunks of binary data with a limit.
+///
+/// The sink will grow to the stated `limit` and then stop writing more data. When used in
+/// combination with [`Write::write_all`], this will result in [`ErrorKind::WriteZero`] when the
+/// sink overflows.
+///
+/// [`ErrorKind::WriteZero`]: std::io::ErrorKind::WriteZero
+</span><span class="kw">struct </span>Sink {
+    buffer: Vec&lt;u8&gt;,
+    remaining: usize,
 }
 
-<span class="kw">impl</span> <span class="ident">Sink</span> {
-    <span class="doccomment">/// Creates a new `Sink` with the given `limit`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">limit</span>: <span class="ident">usize</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> {
-            <span class="ident">buffer</span>: <span class="ident">Vec::new</span>(),
-            <span class="ident">remaining</span>: <span class="ident">limit</span>,
+<span class="kw">impl </span>Sink {
+    <span class="doccomment">/// Creates a new `Sink` with the given `limit`.
+    </span><span class="kw">pub fn </span>new(limit: usize) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            buffer: Vec::new(),
+            remaining: limit,
         }
     }
 
-    <span class="doccomment">/// Returns the sink&#39;s full buffer, leaving it empty.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">take</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="ident">Bytes</span> {
-        <span class="ident">std::mem::take</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">buffer</span>).<span class="ident">into</span>()
+    <span class="doccomment">/// Returns the sink&#39;s full buffer, leaving it empty.
+    </span><span class="kw">pub fn </span>take(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Bytes {
+        std::mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.buffer).into()
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Write</span> <span class="kw">for</span> <span class="ident">Sink</span> {
-    <span class="kw">fn</span> <span class="ident">write</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">buf</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="ident">io::Result</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">remaining</span> <span class="op">==</span> <span class="number">0</span> {
-            <span class="comment">// This is the error that `Write::write_all` returns when we respond with `Ok(0)` from</span>
-            <span class="comment">// this function. However, this is often not checked for `Write::flush`, which is why we</span>
-            <span class="comment">// explicitly return an error here.</span>
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">io::ErrorKind::WriteZero</span>.<span class="ident">into</span>());
+<span class="kw">impl </span>Write <span class="kw">for </span>Sink {
+    <span class="kw">fn </span>write(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw-2">mut </span>buf: <span class="kw-2">&amp;</span>[u8]) -&gt; io::Result&lt;usize&gt; {
+        <span class="kw">if </span><span class="self">self</span>.remaining == <span class="number">0 </span>{
+            <span class="comment">// This is the error that `Write::write_all` returns when we respond with `Ok(0)` from
+            // this function. However, this is often not checked for `Write::flush`, which is why we
+            // explicitly return an error here.
+            </span><span class="kw">return </span><span class="prelude-val">Err</span>(io::ErrorKind::WriteZero.into());
         }
 
-        <span class="kw">if</span> <span class="ident">buf</span>.<span class="ident">len</span>() <span class="op">&gt;</span> <span class="self">self</span>.<span class="ident">remaining</span> {
-            <span class="ident">buf</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">buf</span>[..<span class="self">self</span>.<span class="ident">remaining</span>];
+        <span class="kw">if </span>buf.len() &gt; <span class="self">self</span>.remaining {
+            buf = <span class="kw-2">&amp;</span>buf[..<span class="self">self</span>.remaining];
         }
 
-        <span class="kw">if</span> <span class="op">!</span><span class="ident">buf</span>.<span class="ident">is_empty</span>() <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">buffer</span>.<span class="ident">is_empty</span>() {
-            <span class="self">self</span>.<span class="ident">buffer</span>.<span class="ident">reserve</span>(<span class="ident">DECODE_BUFFER_SIZE</span>.<span class="ident">min</span>(<span class="self">self</span>.<span class="ident">remaining</span>));
+        <span class="kw">if </span>!buf.is_empty() &amp;&amp; <span class="self">self</span>.buffer.is_empty() {
+            <span class="self">self</span>.buffer.reserve(DECODE_BUFFER_SIZE.min(<span class="self">self</span>.remaining));
         }
 
-        <span class="self">self</span>.<span class="ident">buffer</span>.<span class="ident">extend_from_slice</span>(<span class="ident">buf</span>);
-        <span class="self">self</span>.<span class="ident">remaining</span> <span class="op">-</span><span class="op">=</span> <span class="ident">buf</span>.<span class="ident">len</span>();
-        <span class="prelude-val">Ok</span>(<span class="ident">buf</span>.<span class="ident">len</span>())
+        <span class="self">self</span>.buffer.extend_from_slice(buf);
+        <span class="self">self</span>.remaining -= buf.len();
+        <span class="prelude-val">Ok</span>(buf.len())
     }
 
-    <span class="kw">fn</span> <span class="ident">flush</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="ident">io::Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+    <span class="kw">fn </span>flush(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; io::Result&lt;()&gt; {
         <span class="prelude-val">Ok</span>(())
     }
 }
 
-<span class="doccomment">/// Writes data into the given `write`, returning `true` on overflow.</span>
-<span class="kw">fn</span> <span class="ident">write_overflowing</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">Write</span><span class="op">&gt;</span>(<span class="ident">write</span>: <span class="kw-2">&amp;mut</span> <span class="ident">W</span>, <span class="ident">slice</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="ident">io::Result</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span> {
-    <span class="kw">match</span> <span class="ident">write</span>.<span class="ident">write_all</span>(<span class="ident">slice</span>).<span class="ident">and_then</span>(<span class="op">|</span>()<span class="op">|</span> <span class="ident">write</span>.<span class="ident">flush</span>()) {
+<span class="doccomment">/// Writes data into the given `write`, returning `true` on overflow.
+</span><span class="kw">fn </span>write_overflowing&lt;W: Write&gt;(write: <span class="kw-2">&amp;mut </span>W, slice: <span class="kw-2">&amp;</span>[u8]) -&gt; io::Result&lt;bool&gt; {
+    <span class="kw">match </span>write.write_all(slice).and_then(|()| write.flush()) {
         <span class="prelude-val">Ok</span>(()) =&gt; <span class="prelude-val">Ok</span>(<span class="bool-val">false</span>),
-        <span class="prelude-val">Err</span>(<span class="ident">e</span>) =&gt; <span class="kw">match</span> <span class="ident">e</span>.<span class="ident">kind</span>() {
-            <span class="ident">io::ErrorKind::WouldBlock</span> =&gt; <span class="prelude-val">Ok</span>(<span class="bool-val">false</span>), <span class="comment">// effectively continue</span>
-            <span class="ident">io::ErrorKind::WriteZero</span> =&gt; <span class="prelude-val">Ok</span>(<span class="bool-val">true</span>),
-            <span class="kw">_</span> =&gt; <span class="prelude-val">Err</span>(<span class="ident">e</span>),
+        <span class="prelude-val">Err</span>(e) =&gt; <span class="kw">match </span>e.kind() {
+            io::ErrorKind::WouldBlock =&gt; <span class="prelude-val">Ok</span>(<span class="bool-val">false</span>), <span class="comment">// effectively continue
+            </span>io::ErrorKind::WriteZero =&gt; <span class="prelude-val">Ok</span>(<span class="bool-val">true</span>),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(e),
         },
     }
 }
 
-<span class="doccomment">/// Internal dispatch for all supported [`HttpEncoding`]s.</span>
-<span class="kw">enum</span> <span class="ident">DecoderInner</span> {
-    <span class="ident">Identity</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Sink</span><span class="op">&gt;</span>),
-    <span class="ident">Br</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">BrotliDecoder</span><span class="op">&lt;</span><span class="ident">Sink</span><span class="op">&gt;</span><span class="op">&gt;</span>),
-    <span class="ident">Gzip</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">GzDecoder</span><span class="op">&lt;</span><span class="ident">Sink</span><span class="op">&gt;</span><span class="op">&gt;</span>),
-    <span class="ident">Deflate</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">ZlibDecoder</span><span class="op">&lt;</span><span class="ident">Sink</span><span class="op">&gt;</span><span class="op">&gt;</span>),
+<span class="doccomment">/// Internal dispatch for all supported [`HttpEncoding`]s.
+</span><span class="kw">enum </span>DecoderInner {
+    Identity(Box&lt;Sink&gt;),
+    Br(Box&lt;BrotliDecoder&lt;Sink&gt;&gt;),
+    Gzip(Box&lt;GzDecoder&lt;Sink&gt;&gt;),
+    Deflate(Box&lt;ZlibDecoder&lt;Sink&gt;&gt;),
 }
 
-<span class="doccomment">/// Stateful decoder for all supported [`HttpEncoding`]s.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Use [`decode`](Self::decode) to feed data into the decoder&#39;s internal buffer. To read the</span>
-<span class="doccomment">/// intermediate buffer, use [`take`](Self::take). Decoding can continue afterwards, but the taken</span>
-<span class="doccomment">/// payload will not be returned again.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// To initialize the decoder, assign a `limit`. When the decoded buffer reaches the size limit, it</span>
-<span class="doccomment">/// is truncated and an overflow is returned.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Decoder</span> {
-    <span class="ident">inner</span>: <span class="ident">DecoderInner</span>,
+<span class="doccomment">/// Stateful decoder for all supported [`HttpEncoding`]s.
+///
+/// Use [`decode`](Self::decode) to feed data into the decoder&#39;s internal buffer. To read the
+/// intermediate buffer, use [`take`](Self::take). Decoding can continue afterwards, but the taken
+/// payload will not be returned again.
+///
+/// To initialize the decoder, assign a `limit`. When the decoded buffer reaches the size limit, it
+/// is truncated and an overflow is returned.
+</span><span class="kw">pub struct </span>Decoder {
+    inner: DecoderInner,
 }
 
-<span class="kw">impl</span> <span class="ident">Decoder</span> {
-    <span class="doccomment">/// Creates a new `Decoder` with the given size limit.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// If the request is not encoded, this decoder is a noop.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="ident">request</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>, <span class="ident">limit</span>: <span class="ident">usize</span>) -&gt; <span class="self">Self</span> {
-        <span class="kw">let</span> <span class="ident">encoding</span> <span class="op">=</span> <span class="ident">request</span>
-            .<span class="ident">headers</span>()
-            .<span class="ident">get</span>(<span class="ident">CONTENT_ENCODING</span>)
-            .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">enc</span><span class="op">|</span> <span class="ident">enc</span>.<span class="ident">to_str</span>().<span class="ident">ok</span>())
-            .<span class="ident">map</span>(<span class="ident">HttpEncoding::parse</span>)
-            .<span class="ident">unwrap_or_default</span>();
+<span class="kw">impl </span>Decoder {
+    <span class="doccomment">/// Creates a new `Decoder` with the given size limit.
+    ///
+    /// If the request is not encoded, this decoder is a noop.
+    </span><span class="kw">pub fn </span>new&lt;S&gt;(request: <span class="kw-2">&amp;</span>HttpRequest&lt;S&gt;, limit: usize) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>encoding = request
+            .headers()
+            .get(CONTENT_ENCODING)
+            .and_then(|enc| enc.to_str().ok())
+            .map(HttpEncoding::parse)
+            .unwrap_or_default();
 
-        <span class="ident"><span class="self">Self</span>::from_encoding</span>(<span class="ident">encoding</span>, <span class="ident">limit</span>)
+        <span class="self">Self</span>::from_encoding(encoding, limit)
     }
 
-    <span class="kw">fn</span> <span class="ident">from_encoding</span>(<span class="ident">encoding</span>: <span class="ident">HttpEncoding</span>, <span class="ident">limit</span>: <span class="ident">usize</span>) -&gt; <span class="self">Self</span> {
-        <span class="kw">let</span> <span class="ident">sink</span> <span class="op">=</span> <span class="ident">Sink::new</span>(<span class="ident">limit</span>);
+    <span class="kw">fn </span>from_encoding(encoding: HttpEncoding, limit: usize) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>sink = Sink::new(limit);
 
-        <span class="kw">let</span> <span class="ident">inner</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">encoding</span> {
-            <span class="ident">HttpEncoding::Identity</span> =&gt; <span class="ident">DecoderInner::Identity</span>(<span class="ident">Box::new</span>(<span class="ident">sink</span>)),
-            <span class="ident">HttpEncoding::Br</span> =&gt; <span class="ident">DecoderInner::Br</span>(<span class="ident">Box::new</span>(<span class="ident">BrotliDecoder::new</span>(<span class="ident">sink</span>))),
-            <span class="ident">HttpEncoding::Gzip</span> =&gt; <span class="ident">DecoderInner::Gzip</span>(<span class="ident">Box::new</span>(<span class="ident">GzDecoder::new</span>(<span class="ident">sink</span>))),
-            <span class="ident">HttpEncoding::Deflate</span> =&gt; <span class="ident">DecoderInner::Deflate</span>(<span class="ident">Box::new</span>(<span class="ident">ZlibDecoder::new</span>(<span class="ident">sink</span>))),
+        <span class="kw">let </span>inner = <span class="kw">match </span>encoding {
+            HttpEncoding::Identity =&gt; DecoderInner::Identity(Box::new(sink)),
+            HttpEncoding::Br =&gt; DecoderInner::Br(Box::new(BrotliDecoder::new(sink))),
+            HttpEncoding::Gzip =&gt; DecoderInner::Gzip(Box::new(GzDecoder::new(sink))),
+            HttpEncoding::Deflate =&gt; DecoderInner::Deflate(Box::new(ZlibDecoder::new(sink))),
         };
 
-        <span class="self">Self</span> { <span class="ident">inner</span> }
+        <span class="self">Self </span>{ inner }
     }
 
-    <span class="doccomment">/// Decodes a chunk of data.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The decoded bytes are written into the Decoder&#39;s buffer, which can be obtained using</span>
-    <span class="doccomment">/// [`take`](Self::take). Returns `Ok(false)` if decoding has completed successfully without an</span>
-    <span class="doccomment">/// overflow. Returns `Ok(true)` if decoding has stopped prematurely due to an overflow. In this</span>
-    <span class="doccomment">/// case, the buffer contains the decoded payload up to the limit. Returns `Err` if there was an</span>
-    <span class="doccomment">/// error decoding.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">decode</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">bytes</span>: <span class="ident">Bytes</span>) -&gt; <span class="ident">io::Result</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">inner</span> {
-            <span class="ident">DecoderInner::Identity</span>(<span class="ident">inner</span>) =&gt; <span class="ident">write_overflowing</span>(<span class="ident">inner</span>, <span class="kw-2">&amp;</span><span class="ident">bytes</span>),
-            <span class="ident">DecoderInner::Br</span>(<span class="ident">inner</span>) =&gt; <span class="ident">write_overflowing</span>(<span class="ident">inner</span>, <span class="kw-2">&amp;</span><span class="ident">bytes</span>),
-            <span class="ident">DecoderInner::Gzip</span>(<span class="ident">inner</span>) =&gt; <span class="ident">write_overflowing</span>(<span class="ident">inner</span>, <span class="kw-2">&amp;</span><span class="ident">bytes</span>),
-            <span class="ident">DecoderInner::Deflate</span>(<span class="ident">inner</span>) =&gt; <span class="ident">write_overflowing</span>(<span class="ident">inner</span>, <span class="kw-2">&amp;</span><span class="ident">bytes</span>),
+    <span class="doccomment">/// Decodes a chunk of data.
+    ///
+    /// The decoded bytes are written into the Decoder&#39;s buffer, which can be obtained using
+    /// [`take`](Self::take). Returns `Ok(false)` if decoding has completed successfully without an
+    /// overflow. Returns `Ok(true)` if decoding has stopped prematurely due to an overflow. In this
+    /// case, the buffer contains the decoded payload up to the limit. Returns `Err` if there was an
+    /// error decoding.
+    </span><span class="kw">pub fn </span>decode(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bytes: Bytes) -&gt; io::Result&lt;bool&gt; {
+        <span class="kw">match </span><span class="kw-2">&amp;mut </span><span class="self">self</span>.inner {
+            DecoderInner::Identity(inner) =&gt; write_overflowing(inner, <span class="kw-2">&amp;</span>bytes),
+            DecoderInner::Br(inner) =&gt; write_overflowing(inner, <span class="kw-2">&amp;</span>bytes),
+            DecoderInner::Gzip(inner) =&gt; write_overflowing(inner, <span class="kw-2">&amp;</span>bytes),
+            DecoderInner::Deflate(inner) =&gt; write_overflowing(inner, <span class="kw-2">&amp;</span>bytes),
         }
     }
 
-    <span class="doccomment">/// Finish decoding the output stream and validate checksums, returning the final bytes.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This may only be called a single time at the end of decoding. Attempts to write data to this</span>
-    <span class="doccomment">/// decoder may result in a panic after this function is called.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">finish</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="ident">io::Result</span><span class="op">&lt;</span><span class="ident">Bytes</span><span class="op">&gt;</span> {
-        <span class="prelude-val">Ok</span>(<span class="kw">match</span> <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">inner</span> {
-            <span class="ident">DecoderInner::Identity</span>(<span class="ident">inner</span>) =&gt; <span class="ident">inner</span>.<span class="ident">take</span>(),
-            <span class="ident">DecoderInner::Br</span>(<span class="ident">inner</span>) =&gt; <span class="ident">inner</span>.<span class="ident">finish</span>()<span class="question-mark">?</span>.<span class="ident">take</span>(),
-            <span class="ident">DecoderInner::Gzip</span>(<span class="ident">inner</span>) =&gt; {
-                <span class="ident">inner</span>.<span class="ident">try_finish</span>()<span class="question-mark">?</span>;
-                <span class="ident">inner</span>.<span class="ident">get_mut</span>().<span class="ident">take</span>()
+    <span class="doccomment">/// Finish decoding the output stream and validate checksums, returning the final bytes.
+    ///
+    /// This may only be called a single time at the end of decoding. Attempts to write data to this
+    /// decoder may result in a panic after this function is called.
+    </span><span class="kw">pub fn </span>finish(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; io::Result&lt;Bytes&gt; {
+        <span class="prelude-val">Ok</span>(<span class="kw">match </span><span class="kw-2">&amp;mut </span><span class="self">self</span>.inner {
+            DecoderInner::Identity(inner) =&gt; inner.take(),
+            DecoderInner::Br(inner) =&gt; inner.finish()<span class="question-mark">?</span>.take(),
+            DecoderInner::Gzip(inner) =&gt; {
+                inner.try_finish()<span class="question-mark">?</span>;
+                inner.get_mut().take()
             }
-            <span class="ident">DecoderInner::Deflate</span>(<span class="ident">inner</span>) =&gt; {
-                <span class="ident">inner</span>.<span class="ident">try_finish</span>()<span class="question-mark">?</span>;
-                <span class="ident">inner</span>.<span class="ident">get_mut</span>().<span class="ident">take</span>()
+            DecoderInner::Deflate(inner) =&gt; {
+                inner.try_finish()<span class="question-mark">?</span>;
+                inner.get_mut().take()
             }
         })
     }
 
-    <span class="doccomment">/// Returns decoded bytes from the Decoder&#39;s buffer.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This can be called at any time during decoding. However, the limit stated during</span>
-    <span class="doccomment">/// initialization remains in effect across the entire decoded payload.</span>
-    <span class="kw">fn</span> <span class="ident">take</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="ident">Bytes</span> {
-        <span class="kw">match</span> <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">inner</span> {
-            <span class="ident">DecoderInner::Identity</span>(<span class="ident">inner</span>) =&gt; <span class="ident">inner</span>.<span class="ident">take</span>(),
-            <span class="ident">DecoderInner::Br</span>(<span class="ident">inner</span>) =&gt; <span class="ident">inner</span>.<span class="ident">get_mut</span>().<span class="ident">take</span>(),
-            <span class="ident">DecoderInner::Gzip</span>(<span class="ident">inner</span>) =&gt; <span class="ident">inner</span>.<span class="ident">get_mut</span>().<span class="ident">take</span>(),
-            <span class="ident">DecoderInner::Deflate</span>(<span class="ident">inner</span>) =&gt; <span class="ident">inner</span>.<span class="ident">get_mut</span>().<span class="ident">take</span>(),
+    <span class="doccomment">/// Returns decoded bytes from the Decoder&#39;s buffer.
+    ///
+    /// This can be called at any time during decoding. However, the limit stated during
+    /// initialization remains in effect across the entire decoded payload.
+    </span><span class="kw">fn </span>take(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Bytes {
+        <span class="kw">match </span><span class="kw-2">&amp;mut </span><span class="self">self</span>.inner {
+            DecoderInner::Identity(inner) =&gt; inner.take(),
+            DecoderInner::Br(inner) =&gt; inner.get_mut().take(),
+            DecoderInner::Gzip(inner) =&gt; inner.get_mut().take(),
+            DecoderInner::Deflate(inner) =&gt; inner.get_mut().take(),
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">Decoder</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="kw">match</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">inner</span> {
-            <span class="ident">DecoderInner::Identity</span>(<span class="ident">inner</span>) =&gt; <span class="ident">f</span>.<span class="ident">debug_tuple</span>(<span class="string">&quot;Identity&quot;</span>).<span class="ident">field</span>(<span class="ident">inner</span>).<span class="ident">finish</span>(),
-            <span class="ident">DecoderInner::Br</span>(<span class="ident">_inner</span>) =&gt; <span class="ident">f</span>.<span class="ident">debug_tuple</span>(<span class="string">&quot;Br&quot;</span>).<span class="ident">finish</span>(),
-            <span class="ident">DecoderInner::Gzip</span>(<span class="ident">inner</span>) =&gt; <span class="ident">f</span>.<span class="ident">debug_tuple</span>(<span class="string">&quot;Gzip&quot;</span>).<span class="ident">field</span>(<span class="ident">inner</span>).<span class="ident">finish</span>(),
-            <span class="ident">DecoderInner::Deflate</span>(<span class="ident">inner</span>) =&gt; <span class="ident">f</span>.<span class="ident">debug_tuple</span>(<span class="string">&quot;Deflate&quot;</span>).<span class="ident">field</span>(<span class="ident">inner</span>).<span class="ident">finish</span>(),
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Decoder {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.inner {
+            DecoderInner::Identity(inner) =&gt; f.debug_tuple(<span class="string">&quot;Identity&quot;</span>).field(inner).finish(),
+            DecoderInner::Br(_inner) =&gt; f.debug_tuple(<span class="string">&quot;Br&quot;</span>).finish(),
+            DecoderInner::Gzip(inner) =&gt; f.debug_tuple(<span class="string">&quot;Gzip&quot;</span>).field(inner).finish(),
+            DecoderInner::Deflate(inner) =&gt; f.debug_tuple(<span class="string">&quot;Deflate&quot;</span>).field(inner).finish(),
         }
     }
 }
 
-<span class="doccomment">/// A payload based on [`SharedPayload`] that decompresses the request body on-the-fly.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Note that this stream is not fused.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">DecodingPayload</span> {
-    <span class="ident">payload</span>: <span class="ident">SharedPayload</span>,
-    <span class="ident">decoder</span>: <span class="ident">Decoder</span>,
+<span class="doccomment">/// A payload based on [`SharedPayload`] that decompresses the request body on-the-fly.
+///
+/// Note that this stream is not fused.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>DecodingPayload {
+    payload: SharedPayload,
+    decoder: Decoder,
 }
 
-<span class="kw">impl</span> <span class="ident">DecodingPayload</span> {
-    <span class="doccomment">/// Creates a decoding payload, resolving chunks of uncompressed request payload.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="ident">request</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>, <span class="ident">limit</span>: <span class="ident">usize</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> {
-            <span class="ident">payload</span>: <span class="ident">SharedPayload::get</span>(<span class="ident">request</span>),
-            <span class="ident">decoder</span>: <span class="ident">Decoder::new</span>(<span class="ident">request</span>, <span class="ident">limit</span>),
+<span class="kw">impl </span>DecodingPayload {
+    <span class="doccomment">/// Creates a decoding payload, resolving chunks of uncompressed request payload.
+    </span><span class="kw">pub fn </span>new&lt;S&gt;(request: <span class="kw-2">&amp;</span>HttpRequest&lt;S&gt;, limit: usize) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            payload: SharedPayload::get(request),
+            decoder: Decoder::new(request, limit),
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Stream</span> <span class="kw">for</span> <span class="ident">DecodingPayload</span> {
-    <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="op">&lt;</span><span class="ident">SharedPayload</span> <span class="kw">as</span> <span class="ident">Stream</span><span class="op">&gt;</span><span class="ident">::Item</span>;
-    <span class="kw">type</span> <span class="ident">Error</span> <span class="op">=</span> <span class="op">&lt;</span><span class="ident">SharedPayload</span> <span class="kw">as</span> <span class="ident">Stream</span><span class="op">&gt;</span><span class="ident">::Error</span>;
+<span class="kw">impl </span>Stream <span class="kw">for </span>DecodingPayload {
+    <span class="kw">type </span>Item = &lt;SharedPayload <span class="kw">as </span>Stream&gt;::Item;
+    <span class="kw">type </span>Error = &lt;SharedPayload <span class="kw">as </span>Stream&gt;::Error;
 
-    <span class="kw">fn</span> <span class="ident">poll</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="ident">Poll</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Item</span><span class="op">&gt;</span>, <span class="ident"><span class="self">Self</span>::Error</span><span class="op">&gt;</span> {
-        <span class="kw">loop</span> {
-            <span class="kw">let</span> <span class="ident">encoded</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">payload</span>.<span class="ident">poll</span>()<span class="question-mark">?</span> {
-                <span class="ident">Async::Ready</span>(<span class="prelude-val">Some</span>(<span class="ident">encoded</span>)) =&gt; <span class="ident">encoded</span>,
-                <span class="ident">Async::Ready</span>(<span class="prelude-val">None</span>) =&gt; {
-                    <span class="kw">let</span> <span class="ident">chunk</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">decoder</span>.<span class="ident">finish</span>()<span class="question-mark">?</span>;
-                    <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Async::Ready</span>(<span class="prelude-val">Some</span>(<span class="ident">chunk</span>).<span class="ident">filter</span>(<span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="op">!</span><span class="ident">c</span>.<span class="ident">is_empty</span>())));
+    <span class="kw">fn </span>poll(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Poll&lt;<span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>::Item&gt;, <span class="self">Self</span>::Error&gt; {
+        <span class="kw">loop </span>{
+            <span class="kw">let </span>encoded = <span class="kw">match </span><span class="self">self</span>.payload.poll()<span class="question-mark">? </span>{
+                Async::Ready(<span class="prelude-val">Some</span>(encoded)) =&gt; encoded,
+                Async::Ready(<span class="prelude-val">None</span>) =&gt; {
+                    <span class="kw">let </span>chunk = <span class="self">self</span>.decoder.finish()<span class="question-mark">?</span>;
+                    <span class="kw">return </span><span class="prelude-val">Ok</span>(Async::Ready(<span class="prelude-val">Some</span>(chunk).filter(|c| !c.is_empty())));
                 }
-                <span class="ident">Async::NotReady</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Async::NotReady</span>),
+                Async::NotReady =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(Async::NotReady),
             };
 
-            <span class="kw">if</span> <span class="self">self</span>.<span class="ident">decoder</span>.<span class="ident">decode</span>(<span class="ident">encoded</span>)<span class="question-mark">?</span> {
-                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">PayloadError::Overflow</span>);
+            <span class="kw">if </span><span class="self">self</span>.decoder.decode(encoded)<span class="question-mark">? </span>{
+                <span class="kw">return </span><span class="prelude-val">Err</span>(PayloadError::Overflow);
             }
 
-            <span class="kw">let</span> <span class="ident">chunk</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">decoder</span>.<span class="ident">take</span>();
-            <span class="kw">if</span> <span class="op">!</span><span class="ident">chunk</span>.<span class="ident">is_empty</span>() {
-                <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Async::Ready</span>(<span class="prelude-val">Some</span>(<span class="ident">chunk</span>)));
+            <span class="kw">let </span>chunk = <span class="self">self</span>.decoder.take();
+            <span class="kw">if </span>!chunk.is_empty() {
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(Async::Ready(<span class="prelude-val">Some</span>(chunk)));
             }
 
-            <span class="comment">// loop until the input stream is exhausted</span>
-        }
+            <span class="comment">// loop until the input stream is exhausted
+        </span>}
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_decoder_overflow</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">Decoder::from_encoding</span>(<span class="ident">HttpEncoding::Gzip</span>, <span class="number">10</span>);
-        <span class="macro">assert!</span>(<span class="ident">decoder</span>
-            .<span class="ident">decode</span>(<span class="macro">include_bytes!</span>(<span class="string">&quot;../../../tests/integration/fixtures/10GB.gz&quot;</span>)[..].<span class="ident">into</span>())
-            .<span class="ident">unwrap</span>());
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_decoder_overflow() {
+        <span class="kw">let </span><span class="kw-2">mut </span>decoder = Decoder::from_encoding(HttpEncoding::Gzip, <span class="number">10</span>);
+        <span class="macro">assert!</span>(decoder
+            .decode(<span class="macro">include_bytes!</span>(<span class="string">&quot;../../../tests/integration/fixtures/10GB.gz&quot;</span>)[..].into())
+            .unwrap());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_decoder_basic</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">Decoder::from_encoding</span>(<span class="ident">HttpEncoding::Gzip</span>, <span class="number">10000</span>);
-        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">decoder</span>.<span class="ident">decode</span>(<span class="string">b&quot;\x1f\x8b\x08\x00\x06\xb4\x8ba\x00\x03\xcbH\xcd\xc9\xc9\xe7\x02\x00 0:6\x06\x00\x00\x00&quot;</span>[..].<span class="ident">into</span>()).<span class="ident">unwrap</span>());
-        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">decoder</span>.<span class="ident">take</span>(), <span class="string">b&quot;hello\n&quot;</span>);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_decoder_basic() {
+        <span class="kw">let </span><span class="kw-2">mut </span>decoder = Decoder::from_encoding(HttpEncoding::Gzip, <span class="number">10000</span>);
+        <span class="macro">assert!</span>(!decoder.decode(<span class="string">b&quot;\x1f\x8b\x08\x00\x06\xb4\x8ba\x00\x03\xcbH\xcd\xc9\xc9\xe7\x02\x00 0:6\x06\x00\x00\x00&quot;</span>[..].into()).unwrap());
+        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>decoder.take(), <span class="string">b&quot;hello\n&quot;</span>);
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

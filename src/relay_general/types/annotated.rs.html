@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/types/annotated.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>annotated.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/types/annotated.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>annotated.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_general/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -540,463 +540,463 @@
 <span id="538">538</span>
 <span id="539">539</span>
 <span id="540">540</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
-<span class="kw">use</span> <span class="ident">failure::Fail</span>;
+<span class="kw">use </span>failure::Fail;
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident">schemars::gen::SchemaGenerator</span>;
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident">schemars::schema::Schema</span>;
+<span class="attribute">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+</span><span class="kw">use </span>schemars::gen::SchemaGenerator;
+<span class="attribute">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+</span><span class="kw">use </span>schemars::schema::Schema;
 
-<span class="kw">use</span> <span class="ident">serde::ser::SerializeMap</span>;
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Deserializer</span>, <span class="ident">Serialize</span>, <span class="ident">Serializer</span>};
+<span class="kw">use </span>serde::ser::SerializeMap;
+<span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Empty</span>, <span class="ident">Error</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">Map</span>, <span class="ident">Meta</span>, <span class="ident">SkipSerialization</span>, <span class="ident">Value</span>};
+<span class="kw">use </span><span class="kw">crate</span>::types::{Empty, Error, FromValue, IntoValue, Map, Meta, SkipSerialization, Value};
 
-<span class="doccomment">/// Represents a tree of meta objects.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Default</span>, <span class="ident">Debug</span>, <span class="ident">Serialize</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MetaTree</span> {
-    <span class="doccomment">/// The node&#39;s meta data</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;&quot;</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Meta::is_empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">meta</span>: <span class="ident">Meta</span>,
+<span class="doccomment">/// Represents a tree of meta objects.
+</span><span class="attribute">#[derive(Default, Debug, Serialize)]
+</span><span class="kw">pub struct </span>MetaTree {
+    <span class="doccomment">/// The node&#39;s meta data
+    </span><span class="attribute">#[serde(rename = <span class="string">&quot;&quot;</span>, skip_serializing_if = <span class="string">&quot;Meta::is_empty&quot;</span>)]
+    </span><span class="kw">pub </span>meta: Meta,
 
-    <span class="doccomment">/// References to the children.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">flatten</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">children</span>: <span class="ident">MetaMap</span>,
+    <span class="doccomment">/// References to the children.
+    </span><span class="attribute">#[serde(flatten)]
+    </span><span class="kw">pub </span>children: MetaMap,
 }
 
-<span class="kw">impl</span> <span class="ident">MetaTree</span> {
-    <span class="kw">fn</span> <span class="ident">from_value</span>(<span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="kw">match</span> <span class="ident">value</span> {
-            <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value::Object</span>(<span class="kw-2">mut</span> <span class="ident">map</span>)), <span class="kw">_</span>) =&gt; <span class="ident">MetaTree</span> {
-                <span class="ident">meta</span>: <span class="ident">map</span>
-                    .<span class="ident">remove</span>(<span class="string">&quot;&quot;</span>)
-                    .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">value</span><span class="op">|</span> {
-                        <span class="comment">// this is not the fastest operation because we cannot currently</span>
-                        <span class="comment">// deserialize stright from a `Value`.  However since we expect</span>
-                        <span class="comment">// to handle very few meta data initially this is okay enough</span>
-                        <span class="kw">let</span> <span class="ident">value</span>: <span class="ident">serde_json::Value</span> <span class="op">=</span> <span class="ident">value</span>.<span class="ident">into</span>();
-                        <span class="ident">serde_json::from_value</span>(<span class="ident">value</span>).<span class="ident">ok</span>()
+<span class="kw">impl </span>MetaTree {
+    <span class="kw">fn </span>from_value(value: Annotated&lt;Value&gt;) -&gt; <span class="self">Self </span>{
+        <span class="kw">match </span>value {
+            Annotated(<span class="prelude-val">Some</span>(Value::Object(<span class="kw-2">mut </span>map)), <span class="kw">_</span>) =&gt; MetaTree {
+                meta: map
+                    .remove(<span class="string">&quot;&quot;</span>)
+                    .and_then(|value| {
+                        <span class="comment">// this is not the fastest operation because we cannot currently
+                        // deserialize stright from a `Value`.  However since we expect
+                        // to handle very few meta data initially this is okay enough
+                        </span><span class="kw">let </span>value: serde_json::Value = value.into();
+                        serde_json::from_value(value).ok()
                     })
-                    .<span class="ident">unwrap_or_default</span>(),
-                <span class="ident">children</span>: <span class="ident">map</span>
-                    .<span class="ident">into_iter</span>()
-                    .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">k</span>, <span class="ident">v</span>)<span class="op">|</span> (<span class="ident">k</span>, <span class="ident">MetaTree::from_value</span>(<span class="ident">v</span>)))
-                    .<span class="ident">collect</span>(),
+                    .unwrap_or_default(),
+                children: map
+                    .into_iter()
+                    .map(|(k, v)| (k, MetaTree::from_value(v)))
+                    .collect(),
             },
-            <span class="kw">_</span> =&gt; <span class="ident">MetaTree::default</span>(),
+            <span class="kw">_ </span>=&gt; MetaTree::default(),
         }
     }
 
-    <span class="doccomment">/// Checks if the tree has any errors.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">has_errors</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">meta</span>.<span class="ident">has_errors</span>() <span class="op">|</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">children</span>.<span class="ident">values</span>().<span class="ident">any</span>(<span class="ident">MetaTree::has_errors</span>)
+    <span class="doccomment">/// Checks if the tree has any errors.
+    </span><span class="kw">pub fn </span>has_errors(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.meta.has_errors() || <span class="self">self</span>.children.values().any(MetaTree::has_errors)
     }
 
-    <span class="doccomment">/// Checks if the tree is empty.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">meta</span>.<span class="ident">is_empty</span>() <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">children</span>.<span class="ident">values</span>().<span class="ident">all</span>(<span class="ident">MetaTree::is_empty</span>)
+    <span class="doccomment">/// Checks if the tree is empty.
+    </span><span class="kw">pub fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.meta.is_empty() &amp;&amp; <span class="self">self</span>.children.values().all(MetaTree::is_empty)
     }
 }
 
-<span class="doccomment">/// Meta for children.</span>
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">MetaMap</span> <span class="op">=</span> <span class="ident">Map</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">MetaTree</span><span class="op">&gt;</span>;
+<span class="doccomment">/// Meta for children.
+</span><span class="kw">pub type </span>MetaMap = Map&lt;String, MetaTree&gt;;
 
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">ProcessingResult</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingAction</span><span class="op">&gt;</span>;
+<span class="kw">pub type </span>ProcessingResult = <span class="prelude-ty">Result</span>&lt;(), ProcessingAction&gt;;
 
-<span class="doccomment">/// Used to indicate how to handle an annotated value in a callback.</span>
-<span class="attribute">#[<span class="ident">must_use</span> <span class="op">=</span> <span class="string">&quot;This `ProcessingAction` must be handled by `Annotated::apply`&quot;</span>]</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Fail</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">ProcessingAction</span> {
-    <span class="doccomment">/// Discards the value entirely.</span>
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;value should be hard-deleted (unreachable, should not surface as error!)&quot;</span>)]</span>
-    <span class="ident">DeleteValueHard</span>,
+<span class="doccomment">/// Used to indicate how to handle an annotated value in a callback.
+</span><span class="attribute">#[must_use = <span class="string">&quot;This `ProcessingAction` must be handled by `Annotated::apply`&quot;</span>]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Fail)]
+</span><span class="kw">pub enum </span>ProcessingAction {
+    <span class="doccomment">/// Discards the value entirely.
+    </span><span class="attribute">#[fail(display = <span class="string">&quot;value should be hard-deleted (unreachable, should not surface as error!)&quot;</span>)]
+    </span>DeleteValueHard,
 
-    <span class="doccomment">/// Discards the value and moves it into meta&#39;s `original_value`.</span>
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;value should be hard-deleted (unreachable, should not surface as error!)&quot;</span>)]</span>
-    <span class="ident">DeleteValueSoft</span>,
+    <span class="doccomment">/// Discards the value and moves it into meta&#39;s `original_value`.
+    </span><span class="attribute">#[fail(display = <span class="string">&quot;value should be hard-deleted (unreachable, should not surface as error!)&quot;</span>)]
+    </span>DeleteValueSoft,
 
-    <span class="doccomment">/// The event is invalid (needs to bubble up)</span>
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;invalid transaction event: {}&quot;</span>, <span class="ident">_0</span>)]</span>
-    <span class="ident">InvalidTransaction</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>),
+    <span class="doccomment">/// The event is invalid (needs to bubble up)
+    </span><span class="attribute">#[fail(display = <span class="string">&quot;invalid transaction event: {}&quot;</span>, _0)]
+    </span>InvalidTransaction(<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str),
 }
 
-<span class="doccomment">/// Wrapper for data fields with optional meta data.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">PartialEq</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="kw">pub</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>, <span class="kw">pub</span> <span class="ident">Meta</span>);
+<span class="doccomment">/// Wrapper for data fields with optional meta data.
+</span><span class="attribute">#[derive(Clone, PartialEq)]
+</span><span class="kw">pub struct </span>Annotated&lt;T&gt;(<span class="kw">pub </span><span class="prelude-ty">Option</span>&lt;T&gt;, <span class="kw">pub </span>Meta);
 
-<span class="doccomment">/// An utility to serialize annotated objects with payload.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SerializableAnnotated</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span>(<span class="kw">pub</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>);
+<span class="doccomment">/// An utility to serialize annotated objects with payload.
+</span><span class="kw">pub struct </span>SerializableAnnotated&lt;<span class="lifetime">&#39;a</span>, T&gt;(<span class="kw">pub </span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Annotated&lt;T&gt;);
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span>: <span class="ident">IntoValue</span><span class="op">&gt;</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">SerializableAnnotated</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">S</span>: <span class="ident">Serializer</span>,
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, T: IntoValue&gt; Serialize <span class="kw">for </span>SerializableAnnotated&lt;<span class="lifetime">&#39;a</span>, T&gt; {
+    <span class="kw">fn </span>serialize&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
+    <span class="kw">where
+        </span>S: Serializer,
     {
-        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">serialize_with_meta</span>(<span class="ident">serializer</span>)
+        <span class="self">self</span>.<span class="number">0</span>.serialize_with_meta(serializer)
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">fmt::Debug</span><span class="op">&gt;</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">value</span>), <span class="kw-2">ref</span> <span class="ident">meta</span>) =&gt; {
-                <span class="kw">if</span> <span class="ident">meta</span>.<span class="ident">is_empty</span>() {
-                    <span class="ident">fmt::Debug::fmt</span>(<span class="ident">value</span>, <span class="ident">f</span>)
-                } <span class="kw">else</span> {
-                    <span class="ident">f</span>.<span class="ident">debug_tuple</span>(<span class="string">&quot;Annotated&quot;</span>).<span class="ident">field</span>(<span class="ident">value</span>).<span class="ident">field</span>(<span class="ident">meta</span>).<span class="ident">finish</span>()
+<span class="kw">impl</span>&lt;T: fmt::Debug&gt; fmt::Debug <span class="kw">for </span>Annotated&lt;T&gt; {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
+            Annotated(<span class="prelude-val">Some</span>(<span class="kw-2">ref </span>value), <span class="kw-2">ref </span>meta) =&gt; {
+                <span class="kw">if </span>meta.is_empty() {
+                    fmt::Debug::fmt(value, f)
+                } <span class="kw">else </span>{
+                    f.debug_tuple(<span class="string">&quot;Annotated&quot;</span>).field(value).field(meta).finish()
                 }
             }
-            <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="kw-2">ref</span> <span class="ident">meta</span>) =&gt; {
-                <span class="kw">if</span> <span class="ident">meta</span>.<span class="ident">is_empty</span>() {
-                    <span class="ident">f</span>.<span class="ident">pad</span>(<span class="string">&quot;~&quot;</span>)
-                } <span class="kw">else</span> {
-                    <span class="ident">fmt::Debug::fmt</span>(<span class="ident">meta</span>, <span class="ident">f</span>)
+            Annotated(<span class="prelude-val">None</span>, <span class="kw-2">ref </span>meta) =&gt; {
+                <span class="kw">if </span>meta.is_empty() {
+                    f.pad(<span class="string">&quot;~&quot;</span>)
+                } <span class="kw">else </span>{
+                    fmt::Debug::fmt(meta, f)
                 }
             }
         }
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
-    <span class="doccomment">/// Creates a new annotated value without meta data.</span>
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">value</span>: <span class="ident">T</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="ident">Meta::default</span>())
+<span class="kw">impl</span>&lt;T&gt; Annotated&lt;T&gt; {
+    <span class="doccomment">/// Creates a new annotated value without meta data.
+    </span><span class="attribute">#[inline]
+    </span><span class="kw">pub fn </span>new(value: T) -&gt; <span class="self">Self </span>{
+        Annotated(<span class="prelude-val">Some</span>(value), Meta::default())
     }
 
-    <span class="doccomment">/// Creates an empty annotated value without meta data.</span>
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">empty</span>() -&gt; <span class="self">Self</span> {
-        <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">Meta::default</span>())
+    <span class="doccomment">/// Creates an empty annotated value without meta data.
+    </span><span class="attribute">#[inline]
+    </span><span class="kw">pub fn </span>empty() -&gt; <span class="self">Self </span>{
+        Annotated(<span class="prelude-val">None</span>, Meta::default())
     }
 
-    <span class="comment">// Creates an empty annotated value with error attached.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_error</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="ident">err</span>: <span class="ident">E</span>, <span class="ident">value</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span>
-    <span class="kw">where</span>
-        <span class="ident">E</span>: <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">Error</span><span class="op">&gt;</span>,
+    <span class="comment">// Creates an empty annotated value with error attached.
+    </span><span class="kw">pub fn </span>from_error&lt;E&gt;(err: E, value: <span class="prelude-ty">Option</span>&lt;Value&gt;) -&gt; <span class="self">Self
+    </span><span class="kw">where
+        </span>E: Into&lt;Error&gt;,
     {
-        <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident">Meta::from_error</span>(<span class="ident">err</span>);
-            <span class="ident">meta</span>.<span class="ident">set_original_value</span>(<span class="ident">value</span>);
-            <span class="ident">meta</span>
+        Annotated(<span class="prelude-val">None</span>, {
+            <span class="kw">let </span><span class="kw-2">mut </span>meta = Meta::from_error(err);
+            meta.set_original_value(value);
+            meta
         })
     }
 
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">value</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">T</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">as_ref</span>()
+    <span class="attribute">#[inline]
+    </span><span class="kw">pub fn </span>value(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>T&gt; {
+        <span class="self">self</span>.<span class="number">0</span>.as_ref()
     }
 
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">value_mut</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="number">0</span>
+    <span class="attribute">#[inline]
+    </span><span class="kw">pub fn </span>value_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span><span class="prelude-ty">Option</span>&lt;T&gt; {
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>.<span class="number">0
+    </span>}
+
+    <span class="attribute">#[inline]
+    </span><span class="kw">pub fn </span>set_value(<span class="kw-2">&amp;mut </span><span class="self">self</span>, value: <span class="prelude-ty">Option</span>&lt;T&gt;) {
+        <span class="self">self</span>.<span class="number">0 </span>= value;
     }
 
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_value</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">value</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>) {
-        <span class="self">self</span>.<span class="number">0</span> <span class="op">=</span> <span class="ident">value</span>;
-    }
+    <span class="attribute">#[inline]
+    </span><span class="kw">pub fn </span>meta(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Meta {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">1
+    </span>}
 
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">meta</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">Meta</span> {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">1</span>
-    }
+    <span class="attribute">#[inline]
+    </span><span class="kw">pub fn </span>meta_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span>Meta {
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>.<span class="number">1
+    </span>}
 
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">meta_mut</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut</span> <span class="ident">Meta</span> {
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="number">1</span>
-    }
+    <span class="attribute">#[inline]
+    </span><span class="kw">pub fn </span>into_value(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;T&gt; {
+        <span class="self">self</span>.<span class="number">0
+    </span>}
 
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">into_value</span>(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="number">0</span>
-    }
-
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">and_then</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">U</span>, <span class="ident">R</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">f</span>: <span class="ident">F</span>) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">U</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">F</span>: <span class="ident">FnOnce</span>(<span class="ident">T</span>) -&gt; <span class="ident">R</span>,
-        <span class="ident">R</span>: <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">U</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="kw">pub fn </span>and_then&lt;F, U, R&gt;(<span class="self">self</span>, f: F) -&gt; Annotated&lt;U&gt;
+    <span class="kw">where
+        </span>F: FnOnce(T) -&gt; R,
+        R: Into&lt;Annotated&lt;U&gt;&gt;,
     {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">value</span>) <span class="op">=</span> <span class="self">self</span>.<span class="number">0</span> {
-            <span class="kw">let</span> <span class="ident">Annotated</span>(<span class="ident">value</span>, <span class="ident">meta</span>) <span class="op">=</span> <span class="ident">f</span>(<span class="ident">value</span>).<span class="ident">into</span>();
-            <span class="ident">Annotated</span>(<span class="ident">value</span>, <span class="self">self</span>.<span class="number">1</span>.<span class="ident">merge</span>(<span class="ident">meta</span>))
-        } <span class="kw">else</span> {
-            <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="self">self</span>.<span class="number">1</span>)
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = <span class="self">self</span>.<span class="number">0 </span>{
+            <span class="kw">let </span>Annotated(value, meta) = f(value).into();
+            Annotated(value, <span class="self">self</span>.<span class="number">1</span>.merge(meta))
+        } <span class="kw">else </span>{
+            Annotated(<span class="prelude-val">None</span>, <span class="self">self</span>.<span class="number">1</span>)
         }
     }
 
-    <span class="doccomment">/// Maps an `Annotated&lt;T&gt;` to an `Annotated&lt;U&gt;` and keeps the original meta data.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">map_value</span><span class="op">&lt;</span><span class="ident">U</span>, <span class="ident">F</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">f</span>: <span class="ident">F</span>) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">U</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">F</span>: <span class="ident">FnOnce</span>(<span class="ident">T</span>) -&gt; <span class="ident">U</span>,
+    <span class="doccomment">/// Maps an `Annotated&lt;T&gt;` to an `Annotated&lt;U&gt;` and keeps the original meta data.
+    </span><span class="kw">pub fn </span>map_value&lt;U, F&gt;(<span class="self">self</span>, f: F) -&gt; Annotated&lt;U&gt;
+    <span class="kw">where
+        </span>F: FnOnce(T) -&gt; U,
     {
-        <span class="ident">Annotated</span>(<span class="self">self</span>.<span class="number">0</span>.<span class="ident">map</span>(<span class="ident">f</span>), <span class="self">self</span>.<span class="number">1</span>)
+        Annotated(<span class="self">self</span>.<span class="number">0</span>.map(f), <span class="self">self</span>.<span class="number">1</span>)
     }
 
-    <span class="doccomment">/// Inserts a value computed from `f` into the value if it is `None`, then returns a mutable</span>
-    <span class="doccomment">/// reference to the contained value.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_or_insert_with</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">f</span>: <span class="ident">F</span>) -&gt; <span class="kw-2">&amp;mut</span> <span class="ident">T</span>
-    <span class="kw">where</span>
-        <span class="ident">F</span>: <span class="ident">FnOnce</span>() -&gt; <span class="ident">T</span>,
+    <span class="doccomment">/// Inserts a value computed from `f` into the value if it is `None`, then returns a mutable
+    /// reference to the contained value.
+    </span><span class="kw">pub fn </span>get_or_insert_with&lt;F&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, f: F) -&gt; <span class="kw-2">&amp;mut </span>T
+    <span class="kw">where
+        </span>F: FnOnce() -&gt; T,
     {
-        <span class="self">self</span>.<span class="ident">value_mut</span>().<span class="ident">get_or_insert_with</span>(<span class="ident">f</span>)
+        <span class="self">self</span>.value_mut().get_or_insert_with(f)
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">T</span>: <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span>,
+<span class="kw">impl</span>&lt;T&gt; Annotated&lt;T&gt;
+<span class="kw">where
+    </span>T: AsRef&lt;str&gt;,
 {
-    <span class="doccomment">/// Returns a reference to the string value if set.</span>
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">value</span>().<span class="ident">map</span>(<span class="ident">AsRef::as_ref</span>)
+    <span class="doccomment">/// Returns a reference to the string value if set.
+    </span><span class="attribute">#[inline]
+    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
+        <span class="self">self</span>.value().map(AsRef::as_ref)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span> {
-    <span class="doccomment">/// Returns a reference to the string value if this value is a string and it is set.</span>
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">value</span>().<span class="ident">and_then</span>(<span class="ident">Value::as_str</span>)
+<span class="kw">impl </span>Annotated&lt;Value&gt; {
+    <span class="doccomment">/// Returns a reference to the string value if this value is a string and it is set.
+    </span><span class="attribute">#[inline]
+    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
+        <span class="self">self</span>.value().and_then(Value::as_str)
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">T</span>: <span class="ident">Empty</span>,
+<span class="kw">impl</span>&lt;T&gt; Annotated&lt;T&gt;
+<span class="kw">where
+    </span>T: Empty,
 {
-    <span class="doccomment">/// Returns whether this value should be skipped during serialization.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// An `Annotated&lt;T&gt;` is always serialized if it has meta data. Otherwise, serialization</span>
-    <span class="doccomment">/// depends on the behavior. For `SkipSerialization::Empty`, the `Empty` trait is used to</span>
-    <span class="doccomment">/// determine emptiness of the contained value and defaults to `false` for no value.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">skip_serialization</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">behavior</span>: <span class="ident">SkipSerialization</span>) -&gt; <span class="ident">bool</span> {
-        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">meta</span>().<span class="ident">is_empty</span>() {
-            <span class="kw">return</span> <span class="bool-val">false</span>;
+    <span class="doccomment">/// Returns whether this value should be skipped during serialization.
+    ///
+    /// An `Annotated&lt;T&gt;` is always serialized if it has meta data. Otherwise, serialization
+    /// depends on the behavior. For `SkipSerialization::Empty`, the `Empty` trait is used to
+    /// determine emptiness of the contained value and defaults to `false` for no value.
+    </span><span class="kw">pub fn </span>skip_serialization(<span class="kw-2">&amp;</span><span class="self">self</span>, behavior: SkipSerialization) -&gt; bool {
+        <span class="kw">if </span>!<span class="self">self</span>.meta().is_empty() {
+            <span class="kw">return </span><span class="bool-val">false</span>;
         }
 
-        <span class="kw">match</span> <span class="ident">behavior</span> {
-            <span class="ident">SkipSerialization::Never</span> =&gt; <span class="bool-val">false</span>,
-            <span class="ident">SkipSerialization::Null</span>(<span class="kw">_</span>) =&gt; <span class="self">self</span>.<span class="ident">value</span>().<span class="ident">is_none</span>(),
-            <span class="ident">SkipSerialization::Empty</span>(<span class="bool-val">false</span>) =&gt; <span class="self">self</span>.<span class="ident">value</span>().<span class="ident">map_or</span>(<span class="bool-val">true</span>, <span class="ident">Empty::is_empty</span>),
-            <span class="ident">SkipSerialization::Empty</span>(<span class="bool-val">true</span>) =&gt; <span class="self">self</span>.<span class="ident">value</span>().<span class="ident">map_or</span>(<span class="bool-val">true</span>, <span class="ident">Empty::is_deep_empty</span>),
+        <span class="kw">match </span>behavior {
+            SkipSerialization::Never =&gt; <span class="bool-val">false</span>,
+            SkipSerialization::Null(<span class="kw">_</span>) =&gt; <span class="self">self</span>.value().is_none(),
+            SkipSerialization::Empty(<span class="bool-val">false</span>) =&gt; <span class="self">self</span>.value().map_or(<span class="bool-val">true</span>, Empty::is_empty),
+            SkipSerialization::Empty(<span class="bool-val">true</span>) =&gt; <span class="self">self</span>.value().map_or(<span class="bool-val">true</span>, Empty::is_deep_empty),
         }
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">T</span>: <span class="ident">FromValue</span>,
+<span class="kw">impl</span>&lt;T&gt; Annotated&lt;T&gt;
+<span class="kw">where
+    </span>T: FromValue,
 {
-    <span class="doccomment">/// Deserializes an annotated from a deserializer</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">deserialize_with_meta</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span>, <span class="ident">D</span>: <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span><span class="op">&gt;</span>(
-        <span class="ident">deserializer</span>: <span class="ident">D</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D::Error</span><span class="op">&gt;</span> {
-        <span class="prelude-val">Ok</span>(<span class="ident">FromValue::from_value</span>(
-            <span class="kw">match</span> <span class="prelude-ty">Option</span>::<span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span><span class="ident">::deserialize</span>(<span class="ident">deserializer</span>)<span class="question-mark">?</span> {
-                <span class="prelude-val">Some</span>(<span class="ident">Value::Object</span>(<span class="kw-2">mut</span> <span class="ident">map</span>)) =&gt; {
-                    <span class="kw">let</span> <span class="ident">meta_tree</span> <span class="op">=</span> <span class="ident">map</span>
-                        .<span class="ident">remove</span>(<span class="string">&quot;_meta&quot;</span>)
-                        .<span class="ident">map</span>(<span class="ident">MetaTree::from_value</span>)
-                        .<span class="ident">unwrap_or_default</span>();
+    <span class="doccomment">/// Deserializes an annotated from a deserializer
+    </span><span class="kw">pub fn </span>deserialize_with_meta&lt;<span class="lifetime">&#39;de</span>, D: Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;&gt;(
+        deserializer: D,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt; {
+        <span class="prelude-val">Ok</span>(FromValue::from_value(
+            <span class="kw">match </span><span class="prelude-ty">Option</span>::&lt;Value&gt;::deserialize(deserializer)<span class="question-mark">? </span>{
+                <span class="prelude-val">Some</span>(Value::Object(<span class="kw-2">mut </span>map)) =&gt; {
+                    <span class="kw">let </span>meta_tree = map
+                        .remove(<span class="string">&quot;_meta&quot;</span>)
+                        .map(MetaTree::from_value)
+                        .unwrap_or_default();
 
-                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Value::Object</span>(<span class="ident">map</span>));
-                    <span class="ident">value</span>.<span class="ident">attach_meta_tree</span>(<span class="ident">meta_tree</span>);
-                    <span class="ident">value</span>
+                    <span class="kw">let </span><span class="kw-2">mut </span>value: Annotated&lt;Value&gt; = Annotated::new(Value::Object(map));
+                    value.attach_meta_tree(meta_tree);
+                    value
                 }
-                <span class="ident">other</span> =&gt; <span class="ident">Annotated::from</span>(<span class="ident">other</span>),
+                other =&gt; Annotated::from(other),
             },
         ))
     }
 
-    <span class="doccomment">/// Deserializes an annotated from a JSON string.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_json</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">serde_json::Error</span><span class="op">&gt;</span> {
-        <span class="ident"><span class="self">Self</span>::deserialize_with_meta</span>(<span class="kw-2">&amp;mut</span> <span class="ident">serde_json::Deserializer::from_str</span>(<span class="ident">s</span>))
+    <span class="doccomment">/// Deserializes an annotated from a JSON string.
+    </span><span class="kw">pub fn </span>from_json(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, serde_json::Error&gt; {
+        <span class="self">Self</span>::deserialize_with_meta(<span class="kw-2">&amp;mut </span>serde_json::Deserializer::from_str(s))
     }
 
-    <span class="doccomment">/// Deserializes an annotated from JSON bytes.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_json_bytes</span>(<span class="ident">b</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">serde_json::Error</span><span class="op">&gt;</span> {
-        <span class="ident"><span class="self">Self</span>::deserialize_with_meta</span>(<span class="kw-2">&amp;mut</span> <span class="ident">serde_json::Deserializer::from_slice</span>(<span class="ident">b</span>))
+    <span class="doccomment">/// Deserializes an annotated from JSON bytes.
+    </span><span class="kw">pub fn </span>from_json_bytes(b: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, serde_json::Error&gt; {
+        <span class="self">Self</span>::deserialize_with_meta(<span class="kw-2">&amp;mut </span>serde_json::Deserializer::from_slice(b))
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">T</span>: <span class="ident">IntoValue</span>,
+<span class="kw">impl</span>&lt;T&gt; Annotated&lt;T&gt;
+<span class="kw">where
+    </span>T: IntoValue,
 {
-    <span class="doccomment">/// Serializes an annotated value into a serializer.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">serialize_with_meta</span><span class="op">&lt;</span><span class="ident">S</span>: <span class="ident">Serializer</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map_ser</span> <span class="op">=</span> <span class="ident">serializer</span>.<span class="ident">serialize_map</span>(<span class="prelude-val">None</span>)<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">meta_tree</span> <span class="op">=</span> <span class="ident">IntoValue::extract_meta_tree</span>(<span class="self">self</span>);
+    <span class="doccomment">/// Serializes an annotated value into a serializer.
+    </span><span class="kw">pub fn </span>serialize_with_meta&lt;S: Serializer&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>map_ser = serializer.serialize_map(<span class="prelude-val">None</span>)<span class="question-mark">?</span>;
+        <span class="kw">let </span>meta_tree = IntoValue::extract_meta_tree(<span class="self">self</span>);
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">value</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">value</span>() {
-            <span class="comment">// NOTE: This is a hack and known to be instable use of serde.</span>
-            <span class="kw">use</span> <span class="ident">serde::__private::ser::FlatMapSerializer</span>;
-            <span class="ident">IntoValue::serialize_payload</span>(
-                <span class="ident">value</span>,
-                <span class="ident">FlatMapSerializer</span>(<span class="kw-2">&amp;mut</span> <span class="ident">map_ser</span>),
-                <span class="ident">SkipSerialization::default</span>(),
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = <span class="self">self</span>.value() {
+            <span class="comment">// NOTE: This is a hack and known to be instable use of serde.
+            </span><span class="kw">use </span>serde::__private::ser::FlatMapSerializer;
+            IntoValue::serialize_payload(
+                value,
+                FlatMapSerializer(<span class="kw-2">&amp;mut </span>map_ser),
+                SkipSerialization::default(),
             )<span class="question-mark">?</span>;
         }
 
-        <span class="kw">if</span> <span class="op">!</span><span class="ident">meta_tree</span>.<span class="ident">is_empty</span>() {
-            <span class="ident">map_ser</span>.<span class="ident">serialize_key</span>(<span class="string">&quot;_meta&quot;</span>)<span class="question-mark">?</span>;
-            <span class="ident">map_ser</span>.<span class="ident">serialize_value</span>(<span class="kw-2">&amp;</span><span class="ident">meta_tree</span>)<span class="question-mark">?</span>;
+        <span class="kw">if </span>!meta_tree.is_empty() {
+            map_ser.serialize_key(<span class="string">&quot;_meta&quot;</span>)<span class="question-mark">?</span>;
+            map_ser.serialize_value(<span class="kw-2">&amp;</span>meta_tree)<span class="question-mark">?</span>;
         }
-        <span class="ident">map_ser</span>.<span class="ident">end</span>()
+        map_ser.end()
     }
 
-    <span class="doccomment">/// Serializes an annotated value into a JSON string.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_json</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">serde_json::Error</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ser</span> <span class="op">=</span> <span class="ident">serde_json::Serializer::new</span>(<span class="ident">Vec::with_capacity</span>(<span class="number">128</span>));
-        <span class="self">self</span>.<span class="ident">serialize_with_meta</span>(<span class="kw-2">&amp;mut</span> <span class="ident">ser</span>)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(<span class="kw">unsafe</span> { <span class="ident">String::from_utf8_unchecked</span>(<span class="ident">ser</span>.<span class="ident">into_inner</span>()) })
+    <span class="doccomment">/// Serializes an annotated value into a JSON string.
+    </span><span class="kw">pub fn </span>to_json(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;String, serde_json::Error&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>ser = serde_json::Serializer::new(Vec::with_capacity(<span class="number">128</span>));
+        <span class="self">self</span>.serialize_with_meta(<span class="kw-2">&amp;mut </span>ser)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(<span class="kw">unsafe </span>{ String::from_utf8_unchecked(ser.into_inner()) })
     }
 
-    <span class="doccomment">/// Serializes an annotated value into a pretty JSON string.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_json_pretty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">serde_json::Error</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ser</span> <span class="op">=</span> <span class="ident">serde_json::Serializer::pretty</span>(<span class="ident">Vec::with_capacity</span>(<span class="number">128</span>));
-        <span class="self">self</span>.<span class="ident">serialize_with_meta</span>(<span class="kw-2">&amp;mut</span> <span class="ident">ser</span>)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(<span class="kw">unsafe</span> { <span class="ident">String::from_utf8_unchecked</span>(<span class="ident">ser</span>.<span class="ident">into_inner</span>()) })
+    <span class="doccomment">/// Serializes an annotated value into a pretty JSON string.
+    </span><span class="kw">pub fn </span>to_json_pretty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;String, serde_json::Error&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>ser = serde_json::Serializer::pretty(Vec::with_capacity(<span class="number">128</span>));
+        <span class="self">self</span>.serialize_with_meta(<span class="kw-2">&amp;mut </span>ser)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(<span class="kw">unsafe </span>{ String::from_utf8_unchecked(ser.into_inner()) })
     }
 
-    <span class="doccomment">/// Serializes an annotated value into a JSON string.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">payload_to_json</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">serde_json::Error</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ser</span> <span class="op">=</span> <span class="ident">serde_json::Serializer::new</span>(<span class="ident">Vec::with_capacity</span>(<span class="number">128</span>));
+    <span class="doccomment">/// Serializes an annotated value into a JSON string.
+    </span><span class="kw">pub fn </span>payload_to_json(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;String, serde_json::Error&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>ser = serde_json::Serializer::new(Vec::with_capacity(<span class="number">128</span>));
 
-        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">value</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">value</span>) =&gt; {
-                <span class="ident">IntoValue::serialize_payload</span>(<span class="ident">value</span>, <span class="kw-2">&amp;mut</span> <span class="ident">ser</span>, <span class="ident">SkipSerialization::default</span>())<span class="question-mark">?</span>
-            }
-            <span class="prelude-val">None</span> =&gt; <span class="ident">ser</span>.<span class="ident">serialize_unit</span>()<span class="question-mark">?</span>,
-        }
-
-        <span class="prelude-val">Ok</span>(<span class="kw">unsafe</span> { <span class="ident">String::from_utf8_unchecked</span>(<span class="ident">ser</span>.<span class="ident">into_inner</span>()) })
-    }
-
-    <span class="doccomment">/// Serializes an annotated value into a pretty JSON string.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">payload_to_json_pretty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">serde_json::Error</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ser</span> <span class="op">=</span> <span class="ident">serde_json::Serializer::pretty</span>(<span class="ident">Vec::with_capacity</span>(<span class="number">128</span>));
-
-        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">value</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">value</span>) =&gt; {
-                <span class="ident">IntoValue::serialize_payload</span>(<span class="ident">value</span>, <span class="kw-2">&amp;mut</span> <span class="ident">ser</span>, <span class="ident">SkipSerialization::default</span>())<span class="question-mark">?</span>
-            }
-            <span class="prelude-val">None</span> =&gt; <span class="ident">ser</span>.<span class="ident">serialize_unit</span>()<span class="question-mark">?</span>,
+        <span class="kw">match </span><span class="self">self</span>.value() {
+            <span class="prelude-val">Some</span>(value) =&gt; {
+                IntoValue::serialize_payload(value, <span class="kw-2">&amp;mut </span>ser, SkipSerialization::default())<span class="question-mark">?
+            </span>}
+            <span class="prelude-val">None </span>=&gt; ser.serialize_unit()<span class="question-mark">?</span>,
         }
 
-        <span class="prelude-val">Ok</span>(<span class="kw">unsafe</span> { <span class="ident">String::from_utf8_unchecked</span>(<span class="ident">ser</span>.<span class="ident">into_inner</span>()) })
+        <span class="prelude-val">Ok</span>(<span class="kw">unsafe </span>{ String::from_utf8_unchecked(ser.into_inner()) })
     }
 
-    <span class="doccomment">/// Modifies this value based on the action returned by `f`.</span>
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">apply</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">R</span><span class="op">&gt;</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">f</span>: <span class="ident">F</span>) -&gt; <span class="ident">ProcessingResult</span>
-    <span class="kw">where</span>
-        <span class="ident">F</span>: <span class="ident">FnOnce</span>(<span class="kw-2">&amp;mut</span> <span class="ident">T</span>, <span class="kw-2">&amp;mut</span> <span class="ident">Meta</span>) -&gt; <span class="ident">R</span>,
-        <span class="ident">R</span>: <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">ProcessingResult</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Serializes an annotated value into a pretty JSON string.
+    </span><span class="kw">pub fn </span>payload_to_json_pretty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;String, serde_json::Error&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>ser = serde_json::Serializer::pretty(Vec::with_capacity(<span class="number">128</span>));
+
+        <span class="kw">match </span><span class="self">self</span>.value() {
+            <span class="prelude-val">Some</span>(value) =&gt; {
+                IntoValue::serialize_payload(value, <span class="kw-2">&amp;mut </span>ser, SkipSerialization::default())<span class="question-mark">?
+            </span>}
+            <span class="prelude-val">None </span>=&gt; ser.serialize_unit()<span class="question-mark">?</span>,
+        }
+
+        <span class="prelude-val">Ok</span>(<span class="kw">unsafe </span>{ String::from_utf8_unchecked(ser.into_inner()) })
+    }
+
+    <span class="doccomment">/// Modifies this value based on the action returned by `f`.
+    </span><span class="attribute">#[inline]
+    </span><span class="kw">pub fn </span>apply&lt;F, R&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, f: F) -&gt; ProcessingResult
+    <span class="kw">where
+        </span>F: FnOnce(<span class="kw-2">&amp;mut </span>T, <span class="kw-2">&amp;mut </span>Meta) -&gt; R,
+        R: Into&lt;ProcessingResult&gt;,
     {
-        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="kw">match</span> (<span class="self">self</span>.<span class="number">0</span>.<span class="ident">as_mut</span>(), <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="number">1</span>) {
-            (<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="ident">meta</span>) =&gt; <span class="ident">f</span>(<span class="ident">value</span>, <span class="ident">meta</span>).<span class="ident">into</span>(),
+        <span class="kw">let </span>result = <span class="kw">match </span>(<span class="self">self</span>.<span class="number">0</span>.as_mut(), <span class="kw-2">&amp;mut </span><span class="self">self</span>.<span class="number">1</span>) {
+            (<span class="prelude-val">Some</span>(value), meta) =&gt; f(value, meta).into(),
             (<span class="prelude-val">None</span>, <span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(()),
         };
 
-        <span class="kw">match</span> <span class="ident">result</span> {
+        <span class="kw">match </span>result {
             <span class="prelude-val">Ok</span>(()) =&gt; (),
-            <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::DeleteValueHard</span>) =&gt; <span class="self">self</span>.<span class="number">0</span> <span class="op">=</span> <span class="prelude-val">None</span>,
-            <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::DeleteValueSoft</span>) =&gt; {
-                <span class="self">self</span>.<span class="number">1</span>.<span class="ident">set_original_value</span>(<span class="self">self</span>.<span class="number">0</span>.<span class="ident">take</span>());
+            <span class="prelude-val">Err</span>(ProcessingAction::DeleteValueHard) =&gt; <span class="self">self</span>.<span class="number">0 </span>= <span class="prelude-val">None</span>,
+            <span class="prelude-val">Err</span>(ProcessingAction::DeleteValueSoft) =&gt; {
+                <span class="self">self</span>.<span class="number">1</span>.set_original_value(<span class="self">self</span>.<span class="number">0</span>.take());
             }
-            <span class="ident">x</span> @ <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::InvalidTransaction</span>(<span class="kw">_</span>)) =&gt; <span class="kw">return</span> <span class="ident">x</span>,
+            x @ <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(<span class="kw">_</span>)) =&gt; <span class="kw">return </span>x,
         }
 
         <span class="prelude-val">Ok</span>(())
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">attach_meta_tree</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">meta_tree</span>: <span class="ident">MetaTree</span>) {
-        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">value_mut</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">Value::Array</span>(<span class="ident">items</span>)) =&gt; {
-                <span class="kw">for</span> (<span class="ident">idx</span>, <span class="ident">item</span>) <span class="kw">in</span> <span class="ident">items</span>.<span class="ident">iter_mut</span>().<span class="ident">enumerate</span>() {
-                    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">meta_tree</span>) <span class="op">=</span> <span class="ident">meta_tree</span>.<span class="ident">children</span>.<span class="ident">remove</span>(<span class="kw-2">&amp;</span><span class="ident">idx</span>.<span class="ident">to_string</span>()) {
-                        <span class="ident">item</span>.<span class="ident">attach_meta_tree</span>(<span class="ident">meta_tree</span>);
+<span class="kw">impl </span>Annotated&lt;Value&gt; {
+    <span class="kw">fn </span>attach_meta_tree(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw-2">mut </span>meta_tree: MetaTree) {
+        <span class="kw">match </span><span class="self">self</span>.value_mut() {
+            <span class="prelude-val">Some</span>(Value::Array(items)) =&gt; {
+                <span class="kw">for </span>(idx, item) <span class="kw">in </span>items.iter_mut().enumerate() {
+                    <span class="kw">if let </span><span class="prelude-val">Some</span>(meta_tree) = meta_tree.children.remove(<span class="kw-2">&amp;</span>idx.to_string()) {
+                        item.attach_meta_tree(meta_tree);
                     }
                 }
             }
-            <span class="prelude-val">Some</span>(<span class="ident">Value::Object</span>(<span class="ident">items</span>)) =&gt; {
-                <span class="kw">for</span> (<span class="ident">key</span>, <span class="ident">value</span>) <span class="kw">in</span> <span class="ident">items</span>.<span class="ident">iter_mut</span>() {
-                    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">meta_tree</span>) <span class="op">=</span> <span class="ident">meta_tree</span>.<span class="ident">children</span>.<span class="ident">remove</span>(<span class="ident">key</span>) {
-                        <span class="ident">value</span>.<span class="ident">attach_meta_tree</span>(<span class="ident">meta_tree</span>);
+            <span class="prelude-val">Some</span>(Value::Object(items)) =&gt; {
+                <span class="kw">for </span>(key, value) <span class="kw">in </span>items.iter_mut() {
+                    <span class="kw">if let </span><span class="prelude-val">Some</span>(meta_tree) = meta_tree.children.remove(key) {
+                        value.attach_meta_tree(meta_tree);
                     }
                 }
             }
-            <span class="kw">_</span> =&gt; {}
+            <span class="kw">_ </span>=&gt; {}
         }
 
-        <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">meta_mut</span>() <span class="op">=</span> <span class="ident">meta_tree</span>.<span class="ident">meta</span>;
+        <span class="kw-2">*</span><span class="self">self</span>.meta_mut() = meta_tree.meta;
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">t</span>: <span class="ident">T</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">Annotated::new</span>(<span class="ident">t</span>)
+<span class="kw">impl</span>&lt;T&gt; From&lt;T&gt; <span class="kw">for </span>Annotated&lt;T&gt; {
+    <span class="kw">fn </span>from(t: T) -&gt; <span class="self">Self </span>{
+        Annotated::new(t)
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">option</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">Annotated</span>(<span class="ident">option</span>, <span class="ident">Meta::default</span>())
+<span class="kw">impl</span>&lt;T&gt; From&lt;<span class="prelude-ty">Option</span>&lt;T&gt;&gt; <span class="kw">for </span>Annotated&lt;T&gt; {
+    <span class="kw">fn </span>from(option: <span class="prelude-ty">Option</span>&lt;T&gt;) -&gt; <span class="self">Self </span>{
+        Annotated(option, Meta::default())
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
-        <span class="ident">Annotated::empty</span>()
+<span class="kw">impl</span>&lt;T&gt; Default <span class="kw">for </span>Annotated&lt;T&gt; {
+    <span class="kw">fn </span>default() -&gt; Annotated&lt;T&gt; {
+        Annotated::empty()
     }
 }
 
-<span class="comment">// This hack is needed to make our custom derive for JsonSchema simpler. However, Serialize should</span>
-<span class="comment">// not be implemented on Annotated as one should usually use ToValue directly, or</span>
-<span class="comment">// SerializableAnnotated explicitly if really needed (eg: tests)</span>
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>)]</span>
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">schemars::JsonSchema</span> <span class="kw">for</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">T</span>: <span class="ident">schemars::JsonSchema</span>,
+<span class="comment">// This hack is needed to make our custom derive for JsonSchema simpler. However, Serialize should
+// not be implemented on Annotated as one should usually use ToValue directly, or
+// SerializableAnnotated explicitly if really needed (eg: tests)
+</span><span class="attribute">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+</span><span class="kw">impl</span>&lt;T&gt; schemars::JsonSchema <span class="kw">for </span>Annotated&lt;T&gt;
+<span class="kw">where
+    </span>T: schemars::JsonSchema,
 {
-    <span class="kw">fn</span> <span class="ident">schema_name</span>() -&gt; <span class="ident">String</span> {
-        <span class="macro">format!</span>(<span class="string">&quot;Annotated_{}&quot;</span>, <span class="ident">T::schema_name</span>())
+    <span class="kw">fn </span>schema_name() -&gt; String {
+        <span class="macro">format!</span>(<span class="string">&quot;Annotated_{}&quot;</span>, T::schema_name())
     }
 
-    <span class="kw">fn</span> <span class="ident">json_schema</span>(<span class="ident">gen</span>: <span class="kw-2">&amp;mut</span> <span class="ident">SchemaGenerator</span>) -&gt; <span class="ident">Schema</span> {
-        <span class="prelude-ty">Option</span>::<span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span><span class="ident">::json_schema</span>(<span class="ident">gen</span>)
+    <span class="kw">fn </span>json_schema(gen: <span class="kw-2">&amp;mut </span>SchemaGenerator) -&gt; Schema {
+        <span class="prelude-ty">Option</span>::&lt;T&gt;::json_schema(gen)
     }
 
-    <span class="kw">fn</span> <span class="ident">is_referenceable</span>() -&gt; <span class="ident">bool</span> {
-        <span class="bool-val">false</span>
-    }
+    <span class="kw">fn </span>is_referenceable() -&gt; bool {
+        <span class="bool-val">false
+    </span>}
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">similar_asserts::assert_eq</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>similar_asserts::assert_eq;
 
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types::ErrorKind</span>;
+    <span class="kw">use </span><span class="kw">crate</span>::types::ErrorKind;
 
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_annotated_deserialize_with_meta</span>() {
-        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>)]</span>
-        <span class="kw">struct</span> <span class="ident">Foo</span> {
-            <span class="ident">id</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
-            <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">field</span> <span class="op">=</span> <span class="string">&quot;type&quot;</span>)]</span>
-            <span class="ident">ty</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_annotated_deserialize_with_meta() {
+        <span class="attribute">#[derive(Debug, Empty, FromValue, IntoValue)]
+        </span><span class="kw">struct </span>Foo {
+            id: Annotated&lt;u64&gt;,
+            <span class="attribute">#[metastructure(field = <span class="string">&quot;type&quot;</span>)]
+            </span>ty: Annotated&lt;String&gt;,
         }
 
-        <span class="kw">let</span> <span class="ident">annotated_value</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Foo</span><span class="op">&gt;</span><span class="ident">::from_json</span>(
+        <span class="kw">let </span>annotated_value = Annotated::&lt;Foo&gt;::from_json(
             <span class="string">r#&quot;
         {
             &quot;id&quot;: &quot;blaflasel&quot;,
@@ -1016,40 +1016,40 @@
         }
     &quot;#</span>,
         )
-        .<span class="ident">unwrap</span>();
+        .unwrap();
 
-        <span class="macro">assert_eq!</span>(<span class="ident">annotated_value</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">id</span>.<span class="ident">value</span>(), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(annotated_value.value().unwrap().id.value(), <span class="prelude-val">None</span>);
         <span class="macro">assert_eq!</span>(
-            <span class="ident">annotated_value</span>
-                .<span class="ident">value</span>()
-                .<span class="ident">unwrap</span>()
-                .<span class="ident">id</span>
-                .<span class="ident">meta</span>()
-                .<span class="ident">iter_errors</span>()
-                .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Error</span><span class="op">&gt;</span><span class="op">&gt;</span>(),
+            annotated_value
+                .value()
+                .unwrap()
+                .id
+                .meta()
+                .iter_errors()
+                .collect::&lt;Vec&lt;<span class="kw-2">&amp;</span>Error&gt;&gt;(),
             <span class="macro">vec!</span>[
-                <span class="kw-2">&amp;</span><span class="ident">Error::new</span>(<span class="ident">ErrorKind::Unknown</span>(<span class="string">&quot;unknown_error&quot;</span>.<span class="ident">to_string</span>())),
-                <span class="kw-2">&amp;</span><span class="ident">Error::expected</span>(<span class="string">&quot;an unsigned integer&quot;</span>)
+                <span class="kw-2">&amp;</span>Error::new(ErrorKind::Unknown(<span class="string">&quot;unknown_error&quot;</span>.to_string())),
+                <span class="kw-2">&amp;</span>Error::expected(<span class="string">&quot;an unsigned integer&quot;</span>)
             ],
         );
         <span class="macro">assert_eq!</span>(
-            <span class="ident">annotated_value</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">ty</span>.<span class="ident">as_str</span>(),
+            annotated_value.value().unwrap().ty.as_str(),
             <span class="prelude-val">Some</span>(<span class="string">&quot;testing&quot;</span>)
         );
         <span class="macro">assert_eq!</span>(
-            <span class="ident">annotated_value</span>
-                .<span class="ident">value</span>()
-                .<span class="ident">unwrap</span>()
-                .<span class="ident">ty</span>
-                .<span class="ident">meta</span>()
-                .<span class="ident">iter_errors</span>()
-                .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Error</span><span class="op">&gt;</span><span class="op">&gt;</span>(),
-            <span class="macro">vec!</span>[<span class="kw-2">&amp;</span><span class="ident">Error::new</span>(<span class="ident">ErrorKind::InvalidData</span>)],
+            annotated_value
+                .value()
+                .unwrap()
+                .ty
+                .meta()
+                .iter_errors()
+                .collect::&lt;Vec&lt;<span class="kw-2">&amp;</span>Error&gt;&gt;(),
+            <span class="macro">vec!</span>[<span class="kw-2">&amp;</span>Error::new(ErrorKind::InvalidData)],
         );
 
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="ident">annotated_value</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>();
+        <span class="kw">let </span>json = annotated_value.to_json_pretty().unwrap();
         <span class="macro">assert_eq!</span>(
-            <span class="ident">json</span>,
+            json,
             <span class="string">r#&quot;{
   &quot;id&quot;: null,
   &quot;type&quot;: &quot;testing&quot;,
@@ -1076,9 +1076,9 @@
       }
     }
   }
-}&quot;#</span>
-        );
+}&quot;#
+        </span>);
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

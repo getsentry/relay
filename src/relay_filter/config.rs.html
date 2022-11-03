@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-filter/src/config.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>config.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_filter/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_filter/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-filter/src/config.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>config.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_filter/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_filter/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_filter/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -350,242 +350,242 @@
 <span id="348">348</span>
 <span id="349">349</span>
 <span id="350">350</span>
-</pre><pre class="rust"><code><span class="doccomment">//! Config structs for all filters.</span>
+</pre><pre class="rust"><code><span class="doccomment">//! Config structs for all filters.
 
-<span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
-<span class="kw">use</span> <span class="ident">std::collections::BTreeSet</span>;
-<span class="kw">use</span> <span class="ident">std::convert::Infallible</span>;
-<span class="kw">use</span> <span class="ident">std::str::FromStr</span>;
+</span><span class="kw">use </span>std::borrow::Cow;
+<span class="kw">use </span>std::collections::BTreeSet;
+<span class="kw">use </span>std::convert::Infallible;
+<span class="kw">use </span>std::str::FromStr;
 
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
+<span class="kw">use </span>serde::{Deserialize, Serialize};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::common::GlobPatterns</span>;
+<span class="kw">use </span><span class="kw">crate</span>::common::GlobPatterns;
 
-<span class="doccomment">/// Common configuration for event filters.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FilterConfig</span> {
-    <span class="doccomment">/// Specifies whether this filter is enabled.</span>
-    <span class="kw">pub</span> <span class="ident">is_enabled</span>: <span class="ident">bool</span>,
+<span class="doccomment">/// Common configuration for event filters.
+</span><span class="attribute">#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+</span><span class="kw">pub struct </span>FilterConfig {
+    <span class="doccomment">/// Specifies whether this filter is enabled.
+    </span><span class="kw">pub </span>is_enabled: bool,
 }
 
-<span class="kw">impl</span> <span class="ident">FilterConfig</span> {
-    <span class="doccomment">/// Returns true if no configuration for this filter is given.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="op">!</span><span class="self">self</span>.<span class="ident">is_enabled</span>
+<span class="kw">impl </span>FilterConfig {
+    <span class="doccomment">/// Returns true if no configuration for this filter is given.
+    </span><span class="kw">pub fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        !<span class="self">self</span>.is_enabled
     }
 }
 
-<span class="doccomment">/// A browser class to be filtered by the legacy browser filter.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Ord</span>, <span class="ident">PartialOrd</span>, <span class="ident">Hash</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">LegacyBrowser</span> {
-    <span class="doccomment">/// Applies the default set of min-version filters for all known browsers.</span>
-    <span class="ident">Default</span>,
-    <span class="doccomment">/// Apply to Internet Explorer 8 and older.</span>
-    <span class="ident">IePre9</span>,
-    <span class="doccomment">/// Apply to Internet Explorer 9.</span>
-    <span class="ident">Ie9</span>,
-    <span class="doccomment">/// Apply to Internet Explorer 10.</span>
-    <span class="ident">Ie10</span>,
-    <span class="doccomment">/// Apply to Internet Explorer 11.</span>
-    <span class="ident">Ie11</span>,
-    <span class="doccomment">/// Apply to Opera 14 and older.</span>
-    <span class="ident">OperaPre15</span>,
-    <span class="doccomment">/// Apply to OperaMini 7 and older.</span>
-    <span class="ident">OperaMiniPre8</span>,
-    <span class="doccomment">/// Apply to Android (Chrome) 3 and older.</span>
-    <span class="ident">AndroidPre4</span>,
-    <span class="doccomment">/// Apply to Safari 5 and older.</span>
-    <span class="ident">SafariPre6</span>,
-    <span class="doccomment">/// An unknown browser configuration for forward compatibility.</span>
-    <span class="ident">Unknown</span>(<span class="ident">String</span>),
+<span class="doccomment">/// A browser class to be filtered by the legacy browser filter.
+</span><span class="attribute">#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+</span><span class="kw">pub enum </span>LegacyBrowser {
+    <span class="doccomment">/// Applies the default set of min-version filters for all known browsers.
+    </span>Default,
+    <span class="doccomment">/// Apply to Internet Explorer 8 and older.
+    </span>IePre9,
+    <span class="doccomment">/// Apply to Internet Explorer 9.
+    </span>Ie9,
+    <span class="doccomment">/// Apply to Internet Explorer 10.
+    </span>Ie10,
+    <span class="doccomment">/// Apply to Internet Explorer 11.
+    </span>Ie11,
+    <span class="doccomment">/// Apply to Opera 14 and older.
+    </span>OperaPre15,
+    <span class="doccomment">/// Apply to OperaMini 7 and older.
+    </span>OperaMiniPre8,
+    <span class="doccomment">/// Apply to Android (Chrome) 3 and older.
+    </span>AndroidPre4,
+    <span class="doccomment">/// Apply to Safari 5 and older.
+    </span>SafariPre6,
+    <span class="doccomment">/// An unknown browser configuration for forward compatibility.
+    </span>Unknown(String),
 }
 
-<span class="kw">impl</span> <span class="ident">FromStr</span> <span class="kw">for</span> <span class="ident">LegacyBrowser</span> {
-    <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="ident">Infallible</span>;
+<span class="kw">impl </span>FromStr <span class="kw">for </span>LegacyBrowser {
+    <span class="kw">type </span><span class="prelude-val">Err </span>= Infallible;
 
-    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">v</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">s</span> {
-            <span class="string">&quot;default&quot;</span> =&gt; <span class="ident">LegacyBrowser::Default</span>,
-            <span class="string">&quot;ie_pre_9&quot;</span> =&gt; <span class="ident">LegacyBrowser::IePre9</span>,
-            <span class="string">&quot;ie9&quot;</span> =&gt; <span class="ident">LegacyBrowser::Ie9</span>,
-            <span class="string">&quot;ie10&quot;</span> =&gt; <span class="ident">LegacyBrowser::Ie10</span>,
-            <span class="string">&quot;ie11&quot;</span> =&gt; <span class="ident">LegacyBrowser::Ie11</span>,
-            <span class="string">&quot;opera_pre_15&quot;</span> =&gt; <span class="ident">LegacyBrowser::OperaPre15</span>,
-            <span class="string">&quot;opera_mini_pre_8&quot;</span> =&gt; <span class="ident">LegacyBrowser::OperaMiniPre8</span>,
-            <span class="string">&quot;android_pre_4&quot;</span> =&gt; <span class="ident">LegacyBrowser::AndroidPre4</span>,
-            <span class="string">&quot;safari_pre_6&quot;</span> =&gt; <span class="ident">LegacyBrowser::SafariPre6</span>,
-            <span class="kw">_</span> =&gt; <span class="ident">LegacyBrowser::Unknown</span>(<span class="ident">s</span>.<span class="ident">to_owned</span>()),
+    <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
+        <span class="kw">let </span>v = <span class="kw">match </span>s {
+            <span class="string">&quot;default&quot; </span>=&gt; LegacyBrowser::Default,
+            <span class="string">&quot;ie_pre_9&quot; </span>=&gt; LegacyBrowser::IePre9,
+            <span class="string">&quot;ie9&quot; </span>=&gt; LegacyBrowser::Ie9,
+            <span class="string">&quot;ie10&quot; </span>=&gt; LegacyBrowser::Ie10,
+            <span class="string">&quot;ie11&quot; </span>=&gt; LegacyBrowser::Ie11,
+            <span class="string">&quot;opera_pre_15&quot; </span>=&gt; LegacyBrowser::OperaPre15,
+            <span class="string">&quot;opera_mini_pre_8&quot; </span>=&gt; LegacyBrowser::OperaMiniPre8,
+            <span class="string">&quot;android_pre_4&quot; </span>=&gt; LegacyBrowser::AndroidPre4,
+            <span class="string">&quot;safari_pre_6&quot; </span>=&gt; LegacyBrowser::SafariPre6,
+            <span class="kw">_ </span>=&gt; LegacyBrowser::Unknown(s.to_owned()),
         };
-        <span class="prelude-val">Ok</span>(<span class="ident">v</span>)
+        <span class="prelude-val">Ok</span>(v)
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">LegacyBrowser</span> {
-    <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D::Error</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">D</span>: <span class="ident">serde::de::Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>LegacyBrowser {
+    <span class="kw">fn </span>deserialize&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt;
+    <span class="kw">where
+        </span>D: serde::de::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
     {
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="ident">Cow</span>::<span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span><span class="ident">::deserialize</span>(<span class="ident">deserializer</span>)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(<span class="ident">LegacyBrowser::from_str</span>(<span class="ident">s</span>.<span class="ident">as_ref</span>()).<span class="ident">unwrap</span>())
+        <span class="kw">let </span>s = Cow::&lt;str&gt;::deserialize(deserializer)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(LegacyBrowser::from_str(s.as_ref()).unwrap())
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">LegacyBrowser</span> {
-    <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">S</span>: <span class="ident">serde::ser::Serializer</span>,
+<span class="kw">impl </span>Serialize <span class="kw">for </span>LegacyBrowser {
+    <span class="kw">fn </span>serialize&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
+    <span class="kw">where
+        </span>S: serde::ser::Serializer,
     {
-        <span class="ident">serializer</span>.<span class="ident">serialize_str</span>(<span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">LegacyBrowser::Default</span> =&gt; <span class="string">&quot;default&quot;</span>,
-            <span class="ident">LegacyBrowser::IePre9</span> =&gt; <span class="string">&quot;ie_pre_9&quot;</span>,
-            <span class="ident">LegacyBrowser::Ie9</span> =&gt; <span class="string">&quot;ie9&quot;</span>,
-            <span class="ident">LegacyBrowser::Ie10</span> =&gt; <span class="string">&quot;ie10&quot;</span>,
-            <span class="ident">LegacyBrowser::Ie11</span> =&gt; <span class="string">&quot;ie11&quot;</span>,
-            <span class="ident">LegacyBrowser::OperaPre15</span> =&gt; <span class="string">&quot;opera_pre_15&quot;</span>,
-            <span class="ident">LegacyBrowser::OperaMiniPre8</span> =&gt; <span class="string">&quot;opera_mini_pre_8&quot;</span>,
-            <span class="ident">LegacyBrowser::AndroidPre4</span> =&gt; <span class="string">&quot;android_pre_4&quot;</span>,
-            <span class="ident">LegacyBrowser::SafariPre6</span> =&gt; <span class="string">&quot;safari_pre_6&quot;</span>,
-            <span class="ident">LegacyBrowser::Unknown</span>(<span class="ident">string</span>) =&gt; <span class="ident">string</span>,
+        serializer.serialize_str(<span class="kw">match </span><span class="self">self </span>{
+            LegacyBrowser::Default =&gt; <span class="string">&quot;default&quot;</span>,
+            LegacyBrowser::IePre9 =&gt; <span class="string">&quot;ie_pre_9&quot;</span>,
+            LegacyBrowser::Ie9 =&gt; <span class="string">&quot;ie9&quot;</span>,
+            LegacyBrowser::Ie10 =&gt; <span class="string">&quot;ie10&quot;</span>,
+            LegacyBrowser::Ie11 =&gt; <span class="string">&quot;ie11&quot;</span>,
+            LegacyBrowser::OperaPre15 =&gt; <span class="string">&quot;opera_pre_15&quot;</span>,
+            LegacyBrowser::OperaMiniPre8 =&gt; <span class="string">&quot;opera_mini_pre_8&quot;</span>,
+            LegacyBrowser::AndroidPre4 =&gt; <span class="string">&quot;android_pre_4&quot;</span>,
+            LegacyBrowser::SafariPre6 =&gt; <span class="string">&quot;safari_pre_6&quot;</span>,
+            LegacyBrowser::Unknown(string) =&gt; string,
         })
     }
 }
 
-<span class="doccomment">/// Configuration for the client ips filter.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ClientIpsFilterConfig</span> {
-    <span class="doccomment">/// Blacklisted client ip addresses.</span>
-    <span class="kw">pub</span> <span class="ident">blacklisted_ips</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Configuration for the client ips filter.
+</span><span class="attribute">#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+</span><span class="kw">pub struct </span>ClientIpsFilterConfig {
+    <span class="doccomment">/// Blacklisted client ip addresses.
+    </span><span class="kw">pub </span>blacklisted_ips: Vec&lt;String&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">ClientIpsFilterConfig</span> {
-    <span class="doccomment">/// Returns true if no configuration for this filter is given.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">blacklisted_ips</span>.<span class="ident">is_empty</span>()
+<span class="kw">impl </span>ClientIpsFilterConfig {
+    <span class="doccomment">/// Returns true if no configuration for this filter is given.
+    </span><span class="kw">pub fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.blacklisted_ips.is_empty()
     }
 }
 
-<span class="doccomment">/// Configuration for the CSP filter.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">CspFilterConfig</span> {
-    <span class="doccomment">/// Disallowed sources for CSP reports.</span>
-    <span class="kw">pub</span> <span class="ident">disallowed_sources</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Configuration for the CSP filter.
+</span><span class="attribute">#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+</span><span class="kw">pub struct </span>CspFilterConfig {
+    <span class="doccomment">/// Disallowed sources for CSP reports.
+    </span><span class="kw">pub </span>disallowed_sources: Vec&lt;String&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">CspFilterConfig</span> {
-    <span class="doccomment">/// Returns true if no configuration for this filter is given.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">disallowed_sources</span>.<span class="ident">is_empty</span>()
+<span class="kw">impl </span>CspFilterConfig {
+    <span class="doccomment">/// Returns true if no configuration for this filter is given.
+    </span><span class="kw">pub fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.disallowed_sources.is_empty()
     }
 }
 
-<span class="doccomment">/// Configuration for the error messages filter.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ErrorMessagesFilterConfig</span> {
-    <span class="doccomment">/// List of error message patterns that will be filtered.</span>
-    <span class="kw">pub</span> <span class="ident">patterns</span>: <span class="ident">GlobPatterns</span>,
+<span class="doccomment">/// Configuration for the error messages filter.
+</span><span class="attribute">#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+</span><span class="kw">pub struct </span>ErrorMessagesFilterConfig {
+    <span class="doccomment">/// List of error message patterns that will be filtered.
+    </span><span class="kw">pub </span>patterns: GlobPatterns,
 }
 
-<span class="kw">impl</span> <span class="ident">ErrorMessagesFilterConfig</span> {
-    <span class="doccomment">/// Returns true if no configuration for this filter is given.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">patterns</span>.<span class="ident">is_empty</span>()
+<span class="kw">impl </span>ErrorMessagesFilterConfig {
+    <span class="doccomment">/// Returns true if no configuration for this filter is given.
+    </span><span class="kw">pub fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.patterns.is_empty()
     }
 }
 
-<span class="doccomment">/// Configuration for the releases filter.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ReleasesFilterConfig</span> {
-    <span class="doccomment">/// List of release names that will be filtered.</span>
-    <span class="kw">pub</span> <span class="ident">releases</span>: <span class="ident">GlobPatterns</span>,
+<span class="doccomment">/// Configuration for the releases filter.
+</span><span class="attribute">#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+</span><span class="kw">pub struct </span>ReleasesFilterConfig {
+    <span class="doccomment">/// List of release names that will be filtered.
+    </span><span class="kw">pub </span>releases: GlobPatterns,
 }
 
-<span class="kw">impl</span> <span class="ident">ReleasesFilterConfig</span> {
-    <span class="doccomment">/// Returns true if no configuration for this filter is given.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">releases</span>.<span class="ident">is_empty</span>()
+<span class="kw">impl </span>ReleasesFilterConfig {
+    <span class="doccomment">/// Returns true if no configuration for this filter is given.
+    </span><span class="kw">pub fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.releases.is_empty()
     }
 }
 
-<span class="doccomment">/// Configuration for the legacy browsers filter.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">LegacyBrowsersFilterConfig</span> {
-    <span class="doccomment">/// Specifies whether this filter is enabled.</span>
-    <span class="kw">pub</span> <span class="ident">is_enabled</span>: <span class="ident">bool</span>,
-    <span class="doccomment">/// The browsers to filter.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;options&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">browsers</span>: <span class="ident">BTreeSet</span><span class="op">&lt;</span><span class="ident">LegacyBrowser</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Configuration for the legacy browsers filter.
+</span><span class="attribute">#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+</span><span class="kw">pub struct </span>LegacyBrowsersFilterConfig {
+    <span class="doccomment">/// Specifies whether this filter is enabled.
+    </span><span class="kw">pub </span>is_enabled: bool,
+    <span class="doccomment">/// The browsers to filter.
+    </span><span class="attribute">#[serde(default, rename = <span class="string">&quot;options&quot;</span>)]
+    </span><span class="kw">pub </span>browsers: BTreeSet&lt;LegacyBrowser&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">LegacyBrowsersFilterConfig</span> {
-    <span class="doccomment">/// Returns true if no configuration for this filter is given.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="op">!</span><span class="self">self</span>.<span class="ident">is_enabled</span> <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">browsers</span>.<span class="ident">is_empty</span>()
+<span class="kw">impl </span>LegacyBrowsersFilterConfig {
+    <span class="doccomment">/// Returns true if no configuration for this filter is given.
+    </span><span class="kw">pub fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        !<span class="self">self</span>.is_enabled &amp;&amp; <span class="self">self</span>.browsers.is_empty()
     }
 }
 
-<span class="doccomment">/// Configuration for all event filters.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FiltersConfig</span> {
-    <span class="doccomment">/// Configuration for the Browser Extensions filter.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;FilterConfig::is_empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">browser_extensions</span>: <span class="ident">FilterConfig</span>,
+<span class="doccomment">/// Configuration for all event filters.
+</span><span class="attribute">#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+</span><span class="kw">pub struct </span>FiltersConfig {
+    <span class="doccomment">/// Configuration for the Browser Extensions filter.
+    </span><span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;FilterConfig::is_empty&quot;</span>)]
+    </span><span class="kw">pub </span>browser_extensions: FilterConfig,
 
-    <span class="doccomment">/// Configuration for the Client IPs filter.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;ClientIpsFilterConfig::is_empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">client_ips</span>: <span class="ident">ClientIpsFilterConfig</span>,
+    <span class="doccomment">/// Configuration for the Client IPs filter.
+    </span><span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;ClientIpsFilterConfig::is_empty&quot;</span>)]
+    </span><span class="kw">pub </span>client_ips: ClientIpsFilterConfig,
 
-    <span class="doccomment">/// Configuration for the Web Crawlers filter</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;FilterConfig::is_empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">web_crawlers</span>: <span class="ident">FilterConfig</span>,
+    <span class="doccomment">/// Configuration for the Web Crawlers filter
+    </span><span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;FilterConfig::is_empty&quot;</span>)]
+    </span><span class="kw">pub </span>web_crawlers: FilterConfig,
 
-    <span class="doccomment">/// Configuration for the CSP filter.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;CspFilterConfig::is_empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">csp</span>: <span class="ident">CspFilterConfig</span>,
+    <span class="doccomment">/// Configuration for the CSP filter.
+    </span><span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;CspFilterConfig::is_empty&quot;</span>)]
+    </span><span class="kw">pub </span>csp: CspFilterConfig,
 
-    <span class="doccomment">/// Configuration for the Error Messages filter.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;ErrorMessagesFilterConfig::is_empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">error_messages</span>: <span class="ident">ErrorMessagesFilterConfig</span>,
+    <span class="doccomment">/// Configuration for the Error Messages filter.
+    </span><span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;ErrorMessagesFilterConfig::is_empty&quot;</span>)]
+    </span><span class="kw">pub </span>error_messages: ErrorMessagesFilterConfig,
 
-    <span class="doccomment">/// Configuration for the Legacy Browsers filter.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;LegacyBrowsersFilterConfig::is_empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">legacy_browsers</span>: <span class="ident">LegacyBrowsersFilterConfig</span>,
+    <span class="doccomment">/// Configuration for the Legacy Browsers filter.
+    </span><span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;LegacyBrowsersFilterConfig::is_empty&quot;</span>)]
+    </span><span class="kw">pub </span>legacy_browsers: LegacyBrowsersFilterConfig,
 
-    <span class="doccomment">/// Configuration for the Localhost filter.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;FilterConfig::is_empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">localhost</span>: <span class="ident">FilterConfig</span>,
+    <span class="doccomment">/// Configuration for the Localhost filter.
+    </span><span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;FilterConfig::is_empty&quot;</span>)]
+    </span><span class="kw">pub </span>localhost: FilterConfig,
 
-    <span class="doccomment">/// Configuration for the releases filter.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;ReleasesFilterConfig::is_empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">releases</span>: <span class="ident">ReleasesFilterConfig</span>,
+    <span class="doccomment">/// Configuration for the releases filter.
+    </span><span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;ReleasesFilterConfig::is_empty&quot;</span>)]
+    </span><span class="kw">pub </span>releases: ReleasesFilterConfig,
 }
 
-<span class="kw">impl</span> <span class="ident">FiltersConfig</span> {
-    <span class="doccomment">/// Returns true if there are no filter configurations delcared.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">browser_extensions</span>.<span class="ident">is_empty</span>()
-            <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">client_ips</span>.<span class="ident">is_empty</span>()
-            <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">web_crawlers</span>.<span class="ident">is_empty</span>()
-            <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">csp</span>.<span class="ident">is_empty</span>()
-            <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">error_messages</span>.<span class="ident">is_empty</span>()
-            <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">legacy_browsers</span>.<span class="ident">is_empty</span>()
-            <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">localhost</span>.<span class="ident">is_empty</span>()
-            <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">releases</span>.<span class="ident">is_empty</span>()
+<span class="kw">impl </span>FiltersConfig {
+    <span class="doccomment">/// Returns true if there are no filter configurations delcared.
+    </span><span class="kw">pub fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.browser_extensions.is_empty()
+            &amp;&amp; <span class="self">self</span>.client_ips.is_empty()
+            &amp;&amp; <span class="self">self</span>.web_crawlers.is_empty()
+            &amp;&amp; <span class="self">self</span>.csp.is_empty()
+            &amp;&amp; <span class="self">self</span>.error_messages.is_empty()
+            &amp;&amp; <span class="self">self</span>.legacy_browsers.is_empty()
+            &amp;&amp; <span class="self">self</span>.localhost.is_empty()
+            &amp;&amp; <span class="self">self</span>.releases.is_empty()
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_empty_config</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">serde_json::Error</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">filters_config</span> <span class="op">=</span> <span class="ident">serde_json::from_str</span>::<span class="op">&lt;</span><span class="ident">FiltersConfig</span><span class="op">&gt;</span>(<span class="string">&quot;{}&quot;</span>)<span class="question-mark">?</span>;
-        <span class="macro">insta::assert_debug_snapshot!</span>(<span class="ident">filters_config</span>, @<span class="string">r###&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_empty_config() -&gt; <span class="prelude-ty">Result</span>&lt;(), serde_json::Error&gt; {
+        <span class="kw">let </span>filters_config = serde_json::from_str::&lt;FiltersConfig&gt;(<span class="string">&quot;{}&quot;</span>)<span class="question-mark">?</span>;
+        <span class="macro">insta::assert_debug_snapshot!</span>(filters_config, @<span class="string">r###&quot;
         FiltersConfig {
             browser_extensions: FilterConfig {
                 is_enabled: false,
@@ -617,37 +617,37 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_serialize_empty</span>() {
-        <span class="kw">let</span> <span class="ident">filters_config</span> <span class="op">=</span> <span class="ident">FiltersConfig::default</span>();
-        <span class="macro">insta::assert_json_snapshot!</span>(<span class="ident">filters_config</span>, @<span class="string">&quot;{}&quot;</span>);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_serialize_empty() {
+        <span class="kw">let </span>filters_config = FiltersConfig::default();
+        <span class="macro">insta::assert_json_snapshot!</span>(filters_config, @<span class="string">&quot;{}&quot;</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_serialize_full</span>() {
-        <span class="kw">let</span> <span class="ident">filters_config</span> <span class="op">=</span> <span class="ident">FiltersConfig</span> {
-            <span class="ident">browser_extensions</span>: <span class="ident">FilterConfig</span> { <span class="ident">is_enabled</span>: <span class="bool-val">true</span> },
-            <span class="ident">client_ips</span>: <span class="ident">ClientIpsFilterConfig</span> {
-                <span class="ident">blacklisted_ips</span>: <span class="macro">vec!</span>[<span class="string">&quot;127.0.0.1&quot;</span>.<span class="ident">to_string</span>()],
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_serialize_full() {
+        <span class="kw">let </span>filters_config = FiltersConfig {
+            browser_extensions: FilterConfig { is_enabled: <span class="bool-val">true </span>},
+            client_ips: ClientIpsFilterConfig {
+                blacklisted_ips: <span class="macro">vec!</span>[<span class="string">&quot;127.0.0.1&quot;</span>.to_string()],
             },
-            <span class="ident">web_crawlers</span>: <span class="ident">FilterConfig</span> { <span class="ident">is_enabled</span>: <span class="bool-val">true</span> },
-            <span class="ident">csp</span>: <span class="ident">CspFilterConfig</span> {
-                <span class="ident">disallowed_sources</span>: <span class="macro">vec!</span>[<span class="string">&quot;https://*&quot;</span>.<span class="ident">to_string</span>()],
+            web_crawlers: FilterConfig { is_enabled: <span class="bool-val">true </span>},
+            csp: CspFilterConfig {
+                disallowed_sources: <span class="macro">vec!</span>[<span class="string">&quot;https://*&quot;</span>.to_string()],
             },
-            <span class="ident">error_messages</span>: <span class="ident">ErrorMessagesFilterConfig</span> {
-                <span class="ident">patterns</span>: <span class="ident">GlobPatterns::new</span>(<span class="macro">vec!</span>[<span class="string">&quot;Panic&quot;</span>.<span class="ident">to_string</span>()]),
+            error_messages: ErrorMessagesFilterConfig {
+                patterns: GlobPatterns::new(<span class="macro">vec!</span>[<span class="string">&quot;Panic&quot;</span>.to_string()]),
             },
-            <span class="ident">legacy_browsers</span>: <span class="ident">LegacyBrowsersFilterConfig</span> {
-                <span class="ident">is_enabled</span>: <span class="bool-val">false</span>,
-                <span class="ident">browsers</span>: [<span class="ident">LegacyBrowser::Ie9</span>].<span class="ident">iter</span>().<span class="ident">cloned</span>().<span class="ident">collect</span>(),
+            legacy_browsers: LegacyBrowsersFilterConfig {
+                is_enabled: <span class="bool-val">false</span>,
+                browsers: [LegacyBrowser::Ie9].iter().cloned().collect(),
             },
-            <span class="ident">localhost</span>: <span class="ident">FilterConfig</span> { <span class="ident">is_enabled</span>: <span class="bool-val">true</span> },
-            <span class="ident">releases</span>: <span class="ident">ReleasesFilterConfig</span> {
-                <span class="ident">releases</span>: <span class="ident">GlobPatterns::new</span>(<span class="macro">vec!</span>[<span class="string">&quot;1.2.3&quot;</span>.<span class="ident">to_string</span>()]),
+            localhost: FilterConfig { is_enabled: <span class="bool-val">true </span>},
+            releases: ReleasesFilterConfig {
+                releases: GlobPatterns::new(<span class="macro">vec!</span>[<span class="string">&quot;1.2.3&quot;</span>.to_string()]),
             },
         };
 
-        <span class="macro">insta::assert_json_snapshot!</span>(<span class="ident">filters_config</span>, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_json_snapshot!</span>(filters_config, @<span class="string">r###&quot;
         {
           &quot;browserExtensions&quot;: {
             &quot;isEnabled&quot;: true
@@ -688,11 +688,11 @@
         &quot;###</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_regression_legacy_browser_missing_options</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;isEnabled&quot;:false}&quot;#</span>;
-        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">serde_json::from_str</span>::<span class="op">&lt;</span><span class="ident">LegacyBrowsersFilterConfig</span><span class="op">&gt;</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>();
-        <span class="macro">insta::assert_debug_snapshot!</span>(<span class="ident">config</span>, @<span class="string">r###&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_regression_legacy_browser_missing_options() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{&quot;isEnabled&quot;:false}&quot;#</span>;
+        <span class="kw">let </span>config = serde_json::from_str::&lt;LegacyBrowsersFilterConfig&gt;(json).unwrap();
+        <span class="macro">insta::assert_debug_snapshot!</span>(config, @<span class="string">r###&quot;
         LegacyBrowsersFilterConfig {
             is_enabled: false,
             browsers: {},
@@ -701,4 +701,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_filter" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_filter" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

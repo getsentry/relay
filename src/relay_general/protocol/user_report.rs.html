@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/protocol/user_report.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>user_report.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/protocol/user_report.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>user_report.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_general/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -40,45 +40,45 @@
 <span id="38">38</span>
 <span id="39">39</span>
 <span id="40">40</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol::EventId</span>;
+</pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::protocol::EventId;
 
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">de::DeserializeOwned</span>, <span class="ident">Deserialize</span>, <span class="ident">Deserializer</span>, <span class="ident">Serialize</span>};
+<span class="kw">use </span>serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize};
 
-<span class="doccomment">/// User feedback for an event as sent by the client to the userfeedback/userreport endpoint.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Historically the &quot;schema&quot; for user report has been &quot;defined&quot; as the set of possible</span>
-<span class="doccomment">/// keyword-arguments `sentry.models.UserReport` accepts. Anything the model constructor</span>
-<span class="doccomment">/// accepts goes.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// For example, `{&quot;email&quot;: null}` is only invalid because `UserReport(email=None).save()` is. SDKs</span>
-<span class="doccomment">/// may neither send this (historically, in Relay we relaxed this already), but more importantly</span>
-<span class="doccomment">/// the ingest consumer may never receive this... because it would end up crashing the ingest</span>
-<span class="doccomment">/// consumer (while in older versions of Sentry it would simply crash the endpoint).</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The database/model schema is a bunch of not-null strings that have (pgsql) defaults, so that&#39;s</span>
-<span class="doccomment">/// how we end up with this struct definition.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">UserReport</span> {
-    <span class="doccomment">/// The event ID for which this user feedback is created.</span>
-    <span class="kw">pub</span> <span class="ident">event_id</span>: <span class="ident">EventId</span>,
-    <span class="doccomment">/// The user&#39;s name.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">deserialize_with</span> <span class="op">=</span> <span class="string">&quot;null_to_default&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">name</span>: <span class="ident">String</span>,
-    <span class="doccomment">/// The user&#39;s email address.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">deserialize_with</span> <span class="op">=</span> <span class="string">&quot;null_to_default&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">email</span>: <span class="ident">String</span>,
-    <span class="doccomment">/// Comments supplied by the user.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">deserialize_with</span> <span class="op">=</span> <span class="string">&quot;null_to_default&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">comments</span>: <span class="ident">String</span>,
+<span class="doccomment">/// User feedback for an event as sent by the client to the userfeedback/userreport endpoint.
+///
+/// Historically the &quot;schema&quot; for user report has been &quot;defined&quot; as the set of possible
+/// keyword-arguments `sentry.models.UserReport` accepts. Anything the model constructor
+/// accepts goes.
+///
+/// For example, `{&quot;email&quot;: null}` is only invalid because `UserReport(email=None).save()` is. SDKs
+/// may neither send this (historically, in Relay we relaxed this already), but more importantly
+/// the ingest consumer may never receive this... because it would end up crashing the ingest
+/// consumer (while in older versions of Sentry it would simply crash the endpoint).
+///
+/// The database/model schema is a bunch of not-null strings that have (pgsql) defaults, so that&#39;s
+/// how we end up with this struct definition.
+</span><span class="attribute">#[derive(Debug, Deserialize, Serialize)]
+</span><span class="kw">pub struct </span>UserReport {
+    <span class="doccomment">/// The event ID for which this user feedback is created.
+    </span><span class="kw">pub </span>event_id: EventId,
+    <span class="doccomment">/// The user&#39;s name.
+    </span><span class="attribute">#[serde(default, deserialize_with = <span class="string">&quot;null_to_default&quot;</span>)]
+    </span><span class="kw">pub </span>name: String,
+    <span class="doccomment">/// The user&#39;s email address.
+    </span><span class="attribute">#[serde(default, deserialize_with = <span class="string">&quot;null_to_default&quot;</span>)]
+    </span><span class="kw">pub </span>email: String,
+    <span class="doccomment">/// Comments supplied by the user.
+    </span><span class="attribute">#[serde(default, deserialize_with = <span class="string">&quot;null_to_default&quot;</span>)]
+    </span><span class="kw">pub </span>comments: String,
 }
 
-<span class="kw">fn</span> <span class="ident">null_to_default</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span>, <span class="ident">D</span>, <span class="ident">V</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>, <span class="ident">D::Error</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">D</span>: <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
-    <span class="ident">V</span>: <span class="ident">Default</span> <span class="op">+</span> <span class="ident">DeserializeOwned</span>,
+<span class="kw">fn </span>null_to_default&lt;<span class="lifetime">&#39;de</span>, D, V&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;V, D::Error&gt;
+<span class="kw">where
+    </span>D: Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+    V: Default + DeserializeOwned,
 {
-    <span class="kw">let</span> <span class="ident">opt</span> <span class="op">=</span> <span class="ident">Option::deserialize</span>(<span class="ident">deserializer</span>)<span class="question-mark">?</span>;
-    <span class="prelude-val">Ok</span>(<span class="ident">opt</span>.<span class="ident">unwrap_or_default</span>())
+    <span class="kw">let </span>opt = Option::deserialize(deserializer)<span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(opt.unwrap_or_default())
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

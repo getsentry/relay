@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-system/src/service.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>service.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_system/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_system/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-system/src/service.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>service.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_system/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_system/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_system/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -433,438 +433,438 @@
 <span id="431">431</span>
 <span id="432">432</span>
 <span id="433">433</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
-<span class="kw">use</span> <span class="ident">std::future::Future</span>;
-<span class="kw">use</span> <span class="ident">std::marker::PhantomData</span>;
-<span class="kw">use</span> <span class="ident">std::pin::Pin</span>;
-<span class="kw">use</span> <span class="ident">std::task::Context</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::future::Future;
+<span class="kw">use </span>std::marker::PhantomData;
+<span class="kw">use </span>std::pin::Pin;
+<span class="kw">use </span>std::task::Context;
 
-<span class="kw">use</span> <span class="ident">tokio::sync</span>::{<span class="ident">mpsc</span>, <span class="ident">oneshot</span>};
+<span class="kw">use </span>tokio::sync::{mpsc, oneshot};
 
-<span class="doccomment">/// A message interface for [services](Service).</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Most commonly, this interface is an enumeration of messages, but it can also be implemented on a</span>
-<span class="doccomment">/// single message. For each individual message, this type needs to implement the [`FromMessage`]</span>
-<span class="doccomment">/// trait.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// # Implementating Interfaces</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// There are three main ways to implement interfaces, which depends on the number of messages and</span>
-<span class="doccomment">/// their return values. The simplest way is an interface consisting of a **single message** with</span>
-<span class="doccomment">/// **no return value**. For this case, use the message directly as interface and choose</span>
-<span class="doccomment">/// `NoResponse` as response:</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">/// use relay_system::{FromMessage, Interface, NoResponse};</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// #[derive(Debug)]</span>
-<span class="doccomment">/// pub struct MyMessage;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// impl Interface for MyMessage {}</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// impl FromMessage&lt;Self&gt; for MyMessage {</span>
-<span class="doccomment">///     type Response = NoResponse;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">///     fn from_message(message: Self, _: ()) -&gt; Self {</span>
-<span class="doccomment">///         message</span>
-<span class="doccomment">///     }</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// If there is a **single message with a return value**, implement the interface as a wrapper for</span>
-<span class="doccomment">/// the message and the return [`Sender`]:</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">/// use relay_system::{AsyncResponse, FromMessage, Interface, Sender};</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// #[derive(Debug)]</span>
-<span class="doccomment">/// pub struct MyMessage;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// #[derive(Debug)]</span>
-<span class="doccomment">/// pub struct MyInterface(MyMessage, Sender&lt;bool&gt;);</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// impl Interface for MyInterface {}</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// impl FromMessage&lt;MyMessage&gt; for MyInterface {</span>
-<span class="doccomment">///     type Response = AsyncResponse&lt;bool&gt;;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">///     fn from_message(message: MyMessage, sender: Sender&lt;bool&gt;) -&gt; Self {</span>
-<span class="doccomment">///         Self(message, sender)</span>
-<span class="doccomment">///     }</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Finally, interfaces with **multiple messages** of any kind can most commonly be implemented</span>
-<span class="doccomment">/// through an enumeration for every message. The variants of messages with return values need a</span>
-<span class="doccomment">/// `Sender` again:</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">/// use relay_system::{AsyncResponse, FromMessage, Interface, NoResponse, Sender};</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// #[derive(Debug)]</span>
-<span class="doccomment">/// pub struct GetFlag;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// #[derive(Debug)]</span>
-<span class="doccomment">/// pub struct SetFlag(pub bool);</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// #[derive(Debug)]</span>
-<span class="doccomment">/// pub enum MyInterface {</span>
-<span class="doccomment">///     Get(GetFlag, Sender&lt;bool&gt;),</span>
-<span class="doccomment">///     Set(SetFlag),</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// impl Interface for MyInterface {}</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// impl FromMessage&lt;GetFlag&gt; for MyInterface {</span>
-<span class="doccomment">///     type Response = AsyncResponse&lt;bool&gt;;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">///     fn from_message(message: GetFlag, sender: Sender&lt;bool&gt;) -&gt; Self {</span>
-<span class="doccomment">///         Self::Get(message, sender)</span>
-<span class="doccomment">///     }</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// impl FromMessage&lt;SetFlag&gt; for MyInterface {</span>
-<span class="doccomment">///     type Response = NoResponse;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">///     fn from_message(message: SetFlag, _: ()) -&gt; Self {</span>
-<span class="doccomment">///         Self::Set(message)</span>
-<span class="doccomment">///     }</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// # Requirements</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Interfaces are meant to be sent to services via channels. As such, they need to be both `Send`</span>
-<span class="doccomment">/// and `&#39;static`. It is highly encouraged to implement `Debug` on all interfaces and their</span>
-<span class="doccomment">/// messages.</span>
-<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">Interface</span>: <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;static</span> {}
+<span class="doccomment">/// A message interface for [services](Service).
+///
+/// Most commonly, this interface is an enumeration of messages, but it can also be implemented on a
+/// single message. For each individual message, this type needs to implement the [`FromMessage`]
+/// trait.
+///
+/// # Implementating Interfaces
+///
+/// There are three main ways to implement interfaces, which depends on the number of messages and
+/// their return values. The simplest way is an interface consisting of a **single message** with
+/// **no return value**. For this case, use the message directly as interface and choose
+/// `NoResponse` as response:
+///
+/// ```
+/// use relay_system::{FromMessage, Interface, NoResponse};
+///
+/// #[derive(Debug)]
+/// pub struct MyMessage;
+///
+/// impl Interface for MyMessage {}
+///
+/// impl FromMessage&lt;Self&gt; for MyMessage {
+///     type Response = NoResponse;
+///
+///     fn from_message(message: Self, _: ()) -&gt; Self {
+///         message
+///     }
+/// }
+/// ```
+///
+/// If there is a **single message with a return value**, implement the interface as a wrapper for
+/// the message and the return [`Sender`]:
+///
+/// ```
+/// use relay_system::{AsyncResponse, FromMessage, Interface, Sender};
+///
+/// #[derive(Debug)]
+/// pub struct MyMessage;
+///
+/// #[derive(Debug)]
+/// pub struct MyInterface(MyMessage, Sender&lt;bool&gt;);
+///
+/// impl Interface for MyInterface {}
+///
+/// impl FromMessage&lt;MyMessage&gt; for MyInterface {
+///     type Response = AsyncResponse&lt;bool&gt;;
+///
+///     fn from_message(message: MyMessage, sender: Sender&lt;bool&gt;) -&gt; Self {
+///         Self(message, sender)
+///     }
+/// }
+/// ```
+///
+/// Finally, interfaces with **multiple messages** of any kind can most commonly be implemented
+/// through an enumeration for every message. The variants of messages with return values need a
+/// `Sender` again:
+///
+/// ```
+/// use relay_system::{AsyncResponse, FromMessage, Interface, NoResponse, Sender};
+///
+/// #[derive(Debug)]
+/// pub struct GetFlag;
+///
+/// #[derive(Debug)]
+/// pub struct SetFlag(pub bool);
+///
+/// #[derive(Debug)]
+/// pub enum MyInterface {
+///     Get(GetFlag, Sender&lt;bool&gt;),
+///     Set(SetFlag),
+/// }
+///
+/// impl Interface for MyInterface {}
+///
+/// impl FromMessage&lt;GetFlag&gt; for MyInterface {
+///     type Response = AsyncResponse&lt;bool&gt;;
+///
+///     fn from_message(message: GetFlag, sender: Sender&lt;bool&gt;) -&gt; Self {
+///         Self::Get(message, sender)
+///     }
+/// }
+///
+/// impl FromMessage&lt;SetFlag&gt; for MyInterface {
+///     type Response = NoResponse;
+///
+///     fn from_message(message: SetFlag, _: ()) -&gt; Self {
+///         Self::Set(message)
+///     }
+/// }
+/// ```
+///
+/// # Requirements
+///
+/// Interfaces are meant to be sent to services via channels. As such, they need to be both `Send`
+/// and `&#39;static`. It is highly encouraged to implement `Debug` on all interfaces and their
+/// messages.
+</span><span class="kw">pub trait </span>Interface: Send + <span class="lifetime">&#39;static </span>{}
 
-<span class="doccomment">/// Services without messages can use `()` as their interface.</span>
-<span class="kw">impl</span> <span class="ident">Interface</span> <span class="kw">for</span> () {}
+<span class="doccomment">/// Services without messages can use `()` as their interface.
+</span><span class="kw">impl </span>Interface <span class="kw">for </span>() {}
 
-<span class="doccomment">/// An error when [sending](Addr::send) a message to a service fails.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SendError</span>;
+<span class="doccomment">/// An error when [sending](Addr::send) a message to a service fails.
+</span><span class="attribute">#[derive(Clone, Copy, Debug)]
+</span><span class="kw">pub struct </span>SendError;
 
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">SendError</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;failed to send message to service&quot;</span>)
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>SendError {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;failed to send message to service&quot;</span>)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">std::error::Error</span> <span class="kw">for</span> <span class="ident">SendError</span> {}
+<span class="kw">impl </span>std::error::Error <span class="kw">for </span>SendError {}
 
-<span class="doccomment">/// Response behavior of an [`Interface`] message.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// It defines how a service handles and responds to interface messages, such as through</span>
-<span class="doccomment">/// asynchronous responses or fire-and-forget without responding. [`FromMessage`] implementations</span>
-<span class="doccomment">/// declare this behavior on the interface.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// See [`FromMessage`] for more information on how to use this trait.</span>
-<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">MessageResponse</span> {
-    <span class="doccomment">/// Sends responses from the service back to the waiting recipient.</span>
-    <span class="kw">type</span> <span class="ident">Sender</span>;
+<span class="doccomment">/// Response behavior of an [`Interface`] message.
+///
+/// It defines how a service handles and responds to interface messages, such as through
+/// asynchronous responses or fire-and-forget without responding. [`FromMessage`] implementations
+/// declare this behavior on the interface.
+///
+/// See [`FromMessage`] for more information on how to use this trait.
+</span><span class="kw">pub trait </span>MessageResponse {
+    <span class="doccomment">/// Sends responses from the service back to the waiting recipient.
+    </span><span class="kw">type </span>Sender;
 
-    <span class="doccomment">/// The type returned from [`Addr::send`].</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This type can be either synchronous and asynchronous based on the responder.</span>
-    <span class="kw">type</span> <span class="ident">Output</span>;
+    <span class="doccomment">/// The type returned from [`Addr::send`].
+    ///
+    /// This type can be either synchronous and asynchronous based on the responder.
+    </span><span class="kw">type </span>Output;
 
-    <span class="doccomment">/// Returns the response channel for an interface message.</span>
-    <span class="kw">fn</span> <span class="ident">channel</span>() -&gt; (<span class="ident"><span class="self">Self</span>::Sender</span>, <span class="ident"><span class="self">Self</span>::Output</span>);
+    <span class="doccomment">/// Returns the response channel for an interface message.
+    </span><span class="kw">fn </span>channel() -&gt; (<span class="self">Self</span>::Sender, <span class="self">Self</span>::Output);
 }
 
-<span class="doccomment">/// The request when sending an asynchronous message to a service.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This is returned from [`Addr::send`] when the message responds asynchronously through</span>
-<span class="doccomment">/// [`AsyncResponse`]. It is a future that should be awaited. The message still runs to</span>
-<span class="doccomment">/// completion if this future is dropped.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Request</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">oneshot::Receiver</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>);
+<span class="doccomment">/// The request when sending an asynchronous message to a service.
+///
+/// This is returned from [`Addr::send`] when the message responds asynchronously through
+/// [`AsyncResponse`]. It is a future that should be awaited. The message still runs to
+/// completion if this future is dropped.
+</span><span class="kw">pub struct </span>Request&lt;T&gt;(oneshot::Receiver&lt;T&gt;);
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">Request</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="ident">f</span>.<span class="ident">debug_struct</span>(<span class="string">&quot;Request&quot;</span>).<span class="ident">finish_non_exhaustive</span>()
+<span class="kw">impl</span>&lt;T&gt; fmt::Debug <span class="kw">for </span>Request&lt;T&gt; {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        f.debug_struct(<span class="string">&quot;Request&quot;</span>).finish_non_exhaustive()
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Future</span> <span class="kw">for</span> <span class="ident">Request</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
-    <span class="kw">type</span> <span class="ident">Output</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">SendError</span><span class="op">&gt;</span>;
+<span class="kw">impl</span>&lt;T&gt; Future <span class="kw">for </span>Request&lt;T&gt; {
+    <span class="kw">type </span>Output = <span class="prelude-ty">Result</span>&lt;T, SendError&gt;;
 
-    <span class="kw">fn</span> <span class="ident">poll</span>(<span class="kw-2">mut</span> <span class="self">self</span>: <span class="ident">Pin</span><span class="op">&lt;</span><span class="kw-2">&amp;mut</span> <span class="self">Self</span><span class="op">&gt;</span>, <span class="ident">cx</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">std::task::Poll</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Output</span><span class="op">&gt;</span> {
-        <span class="ident">Pin::new</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="number">0</span>)
-            .<span class="ident">poll</span>(<span class="ident">cx</span>)
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">r</span><span class="op">|</span> <span class="ident">r</span>.<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">SendError</span>))
+    <span class="kw">fn </span>poll(<span class="kw-2">mut </span><span class="self">self</span>: Pin&lt;<span class="kw-2">&amp;mut </span><span class="self">Self</span>&gt;, cx: <span class="kw-2">&amp;mut </span>Context&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; std::task::Poll&lt;<span class="self">Self</span>::Output&gt; {
+        Pin::new(<span class="kw-2">&amp;mut </span><span class="self">self</span>.<span class="number">0</span>)
+            .poll(cx)
+            .map(|r| r.map_err(|<span class="kw">_</span>| SendError))
     }
 }
 
-<span class="doccomment">/// Sends a message response from a service back to the waiting [`Request`].</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The sender is part of an [`AsyncResponse`] and should be moved into the service interface</span>
-<span class="doccomment">/// type. If this sender is dropped without calling [`send`](Self::send), the request fails with</span>
-<span class="doccomment">/// [`SendError`].</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">oneshot::Sender</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>);
+<span class="doccomment">/// Sends a message response from a service back to the waiting [`Request`].
+///
+/// The sender is part of an [`AsyncResponse`] and should be moved into the service interface
+/// type. If this sender is dropped without calling [`send`](Self::send), the request fails with
+/// [`SendError`].
+</span><span class="kw">pub struct </span>Sender&lt;T&gt;(oneshot::Sender&lt;T&gt;);
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="ident">f</span>.<span class="ident">debug_struct</span>(<span class="string">&quot;Sender&quot;</span>)
-            .<span class="ident">field</span>(<span class="string">&quot;open&quot;</span>, <span class="kw-2">&amp;</span><span class="op">!</span><span class="self">self</span>.<span class="number">0</span>.<span class="ident">is_closed</span>())
-            .<span class="ident">finish</span>()
+<span class="kw">impl</span>&lt;T&gt; fmt::Debug <span class="kw">for </span>Sender&lt;T&gt; {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        f.debug_struct(<span class="string">&quot;Sender&quot;</span>)
+            .field(<span class="string">&quot;open&quot;</span>, <span class="kw-2">&amp;</span>!<span class="self">self</span>.<span class="number">0</span>.is_closed())
+            .finish()
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
-    <span class="doccomment">/// Sends the response value and closes the [`Request`].</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This silenly drops the value if the request has been dropped.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">send</span>(<span class="self">self</span>, <span class="ident">value</span>: <span class="ident">T</span>) {
-        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">send</span>(<span class="ident">value</span>).<span class="ident">ok</span>();
+<span class="kw">impl</span>&lt;T&gt; Sender&lt;T&gt; {
+    <span class="doccomment">/// Sends the response value and closes the [`Request`].
+    ///
+    /// This silenly drops the value if the request has been dropped.
+    </span><span class="kw">pub fn </span>send(<span class="self">self</span>, value: T) {
+        <span class="self">self</span>.<span class="number">0</span>.send(value).ok();
     }
 }
 
-<span class="doccomment">/// Message response resulting in an asynchronous [`Request`].</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The sender must be placed on the interface in [`FromMessage::from_message`].</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AsyncResponse</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">PhantomData</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>);
+<span class="doccomment">/// Message response resulting in an asynchronous [`Request`].
+///
+/// The sender must be placed on the interface in [`FromMessage::from_message`].
+</span><span class="kw">pub struct </span>AsyncResponse&lt;T&gt;(PhantomData&lt;T&gt;);
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">AsyncResponse</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;AsyncResponse&quot;</span>)
+<span class="kw">impl</span>&lt;T&gt; fmt::Debug <span class="kw">for </span>AsyncResponse&lt;T&gt; {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        f.write_str(<span class="string">&quot;AsyncResponse&quot;</span>)
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">MessageResponse</span> <span class="kw">for</span> <span class="ident">AsyncResponse</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
-    <span class="kw">type</span> <span class="ident">Sender</span> <span class="op">=</span> <span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>;
-    <span class="kw">type</span> <span class="ident">Output</span> <span class="op">=</span> <span class="ident">Request</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>;
+<span class="kw">impl</span>&lt;T&gt; MessageResponse <span class="kw">for </span>AsyncResponse&lt;T&gt; {
+    <span class="kw">type </span>Sender = Sender&lt;T&gt;;
+    <span class="kw">type </span>Output = Request&lt;T&gt;;
 
-    <span class="kw">fn</span> <span class="ident">channel</span>() -&gt; (<span class="ident"><span class="self">Self</span>::Sender</span>, <span class="ident"><span class="self">Self</span>::Output</span>) {
-        <span class="kw">let</span> (<span class="ident">tx</span>, <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">oneshot::channel</span>();
-        (<span class="ident">Sender</span>(<span class="ident">tx</span>), <span class="ident">Request</span>(<span class="ident">rx</span>))
+    <span class="kw">fn </span>channel() -&gt; (<span class="self">Self</span>::Sender, <span class="self">Self</span>::Output) {
+        <span class="kw">let </span>(tx, rx) = oneshot::channel();
+        (Sender(tx), Request(rx))
     }
 }
 
-<span class="doccomment">/// Message response for fire-and-forget messages with no output.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// There is no sender associated to this response. When implementing [`FromMessage`], the sender</span>
-<span class="doccomment">/// can be ignored.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">NoResponse</span>;
+<span class="doccomment">/// Message response for fire-and-forget messages with no output.
+///
+/// There is no sender associated to this response. When implementing [`FromMessage`], the sender
+/// can be ignored.
+</span><span class="kw">pub struct </span>NoResponse;
 
-<span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">NoResponse</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;NoResponse&quot;</span>)
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>NoResponse {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        f.write_str(<span class="string">&quot;NoResponse&quot;</span>)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">MessageResponse</span> <span class="kw">for</span> <span class="ident">NoResponse</span> {
-    <span class="kw">type</span> <span class="ident">Sender</span> <span class="op">=</span> ();
-    <span class="kw">type</span> <span class="ident">Output</span> <span class="op">=</span> ();
+<span class="kw">impl </span>MessageResponse <span class="kw">for </span>NoResponse {
+    <span class="kw">type </span>Sender = ();
+    <span class="kw">type </span>Output = ();
 
-    <span class="kw">fn</span> <span class="ident">channel</span>() -&gt; (<span class="ident"><span class="self">Self</span>::Sender</span>, <span class="ident"><span class="self">Self</span>::Output</span>) {
+    <span class="kw">fn </span>channel() -&gt; (<span class="self">Self</span>::Sender, <span class="self">Self</span>::Output) {
         ((), ())
     }
 }
 
-<span class="doccomment">/// Declares a message as part of an [`Interface`].</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Messages have an associated `Response` type that determines the return value of sending the</span>
-<span class="doccomment">/// message. Within an interface, the responder can vary for each message. There are two provided</span>
-<span class="doccomment">/// responders.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// # No Response</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// [`NoResponse`] is used for fire-and-forget messages that do not return any values. These</span>
-<span class="doccomment">/// messages do not spawn futures and cannot be awaited. It is neither possible to verify whether</span>
-<span class="doccomment">/// the message was delivered to the service.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// When implementing `FromMessage` for such messages, the second argument can be ignored by</span>
-<span class="doccomment">/// convention:</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">/// use relay_system::{FromMessage, Interface, NoResponse};</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// struct MyMessage;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// enum MyInterface {</span>
-<span class="doccomment">///     MyMessage(MyMessage),</span>
-<span class="doccomment">///     // ...</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// impl Interface for MyInterface {}</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// impl FromMessage&lt;MyMessage&gt; for MyInterface {</span>
-<span class="doccomment">///     type Response = NoResponse;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">///     fn from_message(message: MyMessage, _: ()) -&gt; Self {</span>
-<span class="doccomment">///         Self::MyMessage(message)</span>
-<span class="doccomment">///     }</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// # Asynchronous Responses</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// [`AsyncResponse`] is used for messages that resolve to some future value. This value is sent</span>
-<span class="doccomment">/// back by the service through a [`Sender`], which must be added into the interface:</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">/// use relay_system::{AsyncResponse, FromMessage, Interface, Sender};</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// struct MyMessage;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// enum MyInterface {</span>
-<span class="doccomment">///     MyMessage(MyMessage, Sender&lt;bool&gt;),</span>
-<span class="doccomment">///     // ...</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// impl Interface for MyInterface {}</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// impl FromMessage&lt;MyMessage&gt; for MyInterface {</span>
-<span class="doccomment">///     type Response = AsyncResponse&lt;bool&gt;;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">///     fn from_message(message: MyMessage, sender: Sender&lt;bool&gt;) -&gt; Self {</span>
-<span class="doccomment">///         Self::MyMessage(message, sender)</span>
-<span class="doccomment">///     }</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// See [`Interface`] for more examples on how to build interfaces using this trait.</span>
-<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">FromMessage</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span>: <span class="ident">Interface</span> {
-    <span class="doccomment">/// The behavior declaring the return value when sending this message.</span>
-    <span class="kw">type</span> <span class="ident">Response</span>: <span class="ident">MessageResponse</span>;
+<span class="doccomment">/// Declares a message as part of an [`Interface`].
+///
+/// Messages have an associated `Response` type that determines the return value of sending the
+/// message. Within an interface, the responder can vary for each message. There are two provided
+/// responders.
+///
+/// # No Response
+///
+/// [`NoResponse`] is used for fire-and-forget messages that do not return any values. These
+/// messages do not spawn futures and cannot be awaited. It is neither possible to verify whether
+/// the message was delivered to the service.
+///
+/// When implementing `FromMessage` for such messages, the second argument can be ignored by
+/// convention:
+///
+/// ```
+/// use relay_system::{FromMessage, Interface, NoResponse};
+///
+/// struct MyMessage;
+///
+/// enum MyInterface {
+///     MyMessage(MyMessage),
+///     // ...
+/// }
+///
+/// impl Interface for MyInterface {}
+///
+/// impl FromMessage&lt;MyMessage&gt; for MyInterface {
+///     type Response = NoResponse;
+///
+///     fn from_message(message: MyMessage, _: ()) -&gt; Self {
+///         Self::MyMessage(message)
+///     }
+/// }
+/// ```
+///
+/// # Asynchronous Responses
+///
+/// [`AsyncResponse`] is used for messages that resolve to some future value. This value is sent
+/// back by the service through a [`Sender`], which must be added into the interface:
+///
+/// ```
+/// use relay_system::{AsyncResponse, FromMessage, Interface, Sender};
+///
+/// struct MyMessage;
+///
+/// enum MyInterface {
+///     MyMessage(MyMessage, Sender&lt;bool&gt;),
+///     // ...
+/// }
+///
+/// impl Interface for MyInterface {}
+///
+/// impl FromMessage&lt;MyMessage&gt; for MyInterface {
+///     type Response = AsyncResponse&lt;bool&gt;;
+///
+///     fn from_message(message: MyMessage, sender: Sender&lt;bool&gt;) -&gt; Self {
+///         Self::MyMessage(message, sender)
+///     }
+/// }
+/// ```
+///
+/// See [`Interface`] for more examples on how to build interfaces using this trait.
+</span><span class="kw">pub trait </span>FromMessage&lt;M&gt;: Interface {
+    <span class="doccomment">/// The behavior declaring the return value when sending this message.
+    </span><span class="kw">type </span>Response: MessageResponse;
 
-    <span class="doccomment">/// Converts the message into the service interface.</span>
-    <span class="kw">fn</span> <span class="ident">from_message</span>(<span class="ident">message</span>: <span class="ident">M</span>, <span class="ident">sender</span>: <span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Response</span> <span class="kw">as</span> <span class="ident">MessageResponse</span><span class="op">&gt;</span><span class="ident">::Sender</span>) -&gt; <span class="self">Self</span>;
+    <span class="doccomment">/// Converts the message into the service interface.
+    </span><span class="kw">fn </span>from_message(message: M, sender: &lt;<span class="self">Self</span>::Response <span class="kw">as </span>MessageResponse&gt;::Sender) -&gt; <span class="self">Self</span>;
 }
 
-<span class="doccomment">/// The address of a [`Service`].</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The address of a [`Service`] allows you to [send](Self::send) messages to the service as</span>
-<span class="doccomment">/// long as the service is running. It can be freely cloned.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">I</span>: <span class="ident">Interface</span><span class="op">&gt;</span> {
-    <span class="ident">tx</span>: <span class="ident">mpsc::UnboundedSender</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span>,
+<span class="doccomment">/// The address of a [`Service`].
+///
+/// The address of a [`Service`] allows you to [send](Self::send) messages to the service as
+/// long as the service is running. It can be freely cloned.
+</span><span class="kw">pub struct </span>Addr&lt;I: Interface&gt; {
+    tx: mpsc::UnboundedSender&lt;I&gt;,
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">I</span>: <span class="ident">Interface</span><span class="op">&gt;</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="ident">f</span>.<span class="ident">debug_struct</span>(<span class="string">&quot;Addr&quot;</span>)
-            .<span class="ident">field</span>(<span class="string">&quot;open&quot;</span>, <span class="kw-2">&amp;</span><span class="op">!</span><span class="self">self</span>.<span class="ident">tx</span>.<span class="ident">is_closed</span>())
-            .<span class="ident">finish</span>()
+<span class="kw">impl</span>&lt;I: Interface&gt; fmt::Debug <span class="kw">for </span>Addr&lt;I&gt; {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        f.debug_struct(<span class="string">&quot;Addr&quot;</span>)
+            .field(<span class="string">&quot;open&quot;</span>, <span class="kw-2">&amp;</span>!<span class="self">self</span>.tx.is_closed())
+            .finish()
     }
 }
 
-<span class="comment">// Manually derive `Clone` since we do not require `I: Clone` and the Clone derive adds this</span>
-<span class="comment">// constraint.</span>
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">I</span>: <span class="ident">Interface</span><span class="op">&gt;</span> <span class="ident">Clone</span> <span class="kw">for</span> <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">clone</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> {
-            <span class="ident">tx</span>: <span class="self">self</span>.<span class="ident">tx</span>.<span class="ident">clone</span>(),
+<span class="comment">// Manually derive `Clone` since we do not require `I: Clone` and the Clone derive adds this
+// constraint.
+</span><span class="kw">impl</span>&lt;I: Interface&gt; Clone <span class="kw">for </span>Addr&lt;I&gt; {
+    <span class="kw">fn </span>clone(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            tx: <span class="self">self</span>.tx.clone(),
         }
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">I</span>: <span class="ident">Interface</span><span class="op">&gt;</span> <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span> {
-    <span class="doccomment">/// Sends a message to the service and returns the response.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Depending on the message&#39;s response behavior, this either returns a future resolving to the</span>
-    <span class="doccomment">/// return value, or does not return anything for fire-and-forget messages. The communication</span>
-    <span class="doccomment">/// channel with the service is unbounded, so backlogs could occur when sending too many</span>
-    <span class="doccomment">/// messages.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Sending asynchronous messages can fail with `Err(SendError)` if the service has shut down.</span>
-    <span class="doccomment">/// The result of asynchronous messages does not have to be awaited. The message will be</span>
-    <span class="doccomment">/// delivered and handled regardless:</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">send</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">message</span>: <span class="ident">M</span>) -&gt; <span class="op">&lt;</span><span class="ident">I::Response</span> <span class="kw">as</span> <span class="ident">MessageResponse</span><span class="op">&gt;</span><span class="ident">::Output</span>
-    <span class="kw">where</span>
-        <span class="ident">I</span>: <span class="ident">FromMessage</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span>,
+<span class="kw">impl</span>&lt;I: Interface&gt; Addr&lt;I&gt; {
+    <span class="doccomment">/// Sends a message to the service and returns the response.
+    ///
+    /// Depending on the message&#39;s response behavior, this either returns a future resolving to the
+    /// return value, or does not return anything for fire-and-forget messages. The communication
+    /// channel with the service is unbounded, so backlogs could occur when sending too many
+    /// messages.
+    ///
+    /// Sending asynchronous messages can fail with `Err(SendError)` if the service has shut down.
+    /// The result of asynchronous messages does not have to be awaited. The message will be
+    /// delivered and handled regardless:
+    </span><span class="kw">pub fn </span>send&lt;M&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, message: M) -&gt; &lt;I::Response <span class="kw">as </span>MessageResponse&gt;::Output
+    <span class="kw">where
+        </span>I: FromMessage&lt;M&gt;,
     {
-        <span class="kw">let</span> (<span class="ident">tx</span>, <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">I::Response::channel</span>();
-        <span class="self">self</span>.<span class="ident">tx</span>.<span class="ident">send</span>(<span class="ident">I::from_message</span>(<span class="ident">message</span>, <span class="ident">tx</span>)).<span class="ident">ok</span>(); <span class="comment">// it&#39;s ok to drop, the response will fail</span>
-        <span class="ident">rx</span>
+        <span class="kw">let </span>(tx, rx) = I::Response::channel();
+        <span class="self">self</span>.tx.send(I::from_message(message, tx)).ok(); <span class="comment">// it&#39;s ok to drop, the response will fail
+        </span>rx
     }
 }
 
-<span class="doccomment">/// Inbound channel for messages sent through an [`Addr`].</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This channel is meant to be polled in a [`Service`].</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Instances are created automatically when [spawning](Service::spawn_handler) a service, or can be</span>
-<span class="doccomment">/// created through [`channel`]. The channel closes when all associated [`Addr`]s are dropped.</span>
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">Receiver</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">mpsc::UnboundedReceiver</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span>;
+<span class="doccomment">/// Inbound channel for messages sent through an [`Addr`].
+///
+/// This channel is meant to be polled in a [`Service`].
+///
+/// Instances are created automatically when [spawning](Service::spawn_handler) a service, or can be
+/// created through [`channel`]. The channel closes when all associated [`Addr`]s are dropped.
+</span><span class="kw">pub type </span>Receiver&lt;I&gt; = mpsc::UnboundedReceiver&lt;I&gt;;
 
-<span class="doccomment">/// Creates an unbounded channel for communicating with a [`Service`].</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The `Addr` as the sending part provides public access to the service, while the `Receiver`</span>
-<span class="doccomment">/// should remain internal to the service.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">channel</span><span class="op">&lt;</span><span class="ident">I</span>: <span class="ident">Interface</span><span class="op">&gt;</span>() -&gt; (<span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span>, <span class="ident">Receiver</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span>) {
-    <span class="kw">let</span> (<span class="ident">tx</span>, <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">mpsc::unbounded_channel</span>();
-    (<span class="ident">Addr</span> { <span class="ident">tx</span> }, <span class="ident">rx</span>)
+<span class="doccomment">/// Creates an unbounded channel for communicating with a [`Service`].
+///
+/// The `Addr` as the sending part provides public access to the service, while the `Receiver`
+/// should remain internal to the service.
+</span><span class="kw">pub fn </span>channel&lt;I: Interface&gt;() -&gt; (Addr&lt;I&gt;, Receiver&lt;I&gt;) {
+    <span class="kw">let </span>(tx, rx) = mpsc::unbounded_channel();
+    (Addr { tx }, rx)
 }
 
-<span class="doccomment">/// An asynchronous unit responding to messages.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Services receive messages conforming to some [`Interface`] through an [`Addr`] and handle them</span>
-<span class="doccomment">/// one by one. Internally, services are free to concurrently process these messages or not, most</span>
-<span class="doccomment">/// probably should.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Individual messages can have a response which will be sent once the message is handled by the</span>
-<span class="doccomment">/// service. The sender can asynchronously await the responses of such messages.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// To start a service, create an instance of the service and use [`Service::start`].</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// # Implementing Services</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The standard way to implement services is through the `run` function. It receives an inbound</span>
-<span class="doccomment">/// channel for all messages sent through the service&#39;s address. Note that this function is</span>
-<span class="doccomment">/// synchronous, so that this needs to spawn at least one task internally:</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```no_run</span>
-<span class="doccomment">/// use relay_system::{FromMessage, Interface, NoResponse, Receiver, Service};</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// struct MyMessage;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// impl Interface for MyMessage {}</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// impl FromMessage&lt;Self&gt; for MyMessage {</span>
-<span class="doccomment">///     type Response = NoResponse;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">///     fn from_message(message: Self, _: ()) -&gt; Self {</span>
-<span class="doccomment">///         message</span>
-<span class="doccomment">///     }</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// struct MyService;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// impl Service for MyService {</span>
-<span class="doccomment">///     type Interface = MyMessage;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">///     fn spawn_handler(self, mut rx: Receiver&lt;Self::Interface&gt;) {</span>
-<span class="doccomment">///         tokio::spawn(async move {</span>
-<span class="doccomment">///             while let Some(message) = rx.recv().await {</span>
-<span class="doccomment">///                 // handle the message</span>
-<span class="doccomment">///             }</span>
-<span class="doccomment">///         });</span>
-<span class="doccomment">///     }</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// let addr = MyService.start();</span>
-<span class="doccomment">/// ```</span>
-<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">Service</span>: <span class="ident">Sized</span> {
-    <span class="doccomment">/// The interface of messages this service implements.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The interface can be a single message type or an enumeration of all the messages that</span>
-    <span class="doccomment">/// can be handled by this service.</span>
-    <span class="kw">type</span> <span class="ident">Interface</span>: <span class="ident">Interface</span>;
+<span class="doccomment">/// An asynchronous unit responding to messages.
+///
+/// Services receive messages conforming to some [`Interface`] through an [`Addr`] and handle them
+/// one by one. Internally, services are free to concurrently process these messages or not, most
+/// probably should.
+///
+/// Individual messages can have a response which will be sent once the message is handled by the
+/// service. The sender can asynchronously await the responses of such messages.
+///
+/// To start a service, create an instance of the service and use [`Service::start`].
+///
+/// # Implementing Services
+///
+/// The standard way to implement services is through the `run` function. It receives an inbound
+/// channel for all messages sent through the service&#39;s address. Note that this function is
+/// synchronous, so that this needs to spawn at least one task internally:
+///
+/// ```no_run
+/// use relay_system::{FromMessage, Interface, NoResponse, Receiver, Service};
+///
+/// struct MyMessage;
+///
+/// impl Interface for MyMessage {}
+///
+/// impl FromMessage&lt;Self&gt; for MyMessage {
+///     type Response = NoResponse;
+///
+///     fn from_message(message: Self, _: ()) -&gt; Self {
+///         message
+///     }
+/// }
+///
+/// struct MyService;
+///
+/// impl Service for MyService {
+///     type Interface = MyMessage;
+///
+///     fn spawn_handler(self, mut rx: Receiver&lt;Self::Interface&gt;) {
+///         tokio::spawn(async move {
+///             while let Some(message) = rx.recv().await {
+///                 // handle the message
+///             }
+///         });
+///     }
+/// }
+///
+/// let addr = MyService.start();
+/// ```
+</span><span class="kw">pub trait </span>Service: Sized {
+    <span class="doccomment">/// The interface of messages this service implements.
+    ///
+    /// The interface can be a single message type or an enumeration of all the messages that
+    /// can be handled by this service.
+    </span><span class="kw">type </span>Interface: Interface;
 
-    <span class="doccomment">/// Spawns a task to handle service messages.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Receives an inbound channel for all messages sent through the service&#39;s [`Addr`]. Note</span>
-    <span class="doccomment">/// that this function is synchronous, so that this needs to spawn a task internally.</span>
-    <span class="kw">fn</span> <span class="ident">spawn_handler</span>(<span class="self">self</span>, <span class="ident">rx</span>: <span class="ident">Receiver</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Interface</span><span class="op">&gt;</span>);
+    <span class="doccomment">/// Spawns a task to handle service messages.
+    ///
+    /// Receives an inbound channel for all messages sent through the service&#39;s [`Addr`]. Note
+    /// that this function is synchronous, so that this needs to spawn a task internally.
+    </span><span class="kw">fn </span>spawn_handler(<span class="self">self</span>, rx: Receiver&lt;<span class="self">Self</span>::Interface&gt;);
 
-    <span class="doccomment">/// Starts the service in the current runtime and returns an address for it.</span>
-    <span class="kw">fn</span> <span class="ident">start</span>(<span class="self">self</span>) -&gt; <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Interface</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> (<span class="ident">addr</span>, <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">channel</span>();
-        <span class="self">self</span>.<span class="ident">spawn_handler</span>(<span class="ident">rx</span>);
-        <span class="ident">addr</span>
+    <span class="doccomment">/// Starts the service in the current runtime and returns an address for it.
+    </span><span class="kw">fn </span>start(<span class="self">self</span>) -&gt; Addr&lt;<span class="self">Self</span>::Interface&gt; {
+        <span class="kw">let </span>(addr, rx) = channel();
+        <span class="self">self</span>.spawn_handler(rx);
+        addr
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_system" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_system" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

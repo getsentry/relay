@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/derive/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_general_derive/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_general_derive/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/derive/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_general_derive/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_general_derive/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_general_derive/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -1103,258 +1103,258 @@
 <span id="1101">1101</span>
 <span id="1102">1102</span>
 <span id="1103">1103</span>
-</pre><pre class="rust"><code><span class="attribute">#![<span class="ident">recursion_limit</span> <span class="op">=</span> <span class="string">&quot;256&quot;</span>]</span>
-<span class="attribute">#![<span class="ident">deny</span>(<span class="ident">unused_must_use</span>)]</span>
-<span class="attribute">#![<span class="ident">doc</span>(
-    <span class="ident">html_logo_url</span> <span class="op">=</span> <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
-    <span class="ident">html_favicon_url</span> <span class="op">=</span> <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>
-)]</span>
-<span class="attribute">#![<span class="ident">allow</span>(<span class="ident">clippy::derive_partial_eq_without_eq</span>)]</span>
+</pre><pre class="rust"><code><span class="attribute">#![recursion_limit = <span class="string">&quot;256&quot;</span>]
+#![deny(unused_must_use)]
+#![doc(
+    html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
+    html_favicon_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;
+</span>)]
+#![allow(clippy::derive_partial_eq_without_eq)]
 
-<span class="kw">mod</span> <span class="ident">empty</span>;
-<span class="kw">mod</span> <span class="ident">jsonschema</span>;
-<span class="kw">mod</span> <span class="ident">process</span>;
+</span><span class="kw">mod </span>empty;
+<span class="kw">mod </span>jsonschema;
+<span class="kw">mod </span>process;
 
-<span class="kw">use</span> <span class="ident">std::str::FromStr</span>;
+<span class="kw">use </span>std::str::FromStr;
 
-<span class="kw">use</span> <span class="ident">proc_macro2</span>::{<span class="ident">Span</span>, <span class="ident">TokenStream</span>};
-<span class="kw">use</span> <span class="ident">quote</span>::{<span class="ident">quote</span>, <span class="ident">ToTokens</span>};
-<span class="kw">use</span> <span class="ident">syn</span>::{<span class="ident">Data</span>, <span class="ident">Ident</span>, <span class="ident">Lit</span>, <span class="ident">LitStr</span>, <span class="ident">Meta</span>, <span class="ident">NestedMeta</span>};
-<span class="kw">use</span> <span class="ident">synstructure::decl_derive</span>;
+<span class="kw">use </span>proc_macro2::{Span, TokenStream};
+<span class="kw">use </span>quote::{quote, ToTokens};
+<span class="kw">use </span>syn::{Data, Ident, Lit, LitStr, Meta, NestedMeta};
+<span class="kw">use </span>synstructure::decl_derive;
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
-<span class="kw">enum</span> <span class="ident">Trait</span> {
-    <span class="ident">From</span>,
-    <span class="ident">To</span>,
+<span class="attribute">#[derive(Debug, Clone, Copy)]
+</span><span class="kw">enum </span>Trait {
+    From,
+    To,
 }
 
-<span class="macro">decl_derive!</span>([<span class="ident">Empty</span>, <span class="ident">attributes</span>(<span class="ident">metastructure</span>)] =&gt; <span class="ident">empty::derive_empty</span>);
-<span class="macro">decl_derive!</span>([<span class="ident">IntoValue</span>, <span class="ident">attributes</span>(<span class="ident">metastructure</span>)] =&gt; <span class="ident">derive_to_value</span>);
-<span class="macro">decl_derive!</span>([<span class="ident">FromValue</span>, <span class="ident">attributes</span>(<span class="ident">metastructure</span>)] =&gt; <span class="ident">derive_from_value</span>);
-<span class="macro">decl_derive!</span>([<span class="ident">ProcessValue</span>, <span class="ident">attributes</span>(<span class="ident">metastructure</span>)] =&gt; <span class="ident">process::derive_process_value</span>);
-<span class="macro">decl_derive!</span>([<span class="ident">JsonSchema</span>, <span class="ident">attributes</span>(<span class="ident">metastructure</span>)] =&gt; <span class="ident">jsonschema::derive_jsonschema</span>);
+<span class="macro">decl_derive!</span>([Empty, attributes(metastructure)] =&gt; empty::derive_empty);
+<span class="macro">decl_derive!</span>([IntoValue, attributes(metastructure)] =&gt; derive_to_value);
+<span class="macro">decl_derive!</span>([FromValue, attributes(metastructure)] =&gt; derive_from_value);
+<span class="macro">decl_derive!</span>([ProcessValue, attributes(metastructure)] =&gt; process::derive_process_value);
+<span class="macro">decl_derive!</span>([JsonSchema, attributes(metastructure)] =&gt; jsonschema::derive_jsonschema);
 
-<span class="kw">fn</span> <span class="ident">derive_to_value</span>(<span class="ident">s</span>: <span class="ident">synstructure::Structure</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">TokenStream</span> {
-    <span class="ident">derive_metastructure</span>(<span class="ident">s</span>, <span class="ident">Trait::To</span>)
+<span class="kw">fn </span>derive_to_value(s: synstructure::Structure&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; TokenStream {
+    derive_metastructure(s, Trait::To)
 }
 
-<span class="kw">fn</span> <span class="ident">derive_from_value</span>(<span class="ident">s</span>: <span class="ident">synstructure::Structure</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">TokenStream</span> {
-    <span class="ident">derive_metastructure</span>(<span class="ident">s</span>, <span class="ident">Trait::From</span>)
+<span class="kw">fn </span>derive_from_value(s: synstructure::Structure&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; TokenStream {
+    derive_metastructure(s, Trait::From)
 }
 
-<span class="kw">fn</span> <span class="ident">derive_newtype_metastructure</span>(
-    <span class="ident">s</span>: <span class="ident">synstructure::Structure</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-    <span class="ident">t</span>: <span class="ident">Trait</span>,
-) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">TokenStream</span>, <span class="ident">synstructure::Structure</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span><span class="op">&gt;</span> {
-    <span class="comment">// The next few blocks are for finding out whether the given type is of the form:</span>
-    <span class="comment">// struct Foo(Bar)  (tuple struct with a single field)</span>
+<span class="kw">fn </span>derive_newtype_metastructure(
+    s: synstructure::Structure&lt;<span class="lifetime">&#39;_</span>&gt;,
+    t: Trait,
+) -&gt; <span class="prelude-ty">Result</span>&lt;TokenStream, synstructure::Structure&lt;<span class="lifetime">&#39;_</span>&gt;&gt; {
+    <span class="comment">// The next few blocks are for finding out whether the given type is of the form:
+    // struct Foo(Bar)  (tuple struct with a single field)
 
-    <span class="kw">if</span> <span class="ident">s</span>.<span class="ident">variants</span>().<span class="ident">len</span>() <span class="op">!</span><span class="op">=</span> <span class="number">1</span> {
-        <span class="comment">// We have more than one variant (e.g. `enum Foo { A, B }`)</span>
-        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">s</span>);
+    </span><span class="kw">if </span>s.variants().len() != <span class="number">1 </span>{
+        <span class="comment">// We have more than one variant (e.g. `enum Foo { A, B }`)
+        </span><span class="kw">return </span><span class="prelude-val">Err</span>(s);
     }
 
-    <span class="kw">if</span> <span class="ident">s</span>.<span class="ident">variants</span>()[<span class="number">0</span>].<span class="ident">bindings</span>().<span class="ident">len</span>() <span class="op">!</span><span class="op">=</span> <span class="number">1</span> {
-        <span class="comment">// The single variant has multiple fields</span>
-        <span class="comment">// e.g. `struct Foo(Bar, Baz)`</span>
-        <span class="comment">//      `enum Foo { A(X, Y) }`</span>
-        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">s</span>);
+    <span class="kw">if </span>s.variants()[<span class="number">0</span>].bindings().len() != <span class="number">1 </span>{
+        <span class="comment">// The single variant has multiple fields
+        // e.g. `struct Foo(Bar, Baz)`
+        //      `enum Foo { A(X, Y) }`
+        </span><span class="kw">return </span><span class="prelude-val">Err</span>(s);
     }
 
-    <span class="kw">if</span> <span class="ident">s</span>.<span class="ident">variants</span>()[<span class="number">0</span>].<span class="ident">bindings</span>()[<span class="number">0</span>].<span class="ident">ast</span>().<span class="ident">ident</span>.<span class="ident">is_some</span>() {
-        <span class="comment">// The variant has a name</span>
-        <span class="comment">// e.g. `struct Foo { bar: Bar }` instead of `struct Foo(Bar)`</span>
-        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">s</span>);
+    <span class="kw">if </span>s.variants()[<span class="number">0</span>].bindings()[<span class="number">0</span>].ast().ident.is_some() {
+        <span class="comment">// The variant has a name
+        // e.g. `struct Foo { bar: Bar }` instead of `struct Foo(Bar)`
+        </span><span class="kw">return </span><span class="prelude-val">Err</span>(s);
     }
 
-    <span class="kw">let</span> <span class="ident">type_attrs</span> <span class="op">=</span> <span class="ident">parse_type_attributes</span>(<span class="kw-2">&amp;</span><span class="ident">s</span>);
-    <span class="kw">if</span> <span class="ident">type_attrs</span>.<span class="ident">tag_key</span>.<span class="ident">is_some</span>() {
+    <span class="kw">let </span>type_attrs = parse_type_attributes(<span class="kw-2">&amp;</span>s);
+    <span class="kw">if </span>type_attrs.tag_key.is_some() {
         <span class="macro">panic!</span>(<span class="string">&quot;tag_key not supported on structs&quot;</span>);
     }
 
-    <span class="kw">let</span> <span class="ident">_process_func_call_tokens</span> <span class="op">=</span> <span class="ident">type_attrs</span>.<span class="ident">process_func_call_tokens</span>();
+    <span class="kw">let </span>_process_func_call_tokens = type_attrs.process_func_call_tokens();
 
-    <span class="kw">let</span> <span class="ident">field_attrs</span> <span class="op">=</span> <span class="ident">parse_field_attributes</span>(<span class="number">0</span>, <span class="ident">s</span>.<span class="ident">variants</span>()[<span class="number">0</span>].<span class="ident">bindings</span>()[<span class="number">0</span>].<span class="ident">ast</span>(), <span class="kw-2">&amp;mut</span> <span class="bool-val">true</span>);
-    <span class="kw">let</span> <span class="ident">skip_serialization_attr</span> <span class="op">=</span> <span class="ident">field_attrs</span>.<span class="ident">skip_serialization</span>.<span class="ident">as_tokens</span>();
-    <span class="kw">let</span> <span class="ident">_field_attrs_tokens</span> <span class="op">=</span> <span class="ident">field_attrs</span>.<span class="ident">as_tokens</span>(<span class="prelude-val">Some</span>(<span class="macro">quote!</span>(<span class="ident">parent_attrs</span>)));
+    <span class="kw">let </span>field_attrs = parse_field_attributes(<span class="number">0</span>, s.variants()[<span class="number">0</span>].bindings()[<span class="number">0</span>].ast(), <span class="kw-2">&amp;mut </span><span class="bool-val">true</span>);
+    <span class="kw">let </span>skip_serialization_attr = field_attrs.skip_serialization.as_tokens();
+    <span class="kw">let </span>_field_attrs_tokens = field_attrs.as_tokens(<span class="prelude-val">Some</span>(<span class="macro">quote!</span>(parent_attrs)));
 
-    <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">s</span>.<span class="ident">ast</span>().<span class="ident">ident</span>;
+    <span class="kw">let </span>name = <span class="kw-2">&amp;</span>s.ast().ident;
 
-    <span class="prelude-val">Ok</span>(<span class="kw">match</span> <span class="ident">t</span> {
-        <span class="ident">Trait::From</span> =&gt; <span class="ident">s</span>.<span class="ident">gen_impl</span>(<span class="macro">quote!</span> {
-            <span class="attribute">#[<span class="ident">automatically_derived</span>]</span>
-            <span class="ident">gen</span> <span class="kw">impl</span> <span class="ident"><span class="kw">crate</span>::types::FromValue</span> <span class="kw">for</span> @<span class="self">Self</span> {
-                <span class="kw">fn</span> <span class="ident">from_value</span>(
-                    <span class="ident">__value</span>: <span class="ident"><span class="kw">crate</span>::types::Annotated</span><span class="op">&lt;</span><span class="ident"><span class="kw">crate</span>::types::Value</span><span class="op">&gt;</span>,
-                ) -&gt; <span class="ident"><span class="kw">crate</span>::types::Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-                    <span class="kw">match</span> <span class="ident"><span class="kw">crate</span>::types::FromValue::from_value</span>(<span class="ident">__value</span>) {
-                        <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">__value</span>), <span class="ident">__meta</span>) =&gt; <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(#<span class="ident">name</span>(<span class="ident">__value</span>)), <span class="ident">__meta</span>),
-                        <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">__meta</span>) =&gt; <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">__meta</span>),
+    <span class="prelude-val">Ok</span>(<span class="kw">match </span>t {
+        Trait::From =&gt; s.gen_impl(<span class="macro">quote! </span>{
+            <span class="attribute">#[automatically_derived]
+            </span>gen <span class="kw">impl </span><span class="kw">crate</span>::types::FromValue <span class="kw">for </span>@<span class="self">Self </span>{
+                <span class="kw">fn </span>from_value(
+                    __value: <span class="kw">crate</span>::types::Annotated&lt;<span class="kw">crate</span>::types::Value&gt;,
+                ) -&gt; <span class="kw">crate</span>::types::Annotated&lt;<span class="self">Self</span>&gt; {
+                    <span class="kw">match </span><span class="kw">crate</span>::types::FromValue::from_value(__value) {
+                        Annotated(<span class="prelude-val">Some</span>(__value), __meta) =&gt; Annotated(<span class="prelude-val">Some</span>(#name(__value)), __meta),
+                        Annotated(<span class="prelude-val">None</span>, __meta) =&gt; Annotated(<span class="prelude-val">None</span>, __meta),
                     }
                 }
             }
         }),
-        <span class="ident">Trait::To</span> =&gt; <span class="ident">s</span>.<span class="ident">gen_impl</span>(<span class="macro">quote!</span> {
-            <span class="attribute">#[<span class="ident">automatically_derived</span>]</span>
-            <span class="ident">gen</span> <span class="kw">impl</span> <span class="ident"><span class="kw">crate</span>::types::IntoValue</span> <span class="kw">for</span> @<span class="self">Self</span> {
-                <span class="kw">fn</span> <span class="ident">into_value</span>(<span class="self">self</span>) -&gt; <span class="ident"><span class="kw">crate</span>::types::Value</span> {
-                    <span class="ident"><span class="kw">crate</span>::types::IntoValue::into_value</span>(<span class="self">self</span>.<span class="number">0</span>)
+        Trait::To =&gt; s.gen_impl(<span class="macro">quote! </span>{
+            <span class="attribute">#[automatically_derived]
+            </span>gen <span class="kw">impl </span><span class="kw">crate</span>::types::IntoValue <span class="kw">for </span>@<span class="self">Self </span>{
+                <span class="kw">fn </span>into_value(<span class="self">self</span>) -&gt; <span class="kw">crate</span>::types::Value {
+                    <span class="kw">crate</span>::types::IntoValue::into_value(<span class="self">self</span>.<span class="number">0</span>)
                 }
 
-                <span class="kw">fn</span> <span class="ident">serialize_payload</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">__serializer</span>: <span class="ident">S</span>, <span class="ident">__behavior</span>: <span class="ident"><span class="kw">crate</span>::types::SkipSerialization</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
-                <span class="kw">where</span>
-                    <span class="self">Self</span>: <span class="ident">Sized</span>,
-                    <span class="ident">S</span>: <span class="ident">::serde::ser::Serializer</span>
+                <span class="kw">fn </span>serialize_payload&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, __serializer: S, __behavior: <span class="kw">crate</span>::types::SkipSerialization) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
+                <span class="kw">where
+                    </span><span class="self">Self</span>: Sized,
+                    S: ::serde::ser::Serializer
                 {
-                    <span class="ident"><span class="kw">crate</span>::types::IntoValue::serialize_payload</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, <span class="ident">__serializer</span>, #<span class="ident">skip_serialization_attr</span>)
+                    <span class="kw">crate</span>::types::IntoValue::serialize_payload(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, __serializer, #skip_serialization_attr)
                 }
 
-                <span class="kw">fn</span> <span class="ident">extract_child_meta</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident"><span class="kw">crate</span>::types::MetaMap</span>
-                <span class="kw">where</span>
-                    <span class="self">Self</span>: <span class="ident">Sized</span>,
+                <span class="kw">fn </span>extract_child_meta(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">crate</span>::types::MetaMap
+                <span class="kw">where
+                    </span><span class="self">Self</span>: Sized,
                 {
-                    <span class="ident"><span class="kw">crate</span>::types::IntoValue::extract_child_meta</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>)
+                    <span class="kw">crate</span>::types::IntoValue::extract_child_meta(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>)
                 }
             }
         }),
     })
 }
 
-<span class="kw">fn</span> <span class="ident">derive_enum_metastructure</span>(
-    <span class="ident">s</span>: <span class="ident">synstructure::Structure</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-    <span class="ident">t</span>: <span class="ident">Trait</span>,
-) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">TokenStream</span>, <span class="ident">synstructure::Structure</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span><span class="op">&gt;</span> {
-    <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Data::Enum</span>(<span class="kw">_</span>) <span class="op">=</span> <span class="ident">s</span>.<span class="ident">ast</span>().<span class="ident">data</span> {
-    } <span class="kw">else</span> {
-        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">s</span>);
+<span class="kw">fn </span>derive_enum_metastructure(
+    s: synstructure::Structure&lt;<span class="lifetime">&#39;_</span>&gt;,
+    t: Trait,
+) -&gt; <span class="prelude-ty">Result</span>&lt;TokenStream, synstructure::Structure&lt;<span class="lifetime">&#39;_</span>&gt;&gt; {
+    <span class="kw">if let </span>Data::Enum(<span class="kw">_</span>) = s.ast().data {
+    } <span class="kw">else </span>{
+        <span class="kw">return </span><span class="prelude-val">Err</span>(s);
     }
 
-    <span class="kw">let</span> <span class="ident">type_attrs</span> <span class="op">=</span> <span class="ident">parse_type_attributes</span>(<span class="kw-2">&amp;</span><span class="ident">s</span>);
-    <span class="kw">let</span> <span class="ident">_process_func_call_tokens</span> <span class="op">=</span> <span class="ident">type_attrs</span>.<span class="ident">process_func_call_tokens</span>();
+    <span class="kw">let </span>type_attrs = parse_type_attributes(<span class="kw-2">&amp;</span>s);
+    <span class="kw">let </span>_process_func_call_tokens = type_attrs.process_func_call_tokens();
 
-    <span class="kw">let</span> <span class="ident">type_name</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">s</span>.<span class="ident">ast</span>().<span class="ident">ident</span>;
-    <span class="kw">let</span> <span class="ident">tag_key_str</span> <span class="op">=</span> <span class="ident">LitStr::new</span>(
-        <span class="kw-2">&amp;</span><span class="ident">type_attrs</span>.<span class="ident">tag_key</span>.<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="string">&quot;type&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">Span::call_site</span>(),
+    <span class="kw">let </span>type_name = <span class="kw-2">&amp;</span>s.ast().ident;
+    <span class="kw">let </span>tag_key_str = LitStr::new(
+        <span class="kw-2">&amp;</span>type_attrs.tag_key.unwrap_or_else(|| <span class="string">&quot;type&quot;</span>.to_string()),
+        Span::call_site(),
     );
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">from_value_body</span> <span class="op">=</span> <span class="ident">TokenStream::new</span>();
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">to_value_body</span> <span class="op">=</span> <span class="ident">TokenStream::new</span>();
-    <span class="kw">let</span> <span class="ident">_process_value_body</span> <span class="op">=</span> <span class="ident">TokenStream::new</span>();
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">serialize_body</span> <span class="op">=</span> <span class="ident">TokenStream::new</span>();
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">extract_child_meta_body</span> <span class="op">=</span> <span class="ident">TokenStream::new</span>();
+    <span class="kw">let </span><span class="kw-2">mut </span>from_value_body = TokenStream::new();
+    <span class="kw">let </span><span class="kw-2">mut </span>to_value_body = TokenStream::new();
+    <span class="kw">let </span>_process_value_body = TokenStream::new();
+    <span class="kw">let </span><span class="kw-2">mut </span>serialize_body = TokenStream::new();
+    <span class="kw">let </span><span class="kw-2">mut </span>extract_child_meta_body = TokenStream::new();
 
-    <span class="kw">for</span> <span class="ident">variant</span> <span class="kw">in</span> <span class="ident">s</span>.<span class="ident">variants</span>() {
-        <span class="kw">let</span> <span class="ident">variant_attrs</span> <span class="op">=</span> <span class="ident">parse_variant_attributes</span>(<span class="ident">variant</span>.<span class="ident">ast</span>().<span class="ident">attrs</span>);
-        <span class="kw">let</span> <span class="ident">variant_name</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">variant</span>.<span class="ident">ast</span>().<span class="ident">ident</span>;
-        <span class="kw">let</span> <span class="ident">tag</span> <span class="op">=</span> <span class="ident">variant_attrs</span>
-            .<span class="ident">tag_override</span>
-            .<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">variant_name</span>.<span class="ident">to_string</span>().<span class="ident">to_lowercase</span>());
+    <span class="kw">for </span>variant <span class="kw">in </span>s.variants() {
+        <span class="kw">let </span>variant_attrs = parse_variant_attributes(variant.ast().attrs);
+        <span class="kw">let </span>variant_name = <span class="kw-2">&amp;</span>variant.ast().ident;
+        <span class="kw">let </span>tag = variant_attrs
+            .tag_override
+            .unwrap_or_else(|| variant_name.to_string().to_lowercase());
 
-        <span class="kw">if</span> <span class="op">!</span><span class="ident">variant_attrs</span>.<span class="ident">fallback_variant</span> {
-            <span class="kw">let</span> <span class="ident">tag</span> <span class="op">=</span> <span class="ident">LitStr::new</span>(<span class="kw-2">&amp;</span><span class="ident">tag</span>, <span class="ident">Span::call_site</span>());
-            (<span class="macro">quote!</span> {
-                <span class="prelude-val">Some</span>(#<span class="ident">tag</span>) =&gt; {
-                    <span class="ident"><span class="kw">crate</span>::types::FromValue::from_value</span>(<span class="ident"><span class="kw">crate</span>::types::Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident"><span class="kw">crate</span>::types::Value::Object</span>(<span class="ident">__object</span>)), <span class="ident">__meta</span>))
-                        .<span class="ident">map_value</span>(#<span class="ident">type_name</span>::#<span class="ident">variant_name</span>)
+        <span class="kw">if </span>!variant_attrs.fallback_variant {
+            <span class="kw">let </span>tag = LitStr::new(<span class="kw-2">&amp;</span>tag, Span::call_site());
+            (<span class="macro">quote! </span>{
+                <span class="prelude-val">Some</span>(#tag) =&gt; {
+                    <span class="kw">crate</span>::types::FromValue::from_value(<span class="kw">crate</span>::types::Annotated(<span class="prelude-val">Some</span>(<span class="kw">crate</span>::types::Value::Object(__object)), __meta))
+                        .map_value(#type_name::#variant_name)
                 }
-            }).<span class="ident">to_tokens</span>(<span class="kw-2">&amp;mut</span> <span class="ident">from_value_body</span>);
-            (<span class="macro">quote!</span> {
-                #<span class="ident">type_name</span>::#<span class="ident">variant_name</span>(<span class="ident">__value</span>) =&gt; {
-                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">__rv</span> <span class="op">=</span> <span class="ident"><span class="kw">crate</span>::types::IntoValue::into_value</span>(<span class="ident">__value</span>);
-                    <span class="kw">if</span> <span class="kw">let</span> <span class="ident"><span class="kw">crate</span>::types::Value::Object</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">__object</span>) <span class="op">=</span> <span class="ident">__rv</span> {
-                        <span class="ident">__object</span>.<span class="ident">insert</span>(#<span class="ident">tag_key_str</span>.<span class="ident">to_string</span>(), <span class="ident">Annotated::new</span>(<span class="ident"><span class="kw">crate</span>::types::Value::String</span>(#<span class="ident">tag</span>.<span class="ident">to_string</span>())));
+            }).to_tokens(<span class="kw-2">&amp;mut </span>from_value_body);
+            (<span class="macro">quote! </span>{
+                #type_name::#variant_name(__value) =&gt; {
+                    <span class="kw">let </span><span class="kw-2">mut </span>__rv = <span class="kw">crate</span>::types::IntoValue::into_value(__value);
+                    <span class="kw">if let </span><span class="kw">crate</span>::types::Value::Object(<span class="kw-2">ref mut </span>__object) = __rv {
+                        __object.insert(#tag_key_str.to_string(), Annotated::new(<span class="kw">crate</span>::types::Value::String(#tag.to_string())));
                     }
-                    <span class="ident">__rv</span>
+                    __rv
                 }
-            }).<span class="ident">to_tokens</span>(<span class="kw-2">&amp;mut</span> <span class="ident">to_value_body</span>);
-            (<span class="macro">quote!</span> {
-                #<span class="ident">type_name</span>::#<span class="ident">variant_name</span>(<span class="kw-2">ref</span> <span class="ident">__value</span>) =&gt; {
-                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">__map_ser</span> <span class="op">=</span> <span class="ident">::serde::Serializer::serialize_map</span>(<span class="ident">__serializer</span>, <span class="prelude-val">None</span>)<span class="question-mark">?</span>;
-                    <span class="ident"><span class="kw">crate</span>::types::IntoValue::serialize_payload</span>(<span class="ident">__value</span>, <span class="ident">::serde::__private::ser::FlatMapSerializer</span>(<span class="kw-2">&amp;mut</span> <span class="ident">__map_ser</span>), <span class="ident">__behavior</span>)<span class="question-mark">?</span>;
-                    <span class="ident">::serde::ser::SerializeMap::serialize_key</span>(<span class="kw-2">&amp;mut</span> <span class="ident">__map_ser</span>, #<span class="ident">tag_key_str</span>)<span class="question-mark">?</span>;
-                    <span class="ident">::serde::ser::SerializeMap::serialize_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">__map_ser</span>, #<span class="ident">tag</span>)<span class="question-mark">?</span>;
-                    <span class="ident">::serde::ser::SerializeMap::end</span>(<span class="ident">__map_ser</span>)
+            }).to_tokens(<span class="kw-2">&amp;mut </span>to_value_body);
+            (<span class="macro">quote! </span>{
+                #type_name::#variant_name(<span class="kw-2">ref </span>__value) =&gt; {
+                    <span class="kw">let </span><span class="kw-2">mut </span>__map_ser = ::serde::Serializer::serialize_map(__serializer, <span class="prelude-val">None</span>)<span class="question-mark">?</span>;
+                    <span class="kw">crate</span>::types::IntoValue::serialize_payload(__value, ::serde::__private::ser::FlatMapSerializer(<span class="kw-2">&amp;mut </span>__map_ser), __behavior)<span class="question-mark">?</span>;
+                    ::serde::ser::SerializeMap::serialize_key(<span class="kw-2">&amp;mut </span>__map_ser, #tag_key_str)<span class="question-mark">?</span>;
+                    ::serde::ser::SerializeMap::serialize_value(<span class="kw-2">&amp;mut </span>__map_ser, #tag)<span class="question-mark">?</span>;
+                    ::serde::ser::SerializeMap::end(__map_ser)
                 }
-            }).<span class="ident">to_tokens</span>(<span class="kw-2">&amp;mut</span> <span class="ident">serialize_body</span>);
-        } <span class="kw">else</span> {
-            (<span class="macro">quote!</span> {
-                <span class="kw">_</span> =&gt; {
-                    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">__type</span>) <span class="op">=</span> <span class="ident">__type</span> {
-                        <span class="ident">__object</span>.<span class="ident">insert</span>(#<span class="ident">tag_key_str</span>.<span class="ident">to_string</span>(), <span class="ident">__type</span>);
+            }).to_tokens(<span class="kw-2">&amp;mut </span>serialize_body);
+        } <span class="kw">else </span>{
+            (<span class="macro">quote! </span>{
+                <span class="kw">_ </span>=&gt; {
+                    <span class="kw">if let </span><span class="prelude-val">Some</span>(__type) = __type {
+                        __object.insert(#tag_key_str.to_string(), __type);
                     }
-                    <span class="ident"><span class="kw">crate</span>::types::Annotated</span>(<span class="prelude-val">Some</span>(#<span class="ident">type_name</span>::#<span class="ident">variant_name</span>(<span class="ident">__object</span>)), <span class="ident">__meta</span>)
+                    <span class="kw">crate</span>::types::Annotated(<span class="prelude-val">Some</span>(#type_name::#variant_name(__object)), __meta)
                 }
             })
-            .<span class="ident">to_tokens</span>(<span class="kw-2">&amp;mut</span> <span class="ident">from_value_body</span>);
-            (<span class="macro">quote!</span> {
-                #<span class="ident">type_name</span>::#<span class="ident">variant_name</span>(<span class="ident">__value</span>) =&gt; {
-                    <span class="ident"><span class="kw">crate</span>::types::IntoValue::into_value</span>(<span class="ident">__value</span>)
+            .to_tokens(<span class="kw-2">&amp;mut </span>from_value_body);
+            (<span class="macro">quote! </span>{
+                #type_name::#variant_name(__value) =&gt; {
+                    <span class="kw">crate</span>::types::IntoValue::into_value(__value)
                 }
             })
-            .<span class="ident">to_tokens</span>(<span class="kw-2">&amp;mut</span> <span class="ident">to_value_body</span>);
-            (<span class="macro">quote!</span> {
-                #<span class="ident">type_name</span>::#<span class="ident">variant_name</span>(<span class="kw-2">ref</span> <span class="ident">__value</span>) =&gt; {
-                    <span class="ident"><span class="kw">crate</span>::types::IntoValue::serialize_payload</span>(<span class="ident">__value</span>, <span class="ident">__serializer</span>, <span class="ident">__behavior</span>)
+            .to_tokens(<span class="kw-2">&amp;mut </span>to_value_body);
+            (<span class="macro">quote! </span>{
+                #type_name::#variant_name(<span class="kw-2">ref </span>__value) =&gt; {
+                    <span class="kw">crate</span>::types::IntoValue::serialize_payload(__value, __serializer, __behavior)
                 }
             })
-            .<span class="ident">to_tokens</span>(<span class="kw-2">&amp;mut</span> <span class="ident">serialize_body</span>);
+            .to_tokens(<span class="kw-2">&amp;mut </span>serialize_body);
         }
 
-        (<span class="macro">quote!</span> {
-            #<span class="ident">type_name</span>::#<span class="ident">variant_name</span>(<span class="kw-2">ref</span> <span class="ident">__value</span>) =&gt; {
-                <span class="ident"><span class="kw">crate</span>::types::IntoValue::extract_child_meta</span>(<span class="ident">__value</span>)
+        (<span class="macro">quote! </span>{
+            #type_name::#variant_name(<span class="kw-2">ref </span>__value) =&gt; {
+                <span class="kw">crate</span>::types::IntoValue::extract_child_meta(__value)
             }
         })
-        .<span class="ident">to_tokens</span>(<span class="kw-2">&amp;mut</span> <span class="ident">extract_child_meta_body</span>);
+        .to_tokens(<span class="kw-2">&amp;mut </span>extract_child_meta_body);
     }
 
-    <span class="prelude-val">Ok</span>(<span class="kw">match</span> <span class="ident">t</span> {
-        <span class="ident">Trait::From</span> =&gt; {
-            <span class="ident">s</span>.<span class="ident">gen_impl</span>(<span class="macro">quote!</span> {
-                <span class="attribute">#[<span class="ident">automatically_derived</span>]</span>
-                <span class="ident">gen</span> <span class="kw">impl</span> <span class="ident"><span class="kw">crate</span>::types::FromValue</span> <span class="kw">for</span> @<span class="self">Self</span> {
-                    <span class="kw">fn</span> <span class="ident">from_value</span>(
-                        <span class="ident">__value</span>: <span class="ident"><span class="kw">crate</span>::types::Annotated</span><span class="op">&lt;</span><span class="ident"><span class="kw">crate</span>::types::Value</span><span class="op">&gt;</span>,
-                    ) -&gt; <span class="ident"><span class="kw">crate</span>::types::Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-                        <span class="kw">match</span> <span class="ident"><span class="kw">crate</span>::types::Object</span>::<span class="op">&lt;</span><span class="ident"><span class="kw">crate</span>::types::Value</span><span class="op">&gt;</span><span class="ident">::from_value</span>(<span class="ident">__value</span>) {
-                            <span class="ident"><span class="kw">crate</span>::types::Annotated</span>(<span class="prelude-val">Some</span>(<span class="kw-2">mut</span> <span class="ident">__object</span>), <span class="ident">__meta</span>) =&gt; {
-                                <span class="kw">let</span> <span class="ident">__type</span> <span class="op">=</span> <span class="ident">__object</span>.<span class="ident">remove</span>(#<span class="ident">tag_key_str</span>);
-                                <span class="kw">match</span> <span class="ident">__type</span>.<span class="ident">as_ref</span>().<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">__type</span><span class="op">|</span> <span class="ident">__type</span>.<span class="number">0</span>.<span class="ident">as_ref</span>()).<span class="ident">and_then</span>(<span class="ident">Value::as_str</span>) {
-                                    #<span class="ident">from_value_body</span>
+    <span class="prelude-val">Ok</span>(<span class="kw">match </span>t {
+        Trait::From =&gt; {
+            s.gen_impl(<span class="macro">quote! </span>{
+                <span class="attribute">#[automatically_derived]
+                </span>gen <span class="kw">impl </span><span class="kw">crate</span>::types::FromValue <span class="kw">for </span>@<span class="self">Self </span>{
+                    <span class="kw">fn </span>from_value(
+                        __value: <span class="kw">crate</span>::types::Annotated&lt;<span class="kw">crate</span>::types::Value&gt;,
+                    ) -&gt; <span class="kw">crate</span>::types::Annotated&lt;<span class="self">Self</span>&gt; {
+                        <span class="kw">match </span><span class="kw">crate</span>::types::Object::&lt;<span class="kw">crate</span>::types::Value&gt;::from_value(__value) {
+                            <span class="kw">crate</span>::types::Annotated(<span class="prelude-val">Some</span>(<span class="kw-2">mut </span>__object), __meta) =&gt; {
+                                <span class="kw">let </span>__type = __object.remove(#tag_key_str);
+                                <span class="kw">match </span>__type.as_ref().and_then(|__type| __type.<span class="number">0</span>.as_ref()).and_then(Value::as_str) {
+                                    #from_value_body
                                 }
                             }
-                            <span class="ident"><span class="kw">crate</span>::types::Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">__meta</span>) =&gt; <span class="ident"><span class="kw">crate</span>::types::Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">__meta</span>)
+                            <span class="kw">crate</span>::types::Annotated(<span class="prelude-val">None</span>, __meta) =&gt; <span class="kw">crate</span>::types::Annotated(<span class="prelude-val">None</span>, __meta)
                         }
                     }
                 }
             })
         }
-        <span class="ident">Trait::To</span> =&gt; {
-            <span class="ident">s</span>.<span class="ident">gen_impl</span>(<span class="macro">quote!</span> {
-                <span class="attribute">#[<span class="ident">automatically_derived</span>]</span>
-                <span class="ident">gen</span> <span class="kw">impl</span> <span class="ident"><span class="kw">crate</span>::types::IntoValue</span> <span class="kw">for</span> @<span class="self">Self</span> {
-                    <span class="kw">fn</span> <span class="ident">into_value</span>(<span class="self">self</span>) -&gt; <span class="ident"><span class="kw">crate</span>::types::Value</span> {
-                        <span class="kw">match</span> <span class="self">self</span> {
-                            #<span class="ident">to_value_body</span>
+        Trait::To =&gt; {
+            s.gen_impl(<span class="macro">quote! </span>{
+                <span class="attribute">#[automatically_derived]
+                </span>gen <span class="kw">impl </span><span class="kw">crate</span>::types::IntoValue <span class="kw">for </span>@<span class="self">Self </span>{
+                    <span class="kw">fn </span>into_value(<span class="self">self</span>) -&gt; <span class="kw">crate</span>::types::Value {
+                        <span class="kw">match </span><span class="self">self </span>{
+                            #to_value_body
                         }
                     }
 
-                    <span class="kw">fn</span> <span class="ident">serialize_payload</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">__serializer</span>: <span class="ident">S</span>, <span class="ident">__behavior</span>: <span class="ident"><span class="kw">crate</span>::types::SkipSerialization</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
-                    <span class="kw">where</span>
-                        <span class="ident">S</span>: <span class="ident">::serde::ser::Serializer</span>
+                    <span class="kw">fn </span>serialize_payload&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, __serializer: S, __behavior: <span class="kw">crate</span>::types::SkipSerialization) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
+                    <span class="kw">where
+                        </span>S: ::serde::ser::Serializer
                     {
-                        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-                            #<span class="ident">serialize_body</span>
+                        <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
+                            #serialize_body
                         }
                     }
 
-                    <span class="kw">fn</span> <span class="ident">extract_child_meta</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident"><span class="kw">crate</span>::types::MetaMap</span>
-                    <span class="kw">where</span>
-                        <span class="self">Self</span>: <span class="ident">Sized</span>,
+                    <span class="kw">fn </span>extract_child_meta(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">crate</span>::types::MetaMap
+                    <span class="kw">where
+                        </span><span class="self">Self</span>: Sized,
                     {
-                        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-                            #<span class="ident">extract_child_meta_body</span>
+                        <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
+                            #extract_child_meta_body
                         }
                     }
                 }
@@ -1363,255 +1363,255 @@
     })
 }
 
-<span class="kw">fn</span> <span class="ident">derive_metastructure</span>(<span class="ident">s</span>: <span class="ident">synstructure::Structure</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>, <span class="ident">t</span>: <span class="ident">Trait</span>) -&gt; <span class="ident">TokenStream</span> {
-    <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">derive_newtype_metastructure</span>(<span class="ident">s</span>, <span class="ident">t</span>) {
-        <span class="prelude-val">Ok</span>(<span class="ident">stream</span>) =&gt; <span class="kw">return</span> <span class="ident">stream</span>,
-        <span class="prelude-val">Err</span>(<span class="ident">s</span>) =&gt; <span class="ident">s</span>,
+<span class="kw">fn </span>derive_metastructure(s: synstructure::Structure&lt;<span class="lifetime">&#39;_</span>&gt;, t: Trait) -&gt; TokenStream {
+    <span class="kw">let </span>s = <span class="kw">match </span>derive_newtype_metastructure(s, t) {
+        <span class="prelude-val">Ok</span>(stream) =&gt; <span class="kw">return </span>stream,
+        <span class="prelude-val">Err</span>(s) =&gt; s,
     };
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">s</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">derive_enum_metastructure</span>(<span class="ident">s</span>, <span class="ident">t</span>) {
-        <span class="prelude-val">Ok</span>(<span class="ident">stream</span>) =&gt; <span class="kw">return</span> <span class="ident">stream</span>,
-        <span class="prelude-val">Err</span>(<span class="ident">s</span>) =&gt; <span class="ident">s</span>,
+    <span class="kw">let </span><span class="kw-2">mut </span>s = <span class="kw">match </span>derive_enum_metastructure(s, t) {
+        <span class="prelude-val">Ok</span>(stream) =&gt; <span class="kw">return </span>stream,
+        <span class="prelude-val">Err</span>(s) =&gt; s,
     };
 
-    <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">add_bounds</span>(<span class="ident">synstructure::AddBounds::Generics</span>);
+    <span class="kw">let _ </span>= s.add_bounds(synstructure::AddBounds::Generics);
 
-    <span class="kw">let</span> <span class="ident">variants</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">variants</span>();
-    <span class="kw">if</span> <span class="ident">variants</span>.<span class="ident">len</span>() <span class="op">!</span><span class="op">=</span> <span class="number">1</span> {
+    <span class="kw">let </span>variants = s.variants();
+    <span class="kw">if </span>variants.len() != <span class="number">1 </span>{
         <span class="macro">panic!</span>(<span class="string">&quot;Can only derive structs&quot;</span>);
     }
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">variant</span> <span class="op">=</span> <span class="ident">variants</span>[<span class="number">0</span>].<span class="ident">clone</span>();
-    <span class="kw">for</span> <span class="ident">binding</span> <span class="kw">in</span> <span class="ident">variant</span>.<span class="ident">bindings_mut</span>() {
-        <span class="ident">binding</span>.<span class="ident">style</span> <span class="op">=</span> <span class="ident">synstructure::BindStyle::MoveMut</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>variant = variants[<span class="number">0</span>].clone();
+    <span class="kw">for </span>binding <span class="kw">in </span>variant.bindings_mut() {
+        binding.style = synstructure::BindStyle::MoveMut;
     }
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">from_value_body</span> <span class="op">=</span> <span class="ident">TokenStream::new</span>();
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">to_value_body</span> <span class="op">=</span> <span class="ident">TokenStream::new</span>();
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">serialize_body</span> <span class="op">=</span> <span class="ident">TokenStream::new</span>();
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">extract_child_meta_body</span> <span class="op">=</span> <span class="ident">TokenStream::new</span>();
+    <span class="kw">let </span><span class="kw-2">mut </span>from_value_body = TokenStream::new();
+    <span class="kw">let </span><span class="kw-2">mut </span>to_value_body = TokenStream::new();
+    <span class="kw">let </span><span class="kw-2">mut </span>serialize_body = TokenStream::new();
+    <span class="kw">let </span><span class="kw-2">mut </span>extract_child_meta_body = TokenStream::new();
 
-    <span class="kw">let</span> <span class="ident">type_attrs</span> <span class="op">=</span> <span class="ident">parse_type_attributes</span>(<span class="kw-2">&amp;</span><span class="ident">s</span>);
-    <span class="kw">if</span> <span class="ident">type_attrs</span>.<span class="ident">tag_key</span>.<span class="ident">is_some</span>() {
+    <span class="kw">let </span>type_attrs = parse_type_attributes(<span class="kw-2">&amp;</span>s);
+    <span class="kw">if </span>type_attrs.tag_key.is_some() {
         <span class="macro">panic!</span>(<span class="string">&quot;tag_key not supported on structs&quot;</span>);
     }
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">is_tuple_struct</span> <span class="op">=</span> <span class="bool-val">false</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>is_tuple_struct = <span class="bool-val">false</span>;
 
-    <span class="kw">for</span> (<span class="ident">index</span>, <span class="ident">bi</span>) <span class="kw">in</span> <span class="ident">variant</span>.<span class="ident">bindings</span>().<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
-        <span class="kw">let</span> <span class="ident">field_attrs</span> <span class="op">=</span> <span class="ident">parse_field_attributes</span>(<span class="ident">index</span>, <span class="ident">bi</span>.<span class="ident">ast</span>(), <span class="kw-2">&amp;mut</span> <span class="ident">is_tuple_struct</span>);
-        <span class="kw">let</span> <span class="ident">field_name</span> <span class="op">=</span> <span class="ident">field_attrs</span>.<span class="ident">field_name</span>.<span class="ident">clone</span>();
+    <span class="kw">for </span>(index, bi) <span class="kw">in </span>variant.bindings().iter().enumerate() {
+        <span class="kw">let </span>field_attrs = parse_field_attributes(index, bi.ast(), <span class="kw-2">&amp;mut </span>is_tuple_struct);
+        <span class="kw">let </span>field_name = field_attrs.field_name.clone();
 
-        <span class="kw">let</span> <span class="ident">skip_serialization_attr</span> <span class="op">=</span> <span class="ident">field_attrs</span>.<span class="ident">skip_serialization</span>.<span class="ident">as_tokens</span>();
+        <span class="kw">let </span>skip_serialization_attr = field_attrs.skip_serialization.as_tokens();
 
-        <span class="kw">if</span> <span class="ident">field_attrs</span>.<span class="ident">additional_properties</span> {
-            <span class="kw">if</span> <span class="ident">is_tuple_struct</span> {
+        <span class="kw">if </span>field_attrs.additional_properties {
+            <span class="kw">if </span>is_tuple_struct {
                 <span class="macro">panic!</span>(<span class="string">&quot;additional_properties not allowed in tuple struct&quot;</span>);
             }
 
-            (<span class="macro">quote!</span> {
-                <span class="kw">let</span> #<span class="ident">bi</span> <span class="op">=</span> <span class="ident">__obj</span>.<span class="ident">into_iter</span>().<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">__key</span>, <span class="ident">__value</span>)<span class="op">|</span> (<span class="ident">__key</span>, <span class="ident"><span class="kw">crate</span>::types::FromValue::from_value</span>(<span class="ident">__value</span>))).<span class="ident">collect</span>();
-            }).<span class="ident">to_tokens</span>(<span class="kw-2">&amp;mut</span> <span class="ident">from_value_body</span>);
-            (<span class="macro">quote!</span> {
-                <span class="ident">__map</span>.<span class="ident">extend</span>(#<span class="ident">bi</span>.<span class="ident">into_iter</span>().<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">__key</span>, <span class="ident">__value</span>)<span class="op">|</span> (
-                    <span class="ident">__key</span>,
-                    <span class="ident">Annotated::map_value</span>(<span class="ident">__value</span>, <span class="ident"><span class="kw">crate</span>::types::IntoValue::into_value</span>)
+            (<span class="macro">quote! </span>{
+                <span class="kw">let </span>#bi = __obj.into_iter().map(|(__key, __value)| (__key, <span class="kw">crate</span>::types::FromValue::from_value(__value))).collect();
+            }).to_tokens(<span class="kw-2">&amp;mut </span>from_value_body);
+            (<span class="macro">quote! </span>{
+                __map.extend(#bi.into_iter().map(|(__key, __value)| (
+                    __key,
+                    Annotated::map_value(__value, <span class="kw">crate</span>::types::IntoValue::into_value)
                 )));
             })
-            .<span class="ident">to_tokens</span>(<span class="kw-2">&amp;mut</span> <span class="ident">to_value_body</span>);
+            .to_tokens(<span class="kw-2">&amp;mut </span>to_value_body);
 
-            (<span class="macro">quote!</span> {
-                <span class="kw">for</span> (<span class="ident">__key</span>, <span class="ident">__value</span>) <span class="kw">in</span> #<span class="ident">bi</span>.<span class="ident">iter</span>() {
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">__value</span>.<span class="ident">skip_serialization</span>(#<span class="ident">skip_serialization_attr</span>) {
-                        <span class="ident">::serde::ser::SerializeMap::serialize_key</span>(<span class="kw-2">&amp;mut</span> <span class="ident">__map_serializer</span>, <span class="ident">__key</span>)<span class="question-mark">?</span>;
-                        <span class="ident">::serde::ser::SerializeMap::serialize_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">__map_serializer</span>, <span class="kw-2">&amp;</span><span class="ident"><span class="kw">crate</span>::types::SerializePayload</span>(<span class="ident">__value</span>, #<span class="ident">skip_serialization_attr</span>))<span class="question-mark">?</span>;
+            (<span class="macro">quote! </span>{
+                <span class="kw">for </span>(__key, __value) <span class="kw">in </span>#bi.iter() {
+                    <span class="kw">if </span>!__value.skip_serialization(#skip_serialization_attr) {
+                        ::serde::ser::SerializeMap::serialize_key(<span class="kw-2">&amp;mut </span>__map_serializer, __key)<span class="question-mark">?</span>;
+                        ::serde::ser::SerializeMap::serialize_value(<span class="kw-2">&amp;mut </span>__map_serializer, <span class="kw-2">&amp;</span><span class="kw">crate</span>::types::SerializePayload(__value, #skip_serialization_attr))<span class="question-mark">?</span>;
                     }
                 }
             })
-            .<span class="ident">to_tokens</span>(<span class="kw-2">&amp;mut</span> <span class="ident">serialize_body</span>);
-            (<span class="macro">quote!</span> {
-                <span class="kw">for</span> (<span class="ident">__key</span>, <span class="ident">__value</span>) <span class="kw">in</span> #<span class="ident">bi</span>.<span class="ident">iter</span>() {
-                    <span class="kw">let</span> <span class="ident">__inner_tree</span> <span class="op">=</span> <span class="ident"><span class="kw">crate</span>::types::IntoValue::extract_meta_tree</span>(<span class="ident">__value</span>);
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">__inner_tree</span>.<span class="ident">is_empty</span>() {
-                        <span class="ident">__child_meta</span>.<span class="ident">insert</span>(<span class="ident">__key</span>.<span class="ident">to_string</span>(), <span class="ident">__inner_tree</span>);
+            .to_tokens(<span class="kw-2">&amp;mut </span>serialize_body);
+            (<span class="macro">quote! </span>{
+                <span class="kw">for </span>(__key, __value) <span class="kw">in </span>#bi.iter() {
+                    <span class="kw">let </span>__inner_tree = <span class="kw">crate</span>::types::IntoValue::extract_meta_tree(__value);
+                    <span class="kw">if </span>!__inner_tree.is_empty() {
+                        __child_meta.insert(__key.to_string(), __inner_tree);
                     }
                 }
             })
-            .<span class="ident">to_tokens</span>(<span class="kw-2">&amp;mut</span> <span class="ident">extract_child_meta_body</span>);
-        } <span class="kw">else</span> {
-            <span class="kw">if</span> <span class="ident">is_tuple_struct</span> {
-                (<span class="macro">quote!</span> {
-                    <span class="kw">let</span> #<span class="ident">bi</span> <span class="op">=</span> <span class="ident">__arr</span>.<span class="ident">next</span>();
+            .to_tokens(<span class="kw-2">&amp;mut </span>extract_child_meta_body);
+        } <span class="kw">else </span>{
+            <span class="kw">if </span>is_tuple_struct {
+                (<span class="macro">quote! </span>{
+                    <span class="kw">let </span>#bi = __arr.next();
                 })
-                .<span class="ident">to_tokens</span>(<span class="kw-2">&amp;mut</span> <span class="ident">from_value_body</span>);
-            } <span class="kw">else</span> {
-                (<span class="macro">quote!</span> {
-                    <span class="kw">let</span> #<span class="ident">bi</span> <span class="op">=</span> <span class="ident">__obj</span>.<span class="ident">remove</span>(#<span class="ident">field_name</span>);
+                .to_tokens(<span class="kw-2">&amp;mut </span>from_value_body);
+            } <span class="kw">else </span>{
+                (<span class="macro">quote! </span>{
+                    <span class="kw">let </span>#bi = __obj.remove(#field_name);
                 })
-                .<span class="ident">to_tokens</span>(<span class="kw-2">&amp;mut</span> <span class="ident">from_value_body</span>);
+                .to_tokens(<span class="kw-2">&amp;mut </span>from_value_body);
 
-                <span class="kw">for</span> <span class="ident">legacy_alias</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">field_attrs</span>.<span class="ident">legacy_aliases</span> {
-                    <span class="kw">let</span> <span class="ident">legacy_field_name</span> <span class="op">=</span> <span class="ident">LitStr::new</span>(<span class="ident">legacy_alias</span>, <span class="ident">Span::call_site</span>());
-                    (<span class="macro">quote!</span> {
-                        <span class="kw">let</span> #<span class="ident">bi</span> <span class="op">=</span> #<span class="ident">bi</span>.<span class="ident">or</span>(<span class="ident">__obj</span>.<span class="ident">remove</span>(#<span class="ident">legacy_field_name</span>));
+                <span class="kw">for </span>legacy_alias <span class="kw">in </span><span class="kw-2">&amp;</span>field_attrs.legacy_aliases {
+                    <span class="kw">let </span>legacy_field_name = LitStr::new(legacy_alias, Span::call_site());
+                    (<span class="macro">quote! </span>{
+                        <span class="kw">let </span>#bi = #bi.or(__obj.remove(#legacy_field_name));
                     })
-                    .<span class="ident">to_tokens</span>(<span class="kw-2">&amp;mut</span> <span class="ident">from_value_body</span>);
+                    .to_tokens(<span class="kw-2">&amp;mut </span>from_value_body);
                 }
             }
 
-            (<span class="macro">quote!</span> {
-                <span class="kw">let</span> #<span class="ident">bi</span> <span class="op">=</span> <span class="ident"><span class="kw">crate</span>::types::FromValue::from_value</span>(#<span class="ident">bi</span>.<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident"><span class="kw">crate</span>::types::Annotated</span>(<span class="prelude-val">None</span>, <span class="ident"><span class="kw">crate</span>::types::Meta::default</span>())));
-            }).<span class="ident">to_tokens</span>(<span class="kw-2">&amp;mut</span> <span class="ident">from_value_body</span>);
+            (<span class="macro">quote! </span>{
+                <span class="kw">let </span>#bi = <span class="kw">crate</span>::types::FromValue::from_value(#bi.unwrap_or_else(|| <span class="kw">crate</span>::types::Annotated(<span class="prelude-val">None</span>, <span class="kw">crate</span>::types::Meta::default())));
+            }).to_tokens(<span class="kw-2">&amp;mut </span>from_value_body);
 
-            <span class="kw">if</span> <span class="ident">is_tuple_struct</span> {
-                (<span class="macro">quote!</span> {
-                    <span class="ident">__arr</span>.<span class="ident">push</span>(<span class="ident">Annotated::map_value</span>(#<span class="ident">bi</span>, <span class="ident"><span class="kw">crate</span>::types::IntoValue::into_value</span>));
+            <span class="kw">if </span>is_tuple_struct {
+                (<span class="macro">quote! </span>{
+                    __arr.push(Annotated::map_value(#bi, <span class="kw">crate</span>::types::IntoValue::into_value));
                 })
-                .<span class="ident">to_tokens</span>(<span class="kw-2">&amp;mut</span> <span class="ident">to_value_body</span>);
-                (<span class="macro">quote!</span> {
-                    <span class="kw">if</span> <span class="op">!</span>#<span class="ident">bi</span>.<span class="ident">skip_serialization</span>(#<span class="ident">skip_serialization_attr</span>) {
-                        <span class="ident">::serde::ser::SerializeSeq::serialize_element</span>(<span class="kw-2">&amp;mut</span> <span class="ident">__seq_serializer</span>, <span class="kw-2">&amp;</span><span class="ident"><span class="kw">crate</span>::types::SerializePayload</span>(#<span class="ident">bi</span>, #<span class="ident">skip_serialization_attr</span>))<span class="question-mark">?</span>;
+                .to_tokens(<span class="kw-2">&amp;mut </span>to_value_body);
+                (<span class="macro">quote! </span>{
+                    <span class="kw">if </span>!#bi.skip_serialization(#skip_serialization_attr) {
+                        ::serde::ser::SerializeSeq::serialize_element(<span class="kw-2">&amp;mut </span>__seq_serializer, <span class="kw-2">&amp;</span><span class="kw">crate</span>::types::SerializePayload(#bi, #skip_serialization_attr))<span class="question-mark">?</span>;
                     }
-                }).<span class="ident">to_tokens</span>(<span class="kw-2">&amp;mut</span> <span class="ident">serialize_body</span>);
-            } <span class="kw">else</span> {
-                (<span class="macro">quote!</span> {
-                    <span class="ident">__map</span>.<span class="ident">insert</span>(#<span class="ident">field_name</span>.<span class="ident">to_string</span>(), <span class="ident">Annotated::map_value</span>(#<span class="ident">bi</span>, <span class="ident"><span class="kw">crate</span>::types::IntoValue::into_value</span>));
-                }).<span class="ident">to_tokens</span>(<span class="kw-2">&amp;mut</span> <span class="ident">to_value_body</span>);
-                (<span class="macro">quote!</span> {
-                    <span class="kw">if</span> <span class="op">!</span>#<span class="ident">bi</span>.<span class="ident">skip_serialization</span>(#<span class="ident">skip_serialization_attr</span>) {
-                        <span class="ident">::serde::ser::SerializeMap::serialize_key</span>(<span class="kw-2">&amp;mut</span> <span class="ident">__map_serializer</span>, #<span class="ident">field_name</span>)<span class="question-mark">?</span>;
-                        <span class="ident">::serde::ser::SerializeMap::serialize_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">__map_serializer</span>, <span class="kw-2">&amp;</span><span class="ident"><span class="kw">crate</span>::types::SerializePayload</span>(#<span class="ident">bi</span>, #<span class="ident">skip_serialization_attr</span>))<span class="question-mark">?</span>;
+                }).to_tokens(<span class="kw-2">&amp;mut </span>serialize_body);
+            } <span class="kw">else </span>{
+                (<span class="macro">quote! </span>{
+                    __map.insert(#field_name.to_string(), Annotated::map_value(#bi, <span class="kw">crate</span>::types::IntoValue::into_value));
+                }).to_tokens(<span class="kw-2">&amp;mut </span>to_value_body);
+                (<span class="macro">quote! </span>{
+                    <span class="kw">if </span>!#bi.skip_serialization(#skip_serialization_attr) {
+                        ::serde::ser::SerializeMap::serialize_key(<span class="kw-2">&amp;mut </span>__map_serializer, #field_name)<span class="question-mark">?</span>;
+                        ::serde::ser::SerializeMap::serialize_value(<span class="kw-2">&amp;mut </span>__map_serializer, <span class="kw-2">&amp;</span><span class="kw">crate</span>::types::SerializePayload(#bi, #skip_serialization_attr))<span class="question-mark">?</span>;
                     }
-                }).<span class="ident">to_tokens</span>(<span class="kw-2">&amp;mut</span> <span class="ident">serialize_body</span>);
+                }).to_tokens(<span class="kw-2">&amp;mut </span>serialize_body);
             }
 
-            (<span class="macro">quote!</span> {
-                <span class="kw">let</span> <span class="ident">__inner_tree</span> <span class="op">=</span> <span class="ident"><span class="kw">crate</span>::types::IntoValue::extract_meta_tree</span>(#<span class="ident">bi</span>);
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">__inner_tree</span>.<span class="ident">is_empty</span>() {
-                    <span class="ident">__child_meta</span>.<span class="ident">insert</span>(#<span class="ident">field_name</span>.<span class="ident">to_string</span>(), <span class="ident">__inner_tree</span>);
+            (<span class="macro">quote! </span>{
+                <span class="kw">let </span>__inner_tree = <span class="kw">crate</span>::types::IntoValue::extract_meta_tree(#bi);
+                <span class="kw">if </span>!__inner_tree.is_empty() {
+                    __child_meta.insert(#field_name.to_string(), __inner_tree);
                 }
             })
-            .<span class="ident">to_tokens</span>(<span class="kw-2">&amp;mut</span> <span class="ident">extract_child_meta_body</span>);
+            .to_tokens(<span class="kw-2">&amp;mut </span>extract_child_meta_body);
         }
     }
 
-    <span class="kw">let</span> <span class="ident">ast</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">ast</span>();
-    <span class="kw">let</span> <span class="ident">expectation</span> <span class="op">=</span> <span class="ident">LitStr::new</span>(<span class="kw-2">&amp;</span><span class="ident">ast</span>.<span class="ident">ident</span>.<span class="ident">to_string</span>().<span class="ident">to_lowercase</span>(), <span class="ident">Span::call_site</span>());
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">variant</span> <span class="op">=</span> <span class="ident">variant</span>.<span class="ident">clone</span>();
-    <span class="kw">for</span> <span class="ident">binding</span> <span class="kw">in</span> <span class="ident">variant</span>.<span class="ident">bindings_mut</span>() {
-        <span class="ident">binding</span>.<span class="ident">style</span> <span class="op">=</span> <span class="ident">synstructure::BindStyle::Move</span>;
+    <span class="kw">let </span>ast = s.ast();
+    <span class="kw">let </span>expectation = LitStr::new(<span class="kw-2">&amp;</span>ast.ident.to_string().to_lowercase(), Span::call_site());
+    <span class="kw">let </span><span class="kw-2">mut </span>variant = variant.clone();
+    <span class="kw">for </span>binding <span class="kw">in </span>variant.bindings_mut() {
+        binding.style = synstructure::BindStyle::Move;
     }
-    <span class="kw">let</span> <span class="ident">to_value_pat</span> <span class="op">=</span> <span class="ident">variant</span>.<span class="ident">pat</span>();
-    <span class="kw">let</span> <span class="ident">to_structure_assemble_pat</span> <span class="op">=</span> <span class="ident">variant</span>.<span class="ident">pat</span>();
-    <span class="kw">for</span> <span class="ident">binding</span> <span class="kw">in</span> <span class="ident">variant</span>.<span class="ident">bindings_mut</span>() {
-        <span class="ident">binding</span>.<span class="ident">style</span> <span class="op">=</span> <span class="ident">synstructure::BindStyle::RefMut</span>;
+    <span class="kw">let </span>to_value_pat = variant.pat();
+    <span class="kw">let </span>to_structure_assemble_pat = variant.pat();
+    <span class="kw">for </span>binding <span class="kw">in </span>variant.bindings_mut() {
+        binding.style = synstructure::BindStyle::RefMut;
     }
-    <span class="kw">let</span> <span class="ident">_process_value_pat</span> <span class="op">=</span> <span class="ident">variant</span>.<span class="ident">pat</span>();
-    <span class="kw">for</span> <span class="ident">binding</span> <span class="kw">in</span> <span class="ident">variant</span>.<span class="ident">bindings_mut</span>() {
-        <span class="ident">binding</span>.<span class="ident">style</span> <span class="op">=</span> <span class="ident">synstructure::BindStyle::Ref</span>;
+    <span class="kw">let </span>_process_value_pat = variant.pat();
+    <span class="kw">for </span>binding <span class="kw">in </span>variant.bindings_mut() {
+        binding.style = synstructure::BindStyle::Ref;
     }
-    <span class="kw">let</span> <span class="ident">serialize_pat</span> <span class="op">=</span> <span class="ident">variant</span>.<span class="ident">pat</span>();
+    <span class="kw">let </span>serialize_pat = variant.pat();
 
-    <span class="kw">match</span> <span class="ident">t</span> {
-        <span class="ident">Trait::From</span> =&gt; {
-            <span class="kw">let</span> <span class="ident">bindings_count</span> <span class="op">=</span> <span class="ident">variant</span>.<span class="ident">bindings</span>().<span class="ident">len</span>();
-            <span class="kw">let</span> <span class="ident">valid_match_arm</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">is_tuple_struct</span> {
-                <span class="macro">quote!</span> {
-                    <span class="ident"><span class="kw">crate</span>::types::Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident"><span class="kw">crate</span>::types::Value::Array</span>(<span class="kw-2">mut</span> <span class="ident">__arr</span>)), <span class="kw-2">mut</span> <span class="ident">__meta</span>) =&gt; {
-                        <span class="kw">if</span> <span class="ident">__arr</span>.<span class="ident">len</span>() <span class="op">!</span><span class="op">=</span> #<span class="ident">bindings_count</span> {
-                            <span class="ident">__meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::expected</span>(<span class="macro">concat!</span>(<span class="string">&quot;a &quot;</span>, <span class="macro">stringify!</span>(#<span class="ident">bindings_count</span>), <span class="string">&quot;-tuple&quot;</span>)));
-                            <span class="ident">__meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">__arr</span>));
-                            <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">__meta</span>)
-                        } <span class="kw">else</span> {
-                            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">__arr</span> <span class="op">=</span> <span class="ident">__arr</span>.<span class="ident">into_iter</span>();
-                            #<span class="ident">from_value_body</span>;
-                            <span class="ident"><span class="kw">crate</span>::types::Annotated</span>(<span class="prelude-val">Some</span>(#<span class="ident">to_structure_assemble_pat</span>), <span class="ident">__meta</span>)
+    <span class="kw">match </span>t {
+        Trait::From =&gt; {
+            <span class="kw">let </span>bindings_count = variant.bindings().len();
+            <span class="kw">let </span>valid_match_arm = <span class="kw">if </span>is_tuple_struct {
+                <span class="macro">quote! </span>{
+                    <span class="kw">crate</span>::types::Annotated(<span class="prelude-val">Some</span>(<span class="kw">crate</span>::types::Value::Array(<span class="kw-2">mut </span>__arr)), <span class="kw-2">mut </span>__meta) =&gt; {
+                        <span class="kw">if </span>__arr.len() != #bindings_count {
+                            __meta.add_error(Error::expected(<span class="macro">concat!</span>(<span class="string">&quot;a &quot;</span>, <span class="macro">stringify!</span>(#bindings_count), <span class="string">&quot;-tuple&quot;</span>)));
+                            __meta.set_original_value(<span class="prelude-val">Some</span>(__arr));
+                            Annotated(<span class="prelude-val">None</span>, __meta)
+                        } <span class="kw">else </span>{
+                            <span class="kw">let </span><span class="kw-2">mut </span>__arr = __arr.into_iter();
+                            #from_value_body;
+                            <span class="kw">crate</span>::types::Annotated(<span class="prelude-val">Some</span>(#to_structure_assemble_pat), __meta)
                         }
                     }
                 }
-            } <span class="kw">else</span> {
-                <span class="macro">quote!</span> {
-                    <span class="ident"><span class="kw">crate</span>::types::Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident"><span class="kw">crate</span>::types::Value::Object</span>(<span class="kw-2">mut</span> <span class="ident">__obj</span>)), <span class="ident">__meta</span>) =&gt; {
-                        #<span class="ident">from_value_body</span>;
-                        <span class="ident"><span class="kw">crate</span>::types::Annotated</span>(<span class="prelude-val">Some</span>(#<span class="ident">to_structure_assemble_pat</span>), <span class="ident">__meta</span>)
+            } <span class="kw">else </span>{
+                <span class="macro">quote! </span>{
+                    <span class="kw">crate</span>::types::Annotated(<span class="prelude-val">Some</span>(<span class="kw">crate</span>::types::Value::Object(<span class="kw-2">mut </span>__obj)), __meta) =&gt; {
+                        #from_value_body;
+                        <span class="kw">crate</span>::types::Annotated(<span class="prelude-val">Some</span>(#to_structure_assemble_pat), __meta)
                     }
                 }
             };
 
-            <span class="ident">s</span>.<span class="ident">gen_impl</span>(<span class="macro">quote!</span> {
-                <span class="attribute">#[<span class="ident">automatically_derived</span>]</span>
-                <span class="ident">gen</span> <span class="kw">impl</span> <span class="ident"><span class="kw">crate</span>::types::FromValue</span> <span class="kw">for</span> @<span class="self">Self</span> {
-                    <span class="kw">fn</span> <span class="ident">from_value</span>(
-                        <span class="ident">__value</span>: <span class="ident"><span class="kw">crate</span>::types::Annotated</span><span class="op">&lt;</span><span class="ident"><span class="kw">crate</span>::types::Value</span><span class="op">&gt;</span>,
-                    ) -&gt; <span class="ident"><span class="kw">crate</span>::types::Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-                        <span class="kw">match</span> <span class="ident">__value</span> {
-                            #<span class="ident">valid_match_arm</span>
-                            <span class="ident"><span class="kw">crate</span>::types::Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">__meta</span>) =&gt; <span class="ident"><span class="kw">crate</span>::types::Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">__meta</span>),
-                            <span class="ident"><span class="kw">crate</span>::types::Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">__value</span>), <span class="kw-2">mut</span> <span class="ident">__meta</span>) =&gt; {
-                                <span class="ident">__meta</span>.<span class="ident">add_error</span>(<span class="ident"><span class="kw">crate</span>::types::Error::expected</span>(#<span class="ident">expectation</span>));
-                                <span class="ident">__meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">__value</span>));
-                                <span class="ident"><span class="kw">crate</span>::types::Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">__meta</span>)
+            s.gen_impl(<span class="macro">quote! </span>{
+                <span class="attribute">#[automatically_derived]
+                </span>gen <span class="kw">impl </span><span class="kw">crate</span>::types::FromValue <span class="kw">for </span>@<span class="self">Self </span>{
+                    <span class="kw">fn </span>from_value(
+                        __value: <span class="kw">crate</span>::types::Annotated&lt;<span class="kw">crate</span>::types::Value&gt;,
+                    ) -&gt; <span class="kw">crate</span>::types::Annotated&lt;<span class="self">Self</span>&gt; {
+                        <span class="kw">match </span>__value {
+                            #valid_match_arm
+                            <span class="kw">crate</span>::types::Annotated(<span class="prelude-val">None</span>, __meta) =&gt; <span class="kw">crate</span>::types::Annotated(<span class="prelude-val">None</span>, __meta),
+                            <span class="kw">crate</span>::types::Annotated(<span class="prelude-val">Some</span>(__value), <span class="kw-2">mut </span>__meta) =&gt; {
+                                __meta.add_error(<span class="kw">crate</span>::types::Error::expected(#expectation));
+                                __meta.set_original_value(<span class="prelude-val">Some</span>(__value));
+                                <span class="kw">crate</span>::types::Annotated(<span class="prelude-val">None</span>, __meta)
                             }
                         }
                     }
                 }
             })
         }
-        <span class="ident">Trait::To</span> =&gt; {
-            <span class="kw">let</span> <span class="ident">into_value</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">is_tuple_struct</span> {
-                <span class="macro">quote!</span> {
-                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">__arr</span> <span class="op">=</span> <span class="ident"><span class="kw">crate</span>::types::Array::new</span>();
-                    <span class="kw">let</span> #<span class="ident">to_value_pat</span> <span class="op">=</span> <span class="self">self</span>;
-                    #<span class="ident">to_value_body</span>;
-                    <span class="ident"><span class="kw">crate</span>::types::Value::Array</span>(<span class="ident">__arr</span>)
+        Trait::To =&gt; {
+            <span class="kw">let </span>into_value = <span class="kw">if </span>is_tuple_struct {
+                <span class="macro">quote! </span>{
+                    <span class="kw">let </span><span class="kw-2">mut </span>__arr = <span class="kw">crate</span>::types::Array::new();
+                    <span class="kw">let </span>#to_value_pat = <span class="self">self</span>;
+                    #to_value_body;
+                    <span class="kw">crate</span>::types::Value::Array(__arr)
                 }
-            } <span class="kw">else</span> {
-                <span class="macro">quote!</span> {
-                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">__map</span> <span class="op">=</span> <span class="ident"><span class="kw">crate</span>::types::Object::new</span>();
-                    <span class="kw">let</span> #<span class="ident">to_value_pat</span> <span class="op">=</span> <span class="self">self</span>;
-                    #<span class="ident">to_value_body</span>;
-                    <span class="ident"><span class="kw">crate</span>::types::Value::Object</span>(<span class="ident">__map</span>)
-                }
-            };
-
-            <span class="kw">let</span> <span class="ident">serialize_payload</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">is_tuple_struct</span> {
-                <span class="macro">quote!</span> {
-                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">__seq_serializer</span> <span class="op">=</span> <span class="ident">::serde::ser::Serializer::serialize_seq</span>(<span class="ident">__serializer</span>, <span class="prelude-val">None</span>)<span class="question-mark">?</span>;
-                    #<span class="ident">serialize_body</span>;
-                    <span class="ident">::serde::ser::SerializeSeq::end</span>(<span class="ident">__seq_serializer</span>)
-                }
-            } <span class="kw">else</span> {
-                <span class="macro">quote!</span> {
-                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">__map_serializer</span> <span class="op">=</span> <span class="ident">::serde::ser::Serializer::serialize_map</span>(<span class="ident">__serializer</span>, <span class="prelude-val">None</span>)<span class="question-mark">?</span>;
-                    #<span class="ident">serialize_body</span>;
-                    <span class="ident">::serde::ser::SerializeMap::end</span>(<span class="ident">__map_serializer</span>)
+            } <span class="kw">else </span>{
+                <span class="macro">quote! </span>{
+                    <span class="kw">let </span><span class="kw-2">mut </span>__map = <span class="kw">crate</span>::types::Object::new();
+                    <span class="kw">let </span>#to_value_pat = <span class="self">self</span>;
+                    #to_value_body;
+                    <span class="kw">crate</span>::types::Value::Object(__map)
                 }
             };
 
-            <span class="ident">s</span>.<span class="ident">gen_impl</span>(<span class="macro">quote!</span> {
-                <span class="attribute">#[<span class="ident">automatically_derived</span>]</span>
-                <span class="ident">gen</span> <span class="kw">impl</span> <span class="ident"><span class="kw">crate</span>::types::IntoValue</span> <span class="kw">for</span> @<span class="self">Self</span> {
-                    <span class="kw">fn</span> <span class="ident">into_value</span>(<span class="self">self</span>) -&gt; <span class="ident"><span class="kw">crate</span>::types::Value</span> {
-                        #<span class="ident">into_value</span>
+            <span class="kw">let </span>serialize_payload = <span class="kw">if </span>is_tuple_struct {
+                <span class="macro">quote! </span>{
+                    <span class="kw">let </span><span class="kw-2">mut </span>__seq_serializer = ::serde::ser::Serializer::serialize_seq(__serializer, <span class="prelude-val">None</span>)<span class="question-mark">?</span>;
+                    #serialize_body;
+                    ::serde::ser::SerializeSeq::end(__seq_serializer)
+                }
+            } <span class="kw">else </span>{
+                <span class="macro">quote! </span>{
+                    <span class="kw">let </span><span class="kw-2">mut </span>__map_serializer = ::serde::ser::Serializer::serialize_map(__serializer, <span class="prelude-val">None</span>)<span class="question-mark">?</span>;
+                    #serialize_body;
+                    ::serde::ser::SerializeMap::end(__map_serializer)
+                }
+            };
+
+            s.gen_impl(<span class="macro">quote! </span>{
+                <span class="attribute">#[automatically_derived]
+                </span>gen <span class="kw">impl </span><span class="kw">crate</span>::types::IntoValue <span class="kw">for </span>@<span class="self">Self </span>{
+                    <span class="kw">fn </span>into_value(<span class="self">self</span>) -&gt; <span class="kw">crate</span>::types::Value {
+                        #into_value
                     }
 
-                    <span class="kw">fn</span> <span class="ident">serialize_payload</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">__serializer</span>: <span class="ident">S</span>, <span class="ident">__behavior</span>: <span class="ident"><span class="kw">crate</span>::types::SkipSerialization</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
-                    <span class="kw">where</span>
-                        <span class="self">Self</span>: <span class="ident">Sized</span>,
-                        <span class="ident">S</span>: <span class="ident">::serde::ser::Serializer</span>
+                    <span class="kw">fn </span>serialize_payload&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, __serializer: S, __behavior: <span class="kw">crate</span>::types::SkipSerialization) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
+                    <span class="kw">where
+                        </span><span class="self">Self</span>: Sized,
+                        S: ::serde::ser::Serializer
                     {
-                        <span class="kw">let</span> #<span class="ident">serialize_pat</span> <span class="op">=</span> <span class="kw-2">*</span><span class="self">self</span>;
-                        #<span class="ident">serialize_payload</span>
+                        <span class="kw">let </span>#serialize_pat = <span class="kw-2">*</span><span class="self">self</span>;
+                        #serialize_payload
                     }
 
-                    <span class="kw">fn</span> <span class="ident">extract_child_meta</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident"><span class="kw">crate</span>::types::MetaMap</span>
-                    <span class="kw">where</span>
-                        <span class="self">Self</span>: <span class="ident">Sized</span>,
+                    <span class="kw">fn </span>extract_child_meta(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">crate</span>::types::MetaMap
+                    <span class="kw">where
+                        </span><span class="self">Self</span>: Sized,
                     {
-                        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">__child_meta</span> <span class="op">=</span> <span class="ident"><span class="kw">crate</span>::types::MetaMap::new</span>();
-                        <span class="kw">let</span> #<span class="ident">serialize_pat</span> <span class="op">=</span> <span class="kw-2">*</span><span class="self">self</span>;
-                        #<span class="ident">extract_child_meta_body</span>;
-                        <span class="ident">__child_meta</span>
+                        <span class="kw">let </span><span class="kw-2">mut </span>__child_meta = <span class="kw">crate</span>::types::MetaMap::new();
+                        <span class="kw">let </span>#serialize_pat = <span class="kw-2">*</span><span class="self">self</span>;
+                        #extract_child_meta_body;
+                        __child_meta
                     }
                 }
             })
@@ -1619,592 +1619,592 @@
     }
 }
 
-<span class="kw">fn</span> <span class="ident">parse_max_chars</span>(<span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">TokenStream</span> {
-    <span class="kw">match</span> <span class="ident">name</span> {
-        <span class="string">&quot;logger&quot;</span> =&gt; <span class="macro">quote!</span>(<span class="ident"><span class="kw">crate</span>::processor::MaxChars::Logger</span>),
-        <span class="string">&quot;hash&quot;</span> =&gt; <span class="macro">quote!</span>(<span class="ident"><span class="kw">crate</span>::processor::MaxChars::Hash</span>),
-        <span class="string">&quot;enumlike&quot;</span> =&gt; <span class="macro">quote!</span>(<span class="ident"><span class="kw">crate</span>::processor::MaxChars::EnumLike</span>),
-        <span class="string">&quot;summary&quot;</span> =&gt; <span class="macro">quote!</span>(<span class="ident"><span class="kw">crate</span>::processor::MaxChars::Summary</span>),
-        <span class="string">&quot;message&quot;</span> =&gt; <span class="macro">quote!</span>(<span class="ident"><span class="kw">crate</span>::processor::MaxChars::Message</span>),
-        <span class="string">&quot;symbol&quot;</span> =&gt; <span class="macro">quote!</span>(<span class="ident"><span class="kw">crate</span>::processor::MaxChars::Symbol</span>),
-        <span class="string">&quot;path&quot;</span> =&gt; <span class="macro">quote!</span>(<span class="ident"><span class="kw">crate</span>::processor::MaxChars::Path</span>),
-        <span class="string">&quot;short_path&quot;</span> =&gt; <span class="macro">quote!</span>(<span class="ident"><span class="kw">crate</span>::processor::MaxChars::ShortPath</span>),
-        <span class="string">&quot;email&quot;</span> =&gt; <span class="macro">quote!</span>(<span class="ident"><span class="kw">crate</span>::processor::MaxChars::Email</span>),
-        <span class="string">&quot;culprit&quot;</span> =&gt; <span class="macro">quote!</span>(<span class="ident"><span class="kw">crate</span>::processor::MaxChars::Culprit</span>),
-        <span class="string">&quot;tag_key&quot;</span> =&gt; <span class="macro">quote!</span>(<span class="ident"><span class="kw">crate</span>::processor::MaxChars::TagKey</span>),
-        <span class="string">&quot;tag_value&quot;</span> =&gt; <span class="macro">quote!</span>(<span class="ident"><span class="kw">crate</span>::processor::MaxChars::TagValue</span>),
-        <span class="string">&quot;environment&quot;</span> =&gt; <span class="macro">quote!</span>(<span class="ident"><span class="kw">crate</span>::processor::MaxChars::Environment</span>),
-        <span class="kw">_</span> =&gt; <span class="macro">panic!</span>(<span class="string">&quot;invalid max_chars variant &#39;{}&#39;&quot;</span>, <span class="ident">name</span>),
+<span class="kw">fn </span>parse_max_chars(name: <span class="kw-2">&amp;</span>str) -&gt; TokenStream {
+    <span class="kw">match </span>name {
+        <span class="string">&quot;logger&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Logger),
+        <span class="string">&quot;hash&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Hash),
+        <span class="string">&quot;enumlike&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::EnumLike),
+        <span class="string">&quot;summary&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Summary),
+        <span class="string">&quot;message&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Message),
+        <span class="string">&quot;symbol&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Symbol),
+        <span class="string">&quot;path&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Path),
+        <span class="string">&quot;short_path&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::ShortPath),
+        <span class="string">&quot;email&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Email),
+        <span class="string">&quot;culprit&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Culprit),
+        <span class="string">&quot;tag_key&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::TagKey),
+        <span class="string">&quot;tag_value&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::TagValue),
+        <span class="string">&quot;environment&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Environment),
+        <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">&quot;invalid max_chars variant &#39;{}&#39;&quot;</span>, name),
     }
 }
 
-<span class="kw">fn</span> <span class="ident">parse_bag_size</span>(<span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">TokenStream</span> {
-    <span class="kw">match</span> <span class="ident">name</span> {
-        <span class="string">&quot;small&quot;</span> =&gt; <span class="macro">quote!</span>(<span class="ident"><span class="kw">crate</span>::processor::BagSize::Small</span>),
-        <span class="string">&quot;medium&quot;</span> =&gt; <span class="macro">quote!</span>(<span class="ident"><span class="kw">crate</span>::processor::BagSize::Medium</span>),
-        <span class="string">&quot;large&quot;</span> =&gt; <span class="macro">quote!</span>(<span class="ident"><span class="kw">crate</span>::processor::BagSize::Large</span>),
-        <span class="string">&quot;larger&quot;</span> =&gt; <span class="macro">quote!</span>(<span class="ident"><span class="kw">crate</span>::processor::BagSize::Larger</span>),
-        <span class="string">&quot;massive&quot;</span> =&gt; <span class="macro">quote!</span>(<span class="ident"><span class="kw">crate</span>::processor::BagSize::Massive</span>),
-        <span class="kw">_</span> =&gt; <span class="macro">panic!</span>(<span class="string">&quot;invalid bag_size variant &#39;{}&#39;&quot;</span>, <span class="ident">name</span>),
+<span class="kw">fn </span>parse_bag_size(name: <span class="kw-2">&amp;</span>str) -&gt; TokenStream {
+    <span class="kw">match </span>name {
+        <span class="string">&quot;small&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::BagSize::Small),
+        <span class="string">&quot;medium&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::BagSize::Medium),
+        <span class="string">&quot;large&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::BagSize::Large),
+        <span class="string">&quot;larger&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::BagSize::Larger),
+        <span class="string">&quot;massive&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::BagSize::Massive),
+        <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">&quot;invalid bag_size variant &#39;{}&#39;&quot;</span>, name),
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Default</span>)]</span>
-<span class="kw">struct</span> <span class="ident">TypeAttrs</span> {
-    <span class="ident">process_func</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="ident">value_type</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="ident">tag_key</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+<span class="attribute">#[derive(Default)]
+</span><span class="kw">struct </span>TypeAttrs {
+    process_func: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    value_type: Vec&lt;String&gt;,
+    tag_key: <span class="prelude-ty">Option</span>&lt;String&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">TypeAttrs</span> {
-    <span class="kw">fn</span> <span class="ident">process_func_call_tokens</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">TokenStream</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">func_name</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">process_func</span> {
-            <span class="kw">let</span> <span class="ident">func_name</span> <span class="op">=</span> <span class="ident">Ident::new</span>(<span class="ident">func_name</span>, <span class="ident">Span::call_site</span>());
-            <span class="macro">quote!</span> {
-                <span class="ident">__processor</span>.#<span class="ident">func_name</span>(<span class="self">self</span>, <span class="ident">__meta</span>, <span class="ident">__state</span>)<span class="question-mark">?</span>;
+<span class="kw">impl </span>TypeAttrs {
+    <span class="kw">fn </span>process_func_call_tokens(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; TokenStream {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>func_name) = <span class="self">self</span>.process_func {
+            <span class="kw">let </span>func_name = Ident::new(func_name, Span::call_site());
+            <span class="macro">quote! </span>{
+                __processor.#func_name(<span class="self">self</span>, __meta, __state)<span class="question-mark">?</span>;
             }
-        } <span class="kw">else</span> {
-            <span class="macro">quote!</span> {
-                <span class="self">self</span>.<span class="ident">process_child_values</span>(<span class="ident">__processor</span>, <span class="ident">__state</span>)<span class="question-mark">?</span>;
+        } <span class="kw">else </span>{
+            <span class="macro">quote! </span>{
+                <span class="self">self</span>.process_child_values(__processor, __state)<span class="question-mark">?</span>;
             }
         }
     }
 }
 
-<span class="kw">fn</span> <span class="ident">parse_type_attributes</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">synstructure::Structure</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">TypeAttrs</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rv</span> <span class="op">=</span> <span class="ident">TypeAttrs::default</span>();
+<span class="kw">fn </span>parse_type_attributes(s: <span class="kw-2">&amp;</span>synstructure::Structure&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; TypeAttrs {
+    <span class="kw">let </span><span class="kw-2">mut </span>rv = TypeAttrs::default();
 
-    <span class="kw">for</span> <span class="ident">attr</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">s</span>.<span class="ident">ast</span>().<span class="ident">attrs</span> {
-        <span class="kw">let</span> <span class="ident">meta</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">attr</span>.<span class="ident">parse_meta</span>() {
-            <span class="prelude-val">Ok</span>(<span class="ident">meta</span>) =&gt; <span class="ident">meta</span>,
+    <span class="kw">for </span>attr <span class="kw">in </span><span class="kw-2">&amp;</span>s.ast().attrs {
+        <span class="kw">let </span>meta = <span class="kw">match </span>attr.parse_meta() {
+            <span class="prelude-val">Ok</span>(meta) =&gt; meta,
             <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">continue</span>,
         };
 
-        <span class="kw">let</span> <span class="ident">ident</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">meta</span>.<span class="ident">path</span>().<span class="ident">get_ident</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">x</span>) =&gt; <span class="ident">x</span>,
-            <span class="prelude-val">None</span> =&gt; <span class="kw">continue</span>,
+        <span class="kw">let </span>ident = <span class="kw">match </span>meta.path().get_ident() {
+            <span class="prelude-val">Some</span>(x) =&gt; x,
+            <span class="prelude-val">None </span>=&gt; <span class="kw">continue</span>,
         };
 
-        <span class="kw">if</span> <span class="ident">ident</span> <span class="op">!</span><span class="op">=</span> <span class="string">&quot;metastructure&quot;</span> {
+        <span class="kw">if </span>ident != <span class="string">&quot;metastructure&quot; </span>{
             <span class="kw">continue</span>;
         }
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Meta::List</span>(<span class="ident">metalist</span>) <span class="op">=</span> <span class="ident">meta</span> {
-            <span class="kw">for</span> <span class="ident">nested_meta</span> <span class="kw">in</span> <span class="ident">metalist</span>.<span class="ident">nested</span> {
-                <span class="kw">match</span> <span class="ident">nested_meta</span> {
-                    <span class="ident">NestedMeta::Lit</span>(..) =&gt; <span class="macro">panic!</span>(<span class="string">&quot;unexpected literal attribute&quot;</span>),
-                    <span class="ident">NestedMeta::Meta</span>(<span class="ident">meta</span>) =&gt; <span class="kw">match</span> <span class="ident">meta</span> {
-                        <span class="ident">Meta::NameValue</span>(<span class="ident">name_value</span>) =&gt; {
-                            <span class="kw">let</span> <span class="ident">ident</span> <span class="op">=</span> <span class="ident">name_value</span>.<span class="ident">path</span>.<span class="ident">get_ident</span>().<span class="ident">expect</span>(<span class="string">&quot;Unexpected path&quot;</span>);
+        <span class="kw">if let </span>Meta::List(metalist) = meta {
+            <span class="kw">for </span>nested_meta <span class="kw">in </span>metalist.nested {
+                <span class="kw">match </span>nested_meta {
+                    NestedMeta::Lit(..) =&gt; <span class="macro">panic!</span>(<span class="string">&quot;unexpected literal attribute&quot;</span>),
+                    NestedMeta::Meta(meta) =&gt; <span class="kw">match </span>meta {
+                        Meta::NameValue(name_value) =&gt; {
+                            <span class="kw">let </span>ident = name_value.path.get_ident().expect(<span class="string">&quot;Unexpected path&quot;</span>);
 
-                            <span class="kw">if</span> <span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;process_func&quot;</span> {
-                                <span class="kw">match</span> <span class="ident">name_value</span>.<span class="ident">lit</span> {
-                                    <span class="ident">Lit::Str</span>(<span class="ident">litstr</span>) =&gt; {
-                                        <span class="ident">rv</span>.<span class="ident">process_func</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">litstr</span>.<span class="ident">value</span>());
+                            <span class="kw">if </span>ident == <span class="string">&quot;process_func&quot; </span>{
+                                <span class="kw">match </span>name_value.lit {
+                                    Lit::Str(litstr) =&gt; {
+                                        rv.process_func = <span class="prelude-val">Some</span>(litstr.value());
                                     }
-                                    <span class="kw">_</span> =&gt; {
+                                    <span class="kw">_ </span>=&gt; {
                                         <span class="macro">panic!</span>(<span class="string">&quot;Got non string literal for process_func&quot;</span>);
                                     }
                                 }
-                            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;value_type&quot;</span> {
-                                <span class="kw">match</span> <span class="ident">name_value</span>.<span class="ident">lit</span> {
-                                    <span class="ident">Lit::Str</span>(<span class="ident">litstr</span>) =&gt; {
-                                        <span class="ident">rv</span>.<span class="ident">value_type</span>.<span class="ident">push</span>(<span class="ident">litstr</span>.<span class="ident">value</span>());
+                            } <span class="kw">else if </span>ident == <span class="string">&quot;value_type&quot; </span>{
+                                <span class="kw">match </span>name_value.lit {
+                                    Lit::Str(litstr) =&gt; {
+                                        rv.value_type.push(litstr.value());
                                     }
-                                    <span class="kw">_</span> =&gt; {
+                                    <span class="kw">_ </span>=&gt; {
                                         <span class="macro">panic!</span>(<span class="string">&quot;Got non string literal for value type&quot;</span>);
                                     }
                                 }
-                            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;tag_key&quot;</span> {
-                                <span class="kw">match</span> <span class="ident">name_value</span>.<span class="ident">lit</span> {
-                                    <span class="ident">Lit::Str</span>(<span class="ident">litstr</span>) =&gt; {
-                                        <span class="ident">rv</span>.<span class="ident">tag_key</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">litstr</span>.<span class="ident">value</span>());
+                            } <span class="kw">else if </span>ident == <span class="string">&quot;tag_key&quot; </span>{
+                                <span class="kw">match </span>name_value.lit {
+                                    Lit::Str(litstr) =&gt; {
+                                        rv.tag_key = <span class="prelude-val">Some</span>(litstr.value());
                                     }
-                                    <span class="kw">_</span> =&gt; {
+                                    <span class="kw">_ </span>=&gt; {
                                         <span class="macro">panic!</span>(<span class="string">&quot;Got non string literal for tag_key&quot;</span>);
                                     }
                                 }
-                            } <span class="kw">else</span> {
+                            } <span class="kw">else </span>{
                                 <span class="macro">panic!</span>(<span class="string">&quot;Unknown attribute&quot;</span>)
                             }
                         }
-                        <span class="kw">_</span> =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Unsupported attribute&quot;</span>),
+                        <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">&quot;Unsupported attribute&quot;</span>),
                     },
                 }
             }
         }
     }
 
-    <span class="kw">if</span> <span class="ident">rv</span>.<span class="ident">tag_key</span>.<span class="ident">is_some</span>() <span class="op">&amp;&amp;</span> <span class="ident">s</span>.<span class="ident">variants</span>().<span class="ident">len</span>() <span class="op">==</span> <span class="number">1</span> {
-        <span class="comment">// TODO: move into parse_type_attributes</span>
-        <span class="macro">panic!</span>(<span class="string">&quot;tag_key not supported on structs&quot;</span>);
+    <span class="kw">if </span>rv.tag_key.is_some() &amp;&amp; s.variants().len() == <span class="number">1 </span>{
+        <span class="comment">// TODO: move into parse_type_attributes
+        </span><span class="macro">panic!</span>(<span class="string">&quot;tag_key not supported on structs&quot;</span>);
     }
 
-    <span class="ident">rv</span>
+    rv
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
-<span class="kw">enum</span> <span class="ident">Pii</span> {
-    <span class="ident">True</span>,
-    <span class="ident">False</span>,
-    <span class="ident">Maybe</span>,
+<span class="attribute">#[derive(Copy, Clone, Debug)]
+</span><span class="kw">enum </span>Pii {
+    True,
+    False,
+    Maybe,
 }
 
-<span class="kw">impl</span> <span class="ident">Pii</span> {
-    <span class="kw">fn</span> <span class="ident">as_tokens</span>(<span class="self">self</span>) -&gt; <span class="ident">TokenStream</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">Pii::True</span> =&gt; <span class="macro">quote!</span>(<span class="ident"><span class="kw">crate</span>::processor::Pii::True</span>),
-            <span class="ident">Pii::False</span> =&gt; <span class="macro">quote!</span>(<span class="ident"><span class="kw">crate</span>::processor::Pii::False</span>),
-            <span class="ident">Pii::Maybe</span> =&gt; <span class="macro">quote!</span>(<span class="ident"><span class="kw">crate</span>::processor::Pii::Maybe</span>),
+<span class="kw">impl </span>Pii {
+    <span class="kw">fn </span>as_tokens(<span class="self">self</span>) -&gt; TokenStream {
+        <span class="kw">match </span><span class="self">self </span>{
+            Pii::True =&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::Pii::True),
+            Pii::False =&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::Pii::False),
+            Pii::Maybe =&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::Pii::Maybe),
         }
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Default</span>)]</span>
-<span class="kw">struct</span> <span class="ident">FieldAttrs</span> {
-    <span class="ident">additional_properties</span>: <span class="ident">bool</span>,
-    <span class="ident">omit_from_schema</span>: <span class="ident">bool</span>,
-    <span class="ident">field_name</span>: <span class="ident">String</span>,
-    <span class="ident">required</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
-    <span class="ident">nonempty</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
-    <span class="ident">trim_whitespace</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
-    <span class="ident">pii</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Pii</span><span class="op">&gt;</span>,
-    <span class="ident">retain</span>: <span class="ident">bool</span>,
-    <span class="ident">characters</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">TokenStream</span><span class="op">&gt;</span>,
-    <span class="ident">max_chars</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">TokenStream</span><span class="op">&gt;</span>,
-    <span class="ident">bag_size</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">TokenStream</span><span class="op">&gt;</span>,
-    <span class="ident">legacy_aliases</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="ident">skip_serialization</span>: <span class="ident">SkipSerialization</span>,
+<span class="attribute">#[derive(Default)]
+</span><span class="kw">struct </span>FieldAttrs {
+    additional_properties: bool,
+    omit_from_schema: bool,
+    field_name: String,
+    required: <span class="prelude-ty">Option</span>&lt;bool&gt;,
+    nonempty: <span class="prelude-ty">Option</span>&lt;bool&gt;,
+    trim_whitespace: <span class="prelude-ty">Option</span>&lt;bool&gt;,
+    pii: <span class="prelude-ty">Option</span>&lt;Pii&gt;,
+    retain: bool,
+    characters: <span class="prelude-ty">Option</span>&lt;TokenStream&gt;,
+    max_chars: <span class="prelude-ty">Option</span>&lt;TokenStream&gt;,
+    bag_size: <span class="prelude-ty">Option</span>&lt;TokenStream&gt;,
+    legacy_aliases: Vec&lt;String&gt;,
+    skip_serialization: SkipSerialization,
 }
 
-<span class="kw">impl</span> <span class="ident">FieldAttrs</span> {
-    <span class="kw">fn</span> <span class="ident">as_tokens</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">inherit_from_field_attrs</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">TokenStream</span><span class="op">&gt;</span>) -&gt; <span class="ident">TokenStream</span> {
-        <span class="kw">let</span> <span class="ident">field_name</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">field_name</span>;
+<span class="kw">impl </span>FieldAttrs {
+    <span class="kw">fn </span>as_tokens(<span class="kw-2">&amp;</span><span class="self">self</span>, inherit_from_field_attrs: <span class="prelude-ty">Option</span>&lt;TokenStream&gt;) -&gt; TokenStream {
+        <span class="kw">let </span>field_name = <span class="kw-2">&amp;</span><span class="self">self</span>.field_name;
 
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">required</span>.<span class="ident">is_none</span>() <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">nonempty</span>.<span class="ident">is_some</span>() {
+        <span class="kw">if </span><span class="self">self</span>.required.is_none() &amp;&amp; <span class="self">self</span>.nonempty.is_some() {
             <span class="macro">panic!</span>(
-                <span class="string">&quot;`required` has to be explicitly set to \&quot;true\&quot; or \&quot;false\&quot; if `nonempty` is used.&quot;</span>
-            );
+                <span class="string">&quot;`required` has to be explicitly set to \&quot;true\&quot; or \&quot;false\&quot; if `nonempty` is used.&quot;
+            </span>);
         }
-        <span class="kw">let</span> <span class="ident">required</span> <span class="op">=</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">required</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">required</span> {
-            <span class="macro">quote!</span>(#<span class="ident">required</span>)
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">parent_attrs</span>) <span class="op">=</span> <span class="ident">inherit_from_field_attrs</span> {
-            <span class="macro">quote!</span>(#<span class="ident">parent_attrs</span>.<span class="ident">required</span>)
-        } <span class="kw">else</span> {
+        <span class="kw">let </span>required = <span class="kw">if let </span><span class="prelude-val">Some</span>(required) = <span class="self">self</span>.required {
+            <span class="macro">quote!</span>(#required)
+        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>parent_attrs) = inherit_from_field_attrs {
+            <span class="macro">quote!</span>(#parent_attrs.required)
+        } <span class="kw">else </span>{
             <span class="macro">quote!</span>(<span class="bool-val">false</span>)
         };
 
-        <span class="kw">let</span> <span class="ident">nonempty</span> <span class="op">=</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">nonempty</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">nonempty</span> {
-            <span class="macro">quote!</span>(#<span class="ident">nonempty</span>)
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">parent_attrs</span>) <span class="op">=</span> <span class="ident">inherit_from_field_attrs</span> {
-            <span class="macro">quote!</span>(#<span class="ident">parent_attrs</span>.<span class="ident">nonempty</span>)
-        } <span class="kw">else</span> {
+        <span class="kw">let </span>nonempty = <span class="kw">if let </span><span class="prelude-val">Some</span>(nonempty) = <span class="self">self</span>.nonempty {
+            <span class="macro">quote!</span>(#nonempty)
+        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>parent_attrs) = inherit_from_field_attrs {
+            <span class="macro">quote!</span>(#parent_attrs.nonempty)
+        } <span class="kw">else </span>{
             <span class="macro">quote!</span>(<span class="bool-val">false</span>)
         };
 
-        <span class="kw">let</span> <span class="ident">trim_whitespace</span> <span class="op">=</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">trim_whitespace</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">trim_whitespace</span> {
-            <span class="macro">quote!</span>(#<span class="ident">trim_whitespace</span>)
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">parent_attrs</span>) <span class="op">=</span> <span class="ident">inherit_from_field_attrs</span> {
-            <span class="macro">quote!</span>(#<span class="ident">parent_attrs</span>.<span class="ident">trim_whitespace</span>)
-        } <span class="kw">else</span> {
+        <span class="kw">let </span>trim_whitespace = <span class="kw">if let </span><span class="prelude-val">Some</span>(trim_whitespace) = <span class="self">self</span>.trim_whitespace {
+            <span class="macro">quote!</span>(#trim_whitespace)
+        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>parent_attrs) = inherit_from_field_attrs {
+            <span class="macro">quote!</span>(#parent_attrs.trim_whitespace)
+        } <span class="kw">else </span>{
             <span class="macro">quote!</span>(<span class="bool-val">false</span>)
         };
 
-        <span class="kw">let</span> <span class="ident">pii</span> <span class="op">=</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">pii</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">pii</span> {
-            <span class="ident">pii</span>.<span class="ident">as_tokens</span>()
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">parent_attrs</span>) <span class="op">=</span> <span class="ident">inherit_from_field_attrs</span> {
-            <span class="macro">quote!</span>(#<span class="ident">parent_attrs</span>.<span class="ident">pii</span>)
-        } <span class="kw">else</span> {
-            <span class="macro">quote!</span>(<span class="ident"><span class="kw">crate</span>::processor::Pii::False</span>)
+        <span class="kw">let </span>pii = <span class="kw">if let </span><span class="prelude-val">Some</span>(pii) = <span class="self">self</span>.pii {
+            pii.as_tokens()
+        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>parent_attrs) = inherit_from_field_attrs {
+            <span class="macro">quote!</span>(#parent_attrs.pii)
+        } <span class="kw">else </span>{
+            <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::Pii::False)
         };
 
-        <span class="kw">let</span> <span class="ident">retain</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">retain</span>;
+        <span class="kw">let </span>retain = <span class="self">self</span>.retain;
 
-        <span class="kw">let</span> <span class="ident">max_chars</span> <span class="op">=</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">max_chars</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">max_chars</span> {
-            <span class="macro">quote!</span>(<span class="prelude-val">Some</span>(#<span class="ident">max_chars</span>))
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">parent_attrs</span>) <span class="op">=</span> <span class="ident">inherit_from_field_attrs</span> {
-            <span class="macro">quote!</span>(#<span class="ident">parent_attrs</span>.<span class="ident">max_chars</span>)
-        } <span class="kw">else</span> {
+        <span class="kw">let </span>max_chars = <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>max_chars) = <span class="self">self</span>.max_chars {
+            <span class="macro">quote!</span>(<span class="prelude-val">Some</span>(#max_chars))
+        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>parent_attrs) = inherit_from_field_attrs {
+            <span class="macro">quote!</span>(#parent_attrs.max_chars)
+        } <span class="kw">else </span>{
             <span class="macro">quote!</span>(<span class="prelude-val">None</span>)
         };
 
-        <span class="kw">let</span> <span class="ident">bag_size</span> <span class="op">=</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">bag_size</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">bag_size</span> {
-            <span class="macro">quote!</span>(<span class="prelude-val">Some</span>(#<span class="ident">bag_size</span>))
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">parent_attrs</span>) <span class="op">=</span> <span class="ident">inherit_from_field_attrs</span> {
-            <span class="macro">quote!</span>(#<span class="ident">parent_attrs</span>.<span class="ident">bag_size</span>)
-        } <span class="kw">else</span> {
+        <span class="kw">let </span>bag_size = <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>bag_size) = <span class="self">self</span>.bag_size {
+            <span class="macro">quote!</span>(<span class="prelude-val">Some</span>(#bag_size))
+        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>parent_attrs) = inherit_from_field_attrs {
+            <span class="macro">quote!</span>(#parent_attrs.bag_size)
+        } <span class="kw">else </span>{
             <span class="macro">quote!</span>(<span class="prelude-val">None</span>)
         };
 
-        <span class="kw">let</span> <span class="ident">characters</span> <span class="op">=</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">characters</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">characters</span> {
-            <span class="macro">quote!</span>(<span class="prelude-val">Some</span>(#<span class="ident">characters</span>))
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">parent_attrs</span>) <span class="op">=</span> <span class="ident">inherit_from_field_attrs</span> {
-            <span class="macro">quote!</span>(#<span class="ident">parent_attrs</span>.<span class="ident">characters</span>)
-        } <span class="kw">else</span> {
+        <span class="kw">let </span>characters = <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>characters) = <span class="self">self</span>.characters {
+            <span class="macro">quote!</span>(<span class="prelude-val">Some</span>(#characters))
+        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>parent_attrs) = inherit_from_field_attrs {
+            <span class="macro">quote!</span>(#parent_attrs.characters)
+        } <span class="kw">else </span>{
             <span class="macro">quote!</span>(<span class="prelude-val">None</span>)
         };
 
         <span class="macro">quote!</span>({
-            <span class="ident"><span class="kw">crate</span>::processor::FieldAttrs</span> {
-                <span class="ident">name</span>: <span class="prelude-val">Some</span>(#<span class="ident">field_name</span>),
-                <span class="ident">required</span>: #<span class="ident">required</span>,
-                <span class="ident">nonempty</span>: #<span class="ident">nonempty</span>,
-                <span class="ident">trim_whitespace</span>: #<span class="ident">trim_whitespace</span>,
-                <span class="ident">max_chars</span>: #<span class="ident">max_chars</span>,
-                <span class="ident">characters</span>: #<span class="ident">characters</span>,
-                <span class="ident">bag_size</span>: #<span class="ident">bag_size</span>,
-                <span class="ident">pii</span>: #<span class="ident">pii</span>,
-                <span class="ident">retain</span>: #<span class="ident">retain</span>,
+            <span class="kw">crate</span>::processor::FieldAttrs {
+                name: <span class="prelude-val">Some</span>(#field_name),
+                required: #required,
+                nonempty: #nonempty,
+                trim_whitespace: #trim_whitespace,
+                max_chars: #max_chars,
+                characters: #characters,
+                bag_size: #bag_size,
+                pii: #pii,
+                retain: #retain,
             }
         })
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
-<span class="kw">enum</span> <span class="ident">SkipSerialization</span> {
-    <span class="ident">Never</span>,
-    <span class="ident">Null</span>(<span class="ident">bool</span>),
-    <span class="ident">Empty</span>(<span class="ident">bool</span>),
+<span class="attribute">#[derive(Copy, Clone)]
+</span><span class="kw">enum </span>SkipSerialization {
+    Never,
+    Null(bool),
+    Empty(bool),
 }
 
-<span class="kw">impl</span> <span class="ident">SkipSerialization</span> {
-    <span class="kw">fn</span> <span class="ident">as_tokens</span>(<span class="self">self</span>) -&gt; <span class="ident">TokenStream</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">SkipSerialization::Never</span> =&gt; <span class="macro">quote!</span>(<span class="ident"><span class="kw">crate</span>::types::SkipSerialization::Never</span>),
-            <span class="ident">SkipSerialization::Null</span>(<span class="ident">deep</span>) =&gt; <span class="macro">quote!</span>(<span class="ident"><span class="kw">crate</span>::types::SkipSerialization::Null</span>(#<span class="ident">deep</span>)),
-            <span class="ident">SkipSerialization::Empty</span>(<span class="ident">deep</span>) =&gt; <span class="macro">quote!</span>(<span class="ident"><span class="kw">crate</span>::types::SkipSerialization::Empty</span>(#<span class="ident">deep</span>)),
+<span class="kw">impl </span>SkipSerialization {
+    <span class="kw">fn </span>as_tokens(<span class="self">self</span>) -&gt; TokenStream {
+        <span class="kw">match </span><span class="self">self </span>{
+            SkipSerialization::Never =&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::types::SkipSerialization::Never),
+            SkipSerialization::Null(deep) =&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::types::SkipSerialization::Null(#deep)),
+            SkipSerialization::Empty(deep) =&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::types::SkipSerialization::Empty(#deep)),
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">SkipSerialization</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="ident">SkipSerialization</span> {
-        <span class="ident">SkipSerialization::Never</span>
+<span class="kw">impl </span>Default <span class="kw">for </span>SkipSerialization {
+    <span class="kw">fn </span>default() -&gt; SkipSerialization {
+        SkipSerialization::Never
     }
 }
 
-<span class="kw">impl</span> <span class="ident">FromStr</span> <span class="kw">for</span> <span class="ident">SkipSerialization</span> {
-    <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> ();
+<span class="kw">impl </span>FromStr <span class="kw">for </span>SkipSerialization {
+    <span class="kw">type </span><span class="prelude-val">Err </span>= ();
 
-    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, ()<span class="op">&gt;</span> {
-        <span class="prelude-val">Ok</span>(<span class="kw">match</span> <span class="ident">s</span> {
-            <span class="string">&quot;never&quot;</span> =&gt; <span class="ident">SkipSerialization::Never</span>,
-            <span class="string">&quot;null&quot;</span> =&gt; <span class="ident">SkipSerialization::Null</span>(<span class="bool-val">false</span>),
-            <span class="string">&quot;null_deep&quot;</span> =&gt; <span class="ident">SkipSerialization::Null</span>(<span class="bool-val">true</span>),
-            <span class="string">&quot;empty&quot;</span> =&gt; <span class="ident">SkipSerialization::Empty</span>(<span class="bool-val">false</span>),
-            <span class="string">&quot;empty_deep&quot;</span> =&gt; <span class="ident">SkipSerialization::Empty</span>(<span class="bool-val">true</span>),
-            <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(()),
+    <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ()&gt; {
+        <span class="prelude-val">Ok</span>(<span class="kw">match </span>s {
+            <span class="string">&quot;never&quot; </span>=&gt; SkipSerialization::Never,
+            <span class="string">&quot;null&quot; </span>=&gt; SkipSerialization::Null(<span class="bool-val">false</span>),
+            <span class="string">&quot;null_deep&quot; </span>=&gt; SkipSerialization::Null(<span class="bool-val">true</span>),
+            <span class="string">&quot;empty&quot; </span>=&gt; SkipSerialization::Empty(<span class="bool-val">false</span>),
+            <span class="string">&quot;empty_deep&quot; </span>=&gt; SkipSerialization::Empty(<span class="bool-val">true</span>),
+            <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(()),
         })
     }
 }
 
-<span class="kw">fn</span> <span class="ident">parse_field_attributes</span>(
-    <span class="ident">index</span>: <span class="ident">usize</span>,
-    <span class="ident">bi_ast</span>: <span class="kw-2">&amp;</span><span class="ident">syn::Field</span>,
-    <span class="ident">is_tuple_struct</span>: <span class="kw-2">&amp;mut</span> <span class="ident">bool</span>,
-) -&gt; <span class="ident">FieldAttrs</span> {
-    <span class="kw">if</span> <span class="ident">bi_ast</span>.<span class="ident">ident</span>.<span class="ident">is_none</span>() {
-        <span class="kw-2">*</span><span class="ident">is_tuple_struct</span> <span class="op">=</span> <span class="bool-val">true</span>;
-    } <span class="kw">else</span> <span class="kw">if</span> <span class="kw-2">*</span><span class="ident">is_tuple_struct</span> {
+<span class="kw">fn </span>parse_field_attributes(
+    index: usize,
+    bi_ast: <span class="kw-2">&amp;</span>syn::Field,
+    is_tuple_struct: <span class="kw-2">&amp;mut </span>bool,
+) -&gt; FieldAttrs {
+    <span class="kw">if </span>bi_ast.ident.is_none() {
+        <span class="kw-2">*</span>is_tuple_struct = <span class="bool-val">true</span>;
+    } <span class="kw">else if </span><span class="kw-2">*</span>is_tuple_struct {
         <span class="macro">panic!</span>(<span class="string">&quot;invalid tuple struct&quot;</span>);
     }
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rv</span> <span class="op">=</span> <span class="ident">FieldAttrs::default</span>();
-    <span class="kw">if</span> <span class="op">!</span><span class="kw-2">*</span><span class="ident">is_tuple_struct</span> {
-        <span class="ident">rv</span>.<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="ident">SkipSerialization::Null</span>(<span class="bool-val">false</span>);
+    <span class="kw">let </span><span class="kw-2">mut </span>rv = FieldAttrs::default();
+    <span class="kw">if </span>!<span class="kw-2">*</span>is_tuple_struct {
+        rv.skip_serialization = SkipSerialization::Null(<span class="bool-val">false</span>);
     }
-    <span class="ident">rv</span>.<span class="ident">field_name</span> <span class="op">=</span> <span class="ident">bi_ast</span>
-        .<span class="ident">ident</span>
-        .<span class="ident">as_ref</span>()
-        .<span class="ident">map</span>(<span class="ident">ToString::to_string</span>)
-        .<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">index</span>.<span class="ident">to_string</span>());
+    rv.field_name = bi_ast
+        .ident
+        .as_ref()
+        .map(ToString::to_string)
+        .unwrap_or_else(|| index.to_string());
 
-    <span class="kw">for</span> <span class="ident">attr</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">bi_ast</span>.<span class="ident">attrs</span> {
-        <span class="kw">let</span> <span class="ident">meta</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">attr</span>.<span class="ident">parse_meta</span>() {
-            <span class="prelude-val">Ok</span>(<span class="ident">meta</span>) =&gt; <span class="ident">meta</span>,
+    <span class="kw">for </span>attr <span class="kw">in </span><span class="kw-2">&amp;</span>bi_ast.attrs {
+        <span class="kw">let </span>meta = <span class="kw">match </span>attr.parse_meta() {
+            <span class="prelude-val">Ok</span>(meta) =&gt; meta,
             <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">continue</span>,
         };
 
-        <span class="kw">let</span> <span class="ident">ident</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">meta</span>.<span class="ident">path</span>().<span class="ident">get_ident</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">x</span>) =&gt; <span class="ident">x</span>,
-            <span class="prelude-val">None</span> =&gt; <span class="kw">continue</span>,
+        <span class="kw">let </span>ident = <span class="kw">match </span>meta.path().get_ident() {
+            <span class="prelude-val">Some</span>(x) =&gt; x,
+            <span class="prelude-val">None </span>=&gt; <span class="kw">continue</span>,
         };
 
-        <span class="kw">if</span> <span class="ident">ident</span> <span class="op">!</span><span class="op">=</span> <span class="string">&quot;metastructure&quot;</span> {
+        <span class="kw">if </span>ident != <span class="string">&quot;metastructure&quot; </span>{
             <span class="kw">continue</span>;
         }
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Meta::List</span>(<span class="ident">metalist</span>) <span class="op">=</span> <span class="ident">meta</span> {
-            <span class="kw">for</span> <span class="ident">nested_meta</span> <span class="kw">in</span> <span class="ident">metalist</span>.<span class="ident">nested</span> {
-                <span class="kw">match</span> <span class="ident">nested_meta</span> {
-                    <span class="ident">NestedMeta::Lit</span>(..) =&gt; <span class="macro">panic!</span>(<span class="string">&quot;unexpected literal attribute&quot;</span>),
-                    <span class="ident">NestedMeta::Meta</span>(<span class="ident">meta</span>) =&gt; <span class="kw">match</span> <span class="ident">meta</span> {
-                        <span class="ident">Meta::Path</span>(<span class="ident">path</span>) =&gt; {
-                            <span class="kw">let</span> <span class="ident">ident</span> <span class="op">=</span> <span class="ident">path</span>.<span class="ident">get_ident</span>().<span class="ident">expect</span>(<span class="string">&quot;Unexpected path&quot;</span>);
+        <span class="kw">if let </span>Meta::List(metalist) = meta {
+            <span class="kw">for </span>nested_meta <span class="kw">in </span>metalist.nested {
+                <span class="kw">match </span>nested_meta {
+                    NestedMeta::Lit(..) =&gt; <span class="macro">panic!</span>(<span class="string">&quot;unexpected literal attribute&quot;</span>),
+                    NestedMeta::Meta(meta) =&gt; <span class="kw">match </span>meta {
+                        Meta::Path(path) =&gt; {
+                            <span class="kw">let </span>ident = path.get_ident().expect(<span class="string">&quot;Unexpected path&quot;</span>);
 
-                            <span class="kw">if</span> <span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;additional_properties&quot;</span> {
-                                <span class="ident">rv</span>.<span class="ident">additional_properties</span> <span class="op">=</span> <span class="bool-val">true</span>;
-                            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;omit_from_schema&quot;</span> {
-                                <span class="ident">rv</span>.<span class="ident">omit_from_schema</span> <span class="op">=</span> <span class="bool-val">true</span>;
-                            } <span class="kw">else</span> {
-                                <span class="macro">panic!</span>(<span class="string">&quot;Unknown attribute {}&quot;</span>, <span class="ident">ident</span>);
+                            <span class="kw">if </span>ident == <span class="string">&quot;additional_properties&quot; </span>{
+                                rv.additional_properties = <span class="bool-val">true</span>;
+                            } <span class="kw">else if </span>ident == <span class="string">&quot;omit_from_schema&quot; </span>{
+                                rv.omit_from_schema = <span class="bool-val">true</span>;
+                            } <span class="kw">else </span>{
+                                <span class="macro">panic!</span>(<span class="string">&quot;Unknown attribute {}&quot;</span>, ident);
                             }
                         }
-                        <span class="ident">Meta::NameValue</span>(<span class="ident">name_value</span>) =&gt; {
-                            <span class="kw">let</span> <span class="ident">ident</span> <span class="op">=</span> <span class="ident">name_value</span>.<span class="ident">path</span>.<span class="ident">get_ident</span>().<span class="ident">expect</span>(<span class="string">&quot;Unexpected path&quot;</span>);
-                            <span class="kw">if</span> <span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;field&quot;</span> {
-                                <span class="kw">match</span> <span class="ident">name_value</span>.<span class="ident">lit</span> {
-                                    <span class="ident">Lit::Str</span>(<span class="ident">litstr</span>) =&gt; {
-                                        <span class="ident">rv</span>.<span class="ident">field_name</span> <span class="op">=</span> <span class="ident">litstr</span>.<span class="ident">value</span>();
+                        Meta::NameValue(name_value) =&gt; {
+                            <span class="kw">let </span>ident = name_value.path.get_ident().expect(<span class="string">&quot;Unexpected path&quot;</span>);
+                            <span class="kw">if </span>ident == <span class="string">&quot;field&quot; </span>{
+                                <span class="kw">match </span>name_value.lit {
+                                    Lit::Str(litstr) =&gt; {
+                                        rv.field_name = litstr.value();
                                     }
-                                    <span class="kw">_</span> =&gt; {
+                                    <span class="kw">_ </span>=&gt; {
                                         <span class="macro">panic!</span>(<span class="string">&quot;Got non string literal for field&quot;</span>);
                                     }
                                 }
-                            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;required&quot;</span> {
-                                <span class="kw">match</span> <span class="ident">name_value</span>.<span class="ident">lit</span> {
-                                    <span class="ident">Lit::Str</span>(<span class="ident">litstr</span>) =&gt; <span class="kw">match</span> <span class="ident">litstr</span>.<span class="ident">value</span>().<span class="ident">as_str</span>() {
-                                        <span class="string">&quot;true&quot;</span> =&gt; <span class="ident">rv</span>.<span class="ident">required</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
-                                        <span class="string">&quot;false&quot;</span> =&gt; <span class="ident">rv</span>.<span class="ident">required</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="bool-val">false</span>),
-                                        <span class="ident">other</span> =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Unknown value {}&quot;</span>, <span class="ident">other</span>),
+                            } <span class="kw">else if </span>ident == <span class="string">&quot;required&quot; </span>{
+                                <span class="kw">match </span>name_value.lit {
+                                    Lit::Str(litstr) =&gt; <span class="kw">match </span>litstr.value().as_str() {
+                                        <span class="string">&quot;true&quot; </span>=&gt; rv.required = <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
+                                        <span class="string">&quot;false&quot; </span>=&gt; rv.required = <span class="prelude-val">Some</span>(<span class="bool-val">false</span>),
+                                        other =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Unknown value {}&quot;</span>, other),
                                     },
-                                    <span class="kw">_</span> =&gt; {
+                                    <span class="kw">_ </span>=&gt; {
                                         <span class="macro">panic!</span>(<span class="string">&quot;Got non string literal for required&quot;</span>);
                                     }
                                 }
-                            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;nonempty&quot;</span> {
-                                <span class="kw">match</span> <span class="ident">name_value</span>.<span class="ident">lit</span> {
-                                    <span class="ident">Lit::Str</span>(<span class="ident">litstr</span>) =&gt; <span class="kw">match</span> <span class="ident">litstr</span>.<span class="ident">value</span>().<span class="ident">as_str</span>() {
-                                        <span class="string">&quot;true&quot;</span> =&gt; <span class="ident">rv</span>.<span class="ident">nonempty</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
-                                        <span class="string">&quot;false&quot;</span> =&gt; <span class="ident">rv</span>.<span class="ident">nonempty</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="bool-val">false</span>),
-                                        <span class="ident">other</span> =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Unknown value {}&quot;</span>, <span class="ident">other</span>),
+                            } <span class="kw">else if </span>ident == <span class="string">&quot;nonempty&quot; </span>{
+                                <span class="kw">match </span>name_value.lit {
+                                    Lit::Str(litstr) =&gt; <span class="kw">match </span>litstr.value().as_str() {
+                                        <span class="string">&quot;true&quot; </span>=&gt; rv.nonempty = <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
+                                        <span class="string">&quot;false&quot; </span>=&gt; rv.nonempty = <span class="prelude-val">Some</span>(<span class="bool-val">false</span>),
+                                        other =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Unknown value {}&quot;</span>, other),
                                     },
-                                    <span class="kw">_</span> =&gt; {
+                                    <span class="kw">_ </span>=&gt; {
                                         <span class="macro">panic!</span>(<span class="string">&quot;Got non string literal for nonempty&quot;</span>);
                                     }
                                 }
-                            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;trim_whitespace&quot;</span> {
-                                <span class="kw">match</span> <span class="ident">name_value</span>.<span class="ident">lit</span> {
-                                    <span class="ident">Lit::Str</span>(<span class="ident">litstr</span>) =&gt; <span class="kw">match</span> <span class="ident">litstr</span>.<span class="ident">value</span>().<span class="ident">as_str</span>() {
-                                        <span class="string">&quot;true&quot;</span> =&gt; <span class="ident">rv</span>.<span class="ident">trim_whitespace</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
-                                        <span class="string">&quot;false&quot;</span> =&gt; <span class="ident">rv</span>.<span class="ident">trim_whitespace</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="bool-val">false</span>),
-                                        <span class="ident">other</span> =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Unknown value {}&quot;</span>, <span class="ident">other</span>),
+                            } <span class="kw">else if </span>ident == <span class="string">&quot;trim_whitespace&quot; </span>{
+                                <span class="kw">match </span>name_value.lit {
+                                    Lit::Str(litstr) =&gt; <span class="kw">match </span>litstr.value().as_str() {
+                                        <span class="string">&quot;true&quot; </span>=&gt; rv.trim_whitespace = <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
+                                        <span class="string">&quot;false&quot; </span>=&gt; rv.trim_whitespace = <span class="prelude-val">Some</span>(<span class="bool-val">false</span>),
+                                        other =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Unknown value {}&quot;</span>, other),
                                     },
-                                    <span class="kw">_</span> =&gt; {
+                                    <span class="kw">_ </span>=&gt; {
                                         <span class="macro">panic!</span>(<span class="string">&quot;Got non string literal for trim_whitespace&quot;</span>);
                                     }
                                 }
-                            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;allow_chars&quot;</span> <span class="op">|</span><span class="op">|</span> <span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;deny_chars&quot;</span> {
-                                <span class="kw">if</span> <span class="ident">rv</span>.<span class="ident">characters</span>.<span class="ident">is_some</span>() {
+                            } <span class="kw">else if </span>ident == <span class="string">&quot;allow_chars&quot; </span>|| ident == <span class="string">&quot;deny_chars&quot; </span>{
+                                <span class="kw">if </span>rv.characters.is_some() {
                                     <span class="macro">panic!</span>(<span class="string">&quot;allow_chars and deny_chars are mutually exclusive&quot;</span>);
                                 }
 
-                                <span class="kw">match</span> <span class="ident">name_value</span>.<span class="ident">lit</span> {
-                                    <span class="ident">Lit::Str</span>(<span class="ident">litstr</span>) =&gt; {
-                                        <span class="kw">let</span> <span class="ident">attr</span> <span class="op">=</span>
-                                            <span class="ident">parse_character_set</span>(<span class="ident">ident</span>, <span class="ident">litstr</span>.<span class="ident">value</span>().<span class="ident">as_str</span>());
-                                        <span class="ident">rv</span>.<span class="ident">characters</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">attr</span>);
+                                <span class="kw">match </span>name_value.lit {
+                                    Lit::Str(litstr) =&gt; {
+                                        <span class="kw">let </span>attr =
+                                            parse_character_set(ident, litstr.value().as_str());
+                                        rv.characters = <span class="prelude-val">Some</span>(attr);
                                     }
-                                    <span class="kw">_</span> =&gt; {
+                                    <span class="kw">_ </span>=&gt; {
                                         <span class="macro">panic!</span>(<span class="string">&quot;Got non string literal for max_chars&quot;</span>);
                                     }
                                 }
-                            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;max_chars&quot;</span> {
-                                <span class="kw">match</span> <span class="ident">name_value</span>.<span class="ident">lit</span> {
-                                    <span class="ident">Lit::Str</span>(<span class="ident">litstr</span>) =&gt; {
-                                        <span class="kw">let</span> <span class="ident">attr</span> <span class="op">=</span> <span class="ident">parse_max_chars</span>(<span class="ident">litstr</span>.<span class="ident">value</span>().<span class="ident">as_str</span>());
-                                        <span class="ident">rv</span>.<span class="ident">max_chars</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="macro">quote!</span>(#<span class="ident">attr</span>));
+                            } <span class="kw">else if </span>ident == <span class="string">&quot;max_chars&quot; </span>{
+                                <span class="kw">match </span>name_value.lit {
+                                    Lit::Str(litstr) =&gt; {
+                                        <span class="kw">let </span>attr = parse_max_chars(litstr.value().as_str());
+                                        rv.max_chars = <span class="prelude-val">Some</span>(<span class="macro">quote!</span>(#attr));
                                     }
-                                    <span class="kw">_</span> =&gt; {
+                                    <span class="kw">_ </span>=&gt; {
                                         <span class="macro">panic!</span>(<span class="string">&quot;Got non string literal for max_chars&quot;</span>);
                                     }
                                 }
-                            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;bag_size&quot;</span> {
-                                <span class="kw">match</span> <span class="ident">name_value</span>.<span class="ident">lit</span> {
-                                    <span class="ident">Lit::Str</span>(<span class="ident">litstr</span>) =&gt; {
-                                        <span class="kw">let</span> <span class="ident">attr</span> <span class="op">=</span> <span class="ident">parse_bag_size</span>(<span class="ident">litstr</span>.<span class="ident">value</span>().<span class="ident">as_str</span>());
-                                        <span class="ident">rv</span>.<span class="ident">bag_size</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="macro">quote!</span>(#<span class="ident">attr</span>));
+                            } <span class="kw">else if </span>ident == <span class="string">&quot;bag_size&quot; </span>{
+                                <span class="kw">match </span>name_value.lit {
+                                    Lit::Str(litstr) =&gt; {
+                                        <span class="kw">let </span>attr = parse_bag_size(litstr.value().as_str());
+                                        rv.bag_size = <span class="prelude-val">Some</span>(<span class="macro">quote!</span>(#attr));
                                     }
-                                    <span class="kw">_</span> =&gt; {
+                                    <span class="kw">_ </span>=&gt; {
                                         <span class="macro">panic!</span>(<span class="string">&quot;Got non string literal for bag_size&quot;</span>);
                                     }
                                 }
-                            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;pii&quot;</span> {
-                                <span class="kw">match</span> <span class="ident">name_value</span>.<span class="ident">lit</span> {
-                                    <span class="ident">Lit::Str</span>(<span class="ident">litstr</span>) =&gt; <span class="kw">match</span> <span class="ident">litstr</span>.<span class="ident">value</span>().<span class="ident">as_str</span>() {
-                                        <span class="string">&quot;true&quot;</span> =&gt; <span class="ident">rv</span>.<span class="ident">pii</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">Pii::True</span>),
-                                        <span class="string">&quot;false&quot;</span> =&gt; <span class="ident">rv</span>.<span class="ident">pii</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">Pii::False</span>),
-                                        <span class="string">&quot;maybe&quot;</span> =&gt; <span class="ident">rv</span>.<span class="ident">pii</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">Pii::Maybe</span>),
-                                        <span class="ident">other</span> =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Unknown value {}&quot;</span>, <span class="ident">other</span>),
+                            } <span class="kw">else if </span>ident == <span class="string">&quot;pii&quot; </span>{
+                                <span class="kw">match </span>name_value.lit {
+                                    Lit::Str(litstr) =&gt; <span class="kw">match </span>litstr.value().as_str() {
+                                        <span class="string">&quot;true&quot; </span>=&gt; rv.pii = <span class="prelude-val">Some</span>(Pii::True),
+                                        <span class="string">&quot;false&quot; </span>=&gt; rv.pii = <span class="prelude-val">Some</span>(Pii::False),
+                                        <span class="string">&quot;maybe&quot; </span>=&gt; rv.pii = <span class="prelude-val">Some</span>(Pii::Maybe),
+                                        other =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Unknown value {}&quot;</span>, other),
                                     },
-                                    <span class="kw">_</span> =&gt; {
+                                    <span class="kw">_ </span>=&gt; {
                                         <span class="macro">panic!</span>(<span class="string">&quot;Got non string literal for pii&quot;</span>);
                                     }
                                 }
-                            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;retain&quot;</span> {
-                                <span class="kw">match</span> <span class="ident">name_value</span>.<span class="ident">lit</span> {
-                                    <span class="ident">Lit::Str</span>(<span class="ident">litstr</span>) =&gt; <span class="kw">match</span> <span class="ident">litstr</span>.<span class="ident">value</span>().<span class="ident">as_str</span>() {
-                                        <span class="string">&quot;true&quot;</span> =&gt; <span class="ident">rv</span>.<span class="ident">retain</span> <span class="op">=</span> <span class="bool-val">true</span>,
-                                        <span class="string">&quot;false&quot;</span> =&gt; <span class="ident">rv</span>.<span class="ident">retain</span> <span class="op">=</span> <span class="bool-val">false</span>,
-                                        <span class="ident">other</span> =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Unknown value {}&quot;</span>, <span class="ident">other</span>),
+                            } <span class="kw">else if </span>ident == <span class="string">&quot;retain&quot; </span>{
+                                <span class="kw">match </span>name_value.lit {
+                                    Lit::Str(litstr) =&gt; <span class="kw">match </span>litstr.value().as_str() {
+                                        <span class="string">&quot;true&quot; </span>=&gt; rv.retain = <span class="bool-val">true</span>,
+                                        <span class="string">&quot;false&quot; </span>=&gt; rv.retain = <span class="bool-val">false</span>,
+                                        other =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Unknown value {}&quot;</span>, other),
                                     },
-                                    <span class="kw">_</span> =&gt; {
+                                    <span class="kw">_ </span>=&gt; {
                                         <span class="macro">panic!</span>(<span class="string">&quot;Got non string literal for retain&quot;</span>);
                                     }
                                 }
-                            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;legacy_alias&quot;</span> {
-                                <span class="kw">match</span> <span class="ident">name_value</span>.<span class="ident">lit</span> {
-                                    <span class="ident">Lit::Str</span>(<span class="ident">litstr</span>) =&gt; {
-                                        <span class="ident">rv</span>.<span class="ident">legacy_aliases</span>.<span class="ident">push</span>(<span class="ident">litstr</span>.<span class="ident">value</span>());
+                            } <span class="kw">else if </span>ident == <span class="string">&quot;legacy_alias&quot; </span>{
+                                <span class="kw">match </span>name_value.lit {
+                                    Lit::Str(litstr) =&gt; {
+                                        rv.legacy_aliases.push(litstr.value());
                                     }
-                                    <span class="kw">_</span> =&gt; {
+                                    <span class="kw">_ </span>=&gt; {
                                         <span class="macro">panic!</span>(<span class="string">&quot;Got non string literal for legacy_alias&quot;</span>);
                                     }
                                 }
-                            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;skip_serialization&quot;</span> {
-                                <span class="kw">match</span> <span class="ident">name_value</span>.<span class="ident">lit</span> {
-                                    <span class="ident">Lit::Str</span>(<span class="ident">litstr</span>) =&gt; {
-                                        <span class="ident">rv</span>.<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="ident">FromStr::from_str</span>(<span class="kw-2">&amp;</span><span class="ident">litstr</span>.<span class="ident">value</span>())
-                                            .<span class="ident">expect</span>(<span class="string">&quot;Unknown value for skip_serialization&quot;</span>);
+                            } <span class="kw">else if </span>ident == <span class="string">&quot;skip_serialization&quot; </span>{
+                                <span class="kw">match </span>name_value.lit {
+                                    Lit::Str(litstr) =&gt; {
+                                        rv.skip_serialization = FromStr::from_str(<span class="kw-2">&amp;</span>litstr.value())
+                                            .expect(<span class="string">&quot;Unknown value for skip_serialization&quot;</span>);
                                     }
-                                    <span class="kw">_</span> =&gt; {
+                                    <span class="kw">_ </span>=&gt; {
                                         <span class="macro">panic!</span>(<span class="string">&quot;Got non string literal for legacy_alias&quot;</span>);
                                     }
                                 }
-                            } <span class="kw">else</span> {
-                                <span class="macro">panic!</span>(<span class="string">&quot;Unknown argument to metastructure: {}&quot;</span>, <span class="ident">ident</span>);
+                            } <span class="kw">else </span>{
+                                <span class="macro">panic!</span>(<span class="string">&quot;Unknown argument to metastructure: {}&quot;</span>, ident);
                             }
                         }
-                        <span class="ident">other</span> =&gt; {
-                            <span class="macro">panic!</span>(<span class="string">&quot;Unexpected or bad attribute {:?}&quot;</span>, <span class="ident">other</span>.<span class="ident">path</span>());
+                        other =&gt; {
+                            <span class="macro">panic!</span>(<span class="string">&quot;Unexpected or bad attribute {:?}&quot;</span>, other.path());
                         }
                     },
                 }
             }
         }
     }
-    <span class="ident">rv</span>
+    rv
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Default</span>)]</span>
-<span class="kw">struct</span> <span class="ident">VariantAttrs</span> {
-    <span class="ident">omit_from_schema</span>: <span class="ident">bool</span>,
-    <span class="ident">tag_override</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="ident">fallback_variant</span>: <span class="ident">bool</span>,
+<span class="attribute">#[derive(Default)]
+</span><span class="kw">struct </span>VariantAttrs {
+    omit_from_schema: bool,
+    tag_override: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    fallback_variant: bool,
 }
 
-<span class="kw">fn</span> <span class="ident">parse_variant_attributes</span>(<span class="ident">attrs</span>: <span class="kw-2">&amp;</span>[<span class="ident">syn::Attribute</span>]) -&gt; <span class="ident">VariantAttrs</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rv</span> <span class="op">=</span> <span class="ident">VariantAttrs::default</span>();
-    <span class="kw">for</span> <span class="ident">attr</span> <span class="kw">in</span> <span class="ident">attrs</span> {
-        <span class="kw">let</span> <span class="ident">meta</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">attr</span>.<span class="ident">parse_meta</span>() {
-            <span class="prelude-val">Ok</span>(<span class="ident">meta</span>) =&gt; <span class="ident">meta</span>,
+<span class="kw">fn </span>parse_variant_attributes(attrs: <span class="kw-2">&amp;</span>[syn::Attribute]) -&gt; VariantAttrs {
+    <span class="kw">let </span><span class="kw-2">mut </span>rv = VariantAttrs::default();
+    <span class="kw">for </span>attr <span class="kw">in </span>attrs {
+        <span class="kw">let </span>meta = <span class="kw">match </span>attr.parse_meta() {
+            <span class="prelude-val">Ok</span>(meta) =&gt; meta,
             <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">continue</span>,
         };
-        <span class="kw">let</span> <span class="ident">ident</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">meta</span>.<span class="ident">path</span>().<span class="ident">get_ident</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">x</span>) =&gt; <span class="ident">x</span>,
-            <span class="prelude-val">None</span> =&gt; <span class="kw">continue</span>,
+        <span class="kw">let </span>ident = <span class="kw">match </span>meta.path().get_ident() {
+            <span class="prelude-val">Some</span>(x) =&gt; x,
+            <span class="prelude-val">None </span>=&gt; <span class="kw">continue</span>,
         };
 
-        <span class="kw">if</span> <span class="ident">ident</span> <span class="op">!</span><span class="op">=</span> <span class="string">&quot;metastructure&quot;</span> {
+        <span class="kw">if </span>ident != <span class="string">&quot;metastructure&quot; </span>{
             <span class="kw">continue</span>;
         }
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Meta::List</span>(<span class="ident">metalist</span>) <span class="op">=</span> <span class="ident">meta</span> {
-            <span class="kw">for</span> <span class="ident">nested_meta</span> <span class="kw">in</span> <span class="ident">metalist</span>.<span class="ident">nested</span> {
-                <span class="kw">match</span> <span class="ident">nested_meta</span> {
-                    <span class="ident">NestedMeta::Lit</span>(..) =&gt; <span class="macro">panic!</span>(<span class="string">&quot;unexpected literal attribute&quot;</span>),
-                    <span class="ident">NestedMeta::Meta</span>(<span class="ident">meta</span>) =&gt; <span class="kw">match</span> <span class="ident">meta</span> {
-                        <span class="ident">Meta::Path</span>(<span class="ident">path</span>) =&gt; {
-                            <span class="kw">let</span> <span class="ident">ident</span> <span class="op">=</span> <span class="ident">path</span>.<span class="ident">get_ident</span>().<span class="ident">expect</span>(<span class="string">&quot;Unexpected path&quot;</span>);
+        <span class="kw">if let </span>Meta::List(metalist) = meta {
+            <span class="kw">for </span>nested_meta <span class="kw">in </span>metalist.nested {
+                <span class="kw">match </span>nested_meta {
+                    NestedMeta::Lit(..) =&gt; <span class="macro">panic!</span>(<span class="string">&quot;unexpected literal attribute&quot;</span>),
+                    NestedMeta::Meta(meta) =&gt; <span class="kw">match </span>meta {
+                        Meta::Path(path) =&gt; {
+                            <span class="kw">let </span>ident = path.get_ident().expect(<span class="string">&quot;Unexpected path&quot;</span>);
 
-                            <span class="kw">if</span> <span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;fallback_variant&quot;</span> {
-                                <span class="ident">rv</span>.<span class="ident">tag_override</span> <span class="op">=</span> <span class="prelude-val">None</span>;
-                                <span class="ident">rv</span>.<span class="ident">fallback_variant</span> <span class="op">=</span> <span class="bool-val">true</span>;
-                            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;omit_from_schema&quot;</span> {
-                                <span class="ident">rv</span>.<span class="ident">omit_from_schema</span> <span class="op">=</span> <span class="bool-val">true</span>;
-                            } <span class="kw">else</span> {
-                                <span class="macro">panic!</span>(<span class="string">&quot;Unknown attribute {}&quot;</span>, <span class="ident">ident</span>);
+                            <span class="kw">if </span>ident == <span class="string">&quot;fallback_variant&quot; </span>{
+                                rv.tag_override = <span class="prelude-val">None</span>;
+                                rv.fallback_variant = <span class="bool-val">true</span>;
+                            } <span class="kw">else if </span>ident == <span class="string">&quot;omit_from_schema&quot; </span>{
+                                rv.omit_from_schema = <span class="bool-val">true</span>;
+                            } <span class="kw">else </span>{
+                                <span class="macro">panic!</span>(<span class="string">&quot;Unknown attribute {}&quot;</span>, ident);
                             }
                         }
-                        <span class="ident">Meta::NameValue</span>(<span class="ident">name_value</span>) =&gt; {
-                            <span class="kw">let</span> <span class="ident">ident</span> <span class="op">=</span> <span class="ident">name_value</span>.<span class="ident">path</span>.<span class="ident">get_ident</span>();
-                            <span class="kw">if</span> <span class="ident">ident</span>.<span class="ident">map_or</span>(<span class="bool-val">false</span>, <span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span> <span class="op">==</span> <span class="string">&quot;tag&quot;</span>) {
-                                <span class="kw">match</span> <span class="ident">name_value</span>.<span class="ident">lit</span> {
-                                    <span class="ident">Lit::Str</span>(<span class="ident">litstr</span>) =&gt; {
-                                        <span class="ident">rv</span>.<span class="ident">tag_override</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">litstr</span>.<span class="ident">value</span>());
+                        Meta::NameValue(name_value) =&gt; {
+                            <span class="kw">let </span>ident = name_value.path.get_ident();
+                            <span class="kw">if </span>ident.map_or(<span class="bool-val">false</span>, |x| x == <span class="string">&quot;tag&quot;</span>) {
+                                <span class="kw">match </span>name_value.lit {
+                                    Lit::Str(litstr) =&gt; {
+                                        rv.tag_override = <span class="prelude-val">Some</span>(litstr.value());
                                     }
-                                    <span class="kw">_</span> =&gt; {
+                                    <span class="kw">_ </span>=&gt; {
                                         <span class="macro">panic!</span>(<span class="string">&quot;Got non string literal for tag&quot;</span>);
                                     }
                                 }
-                            } <span class="kw">else</span> {
-                                <span class="macro">panic!</span>(<span class="string">&quot;Unknown key {:?}&quot;</span>, <span class="ident">name_value</span>.<span class="ident">path</span>);
+                            } <span class="kw">else </span>{
+                                <span class="macro">panic!</span>(<span class="string">&quot;Unknown key {:?}&quot;</span>, name_value.path);
                             }
                         }
-                        <span class="ident">other</span> =&gt; {
-                            <span class="macro">panic!</span>(<span class="string">&quot;Unexpected or bad attribute {:?}&quot;</span>, <span class="ident">other</span>.<span class="ident">path</span>());
+                        other =&gt; {
+                            <span class="macro">panic!</span>(<span class="string">&quot;Unexpected or bad attribute {:?}&quot;</span>, other.path());
                         }
                     },
                 }
             }
         }
     }
-    <span class="ident">rv</span>
+    rv
 }
 
-<span class="kw">fn</span> <span class="ident">is_newtype</span>(<span class="ident">variant</span>: <span class="kw-2">&amp;</span><span class="ident">synstructure::VariantInfo</span>) -&gt; <span class="ident">bool</span> {
-    <span class="ident">variant</span>.<span class="ident">bindings</span>().<span class="ident">len</span>() <span class="op">==</span> <span class="number">1</span> <span class="op">&amp;&amp;</span> <span class="ident">variant</span>.<span class="ident">bindings</span>()[<span class="number">0</span>].<span class="ident">ast</span>().<span class="ident">ident</span>.<span class="ident">is_none</span>()
+<span class="kw">fn </span>is_newtype(variant: <span class="kw-2">&amp;</span>synstructure::VariantInfo) -&gt; bool {
+    variant.bindings().len() == <span class="number">1 </span>&amp;&amp; variant.bindings()[<span class="number">0</span>].ast().ident.is_none()
 }
 
-<span class="kw">fn</span> <span class="ident">parse_character_set</span>(<span class="ident">ident</span>: <span class="kw-2">&amp;</span><span class="ident">Ident</span>, <span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">TokenStream</span> {
-    <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
-    <span class="kw">enum</span> <span class="ident">State</span> {
-        <span class="ident">Blank</span>,
-        <span class="ident">OpenRange</span>(<span class="ident">char</span>),
-        <span class="ident">MidRange</span>(<span class="ident">char</span>),
+<span class="kw">fn </span>parse_character_set(ident: <span class="kw-2">&amp;</span>Ident, value: <span class="kw-2">&amp;</span>str) -&gt; TokenStream {
+    <span class="attribute">#[derive(Clone, Copy)]
+    </span><span class="kw">enum </span>State {
+        Blank,
+        OpenRange(char),
+        MidRange(char),
     }
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">State::Blank</span>;
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ranges</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
+    <span class="kw">let </span><span class="kw-2">mut </span>state = State::Blank;
+    <span class="kw">let </span><span class="kw-2">mut </span>ranges = Vec::new();
 
-    <span class="kw">for</span> <span class="ident">c</span> <span class="kw">in</span> <span class="ident">value</span>.<span class="ident">chars</span>() {
-        <span class="kw">match</span> (<span class="ident">state</span>, <span class="ident">c</span>) {
-            (<span class="ident">State::Blank</span>, <span class="ident">a</span>) =&gt; <span class="ident">state</span> <span class="op">=</span> <span class="ident">State::OpenRange</span>(<span class="ident">a</span>),
-            (<span class="ident">State::OpenRange</span>(<span class="ident">a</span>), <span class="string">&#39;-&#39;</span>) =&gt; <span class="ident">state</span> <span class="op">=</span> <span class="ident">State::MidRange</span>(<span class="ident">a</span>),
-            (<span class="ident">State::OpenRange</span>(<span class="ident">a</span>), <span class="ident">c</span>) =&gt; {
-                <span class="ident">state</span> <span class="op">=</span> <span class="ident">State::OpenRange</span>(<span class="ident">c</span>);
-                <span class="ident">ranges</span>.<span class="ident">push</span>(<span class="macro">quote!</span>(#<span class="ident">a</span>..<span class="op">=</span>#<span class="ident">a</span>));
+    <span class="kw">for </span>c <span class="kw">in </span>value.chars() {
+        <span class="kw">match </span>(state, c) {
+            (State::Blank, a) =&gt; state = State::OpenRange(a),
+            (State::OpenRange(a), <span class="string">&#39;-&#39;</span>) =&gt; state = State::MidRange(a),
+            (State::OpenRange(a), c) =&gt; {
+                state = State::OpenRange(c);
+                ranges.push(<span class="macro">quote!</span>(#a..=#a));
             }
-            (<span class="ident">State::MidRange</span>(<span class="ident">a</span>), <span class="ident">b</span>) =&gt; {
-                <span class="ident">ranges</span>.<span class="ident">push</span>(<span class="macro">quote!</span>(#<span class="ident">a</span>..<span class="op">=</span>#<span class="ident">b</span>));
-                <span class="ident">state</span> <span class="op">=</span> <span class="ident">State::Blank</span>;
+            (State::MidRange(a), b) =&gt; {
+                ranges.push(<span class="macro">quote!</span>(#a..=#b));
+                state = State::Blank;
             }
         }
     }
 
-    <span class="kw">match</span> <span class="ident">state</span> {
-        <span class="ident">State::OpenRange</span>(<span class="ident">a</span>) =&gt; <span class="ident">ranges</span>.<span class="ident">push</span>(<span class="macro">quote!</span>(#<span class="ident">a</span>..<span class="op">=</span>#<span class="ident">a</span>)),
-        <span class="ident">State::MidRange</span>(<span class="ident">a</span>) =&gt; {
-            <span class="ident">ranges</span>.<span class="ident">push</span>(<span class="macro">quote!</span>(#<span class="ident">a</span>..<span class="op">=</span>#<span class="ident">a</span>));
-            <span class="ident">ranges</span>.<span class="ident">push</span>(<span class="macro">quote!</span>(<span class="string">&#39;-&#39;</span>..<span class="op">=</span><span class="string">&#39;-&#39;</span>));
+    <span class="kw">match </span>state {
+        State::OpenRange(a) =&gt; ranges.push(<span class="macro">quote!</span>(#a..=#a)),
+        State::MidRange(a) =&gt; {
+            ranges.push(<span class="macro">quote!</span>(#a..=#a));
+            ranges.push(<span class="macro">quote!</span>(<span class="string">&#39;-&#39;</span>..=<span class="string">&#39;-&#39;</span>));
         }
-        <span class="ident">State::Blank</span> =&gt; {}
+        State::Blank =&gt; {}
     }
 
-    <span class="kw">let</span> <span class="ident">is_negative</span> <span class="op">=</span> <span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;deny_chars&quot;</span>;
+    <span class="kw">let </span>is_negative = ident == <span class="string">&quot;deny_chars&quot;</span>;
 
-    <span class="macro">quote!</span> {
-        <span class="ident"><span class="kw">crate</span>::processor::CharacterSet</span> {
-            <span class="ident">char_is_valid</span>: <span class="op">|</span><span class="ident">c</span>: <span class="ident">char</span><span class="op">|</span> -&gt; <span class="ident">bool</span> {
-                <span class="kw">match</span> <span class="ident">c</span> {
-                    #((#<span class="ident">ranges</span>) =&gt; <span class="op">!</span>#<span class="ident">is_negative</span>,)<span class="op">*</span>
-                    <span class="kw">_</span> =&gt; #<span class="ident">is_negative</span>,
+    <span class="macro">quote! </span>{
+        <span class="kw">crate</span>::processor::CharacterSet {
+            char_is_valid: |c: char| -&gt; bool {
+                <span class="kw">match </span>c {
+                    #((#ranges) =&gt; !#is_negative,)*
+                    <span class="kw">_ </span>=&gt; #is_negative,
                 }
             },
-            <span class="ident">ranges</span>: <span class="kw-2">&amp;</span>[ #(#<span class="ident">ranges</span>,)<span class="op">*</span> ],
-            <span class="ident">is_negative</span>: #<span class="ident">is_negative</span>,
+            ranges: <span class="kw-2">&amp;</span>[ #(#ranges,)* ],
+            is_negative: #is_negative,
         }
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_general_derive" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_general_derive" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/outcome_aggregator.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>outcome_aggregator.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/outcome_aggregator.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>outcome_aggregator.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_server/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -204,203 +204,203 @@
 <span id="202">202</span>
 <span id="203">203</span>
 <span id="204">204</span>
-</pre><pre class="rust"><code><span class="doccomment">//! This module contains the outcomes aggregator, which collects similar outcomes into groups</span>
-<span class="doccomment">//! and flushed them periodically.</span>
+</pre><pre class="rust"><code><span class="doccomment">//! This module contains the outcomes aggregator, which collects similar outcomes into groups
+//! and flushed them periodically.
 
-<span class="kw">use</span> <span class="ident">std::collections::HashMap</span>;
-<span class="kw">use</span> <span class="ident">std::net::IpAddr</span>;
-<span class="kw">use</span> <span class="ident">std::time::Duration</span>;
+</span><span class="kw">use </span>std::collections::HashMap;
+<span class="kw">use </span>std::net::IpAddr;
+<span class="kw">use </span>std::time::Duration;
 
-<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">DataCategory</span>, <span class="ident">UnixTimestamp</span>};
-<span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">EmitOutcomes</span>};
-<span class="kw">use</span> <span class="ident">relay_quotas::Scoping</span>;
-<span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
-<span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">Addr</span>, <span class="ident">Controller</span>, <span class="ident">Service</span>, <span class="ident">Shutdown</span>};
+<span class="kw">use </span>relay_common::{DataCategory, UnixTimestamp};
+<span class="kw">use </span>relay_config::{Config, EmitOutcomes};
+<span class="kw">use </span>relay_quotas::Scoping;
+<span class="kw">use </span>relay_statsd::metric;
+<span class="kw">use </span>relay_system::{Addr, Controller, Service, Shutdown};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome</span>::{<span class="ident">DiscardReason</span>, <span class="ident">Outcome</span>, <span class="ident">OutcomeProducer</span>, <span class="ident">TrackOutcome</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd::RelayTimers</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils::SleepHandle</span>;
+<span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
+<span class="kw">use </span><span class="kw">crate</span>::statsd::RelayTimers;
+<span class="kw">use </span><span class="kw">crate</span>::utils::SleepHandle;
 
-<span class="doccomment">/// Contains everything to construct a `TrackOutcome`, except quantity</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Hash</span>)]</span>
-<span class="kw">struct</span> <span class="ident">BucketKey</span> {
-    <span class="doccomment">/// The time slot for which outcomes are aggregated. timestamp = offset * bucket_interval</span>
-    <span class="ident">offset</span>: <span class="ident">u64</span>,
-    <span class="doccomment">/// Scoping of the request.</span>
-    <span class="kw">pub</span> <span class="ident">scoping</span>: <span class="ident">Scoping</span>,
-    <span class="doccomment">/// The outcome.</span>
-    <span class="kw">pub</span> <span class="ident">outcome</span>: <span class="ident">Outcome</span>,
-    <span class="doccomment">/// The client ip address.</span>
-    <span class="kw">pub</span> <span class="ident">remote_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// The event&#39;s data category.</span>
-    <span class="kw">pub</span> <span class="ident">category</span>: <span class="ident">DataCategory</span>,
+<span class="doccomment">/// Contains everything to construct a `TrackOutcome`, except quantity
+</span><span class="attribute">#[derive(Debug, PartialEq, Eq, Hash)]
+</span><span class="kw">struct </span>BucketKey {
+    <span class="doccomment">/// The time slot for which outcomes are aggregated. timestamp = offset * bucket_interval
+    </span>offset: u64,
+    <span class="doccomment">/// Scoping of the request.
+    </span><span class="kw">pub </span>scoping: Scoping,
+    <span class="doccomment">/// The outcome.
+    </span><span class="kw">pub </span>outcome: Outcome,
+    <span class="doccomment">/// The client ip address.
+    </span><span class="kw">pub </span>remote_addr: <span class="prelude-ty">Option</span>&lt;IpAddr&gt;,
+    <span class="doccomment">/// The event&#39;s data category.
+    </span><span class="kw">pub </span>category: DataCategory,
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">PartialEq</span>)]</span>
-<span class="kw">enum</span> <span class="ident">AggregationMode</span> {
-    <span class="doccomment">/// Aggregator drops all outcomes</span>
-    <span class="ident">DropEverything</span>,
-    <span class="doccomment">/// Aggregator keeps all outcome fields intact</span>
-    <span class="ident">Lossless</span>,
-    <span class="doccomment">/// Aggregator removes fields to improve aggregation</span>
-    <span class="ident">Lossy</span>,
+<span class="attribute">#[derive(PartialEq)]
+</span><span class="kw">enum </span>AggregationMode {
+    <span class="doccomment">/// Aggregator drops all outcomes
+    </span>DropEverything,
+    <span class="doccomment">/// Aggregator keeps all outcome fields intact
+    </span>Lossless,
+    <span class="doccomment">/// Aggregator removes fields to improve aggregation
+    </span>Lossy,
 }
 
-<span class="doccomment">/// Aggregates [`Outcome`]s into buckets and flushes them periodically.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This service handles a single message [`TrackOutcome`].</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">OutcomeAggregator</span> {
-    <span class="ident">mode</span>: <span class="ident">AggregationMode</span>,
-    <span class="doccomment">/// The width of each aggregated bucket in seconds</span>
-    <span class="ident">bucket_interval</span>: <span class="ident">u64</span>,
-    <span class="doccomment">/// The number of seconds between flushes of all buckets</span>
-    <span class="ident">flush_interval</span>: <span class="ident">u64</span>,
-    <span class="doccomment">/// Mapping from bucket key to quantity.</span>
-    <span class="ident">buckets</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">BucketKey</span>, <span class="ident">u32</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// The recipient of the aggregated outcomes</span>
-    <span class="ident">outcome_producer</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">OutcomeProducer</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// An optional timeout to the next scheduled flush.</span>
-    <span class="ident">flush_handle</span>: <span class="ident">SleepHandle</span>,
+<span class="doccomment">/// Aggregates [`Outcome`]s into buckets and flushes them periodically.
+///
+/// This service handles a single message [`TrackOutcome`].
+</span><span class="kw">pub struct </span>OutcomeAggregator {
+    mode: AggregationMode,
+    <span class="doccomment">/// The width of each aggregated bucket in seconds
+    </span>bucket_interval: u64,
+    <span class="doccomment">/// The number of seconds between flushes of all buckets
+    </span>flush_interval: u64,
+    <span class="doccomment">/// Mapping from bucket key to quantity.
+    </span>buckets: HashMap&lt;BucketKey, u32&gt;,
+    <span class="doccomment">/// The recipient of the aggregated outcomes
+    </span>outcome_producer: Addr&lt;OutcomeProducer&gt;,
+    <span class="doccomment">/// An optional timeout to the next scheduled flush.
+    </span>flush_handle: SleepHandle,
 }
 
-<span class="kw">impl</span> <span class="ident">OutcomeAggregator</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>, <span class="ident">outcome_producer</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">OutcomeProducer</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="kw">let</span> <span class="ident">mode</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">config</span>.<span class="ident">emit_outcomes</span>() {
-            <span class="ident">EmitOutcomes::AsOutcomes</span> =&gt; <span class="ident">AggregationMode::Lossless</span>,
-            <span class="ident">EmitOutcomes::AsClientReports</span> =&gt; <span class="ident">AggregationMode::Lossy</span>,
-            <span class="ident">EmitOutcomes::None</span> =&gt; <span class="ident">AggregationMode::DropEverything</span>,
+<span class="kw">impl </span>OutcomeAggregator {
+    <span class="kw">pub fn </span>new(config: <span class="kw-2">&amp;</span>Config, outcome_producer: Addr&lt;OutcomeProducer&gt;) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>mode = <span class="kw">match </span>config.emit_outcomes() {
+            EmitOutcomes::AsOutcomes =&gt; AggregationMode::Lossless,
+            EmitOutcomes::AsClientReports =&gt; AggregationMode::Lossy,
+            EmitOutcomes::None =&gt; AggregationMode::DropEverything,
         };
 
-        <span class="self">Self</span> {
-            <span class="ident">mode</span>,
-            <span class="ident">bucket_interval</span>: <span class="ident">config</span>.<span class="ident">outcome_aggregator</span>().<span class="ident">bucket_interval</span>,
-            <span class="ident">flush_interval</span>: <span class="ident">config</span>.<span class="ident">outcome_aggregator</span>().<span class="ident">flush_interval</span>,
-            <span class="ident">buckets</span>: <span class="ident">HashMap::new</span>(),
-            <span class="ident">outcome_producer</span>,
-            <span class="ident">flush_handle</span>: <span class="ident">SleepHandle::idle</span>(),
+        <span class="self">Self </span>{
+            mode,
+            bucket_interval: config.outcome_aggregator().bucket_interval,
+            flush_interval: config.outcome_aggregator().flush_interval,
+            buckets: HashMap::new(),
+            outcome_producer,
+            flush_handle: SleepHandle::idle(),
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">handle_shutdown</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Shutdown</span><span class="op">&gt;</span>) {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">message</span>) <span class="op">=</span> <span class="ident">message</span> {
-            <span class="kw">if</span> <span class="ident">message</span>.<span class="ident">timeout</span>.<span class="ident">is_some</span>() {
-                <span class="self">self</span>.<span class="ident">flush</span>();
+    <span class="kw">fn </span>handle_shutdown(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;Shutdown&gt;) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(message) = message {
+            <span class="kw">if </span>message.timeout.is_some() {
+                <span class="self">self</span>.flush();
                 <span class="macro">relay_log::info!</span>(<span class="string">&quot;outcome aggregator stopped&quot;</span>);
             }
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">handle_track_outcome</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">msg</span>: <span class="ident">TrackOutcome</span>) {
-        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Outcome aggregation requested: {:?}&quot;</span>, <span class="ident">msg</span>);
+    <span class="kw">fn </span>handle_track_outcome(<span class="kw-2">&amp;mut </span><span class="self">self</span>, msg: TrackOutcome) {
+        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Outcome aggregation requested: {:?}&quot;</span>, msg);
 
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">mode</span> <span class="op">==</span> <span class="ident">AggregationMode::DropEverything</span> {
+        <span class="kw">if </span><span class="self">self</span>.mode == AggregationMode::DropEverything {
             <span class="kw">return</span>;
         }
 
-        <span class="kw">let</span> (<span class="ident">event_id</span>, <span class="ident">remote_addr</span>) <span class="op">=</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">erase_high_cardinality_fields</span>(<span class="kw-2">&amp;</span><span class="ident">msg</span>) {
-            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Erasing event_id, remote_addr for aggregation: {:?}&quot;</span>, <span class="ident">msg</span>);
+        <span class="kw">let </span>(event_id, remote_addr) = <span class="kw">if </span><span class="self">self</span>.erase_high_cardinality_fields(<span class="kw-2">&amp;</span>msg) {
+            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Erasing event_id, remote_addr for aggregation: {:?}&quot;</span>, msg);
             (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>)
-        } <span class="kw">else</span> {
-            (<span class="ident">msg</span>.<span class="ident">event_id</span>, <span class="ident">msg</span>.<span class="ident">remote_addr</span>)
+        } <span class="kw">else </span>{
+            (msg.event_id, msg.remote_addr)
         };
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">event_id</span>) <span class="op">=</span> <span class="ident">event_id</span> {
-            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Forwarding outcome without aggregation: {}&quot;</span>, <span class="ident">event_id</span>);
-            <span class="self">self</span>.<span class="ident">outcome_producer</span>.<span class="ident">send</span>(<span class="ident">msg</span>);
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(event_id) = event_id {
+            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Forwarding outcome without aggregation: {}&quot;</span>, event_id);
+            <span class="self">self</span>.outcome_producer.send(msg);
             <span class="kw">return</span>;
         }
 
-        <span class="kw">let</span> <span class="ident">offset</span> <span class="op">=</span> <span class="ident">msg</span>.<span class="ident">timestamp</span>.<span class="ident">timestamp</span>() <span class="kw">as</span> <span class="ident">u64</span> <span class="op">/</span> <span class="self">self</span>.<span class="ident">bucket_interval</span>;
+        <span class="kw">let </span>offset = msg.timestamp.timestamp() <span class="kw">as </span>u64 / <span class="self">self</span>.bucket_interval;
 
-        <span class="kw">let</span> <span class="ident">bucket_key</span> <span class="op">=</span> <span class="ident">BucketKey</span> {
-            <span class="ident">offset</span>,
-            <span class="ident">scoping</span>: <span class="ident">msg</span>.<span class="ident">scoping</span>,
-            <span class="ident">outcome</span>: <span class="ident">msg</span>.<span class="ident">outcome</span>,
-            <span class="ident">remote_addr</span>,
-            <span class="ident">category</span>: <span class="ident">msg</span>.<span class="ident">category</span>,
+        <span class="kw">let </span>bucket_key = BucketKey {
+            offset,
+            scoping: msg.scoping,
+            outcome: msg.outcome,
+            remote_addr,
+            category: msg.category,
         };
 
-        <span class="kw">let</span> <span class="ident">counter</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">buckets</span>.<span class="ident">entry</span>(<span class="ident">bucket_key</span>).<span class="ident">or_insert</span>(<span class="number">0</span>);
-        <span class="kw-2">*</span><span class="ident">counter</span> <span class="op">+</span><span class="op">=</span> <span class="ident">msg</span>.<span class="ident">quantity</span>;
+        <span class="kw">let </span>counter = <span class="self">self</span>.buckets.entry(bucket_key).or_insert(<span class="number">0</span>);
+        <span class="kw-2">*</span>counter += msg.quantity;
 
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">flush_interval</span> <span class="op">==</span> <span class="number">0</span> {
-            <span class="comment">// Flush immediately. This is useful for integration tests.</span>
-            <span class="self">self</span>.<span class="ident">do_flush</span>();
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">flush_handle</span>.<span class="ident">is_idle</span>() {
-            <span class="self">self</span>.<span class="ident">flush_handle</span>
-                .<span class="ident">set</span>(<span class="ident">Duration::from_secs</span>(<span class="self">self</span>.<span class="ident">flush_interval</span>));
+        <span class="kw">if </span><span class="self">self</span>.flush_interval == <span class="number">0 </span>{
+            <span class="comment">// Flush immediately. This is useful for integration tests.
+            </span><span class="self">self</span>.do_flush();
+        } <span class="kw">else if </span><span class="self">self</span>.flush_handle.is_idle() {
+            <span class="self">self</span>.flush_handle
+                .set(Duration::from_secs(<span class="self">self</span>.flush_interval));
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">do_flush</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
-        <span class="self">self</span>.<span class="ident">flush_handle</span>.<span class="ident">reset</span>();
+    <span class="kw">fn </span>do_flush(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="self">self</span>.flush_handle.reset();
 
-        <span class="kw">let</span> <span class="ident">bucket_interval</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">bucket_interval</span>;
-        <span class="kw">let</span> <span class="ident">outcome_producer</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">outcome_producer</span>.<span class="ident">clone</span>();
+        <span class="kw">let </span>bucket_interval = <span class="self">self</span>.bucket_interval;
+        <span class="kw">let </span>outcome_producer = <span class="self">self</span>.outcome_producer.clone();
 
-        <span class="kw">for</span> (<span class="ident">bucket_key</span>, <span class="ident">quantity</span>) <span class="kw">in</span> <span class="self">self</span>.<span class="ident">buckets</span>.<span class="ident">drain</span>() {
-            <span class="kw">let</span> <span class="ident">BucketKey</span> {
-                <span class="ident">offset</span>,
-                <span class="ident">scoping</span>,
-                <span class="ident">outcome</span>,
-                <span class="ident">remote_addr</span>,
-                <span class="ident">category</span>,
-            } <span class="op">=</span> <span class="ident">bucket_key</span>;
+        <span class="kw">for </span>(bucket_key, quantity) <span class="kw">in </span><span class="self">self</span>.buckets.drain() {
+            <span class="kw">let </span>BucketKey {
+                offset,
+                scoping,
+                outcome,
+                remote_addr,
+                category,
+            } = bucket_key;
 
-            <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="ident">offset</span> <span class="op">*</span> <span class="ident">bucket_interval</span>);
-            <span class="kw">let</span> <span class="ident">outcome</span> <span class="op">=</span> <span class="ident">TrackOutcome</span> {
-                <span class="ident">timestamp</span>: <span class="ident">timestamp</span>.<span class="ident">as_datetime</span>(),
-                <span class="ident">scoping</span>,
-                <span class="ident">outcome</span>,
-                <span class="ident">event_id</span>: <span class="prelude-val">None</span>,
-                <span class="ident">remote_addr</span>,
-                <span class="ident">category</span>,
-                <span class="ident">quantity</span>,
+            <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(offset * bucket_interval);
+            <span class="kw">let </span>outcome = TrackOutcome {
+                timestamp: timestamp.as_datetime(),
+                scoping,
+                outcome,
+                event_id: <span class="prelude-val">None</span>,
+                remote_addr,
+                category,
+                quantity,
             };
 
-            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Flushing outcome for timestamp {}&quot;</span>, <span class="ident">timestamp</span>);
-            <span class="ident">outcome_producer</span>.<span class="ident">send</span>(<span class="ident">outcome</span>);
+            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Flushing outcome for timestamp {}&quot;</span>, timestamp);
+            outcome_producer.send(outcome);
         }
     }
 
-    <span class="doccomment">/// Return true if event_id and remote_addr should be erased</span>
-    <span class="kw">fn</span> <span class="ident">erase_high_cardinality_fields</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">msg</span>: <span class="kw-2">&amp;</span><span class="ident">TrackOutcome</span>) -&gt; <span class="ident">bool</span> {
-        <span class="comment">// In lossy mode, always erase</span>
-        <span class="macro">matches!</span>(<span class="self">self</span>.<span class="ident">mode</span>, <span class="ident">AggregationMode::Lossy</span>)
-            <span class="op">|</span><span class="op">|</span> <span class="macro">matches!</span>(
-                <span class="comment">// Always erase high-cardinality fields for specific outcomes:</span>
-                <span class="ident">msg</span>.<span class="ident">outcome</span>,
-                <span class="ident">Outcome::RateLimited</span>(<span class="kw">_</span>)
-                    <span class="op">|</span> <span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::ProjectId</span>)
-                    <span class="op">|</span> <span class="ident">Outcome::FilteredSampling</span>(<span class="kw">_</span>)
+    <span class="doccomment">/// Return true if event_id and remote_addr should be erased
+    </span><span class="kw">fn </span>erase_high_cardinality_fields(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>TrackOutcome) -&gt; bool {
+        <span class="comment">// In lossy mode, always erase
+        </span><span class="macro">matches!</span>(<span class="self">self</span>.mode, AggregationMode::Lossy)
+            || <span class="macro">matches!</span>(
+                <span class="comment">// Always erase high-cardinality fields for specific outcomes:
+                </span>msg.outcome,
+                Outcome::RateLimited(<span class="kw">_</span>)
+                    | Outcome::Invalid(DiscardReason::ProjectId)
+                    | Outcome::FilteredSampling(<span class="kw">_</span>)
             )
     }
 
-    <span class="kw">fn</span> <span class="ident">flush</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
-        <span class="macro">metric!</span>(<span class="ident">timer</span>(<span class="ident">RelayTimers::OutcomeAggregatorFlushTime</span>), {
-            <span class="self">self</span>.<span class="ident">do_flush</span>();
+    <span class="kw">fn </span>flush(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="macro">metric!</span>(timer(RelayTimers::OutcomeAggregatorFlushTime), {
+            <span class="self">self</span>.do_flush();
         });
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Service</span> <span class="kw">for</span> <span class="ident">OutcomeAggregator</span> {
-    <span class="kw">type</span> <span class="ident">Interface</span> <span class="op">=</span> <span class="ident">TrackOutcome</span>;
+<span class="kw">impl </span>Service <span class="kw">for </span>OutcomeAggregator {
+    <span class="kw">type </span>Interface = TrackOutcome;
 
-    <span class="kw">fn</span> <span class="ident">spawn_handler</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">rx</span>: <span class="ident">relay_system::Receiver</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Interface</span><span class="op">&gt;</span>) {
-        <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">shutdown</span> <span class="op">=</span> <span class="ident">Controller::subscribe_v2</span>().<span class="kw">await</span>;
+    <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+        tokio::spawn(<span class="kw">async move </span>{
+            <span class="kw">let </span><span class="kw-2">mut </span>shutdown = Controller::subscribe_v2().<span class="kw">await</span>;
             <span class="macro">relay_log::info!</span>(<span class="string">&quot;outcome aggregator started&quot;</span>);
 
-            <span class="kw">loop</span> {
-                <span class="macro">tokio::select!</span> {
-                    <span class="comment">// Prioritize flush over receiving messages to prevent starving. Shutdown can be</span>
-                    <span class="comment">// last since it is not vital if there are still messages in the channel.</span>
-                    <span class="ident">biased</span>;
+            <span class="kw">loop </span>{
+                <span class="macro">tokio::select! </span>{
+                    <span class="comment">// Prioritize flush over receiving messages to prevent starving. Shutdown can be
+                    // last since it is not vital if there are still messages in the channel.
+                    </span>biased;
 
-                    () <span class="op">=</span> <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">flush_handle</span> =&gt; <span class="self">self</span>.<span class="ident">flush</span>(),
-                    <span class="prelude-val">Some</span>(<span class="ident">message</span>) <span class="op">=</span> <span class="ident">rx</span>.<span class="ident">recv</span>() =&gt; <span class="self">self</span>.<span class="ident">handle_track_outcome</span>(<span class="ident">message</span>),
-                    <span class="kw">_</span> <span class="op">=</span> <span class="ident">shutdown</span>.<span class="ident">changed</span>() =&gt; <span class="self">self</span>.<span class="ident">handle_shutdown</span>(<span class="kw-2">&amp;</span><span class="ident">shutdown</span>.<span class="ident">borrow_and_update</span>()),
-                    <span class="kw">else</span> =&gt; <span class="kw">break</span>,
+                    () = <span class="kw-2">&amp;mut </span><span class="self">self</span>.flush_handle =&gt; <span class="self">self</span>.flush(),
+                    <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; <span class="self">self</span>.handle_track_outcome(message),
+                    <span class="kw">_ </span>= shutdown.changed() =&gt; <span class="self">self</span>.handle_shutdown(<span class="kw-2">&amp;</span>shutdown.borrow_and_update()),
+                    <span class="kw">else </span>=&gt; <span class="kw">break</span>,
                 }
             }
 
@@ -409,4 +409,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

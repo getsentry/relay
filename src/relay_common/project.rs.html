@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-common/src/project.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>project.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_common/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_common/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-common/src/project.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>project.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_common/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_common/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_common/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -80,85 +80,85 @@
 <span id="78">78</span>
 <span id="79">79</span>
 <span id="80">80</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
-<span class="kw">use</span> <span class="ident">std::str::FromStr</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::str::FromStr;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::macros::impl_str_serde</span>;
+<span class="kw">use </span><span class="kw">crate</span>::macros::impl_str_serde;
 
-<span class="attribute">#[<span class="ident">doc</span>(<span class="ident">inline</span>)]</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">sentry_types</span>::{<span class="ident">ParseProjectIdError</span>, <span class="ident">ProjectId</span>};
+<span class="attribute">#[doc(inline)]
+</span><span class="kw">pub use </span>sentry_types::{ParseProjectIdError, ProjectId};
 
-<span class="doccomment">/// An error parsing [`ProjectKey`].</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ParseProjectKeyError</span>;
+<span class="doccomment">/// An error parsing [`ProjectKey`].
+</span><span class="attribute">#[derive(Clone, Copy, Debug)]
+</span><span class="kw">pub struct </span>ParseProjectKeyError;
 
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">ParseProjectKeyError</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;invalid project key&quot;</span>)
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>ParseProjectKeyError {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;invalid project key&quot;</span>)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">std::error::Error</span> <span class="kw">for</span> <span class="ident">ParseProjectKeyError</span> {}
+<span class="kw">impl </span>std::error::Error <span class="kw">for </span>ParseProjectKeyError {}
 
-<span class="doccomment">/// The public key used in a DSN to identify and authenticate for a project at Sentry.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Project keys are always 32-character hexadecimal strings.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Eq</span>, <span class="ident">Hash</span>, <span class="ident">Ord</span>, <span class="ident">PartialOrd</span>, <span class="ident">PartialEq</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ProjectKey</span>([<span class="ident">u8</span>; <span class="number">32</span>]);
+<span class="doccomment">/// The public key used in a DSN to identify and authenticate for a project at Sentry.
+///
+/// Project keys are always 32-character hexadecimal strings.
+</span><span class="attribute">#[derive(Clone, Copy, Eq, Hash, Ord, PartialOrd, PartialEq)]
+</span><span class="kw">pub struct </span>ProjectKey([u8; <span class="number">32</span>]);
 
-<span class="macro">impl_str_serde!</span>(<span class="ident">ProjectKey</span>, <span class="string">&quot;a project key string&quot;</span>);
+<span class="macro">impl_str_serde!</span>(ProjectKey, <span class="string">&quot;a project key string&quot;</span>);
 
-<span class="kw">impl</span> <span class="ident">ProjectKey</span> {
-    <span class="doccomment">/// Parses a `ProjectKey` from a string.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">key</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ParseProjectKeyError</span><span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="ident">key</span>.<span class="ident">len</span>() <span class="op">!</span><span class="op">=</span> <span class="number">32</span> <span class="op">|</span><span class="op">|</span> <span class="op">!</span><span class="ident">key</span>.<span class="ident">is_ascii</span>() {
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ParseProjectKeyError</span>);
+<span class="kw">impl </span>ProjectKey {
+    <span class="doccomment">/// Parses a `ProjectKey` from a string.
+    </span><span class="kw">pub fn </span>parse(key: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ParseProjectKeyError&gt; {
+        <span class="kw">if </span>key.len() != <span class="number">32 </span>|| !key.is_ascii() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(ParseProjectKeyError);
         }
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">project_key</span> <span class="op">=</span> <span class="self">Self</span>(<span class="ident">Default::default</span>());
-        <span class="ident">project_key</span>.<span class="number">0</span>.<span class="ident">copy_from_slice</span>(<span class="ident">key</span>.<span class="ident">as_bytes</span>());
-        <span class="prelude-val">Ok</span>(<span class="ident">project_key</span>)
+        <span class="kw">let </span><span class="kw-2">mut </span>project_key = <span class="self">Self</span>(Default::default());
+        project_key.<span class="number">0</span>.copy_from_slice(key.as_bytes());
+        <span class="prelude-val">Ok</span>(project_key)
     }
 
-    <span class="doccomment">/// Parses a `ProjectKey` from a string with flags.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse_with_flags</span>(<span class="ident">key</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(<span class="self">Self</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>), <span class="ident">ParseProjectKeyError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">iter</span> <span class="op">=</span> <span class="ident">key</span>.<span class="ident">split</span>(<span class="string">&#39;.&#39;</span>);
-        <span class="kw">let</span> <span class="ident">key</span> <span class="op">=</span> <span class="ident">ProjectKey::parse</span>(<span class="ident">iter</span>.<span class="ident">next</span>().<span class="ident">ok_or</span>(<span class="ident">ParseProjectKeyError</span>)<span class="question-mark">?</span>)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>((<span class="ident">key</span>, <span class="ident">iter</span>.<span class="ident">collect</span>()))
+    <span class="doccomment">/// Parses a `ProjectKey` from a string with flags.
+    </span><span class="kw">pub fn </span>parse_with_flags(key: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;(<span class="self">Self</span>, Vec&lt;<span class="kw-2">&amp;</span>str&gt;), ParseProjectKeyError&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>iter = key.split(<span class="string">&#39;.&#39;</span>);
+        <span class="kw">let </span>key = ProjectKey::parse(iter.next().ok_or(ParseProjectKeyError)<span class="question-mark">?</span>)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>((key, iter.collect()))
     }
 
-    <span class="doccomment">/// Returns the bytes of the project key.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_bytes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[<span class="ident">u8</span>; <span class="number">32</span>] {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>
-    }
+    <span class="doccomment">/// Returns the bytes of the project key.
+    </span><span class="kw">pub fn </span>as_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8; <span class="number">32</span>] {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0
+    </span>}
 
-    <span class="doccomment">/// Returns the string representation of the project key.</span>
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">str</span> {
-        <span class="comment">// Safety: The string is already validated to be of length 32 and valid ASCII when</span>
-        <span class="comment">// constructing `ProjectKey`.</span>
-        <span class="kw">unsafe</span> { <span class="ident">std::str::from_utf8_unchecked</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>) }
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">ProjectKey</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;ProjectKey(\&quot;{}\&quot;)&quot;</span>, <span class="self">self</span>.<span class="ident">as_str</span>())
+    <span class="doccomment">/// Returns the string representation of the project key.
+    </span><span class="attribute">#[inline]
+    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+        <span class="comment">// Safety: The string is already validated to be of length 32 and valid ASCII when
+        // constructing `ProjectKey`.
+        </span><span class="kw">unsafe </span>{ std::str::from_utf8_unchecked(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>) }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">ProjectKey</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="self">self</span>.<span class="ident">as_str</span>().<span class="ident">fmt</span>(<span class="ident">f</span>)
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>ProjectKey {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;ProjectKey(\&quot;{}\&quot;)&quot;</span>, <span class="self">self</span>.as_str())
     }
 }
 
-<span class="kw">impl</span> <span class="ident">FromStr</span> <span class="kw">for</span> <span class="ident">ProjectKey</span> {
-    <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="ident">ParseProjectKeyError</span>;
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>ProjectKey {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="self">self</span>.as_str().fmt(f)
+    }
+}
 
-    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
-        <span class="ident"><span class="self">Self</span>::parse</span>(<span class="ident">s</span>)
+<span class="kw">impl </span>FromStr <span class="kw">for </span>ProjectKey {
+    <span class="kw">type </span><span class="prelude-val">Err </span>= ParseProjectKeyError;
+
+    <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
+        <span class="self">Self</span>::parse(s)
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_common" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_common" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

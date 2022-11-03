@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/envelopes.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>envelopes.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/envelopes.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>envelopes.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_server/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -435,434 +435,434 @@
 <span id="433">433</span>
 <span id="434">434</span>
 <span id="435">435</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
-<span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<span class="kw">use </span>std::sync::Arc;
 
-<span class="kw">use</span> <span class="ident">actix</span>::{<span class="ident">ResponseFuture</span>, <span class="ident">SystemService</span>};
-<span class="kw">use</span> <span class="ident">actix_web::http::Method</span>;
-<span class="kw">use</span> <span class="ident">chrono::Utc</span>;
-<span class="kw">use</span> <span class="ident">futures::compat::Future01CompatExt</span>;
-<span class="kw">use</span> <span class="ident">futures01</span>::{<span class="ident">future</span>, <span class="ident">sync::oneshot</span>, <span class="ident">Future</span> <span class="kw">as</span> <span class="kw">_</span>};
+<span class="kw">use </span>actix::{ResponseFuture, SystemService};
+<span class="kw">use </span>actix_web::http::Method;
+<span class="kw">use </span>chrono::Utc;
+<span class="kw">use </span>futures::compat::Future01CompatExt;
+<span class="kw">use </span>futures01::{future, sync::oneshot, Future <span class="kw">as _</span>};
 
-<span class="kw">use</span> <span class="ident">relay_common::ProjectKey</span>;
-<span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">HttpEncoding</span>};
-<span class="kw">use</span> <span class="ident">relay_general::protocol::ClientReport</span>;
-<span class="kw">use</span> <span class="ident">relay_log::LogError</span>;
-<span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">Bucket</span>, <span class="ident">MergeBuckets</span>};
-<span class="kw">use</span> <span class="ident">relay_quotas::Scoping</span>;
-<span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
-<span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">Addr</span>, <span class="ident">FromMessage</span>, <span class="ident">NoResponse</span>};
+<span class="kw">use </span>relay_common::ProjectKey;
+<span class="kw">use </span>relay_config::{Config, HttpEncoding};
+<span class="kw">use </span>relay_general::protocol::ClientReport;
+<span class="kw">use </span>relay_log::LogError;
+<span class="kw">use </span>relay_metrics::{Bucket, MergeBuckets};
+<span class="kw">use </span>relay_quotas::Scoping;
+<span class="kw">use </span>relay_statsd::metric;
+<span class="kw">use </span>relay_system::{Addr, FromMessage, NoResponse};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome</span>::{<span class="ident">DiscardReason</span>, <span class="ident">Outcome</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::processor</span>::{<span class="ident">EncodeEnvelope</span>, <span class="ident">EnvelopeProcessor</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::project_cache</span>::{<span class="ident">ProjectCache</span>, <span class="ident">UpdateRateLimits</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::test_store</span>::{<span class="ident">Capture</span>, <span class="ident">TestStore</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::upstream</span>::{<span class="ident">SendRequest</span>, <span class="ident">UpstreamRelay</span>, <span class="ident">UpstreamRequest</span>, <span class="ident">UpstreamRequestError</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope</span>::{<span class="self">self</span>, <span class="ident">ContentType</span>, <span class="ident">Envelope</span>, <span class="ident">EnvelopeError</span>, <span class="ident">Item</span>, <span class="ident">ItemType</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::extractors</span>::{<span class="ident">PartialDsn</span>, <span class="ident">RequestMeta</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::http</span>::{<span class="ident">HttpError</span>, <span class="ident">Request</span>, <span class="ident">RequestBuilder</span>, <span class="ident">Response</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service</span>::{<span class="ident">Registry</span>, <span class="ident">REGISTRY</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd::RelayHistograms</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils::EnvelopeContext</span>;
+<span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{DiscardReason, Outcome};
+<span class="kw">use </span><span class="kw">crate</span>::actors::processor::{EncodeEnvelope, EnvelopeProcessor};
+<span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{ProjectCache, UpdateRateLimits};
+<span class="kw">use </span><span class="kw">crate</span>::actors::test_store::{Capture, TestStore};
+<span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError};
+<span class="kw">use </span><span class="kw">crate</span>::envelope::{<span class="self">self</span>, ContentType, Envelope, EnvelopeError, Item, ItemType};
+<span class="kw">use </span><span class="kw">crate</span>::extractors::{PartialDsn, RequestMeta};
+<span class="kw">use </span><span class="kw">crate</span>::http::{HttpError, Request, RequestBuilder, Response};
+<span class="kw">use </span><span class="kw">crate</span>::service::{Registry, REGISTRY};
+<span class="kw">use </span><span class="kw">crate</span>::statsd::RelayHistograms;
+<span class="kw">use </span><span class="kw">crate</span>::utils::EnvelopeContext;
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::store</span>::{<span class="ident">Store</span>, <span class="ident">StoreEnvelope</span>, <span class="ident">StoreError</span>};
+<span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+</span><span class="kw">use </span><span class="kw">crate</span>::actors::store::{Store, StoreEnvelope, StoreError};
 
-<span class="doccomment">/// Error created while handling [`SendEnvelope`].</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">failure::Fail</span>)]</span>
-<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::enum_variant_names</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">SendEnvelopeError</span> {
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;could not schedule submission of envelope&quot;</span>)]</span>
-    <span class="ident">ScheduleFailed</span>,
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;could not store envelope&quot;</span>)]</span>
-    <span class="ident">StoreFailed</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">StoreError</span>),
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;could not build envelope for upstream&quot;</span>)]</span>
-    <span class="ident">EnvelopeBuildFailed</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">EnvelopeError</span>),
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;could not encode request body&quot;</span>)]</span>
-    <span class="ident">BodyEncodingFailed</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">std::io::Error</span>),
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;could not send request to upstream&quot;</span>)]</span>
-    <span class="ident">UpstreamRequestFailed</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">UpstreamRequestError</span>),
+<span class="doccomment">/// Error created while handling [`SendEnvelope`].
+</span><span class="attribute">#[derive(Debug, failure::Fail)]
+#[allow(clippy::enum_variant_names)]
+</span><span class="kw">pub enum </span>SendEnvelopeError {
+    <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    #[fail(display = <span class="string">&quot;could not schedule submission of envelope&quot;</span>)]
+    </span>ScheduleFailed,
+    <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    #[fail(display = <span class="string">&quot;could not store envelope&quot;</span>)]
+    </span>StoreFailed(<span class="attribute">#[cause] </span>StoreError),
+    <span class="attribute">#[fail(display = <span class="string">&quot;could not build envelope for upstream&quot;</span>)]
+    </span>EnvelopeBuildFailed(<span class="attribute">#[cause] </span>EnvelopeError),
+    <span class="attribute">#[fail(display = <span class="string">&quot;could not encode request body&quot;</span>)]
+    </span>BodyEncodingFailed(<span class="attribute">#[cause] </span>std::io::Error),
+    <span class="attribute">#[fail(display = <span class="string">&quot;could not send request to upstream&quot;</span>)]
+    </span>UpstreamRequestFailed(<span class="attribute">#[cause] </span>UpstreamRequestError),
 }
 
-<span class="doccomment">/// An upstream request that submits an envelope via HTTP.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SendEnvelope</span> {
-    <span class="kw">pub</span> <span class="ident">envelope_body</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
-    <span class="kw">pub</span> <span class="ident">envelope_meta</span>: <span class="ident">RequestMeta</span>,
-    <span class="kw">pub</span> <span class="ident">scoping</span>: <span class="ident">Scoping</span>,
-    <span class="kw">pub</span> <span class="ident">http_encoding</span>: <span class="ident">HttpEncoding</span>,
-    <span class="kw">pub</span> <span class="ident">response_sender</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">oneshot::Sender</span><span class="op">&lt;</span><span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">SendEnvelopeError</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-    <span class="kw">pub</span> <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>,
-    <span class="ident">partition_key</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+<span class="doccomment">/// An upstream request that submits an envelope via HTTP.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>SendEnvelope {
+    <span class="kw">pub </span>envelope_body: Vec&lt;u8&gt;,
+    <span class="kw">pub </span>envelope_meta: RequestMeta,
+    <span class="kw">pub </span>scoping: Scoping,
+    <span class="kw">pub </span>http_encoding: HttpEncoding,
+    <span class="kw">pub </span>response_sender: <span class="prelude-ty">Option</span>&lt;oneshot::Sender&lt;<span class="prelude-ty">Result</span>&lt;(), SendEnvelopeError&gt;&gt;&gt;,
+    <span class="kw">pub </span>project_key: ProjectKey,
+    partition_key: <span class="prelude-ty">Option</span>&lt;String&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">UpstreamRequest</span> <span class="kw">for</span> <span class="ident">SendEnvelope</span> {
-    <span class="kw">fn</span> <span class="ident">method</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Method</span> {
-        <span class="ident">Method::POST</span>
+<span class="kw">impl </span>UpstreamRequest <span class="kw">for </span>SendEnvelope {
+    <span class="kw">fn </span>method(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Method {
+        Method::POST
     }
 
-    <span class="kw">fn</span> <span class="ident">path</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span>, <span class="ident">str</span><span class="op">&gt;</span> {
-        <span class="macro">format!</span>(<span class="string">&quot;/api/{}/envelope/&quot;</span>, <span class="self">self</span>.<span class="ident">scoping</span>.<span class="ident">project_id</span>).<span class="ident">into</span>()
+    <span class="kw">fn </span>path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Cow&lt;<span class="lifetime">&#39;_</span>, str&gt; {
+        <span class="macro">format!</span>(<span class="string">&quot;/api/{}/envelope/&quot;</span>, <span class="self">self</span>.scoping.project_id).into()
     }
 
-    <span class="kw">fn</span> <span class="ident">build</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">builder</span>: <span class="ident">RequestBuilder</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Request</span>, <span class="ident">HttpError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">meta</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">envelope_meta</span>;
-        <span class="ident">builder</span>
-            .<span class="ident">content_encoding</span>(<span class="self">self</span>.<span class="ident">http_encoding</span>)
-            .<span class="ident">header_opt</span>(<span class="string">&quot;Origin&quot;</span>, <span class="ident">meta</span>.<span class="ident">origin</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">url</span><span class="op">|</span> <span class="ident">url</span>.<span class="ident">as_str</span>()))
-            .<span class="ident">header_opt</span>(<span class="string">&quot;User-Agent&quot;</span>, <span class="ident">meta</span>.<span class="ident">user_agent</span>())
-            .<span class="ident">header</span>(<span class="string">&quot;X-Sentry-Auth&quot;</span>, <span class="ident">meta</span>.<span class="ident">auth_header</span>())
-            .<span class="ident">header</span>(<span class="string">&quot;X-Forwarded-For&quot;</span>, <span class="ident">meta</span>.<span class="ident">forwarded_for</span>())
-            .<span class="ident">header</span>(<span class="string">&quot;Content-Type&quot;</span>, <span class="ident">envelope::CONTENT_TYPE</span>);
+    <span class="kw">fn </span>build(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw-2">mut </span>builder: RequestBuilder) -&gt; <span class="prelude-ty">Result</span>&lt;Request, HttpError&gt; {
+        <span class="kw">let </span>meta = <span class="kw-2">&amp;</span><span class="self">self</span>.envelope_meta;
+        builder
+            .content_encoding(<span class="self">self</span>.http_encoding)
+            .header_opt(<span class="string">&quot;Origin&quot;</span>, meta.origin().map(|url| url.as_str()))
+            .header_opt(<span class="string">&quot;User-Agent&quot;</span>, meta.user_agent())
+            .header(<span class="string">&quot;X-Sentry-Auth&quot;</span>, meta.auth_header())
+            .header(<span class="string">&quot;X-Forwarded-For&quot;</span>, meta.forwarded_for())
+            .header(<span class="string">&quot;Content-Type&quot;</span>, envelope::CONTENT_TYPE);
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">partition_key</span>) <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">partition_key</span> {
-            <span class="ident">builder</span>.<span class="ident">header</span>(<span class="string">&quot;X-Sentry-Relay-Shard&quot;</span>, <span class="ident">partition_key</span>);
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(partition_key) = <span class="kw-2">&amp;</span><span class="self">self</span>.partition_key {
+            builder.header(<span class="string">&quot;X-Sentry-Relay-Shard&quot;</span>, partition_key);
         }
 
-        <span class="kw">let</span> <span class="ident">envelope_body</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">envelope_body</span>.<span class="ident">clone</span>();
-        <span class="macro">metric!</span>(<span class="ident">histogram</span>(<span class="ident">RelayHistograms::UpstreamEnvelopeBodySize</span>) <span class="op">=</span> <span class="ident">envelope_body</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u64</span>);
-        <span class="ident">builder</span>.<span class="ident">body</span>(<span class="ident">envelope_body</span>)
+        <span class="kw">let </span>envelope_body = <span class="self">self</span>.envelope_body.clone();
+        <span class="macro">metric!</span>(histogram(RelayHistograms::UpstreamEnvelopeBodySize) = envelope_body.len() <span class="kw">as </span>u64);
+        builder.body(envelope_body)
     }
 
-    <span class="kw">fn</span> <span class="ident">respond</span>(
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
-        <span class="ident">result</span>: <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Response</span>, <span class="ident">UpstreamRequestError</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="ident">ResponseFuture</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">sender</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">response_sender</span>.<span class="ident">take</span>();
+    <span class="kw">fn </span>respond(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        result: <span class="prelude-ty">Result</span>&lt;Response, UpstreamRequestError&gt;,
+    ) -&gt; ResponseFuture&lt;(), ()&gt; {
+        <span class="kw">let </span>sender = <span class="self">self</span>.response_sender.take();
 
-        <span class="kw">match</span> <span class="ident">result</span> {
-            <span class="prelude-val">Ok</span>(<span class="ident">response</span>) =&gt; {
-                <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">response</span>
-                    .<span class="ident">consume</span>()
-                    .<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError::Http</span>)
-                    .<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ())
-                    .<span class="ident">then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">body_result</span><span class="op">|</span> {
-                        <span class="ident">sender</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">sender</span><span class="op">|</span> {
-                            <span class="ident">sender</span>
-                                .<span class="ident">send</span>(<span class="ident">body_result</span>.<span class="ident">map_err</span>(<span class="ident">SendEnvelopeError::UpstreamRequestFailed</span>))
-                                .<span class="ident">ok</span>()
+        <span class="kw">match </span>result {
+            <span class="prelude-val">Ok</span>(response) =&gt; {
+                <span class="kw">let </span>future = response
+                    .consume()
+                    .map_err(UpstreamRequestError::Http)
+                    .map(|<span class="kw">_</span>| ())
+                    .then(<span class="kw">move </span>|body_result| {
+                        sender.map(|sender| {
+                            sender
+                                .send(body_result.map_err(SendEnvelopeError::UpstreamRequestFailed))
+                                .ok()
                         });
                         <span class="prelude-val">Ok</span>(())
                     });
 
-                <span class="ident">Box::new</span>(<span class="ident">future</span>)
+                Box::new(future)
             }
-            <span class="prelude-val">Err</span>(<span class="ident">error</span>) =&gt; {
-                <span class="kw">match</span> <span class="ident">error</span> {
-                    <span class="ident">UpstreamRequestError::RateLimited</span>(<span class="ident">upstream_limits</span>) =&gt; {
-                        <span class="ident">ProjectCache::from_registry</span>().<span class="ident">do_send</span>(<span class="ident">UpdateRateLimits::new</span>(
-                            <span class="self">self</span>.<span class="ident">project_key</span>,
-                            <span class="ident">upstream_limits</span>.<span class="ident">clone</span>().<span class="ident">scope</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">scoping</span>),
+            <span class="prelude-val">Err</span>(error) =&gt; {
+                <span class="kw">match </span>error {
+                    UpstreamRequestError::RateLimited(upstream_limits) =&gt; {
+                        ProjectCache::from_registry().do_send(UpdateRateLimits::new(
+                            <span class="self">self</span>.project_key,
+                            upstream_limits.clone().scope(<span class="kw-2">&amp;</span><span class="self">self</span>.scoping),
                         ));
-                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">sender</span>) <span class="op">=</span> <span class="ident">sender</span> {
-                            <span class="ident">sender</span>
-                                .<span class="ident">send</span>(<span class="prelude-val">Err</span>(<span class="ident">SendEnvelopeError::UpstreamRequestFailed</span>(
-                                    <span class="ident">UpstreamRequestError::RateLimited</span>(<span class="ident">upstream_limits</span>),
+                        <span class="kw">if let </span><span class="prelude-val">Some</span>(sender) = sender {
+                            sender
+                                .send(<span class="prelude-val">Err</span>(SendEnvelopeError::UpstreamRequestFailed(
+                                    UpstreamRequestError::RateLimited(upstream_limits),
                                 )))
-                                .<span class="ident">ok</span>();
+                                .ok();
                         }
                     }
-                    <span class="ident">error</span> =&gt; {
-                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">sender</span>) <span class="op">=</span> <span class="ident">sender</span> {
-                            <span class="ident">sender</span>
-                                .<span class="ident">send</span>(<span class="prelude-val">Err</span>(<span class="ident">SendEnvelopeError::UpstreamRequestFailed</span>(<span class="ident">error</span>)))
-                                .<span class="ident">ok</span>();
+                    error =&gt; {
+                        <span class="kw">if let </span><span class="prelude-val">Some</span>(sender) = sender {
+                            sender
+                                .send(<span class="prelude-val">Err</span>(SendEnvelopeError::UpstreamRequestFailed(error)))
+                                .ok();
                         }
                     }
                 };
-                <span class="ident">Box::new</span>(<span class="ident">future::err</span>(()))
+                Box::new(future::err(()))
             }
         }
     }
 }
 
-<span class="doccomment">/// Sends an envelope to the upstream or Kafka.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SubmitEnvelope</span> {
-    <span class="kw">pub</span> <span class="ident">envelope</span>: <span class="ident">Envelope</span>,
-    <span class="kw">pub</span> <span class="ident">envelope_context</span>: <span class="ident">EnvelopeContext</span>,
+<span class="doccomment">/// Sends an envelope to the upstream or Kafka.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>SubmitEnvelope {
+    <span class="kw">pub </span>envelope: Envelope,
+    <span class="kw">pub </span>envelope_context: EnvelopeContext,
 }
 
-<span class="doccomment">/// Sends a client report to the upstream.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SendClientReports</span> {
-    <span class="doccomment">/// The client report to be sent.</span>
-    <span class="kw">pub</span> <span class="ident">client_reports</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">ClientReport</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// Scoping information for the client report.</span>
-    <span class="kw">pub</span> <span class="ident">scoping</span>: <span class="ident">Scoping</span>,
+<span class="doccomment">/// Sends a client report to the upstream.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>SendClientReports {
+    <span class="doccomment">/// The client report to be sent.
+    </span><span class="kw">pub </span>client_reports: Vec&lt;ClientReport&gt;,
+    <span class="doccomment">/// Scoping information for the client report.
+    </span><span class="kw">pub </span>scoping: Scoping,
 }
 
-<span class="doccomment">/// Sends a batch of pre-aggregated metrics to the upstream or Kafka.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Responds with `Err` if there was an error sending some or all of the buckets, containing the</span>
-<span class="doccomment">/// failed buckets.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SendMetrics</span> {
-    <span class="doccomment">/// The pre-aggregated metric buckets.</span>
-    <span class="kw">pub</span> <span class="ident">buckets</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// Scoping information for the metrics.</span>
-    <span class="kw">pub</span> <span class="ident">scoping</span>: <span class="ident">Scoping</span>,
-    <span class="doccomment">/// The key of the logical partition to send the metrics to.</span>
-    <span class="kw">pub</span> <span class="ident">partition_key</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Sends a batch of pre-aggregated metrics to the upstream or Kafka.
+///
+/// Responds with `Err` if there was an error sending some or all of the buckets, containing the
+/// failed buckets.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>SendMetrics {
+    <span class="doccomment">/// The pre-aggregated metric buckets.
+    </span><span class="kw">pub </span>buckets: Vec&lt;Bucket&gt;,
+    <span class="doccomment">/// Scoping information for the metrics.
+    </span><span class="kw">pub </span>scoping: Scoping,
+    <span class="doccomment">/// The key of the logical partition to send the metrics to.
+    </span><span class="kw">pub </span>partition_key: <span class="prelude-ty">Option</span>&lt;u64&gt;,
 }
 
-<span class="doccomment">/// Dispatch service for generating and submitting Envelopes.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">EnvelopeManager</span> {
-    <span class="ident">SubmitEnvelope</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">SubmitEnvelope</span><span class="op">&gt;</span>),
-    <span class="ident">SendClientReports</span>(<span class="ident">SendClientReports</span>),
-    <span class="ident">SendMetrics</span>(<span class="ident">SendMetrics</span>),
+<span class="doccomment">/// Dispatch service for generating and submitting Envelopes.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub enum </span>EnvelopeManager {
+    SubmitEnvelope(Box&lt;SubmitEnvelope&gt;),
+    SendClientReports(SendClientReports),
+    SendMetrics(SendMetrics),
 }
 
-<span class="kw">impl</span> <span class="ident">EnvelopeManager</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_registry</span>() -&gt; <span class="ident">Addr</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="ident">REGISTRY</span>.<span class="ident">get</span>().<span class="ident">unwrap</span>().<span class="ident">envelope_manager</span>.<span class="ident">clone</span>()
+<span class="kw">impl </span>EnvelopeManager {
+    <span class="kw">pub fn </span>from_registry() -&gt; Addr&lt;<span class="self">Self</span>&gt; {
+        REGISTRY.get().unwrap().envelope_manager.clone()
     }
 }
 
-<span class="kw">impl</span> <span class="ident">relay_system::Interface</span> <span class="kw">for</span> <span class="ident">EnvelopeManager</span> {}
+<span class="kw">impl </span>relay_system::Interface <span class="kw">for </span>EnvelopeManager {}
 
-<span class="kw">impl</span> <span class="ident">FromMessage</span><span class="op">&lt;</span><span class="ident">SubmitEnvelope</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">EnvelopeManager</span> {
-    <span class="kw">type</span> <span class="ident">Response</span> <span class="op">=</span> <span class="ident">NoResponse</span>;
+<span class="kw">impl </span>FromMessage&lt;SubmitEnvelope&gt; <span class="kw">for </span>EnvelopeManager {
+    <span class="kw">type </span>Response = NoResponse;
 
-    <span class="kw">fn</span> <span class="ident">from_message</span>(<span class="ident">message</span>: <span class="ident">SubmitEnvelope</span>, <span class="kw">_</span>: ()) -&gt; <span class="self">Self</span> {
-        <span class="ident"><span class="self">Self</span>::SubmitEnvelope</span>(<span class="ident">Box::new</span>(<span class="ident">message</span>))
+    <span class="kw">fn </span>from_message(message: SubmitEnvelope, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::SubmitEnvelope(Box::new(message))
     }
 }
 
-<span class="kw">impl</span> <span class="ident">FromMessage</span><span class="op">&lt;</span><span class="ident">SendClientReports</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">EnvelopeManager</span> {
-    <span class="kw">type</span> <span class="ident">Response</span> <span class="op">=</span> <span class="ident">NoResponse</span>;
+<span class="kw">impl </span>FromMessage&lt;SendClientReports&gt; <span class="kw">for </span>EnvelopeManager {
+    <span class="kw">type </span>Response = NoResponse;
 
-    <span class="kw">fn</span> <span class="ident">from_message</span>(<span class="ident">message</span>: <span class="ident">SendClientReports</span>, <span class="kw">_</span>: ()) -&gt; <span class="self">Self</span> {
-        <span class="ident"><span class="self">Self</span>::SendClientReports</span>(<span class="ident">message</span>)
+    <span class="kw">fn </span>from_message(message: SendClientReports, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::SendClientReports(message)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">FromMessage</span><span class="op">&lt;</span><span class="ident">SendMetrics</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">EnvelopeManager</span> {
-    <span class="kw">type</span> <span class="ident">Response</span> <span class="op">=</span> <span class="ident">NoResponse</span>;
+<span class="kw">impl </span>FromMessage&lt;SendMetrics&gt; <span class="kw">for </span>EnvelopeManager {
+    <span class="kw">type </span>Response = NoResponse;
 
-    <span class="kw">fn</span> <span class="ident">from_message</span>(<span class="ident">message</span>: <span class="ident">SendMetrics</span>, <span class="kw">_</span>: ()) -&gt; <span class="self">Self</span> {
-        <span class="ident"><span class="self">Self</span>::SendMetrics</span>(<span class="ident">message</span>)
+    <span class="kw">fn </span>from_message(message: SendMetrics, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::SendMetrics(message)
     }
 }
 
-<span class="doccomment">/// Service implementing the [`EnvelopeManager`] interface.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This service will produce envelopes to one the following backends:</span>
-<span class="doccomment">///  1. The [`Store`] via Kafka if configured with `set_store_forwarder`. This is available only if</span>
-<span class="doccomment">///     processing mode is compiled and enabled in configuration.</span>
-<span class="doccomment">///  2. The in-memory [`TestStore`] if capture mode is enabled. This is meant for integration</span>
-<span class="doccomment">///     testing and should not be used in production.</span>
-<span class="doccomment">///  3. The [`UpstreamRelay`] via HTTP by default.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">EnvelopeManagerService</span> {
-    <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="ident">store_forwarder</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">Store</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Service implementing the [`EnvelopeManager`] interface.
+///
+/// This service will produce envelopes to one the following backends:
+///  1. The [`Store`] via Kafka if configured with `set_store_forwarder`. This is available only if
+///     processing mode is compiled and enabled in configuration.
+///  2. The in-memory [`TestStore`] if capture mode is enabled. This is meant for integration
+///     testing and should not be used in production.
+///  3. The [`UpstreamRelay`] via HTTP by default.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>EnvelopeManagerService {
+    config: Arc&lt;Config&gt;,
+    <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span>store_forwarder: <span class="prelude-ty">Option</span>&lt;Addr&lt;Store&gt;&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">EnvelopeManagerService</span> {
-    <span class="doccomment">/// Creates a new instance of the [`EnvelopeManager`] service.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> {
-            <span class="ident">config</span>,
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident">store_forwarder</span>: <span class="prelude-val">None</span>,
+<span class="kw">impl </span>EnvelopeManagerService {
+    <span class="doccomment">/// Creates a new instance of the [`EnvelopeManager`] service.
+    </span><span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            config,
+            <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span>store_forwarder: <span class="prelude-val">None</span>,
         }
     }
 
-    <span class="doccomment">/// Configures a store forwarder to produce Envelopes to Kafka.</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_store_forwarder</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">addr</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">Store</span><span class="op">&gt;</span>) {
-        <span class="self">self</span>.<span class="ident">store_forwarder</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">addr</span>);
+    <span class="doccomment">/// Configures a store forwarder to produce Envelopes to Kafka.
+    </span><span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span><span class="kw">pub fn </span>set_store_forwarder(<span class="kw-2">&amp;mut </span><span class="self">self</span>, addr: Addr&lt;Store&gt;) {
+        <span class="self">self</span>.store_forwarder = <span class="prelude-val">Some</span>(addr);
     }
 
-    <span class="doccomment">/// Sends an envelope to the upstream or Kafka.</span>
-    <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">submit_envelope</span>(
+    <span class="doccomment">/// Sends an envelope to the upstream or Kafka.
+    </span><span class="kw">async fn </span>submit_envelope(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="kw-2">mut</span> <span class="ident">envelope</span>: <span class="ident">Envelope</span>,
-        <span class="ident">scoping</span>: <span class="ident">Scoping</span>,
-        <span class="ident">partition_key</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">SendEnvelopeError</span><span class="op">&gt;</span> {
-        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-        {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">store_forwarder</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">store_forwarder</span>.<span class="ident">clone</span>() {
+        <span class="kw-2">mut </span>envelope: Envelope,
+        scoping: Scoping,
+        partition_key: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), SendEnvelopeError&gt; {
+        <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+        </span>{
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(store_forwarder) = <span class="self">self</span>.store_forwarder.clone() {
                 <span class="macro">relay_log::trace!</span>(<span class="string">&quot;sending envelope to kafka&quot;</span>);
-                <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">store_forwarder</span>.<span class="ident">send</span>(<span class="ident">StoreEnvelope</span> {
-                    <span class="ident">start_time</span>: <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">start_time</span>(),
-                    <span class="ident">scoping</span>,
-                    <span class="ident">envelope</span>,
+                <span class="kw">let </span>future = store_forwarder.send(StoreEnvelope {
+                    start_time: envelope.meta().start_time(),
+                    scoping,
+                    envelope,
                 });
 
-                <span class="kw">return</span> <span class="ident">future</span>
-                    .<span class="kw">await</span>
-                    .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">SendEnvelopeError::ScheduleFailed</span>)
-                    .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">result</span><span class="op">|</span> <span class="ident">result</span>.<span class="ident">map_err</span>(<span class="ident">SendEnvelopeError::StoreFailed</span>));
+                <span class="kw">return </span>future
+                    .<span class="kw">await
+                    </span>.map_err(|<span class="kw">_</span>| SendEnvelopeError::ScheduleFailed)
+                    .and_then(|result| result.map_err(SendEnvelopeError::StoreFailed));
             }
         }
 
-        <span class="comment">// if we are in capture mode, we stash away the event instead of forwarding it.</span>
-        <span class="kw">if</span> <span class="ident">Capture::should_capture</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>) {
-            <span class="ident">TestStore::from_registry</span>().<span class="ident">send</span>(<span class="ident">Capture::accepted</span>(<span class="ident">envelope</span>));
-            <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
+        <span class="comment">// if we are in capture mode, we stash away the event instead of forwarding it.
+        </span><span class="kw">if </span>Capture::should_capture(<span class="kw-2">&amp;</span><span class="self">self</span>.config) {
+            TestStore::from_registry().send(Capture::accepted(envelope));
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
 
         <span class="macro">relay_log::trace!</span>(<span class="string">&quot;sending envelope to sentry endpoint&quot;</span>);
 
-        <span class="comment">// Override the `sent_at` timestamp. Since the envelope went through basic</span>
-        <span class="comment">// normalization, all timestamps have been corrected. We propagate the new</span>
-        <span class="comment">// `sent_at` to allow the next Relay to double-check this timestamp and</span>
-        <span class="comment">// potentially apply correction again. This is done as close to sending as</span>
-        <span class="comment">// possible so that we avoid internal delays.</span>
-        <span class="ident">envelope</span>.<span class="ident">set_sent_at</span>(<span class="ident">Utc::now</span>());
+        <span class="comment">// Override the `sent_at` timestamp. Since the envelope went through basic
+        // normalization, all timestamps have been corrected. We propagate the new
+        // `sent_at` to allow the next Relay to double-check this timestamp and
+        // potentially apply correction again. This is done as close to sending as
+        // possible so that we avoid internal delays.
+        </span>envelope.set_sent_at(Utc::now());
 
-        <span class="kw">let</span> <span class="ident">envelope_body</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">envelope</span>.<span class="ident">to_vec</span>() {
-            <span class="prelude-val">Ok</span>(<span class="ident">v</span>) =&gt; <span class="ident">v</span>,
-            <span class="prelude-val">Err</span>(<span class="ident">e</span>) =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">SendEnvelopeError::EnvelopeBuildFailed</span>(<span class="ident">e</span>)),
+        <span class="kw">let </span>envelope_body = <span class="kw">match </span>envelope.to_vec() {
+            <span class="prelude-val">Ok</span>(v) =&gt; v,
+            <span class="prelude-val">Err</span>(e) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(SendEnvelopeError::EnvelopeBuildFailed(e)),
         };
 
-        <span class="kw">let</span> (<span class="ident">tx</span>, <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">oneshot::channel</span>();
-        <span class="kw">let</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">SendEnvelope</span> {
-            <span class="ident">envelope_body</span>,
-            <span class="ident">envelope_meta</span>: <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">clone</span>(),
-            <span class="ident">scoping</span>,
-            <span class="ident">http_encoding</span>: <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">http_encoding</span>(),
-            <span class="ident">response_sender</span>: <span class="prelude-val">Some</span>(<span class="ident">tx</span>),
-            <span class="ident">project_key</span>: <span class="ident">scoping</span>.<span class="ident">project_key</span>,
-            <span class="ident">partition_key</span>,
+        <span class="kw">let </span>(tx, rx) = oneshot::channel();
+        <span class="kw">let </span>request = SendEnvelope {
+            envelope_body,
+            envelope_meta: envelope.meta().clone(),
+            scoping,
+            http_encoding: <span class="self">self</span>.config.http_encoding(),
+            response_sender: <span class="prelude-val">Some</span>(tx),
+            project_key: scoping.project_key,
+            partition_key,
         };
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">HttpEncoding::Identity</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">http_encoding</span> {
-            <span class="ident">UpstreamRelay::from_registry</span>().<span class="ident">do_send</span>(<span class="ident">SendRequest</span>(<span class="ident">request</span>));
-        } <span class="kw">else</span> {
-            <span class="ident">EnvelopeProcessor::from_registry</span>().<span class="ident">send</span>(<span class="ident">EncodeEnvelope::new</span>(<span class="ident">request</span>));
+        <span class="kw">if let </span>HttpEncoding::Identity = request.http_encoding {
+            UpstreamRelay::from_registry().do_send(SendRequest(request));
+        } <span class="kw">else </span>{
+            EnvelopeProcessor::from_registry().send(EncodeEnvelope::new(request));
         }
 
-        <span class="kw">match</span> <span class="ident">rx</span>.<span class="ident">compat</span>().<span class="kw">await</span> {
+        <span class="kw">match </span>rx.compat().<span class="kw">await </span>{
             <span class="prelude-val">Ok</span>(<span class="prelude-val">Ok</span>(())) =&gt; <span class="prelude-val">Ok</span>(()),
-            <span class="prelude-val">Ok</span>(<span class="prelude-val">Err</span>(<span class="ident">err</span>)) =&gt; <span class="prelude-val">Err</span>(<span class="ident">err</span>),
-            <span class="prelude-val">Err</span>(<span class="ident">_canceled</span>) =&gt; <span class="prelude-val">Err</span>(<span class="ident">SendEnvelopeError::UpstreamRequestFailed</span>(
-                <span class="ident">UpstreamRequestError::ChannelClosed</span>,
+            <span class="prelude-val">Ok</span>(<span class="prelude-val">Err</span>(err)) =&gt; <span class="prelude-val">Err</span>(err),
+            <span class="prelude-val">Err</span>(_canceled) =&gt; <span class="prelude-val">Err</span>(SendEnvelopeError::UpstreamRequestFailed(
+                UpstreamRequestError::ChannelClosed,
             )),
         }
     }
 
-    <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">handle_submit</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">message</span>: <span class="ident">SubmitEnvelope</span>) {
-        <span class="kw">let</span> <span class="ident">SubmitEnvelope</span> {
-            <span class="ident">envelope</span>,
-            <span class="kw-2">mut</span> <span class="ident">envelope_context</span>,
-        } <span class="op">=</span> <span class="ident">message</span>;
+    <span class="kw">async fn </span>handle_submit(<span class="kw-2">&amp;</span><span class="self">self</span>, message: SubmitEnvelope) {
+        <span class="kw">let </span>SubmitEnvelope {
+            envelope,
+            <span class="kw-2">mut </span>envelope_context,
+        } = message;
 
-        <span class="kw">let</span> <span class="ident">scoping</span> <span class="op">=</span> <span class="ident">envelope_context</span>.<span class="ident">scoping</span>();
-        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">submit_envelope</span>(<span class="ident">envelope</span>, <span class="ident">scoping</span>, <span class="prelude-val">None</span>).<span class="kw">await</span> {
+        <span class="kw">let </span>scoping = envelope_context.scoping();
+        <span class="kw">match </span><span class="self">self</span>.submit_envelope(envelope, scoping, <span class="prelude-val">None</span>).<span class="kw">await </span>{
             <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; {
-                <span class="ident">envelope_context</span>.<span class="ident">accept</span>();
+                envelope_context.accept();
             }
-            <span class="prelude-val">Err</span>(<span class="ident">SendEnvelopeError::UpstreamRequestFailed</span>(<span class="ident">e</span>)) <span class="kw">if</span> <span class="ident">e</span>.<span class="ident">is_received</span>() =&gt; {
-                <span class="ident">envelope_context</span>.<span class="ident">accept</span>();
+            <span class="prelude-val">Err</span>(SendEnvelopeError::UpstreamRequestFailed(e)) <span class="kw">if </span>e.is_received() =&gt; {
+                envelope_context.accept();
             }
-            <span class="prelude-val">Err</span>(<span class="ident">error</span>) =&gt; {
-                <span class="comment">// Errors are only logged for what we consider an internal discard reason. These</span>
-                <span class="comment">// indicate errors in the infrastructure or implementation bugs.</span>
-                <span class="ident">relay_log::with_scope</span>(
-                    <span class="op">|</span><span class="ident">scope</span><span class="op">|</span> <span class="ident">scope</span>.<span class="ident">set_tag</span>(<span class="string">&quot;project_key&quot;</span>, <span class="ident">scoping</span>.<span class="ident">project_key</span>),
-                    <span class="op">|</span><span class="op">|</span> <span class="macro">relay_log::error!</span>(<span class="string">&quot;error sending envelope: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>)),
+            <span class="prelude-val">Err</span>(error) =&gt; {
+                <span class="comment">// Errors are only logged for what we consider an internal discard reason. These
+                // indicate errors in the infrastructure or implementation bugs.
+                </span>relay_log::with_scope(
+                    |scope| scope.set_tag(<span class="string">&quot;project_key&quot;</span>, scoping.project_key),
+                    || <span class="macro">relay_log::error!</span>(<span class="string">&quot;error sending envelope: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error)),
                 );
-                <span class="ident">envelope_context</span>.<span class="ident">reject</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::Internal</span>));
+                envelope_context.reject(Outcome::Invalid(DiscardReason::Internal));
             }
         }
     }
 
-    <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">handle_send_metrics</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">message</span>: <span class="ident">SendMetrics</span>) {
-        <span class="kw">let</span> <span class="ident">SendMetrics</span> {
-            <span class="ident">buckets</span>,
-            <span class="ident">scoping</span>,
-            <span class="ident">partition_key</span>,
-        } <span class="op">=</span> <span class="ident">message</span>;
+    <span class="kw">async fn </span>handle_send_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>, message: SendMetrics) {
+        <span class="kw">let </span>SendMetrics {
+            buckets,
+            scoping,
+            partition_key,
+        } = message;
 
-        <span class="kw">let</span> <span class="ident">upstream</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">upstream_descriptor</span>();
-        <span class="kw">let</span> <span class="ident">dsn</span> <span class="op">=</span> <span class="ident">PartialDsn</span> {
-            <span class="ident">scheme</span>: <span class="ident">upstream</span>.<span class="ident">scheme</span>(),
-            <span class="ident">public_key</span>: <span class="ident">scoping</span>.<span class="ident">project_key</span>,
-            <span class="ident">host</span>: <span class="ident">upstream</span>.<span class="ident">host</span>().<span class="ident">to_owned</span>(),
-            <span class="ident">port</span>: <span class="ident">upstream</span>.<span class="ident">port</span>(),
-            <span class="ident">path</span>: <span class="string">&quot;&quot;</span>.<span class="ident">to_owned</span>(),
-            <span class="ident">project_id</span>: <span class="prelude-val">Some</span>(<span class="ident">scoping</span>.<span class="ident">project_id</span>),
+        <span class="kw">let </span>upstream = <span class="self">self</span>.config.upstream_descriptor();
+        <span class="kw">let </span>dsn = PartialDsn {
+            scheme: upstream.scheme(),
+            public_key: scoping.project_key,
+            host: upstream.host().to_owned(),
+            port: upstream.port(),
+            path: <span class="string">&quot;&quot;</span>.to_owned(),
+            project_id: <span class="prelude-val">Some</span>(scoping.project_id),
         };
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">item</span> <span class="op">=</span> <span class="ident">Item::new</span>(<span class="ident">ItemType::MetricBuckets</span>);
-        <span class="ident">item</span>.<span class="ident">set_payload</span>(<span class="ident">ContentType::Json</span>, <span class="ident">Bucket::serialize_all</span>(<span class="kw-2">&amp;</span><span class="ident">buckets</span>).<span class="ident">unwrap</span>());
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="ident">Envelope::from_request</span>(<span class="prelude-val">None</span>, <span class="ident">RequestMeta::outbound</span>(<span class="ident">dsn</span>));
-        <span class="ident">envelope</span>.<span class="ident">add_item</span>(<span class="ident">item</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::MetricBuckets);
+        item.set_payload(ContentType::Json, Bucket::serialize_all(<span class="kw-2">&amp;</span>buckets).unwrap());
+        <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">None</span>, RequestMeta::outbound(dsn));
+        envelope.add_item(item);
 
-        <span class="kw">let</span> <span class="ident">partition_key</span> <span class="op">=</span> <span class="ident">partition_key</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">to_string</span>());
-        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">submit_envelope</span>(<span class="ident">envelope</span>, <span class="ident">scoping</span>, <span class="ident">partition_key</span>).<span class="kw">await</span>;
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=</span> <span class="ident">result</span> {
+        <span class="kw">let </span>partition_key = partition_key.map(|x| x.to_string());
+        <span class="kw">let </span>result = <span class="self">self</span>.submit_envelope(envelope, scoping, partition_key).<span class="kw">await</span>;
+        <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = result {
             <span class="macro">relay_log::trace!</span>(
                 <span class="string">&quot;failed to submit the envelope, merging buckets back: {}&quot;</span>,
-                <span class="ident">err</span>
+                err
             );
-            <span class="ident">Registry::aggregator</span>().<span class="ident">send</span>(<span class="ident">MergeBuckets::new</span>(<span class="ident">scoping</span>.<span class="ident">project_key</span>, <span class="ident">buckets</span>));
+            Registry::aggregator().send(MergeBuckets::new(scoping.project_key, buckets));
         }
     }
 
-    <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">handle_send_client_reports</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">message</span>: <span class="ident">SendClientReports</span>) {
-        <span class="kw">let</span> <span class="ident">SendClientReports</span> {
-            <span class="ident">client_reports</span>,
-            <span class="ident">scoping</span>,
-        } <span class="op">=</span> <span class="ident">message</span>;
+    <span class="kw">async fn </span>handle_send_client_reports(<span class="kw-2">&amp;</span><span class="self">self</span>, message: SendClientReports) {
+        <span class="kw">let </span>SendClientReports {
+            client_reports,
+            scoping,
+        } = message;
 
-        <span class="kw">let</span> <span class="ident">upstream</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">upstream_descriptor</span>();
-        <span class="kw">let</span> <span class="ident">dsn</span> <span class="op">=</span> <span class="ident">PartialDsn</span> {
-            <span class="ident">scheme</span>: <span class="ident">upstream</span>.<span class="ident">scheme</span>(),
-            <span class="ident">public_key</span>: <span class="ident">scoping</span>.<span class="ident">project_key</span>,
-            <span class="ident">host</span>: <span class="ident">upstream</span>.<span class="ident">host</span>().<span class="ident">to_owned</span>(),
-            <span class="ident">port</span>: <span class="ident">upstream</span>.<span class="ident">port</span>(),
-            <span class="ident">path</span>: <span class="string">&quot;&quot;</span>.<span class="ident">to_owned</span>(),
-            <span class="ident">project_id</span>: <span class="prelude-val">Some</span>(<span class="ident">scoping</span>.<span class="ident">project_id</span>),
+        <span class="kw">let </span>upstream = <span class="self">self</span>.config.upstream_descriptor();
+        <span class="kw">let </span>dsn = PartialDsn {
+            scheme: upstream.scheme(),
+            public_key: scoping.project_key,
+            host: upstream.host().to_owned(),
+            port: upstream.port(),
+            path: <span class="string">&quot;&quot;</span>.to_owned(),
+            project_id: <span class="prelude-val">Some</span>(scoping.project_id),
         };
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="ident">Envelope::from_request</span>(<span class="prelude-val">None</span>, <span class="ident">RequestMeta::outbound</span>(<span class="ident">dsn</span>));
-        <span class="kw">for</span> <span class="ident">client_report</span> <span class="kw">in</span> <span class="ident">client_reports</span> {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">item</span> <span class="op">=</span> <span class="ident">Item::new</span>(<span class="ident">ItemType::ClientReport</span>);
-            <span class="ident">item</span>.<span class="ident">set_payload</span>(<span class="ident">ContentType::Json</span>, <span class="ident">client_report</span>.<span class="ident">serialize</span>().<span class="ident">unwrap</span>()); <span class="comment">// TODO: unwrap OK?</span>
-            <span class="ident">envelope</span>.<span class="ident">add_item</span>(<span class="ident">item</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">None</span>, RequestMeta::outbound(dsn));
+        <span class="kw">for </span>client_report <span class="kw">in </span>client_reports {
+            <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::ClientReport);
+            item.set_payload(ContentType::Json, client_report.serialize().unwrap()); <span class="comment">// TODO: unwrap OK?
+            </span>envelope.add_item(item);
         }
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">submit_envelope</span>(<span class="ident">envelope</span>, <span class="ident">scoping</span>, <span class="prelude-val">None</span>).<span class="kw">await</span> {
-            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Failed to send envelope for client report: {:?}&quot;</span>, <span class="ident">e</span>);
+        <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = <span class="self">self</span>.submit_envelope(envelope, scoping, <span class="prelude-val">None</span>).<span class="kw">await </span>{
+            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Failed to send envelope for client report: {:?}&quot;</span>, e);
         }
     }
 
-    <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">handle_message</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">message</span>: <span class="ident">EnvelopeManager</span>) {
-        <span class="kw">match</span> <span class="ident">message</span> {
-            <span class="ident">EnvelopeManager::SubmitEnvelope</span>(<span class="ident">message</span>) =&gt; {
-                <span class="self">self</span>.<span class="ident">handle_submit</span>(<span class="kw-2">*</span><span class="ident">message</span>).<span class="kw">await</span>;
+    <span class="kw">async fn </span>handle_message(<span class="kw-2">&amp;</span><span class="self">self</span>, message: EnvelopeManager) {
+        <span class="kw">match </span>message {
+            EnvelopeManager::SubmitEnvelope(message) =&gt; {
+                <span class="self">self</span>.handle_submit(<span class="kw-2">*</span>message).<span class="kw">await</span>;
             }
-            <span class="ident">EnvelopeManager::SendClientReports</span>(<span class="ident">message</span>) =&gt; {
-                <span class="self">self</span>.<span class="ident">handle_send_client_reports</span>(<span class="ident">message</span>).<span class="kw">await</span>;
+            EnvelopeManager::SendClientReports(message) =&gt; {
+                <span class="self">self</span>.handle_send_client_reports(message).<span class="kw">await</span>;
             }
-            <span class="ident">EnvelopeManager::SendMetrics</span>(<span class="ident">message</span>) =&gt; {
-                <span class="self">self</span>.<span class="ident">handle_send_metrics</span>(<span class="ident">message</span>).<span class="kw">await</span>;
+            EnvelopeManager::SendMetrics(message) =&gt; {
+                <span class="self">self</span>.handle_send_metrics(message).<span class="kw">await</span>;
             }
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">relay_system::Service</span> <span class="kw">for</span> <span class="ident">EnvelopeManagerService</span> {
-    <span class="kw">type</span> <span class="ident">Interface</span> <span class="op">=</span> <span class="ident">EnvelopeManager</span>;
+<span class="kw">impl </span>relay_system::Service <span class="kw">for </span>EnvelopeManagerService {
+    <span class="kw">type </span>Interface = EnvelopeManager;
 
-    <span class="kw">fn</span> <span class="ident">spawn_handler</span>(<span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">rx</span>: <span class="ident">relay_system::Receiver</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Interface</span><span class="op">&gt;</span>) {
-        <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
+    <span class="kw">fn </span>spawn_handler(<span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+        tokio::spawn(<span class="kw">async move </span>{
             <span class="macro">relay_log::info!</span>(<span class="string">&quot;envelope manager started&quot;</span>);
 
-            <span class="kw">let</span> <span class="ident">service</span> <span class="op">=</span> <span class="ident">Arc::new</span>(<span class="self">self</span>);
-            <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">message</span>) <span class="op">=</span> <span class="ident">rx</span>.<span class="ident">recv</span>().<span class="kw">await</span> {
-                <span class="kw">let</span> <span class="ident">service</span> <span class="op">=</span> <span class="ident">Arc::clone</span>(<span class="kw-2">&amp;</span><span class="ident">service</span>);
-                <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
-                    <span class="ident">service</span>.<span class="ident">handle_message</span>(<span class="ident">message</span>).<span class="kw">await</span>;
+            <span class="kw">let </span>service = Arc::new(<span class="self">self</span>);
+            <span class="kw">while let </span><span class="prelude-val">Some</span>(message) = rx.recv().<span class="kw">await </span>{
+                <span class="kw">let </span>service = Arc::clone(<span class="kw-2">&amp;</span>service);
+                tokio::spawn(<span class="kw">async move </span>{
+                    service.handle_message(message).<span class="kw">await</span>;
                 });
             }
 
@@ -871,4 +871,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

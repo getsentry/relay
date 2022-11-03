@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/endpoints/outcomes.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>outcomes.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/endpoints/outcomes.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>outcomes.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_server/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -26,31 +26,31 @@
 <span id="24">24</span>
 <span id="25">25</span>
 <span id="26">26</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">actix_web::HttpResponse</span>;
-<span class="kw">use</span> <span class="ident">relay_config::EmitOutcomes</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>actix_web::HttpResponse;
+<span class="kw">use </span>relay_config::EmitOutcomes;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome</span>::{<span class="ident">OutcomeProducer</span>, <span class="ident">SendOutcomes</span>, <span class="ident">SendOutcomesResponse</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::extractors</span>::{<span class="ident">CurrentServiceState</span>, <span class="ident">SignedJson</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service::ServiceApp</span>;
+<span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{OutcomeProducer, SendOutcomes, SendOutcomesResponse};
+<span class="kw">use </span><span class="kw">crate</span>::extractors::{CurrentServiceState, SignedJson};
+<span class="kw">use </span><span class="kw">crate</span>::service::ServiceApp;
 
-<span class="kw">fn</span> <span class="ident">send_outcomes</span>(<span class="ident">state</span>: <span class="ident">CurrentServiceState</span>, <span class="ident">body</span>: <span class="ident">SignedJson</span><span class="op">&lt;</span><span class="ident">SendOutcomes</span><span class="op">&gt;</span>) -&gt; <span class="ident">HttpResponse</span> {
-    <span class="kw">if</span> <span class="op">!</span><span class="ident">body</span>.<span class="ident">relay</span>.<span class="ident">internal</span> <span class="op">|</span><span class="op">|</span> <span class="ident">state</span>.<span class="ident">config</span>().<span class="ident">emit_outcomes</span>() <span class="op">!</span><span class="op">=</span> <span class="ident">EmitOutcomes::AsOutcomes</span> {
-        <span class="kw">return</span> <span class="ident">HttpResponse::Forbidden</span>().<span class="ident">finish</span>();
+<span class="kw">fn </span>send_outcomes(state: CurrentServiceState, body: SignedJson&lt;SendOutcomes&gt;) -&gt; HttpResponse {
+    <span class="kw">if </span>!body.relay.internal || state.config().emit_outcomes() != EmitOutcomes::AsOutcomes {
+        <span class="kw">return </span>HttpResponse::Forbidden().finish();
     }
 
-    <span class="kw">let</span> <span class="ident">producer</span> <span class="op">=</span> <span class="ident">OutcomeProducer::from_registry</span>();
-    <span class="kw">for</span> <span class="ident">outcome</span> <span class="kw">in</span> <span class="ident">body</span>.<span class="ident">inner</span>.<span class="ident">outcomes</span> {
-        <span class="ident">producer</span>.<span class="ident">send</span>(<span class="ident">outcome</span>);
+    <span class="kw">let </span>producer = OutcomeProducer::from_registry();
+    <span class="kw">for </span>outcome <span class="kw">in </span>body.inner.outcomes {
+        producer.send(outcome);
     }
 
-    <span class="ident">HttpResponse::Accepted</span>().<span class="ident">json</span>(<span class="ident">SendOutcomesResponse</span> {})
+    HttpResponse::Accepted().json(SendOutcomesResponse {})
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">configure_app</span>(<span class="ident">app</span>: <span class="ident">ServiceApp</span>) -&gt; <span class="ident">ServiceApp</span> {
-    <span class="ident">app</span>.<span class="ident">resource</span>(<span class="string">&quot;/api/0/relays/outcomes/&quot;</span>, <span class="op">|</span><span class="ident">r</span><span class="op">|</span> {
-        <span class="ident">r</span>.<span class="ident">name</span>(<span class="string">&quot;relay-outcomes&quot;</span>);
-        <span class="ident">r</span>.<span class="ident">post</span>().<span class="ident">with</span>(<span class="ident">send_outcomes</span>);
+<span class="kw">pub fn </span>configure_app(app: ServiceApp) -&gt; ServiceApp {
+    app.resource(<span class="string">&quot;/api/0/relays/outcomes/&quot;</span>, |r| {
+        r.name(<span class="string">&quot;relay-outcomes&quot;</span>);
+        r.post().with(send_outcomes);
     })
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

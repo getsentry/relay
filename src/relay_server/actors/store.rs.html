@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/store.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>store.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/store.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>store.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_server/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -1158,741 +1158,725 @@
 <span id="1156">1156</span>
 <span id="1157">1157</span>
 <span id="1158">1158</span>
-<span id="1159">1159</span>
-<span id="1160">1160</span>
-<span id="1161">1161</span>
-<span id="1162">1162</span>
-<span id="1163">1163</span>
-<span id="1164">1164</span>
-<span id="1165">1165</span>
-<span id="1166">1166</span>
-</pre><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.</span>
-<span class="doccomment">//! The service uses kafka topics to forward data to Sentry</span>
+</pre><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
+//! The service uses kafka topics to forward data to Sentry
 
-<span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
-<span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
-<span class="kw">use</span> <span class="ident">std::time::Instant</span>;
+</span><span class="kw">use </span>std::collections::BTreeMap;
+<span class="kw">use </span>std::sync::Arc;
+<span class="kw">use </span>std::time::Instant;
 
-<span class="kw">use</span> <span class="ident">bytes::Bytes</span>;
-<span class="kw">use</span> <span class="ident">failure</span>::{<span class="ident">Fail</span>, <span class="ident">ResultExt</span>};
-<span class="kw">use</span> <span class="ident">once_cell::sync::OnceCell</span>;
-<span class="kw">use</span> <span class="ident">rdkafka</span>::{<span class="ident">error::KafkaError</span>, <span class="ident">producer::BaseRecord</span>, <span class="ident">ClientConfig</span>};
-<span class="kw">use</span> <span class="ident">rmp_serde::encode::Error</span> <span class="kw">as</span> <span class="ident">RmpError</span>;
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">ser::Error</span>, <span class="ident">Serialize</span>};
+<span class="kw">use </span>bytes::Bytes;
+<span class="kw">use </span>failure::{Fail, ResultExt};
+<span class="kw">use </span>once_cell::sync::OnceCell;
+<span class="kw">use </span>rdkafka::{error::KafkaError, producer::BaseRecord, ClientConfig};
+<span class="kw">use </span>rmp_serde::encode::Error <span class="kw">as </span>RmpError;
+<span class="kw">use </span>serde::{ser::Error, Serialize};
 
-<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">ProjectId</span>, <span class="ident">UnixTimestamp</span>, <span class="ident">Uuid</span>};
-<span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">KafkaConfig</span>, <span class="ident">KafkaParams</span>, <span class="ident">KafkaTopic</span>};
-<span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{<span class="self">self</span>, <span class="ident">EventId</span>, <span class="ident">SessionAggregates</span>, <span class="ident">SessionStatus</span>, <span class="ident">SessionUpdate</span>};
-<span class="kw">use</span> <span class="ident">relay_log::LogError</span>;
-<span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">Bucket</span>, <span class="ident">BucketValue</span>, <span class="ident">MetricNamespace</span>, <span class="ident">MetricResourceIdentifier</span>};
-<span class="kw">use</span> <span class="ident">relay_quotas::Scoping</span>;
-<span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
-<span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">AsyncResponse</span>, <span class="ident">FromMessage</span>, <span class="ident">Interface</span>, <span class="ident">Sender</span>, <span class="ident">Service</span>};
+<span class="kw">use </span>relay_common::{ProjectId, UnixTimestamp, Uuid};
+<span class="kw">use </span>relay_config::{Config, KafkaConfig, KafkaParams, KafkaTopic};
+<span class="kw">use </span>relay_general::protocol::{<span class="self">self</span>, EventId, SessionAggregates, SessionStatus, SessionUpdate};
+<span class="kw">use </span>relay_log::LogError;
+<span class="kw">use </span>relay_metrics::{Bucket, BucketValue, MetricNamespace, MetricResourceIdentifier};
+<span class="kw">use </span>relay_quotas::Scoping;
+<span class="kw">use </span>relay_statsd::metric;
+<span class="kw">use </span>relay_system::{AsyncResponse, FromMessage, Interface, Sender, Service};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope</span>::{<span class="ident">AttachmentType</span>, <span class="ident">Envelope</span>, <span class="ident">Item</span>, <span class="ident">ItemType</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service</span>::{<span class="ident">ServerError</span>, <span class="ident">ServerErrorKind</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayHistograms</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{<span class="ident">CaptureErrorContext</span>, <span class="ident">ThreadedProducer</span>};
+<span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, Envelope, Item, ItemType};
+<span class="kw">use </span><span class="kw">crate</span>::service::{ServerError, ServerErrorKind};
+<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{CaptureErrorContext, ThreadedProducer};
 
-<span class="doccomment">/// The maximum number of individual session updates generated for each aggregate item.</span>
-<span class="kw">const</span> <span class="ident">MAX_EXPLODED_SESSIONS</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">100</span>;
+<span class="doccomment">/// The maximum number of individual session updates generated for each aggregate item.
+</span><span class="kw">const </span>MAX_EXPLODED_SESSIONS: usize = <span class="number">100</span>;
 
-<span class="doccomment">/// Fallback name used for attachment items without a `filename` header.</span>
-<span class="kw">const</span> <span class="ident">UNNAMED_ATTACHMENT</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;Unnamed Attachment&quot;</span>;
+<span class="doccomment">/// Fallback name used for attachment items without a `filename` header.
+</span><span class="kw">const </span>UNNAMED_ATTACHMENT: <span class="kw-2">&amp;</span>str = <span class="string">&quot;Unnamed Attachment&quot;</span>;
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Fail</span>, <span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">StoreError</span> {
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;failed to send kafka message&quot;</span>)]</span>
-    <span class="ident">SendFailed</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">KafkaError</span>),
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;failed to serialize kafka message&quot;</span>)]</span>
-    <span class="ident">InvalidMsgPack</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">RmpError</span>),
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;failed to serialize json message&quot;</span>)]</span>
-    <span class="ident">InvalidJson</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">serde_json::Error</span>),
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;failed to find the shard range&quot;</span>)]</span>
-    <span class="ident">InvalidKafkaShardRange</span>,
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;failed to store event because event id was missing&quot;</span>)]</span>
-    <span class="ident">NoEventId</span>,
+<span class="attribute">#[derive(Fail, Debug)]
+</span><span class="kw">pub enum </span>StoreError {
+    <span class="attribute">#[fail(display = <span class="string">&quot;failed to send kafka message&quot;</span>)]
+    </span>SendFailed(<span class="attribute">#[cause] </span>KafkaError),
+    <span class="attribute">#[fail(display = <span class="string">&quot;failed to serialize kafka message&quot;</span>)]
+    </span>InvalidMsgPack(<span class="attribute">#[cause] </span>RmpError),
+    <span class="attribute">#[fail(display = <span class="string">&quot;failed to serialize json message&quot;</span>)]
+    </span>InvalidJson(<span class="attribute">#[cause] </span>serde_json::Error),
+    <span class="attribute">#[fail(display = <span class="string">&quot;failed to find the shard range&quot;</span>)]
+    </span>InvalidKafkaShardRange,
+    <span class="attribute">#[fail(display = <span class="string">&quot;failed to store event because event id was missing&quot;</span>)]
+    </span>NoEventId,
 }
 
-<span class="doccomment">/// Temporary map used to deduplicate kafka producers</span>
-<span class="kw">type</span> <span class="ident">ReusedProducersMap</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span><span class="op">&gt;</span>, <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ThreadedProducer</span><span class="op">&gt;</span><span class="op">&gt;</span>;
+<span class="doccomment">/// Temporary map used to deduplicate kafka producers
+</span><span class="kw">type </span>ReusedProducersMap&lt;<span class="lifetime">&#39;a</span>&gt; = BTreeMap&lt;<span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;, Arc&lt;ThreadedProducer&gt;&gt;;
 
-<span class="kw">fn</span> <span class="ident">make_distinct_id</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">Uuid</span> {
-    <span class="kw">static</span> <span class="ident">NAMESPACE</span>: <span class="ident">OnceCell</span><span class="op">&lt;</span><span class="ident">Uuid</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">OnceCell::new</span>();
-    <span class="kw">let</span> <span class="ident">namespace</span> <span class="op">=</span>
-        <span class="ident">NAMESPACE</span>.<span class="ident">get_or_init</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Uuid::new_v5</span>(<span class="kw-2">&amp;</span><span class="ident">Uuid::NAMESPACE_URL</span>, <span class="string">b&quot;https://sentry.io/#did&quot;</span>));
+<span class="kw">fn </span>make_distinct_id(s: <span class="kw-2">&amp;</span>str) -&gt; Uuid {
+    <span class="kw">static </span>NAMESPACE: OnceCell&lt;Uuid&gt; = OnceCell::new();
+    <span class="kw">let </span>namespace =
+        NAMESPACE.get_or_init(|| Uuid::new_v5(<span class="kw-2">&amp;</span>Uuid::NAMESPACE_URL, <span class="string">b&quot;https://sentry.io/#did&quot;</span>));
 
-    <span class="ident">s</span>.<span class="ident">parse</span>()
-        .<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">Uuid::new_v5</span>(<span class="ident">namespace</span>, <span class="ident">s</span>.<span class="ident">as_bytes</span>()))
+    s.parse()
+        .unwrap_or_else(|<span class="kw">_</span>| Uuid::new_v5(namespace, s.as_bytes()))
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">make_producer</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(
-    <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Config</span>,
-    <span class="ident">reused_producers</span>: <span class="kw-2">&amp;mut</span> <span class="ident">ReusedProducersMap</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
-    <span class="ident">kafka_topic</span>: <span class="ident">KafkaTopic</span>,
-) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Producer</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">client_config</span> <span class="op">=</span> <span class="ident">ClientConfig::new</span>();
-    <span class="kw">match</span> <span class="ident">config</span>
-        .<span class="ident">kafka_config</span>(<span class="ident">kafka_topic</span>)
-        .<span class="ident">context</span>(<span class="ident">ServerErrorKind::KafkaError</span>)<span class="question-mark">?</span>
-    {
-        <span class="ident">KafkaConfig::Single</span>(<span class="ident">KafkaParams</span> {
-            <span class="ident">topic_name</span>,
-            <span class="ident">config_name</span>,
-            <span class="ident">params</span>,
+<span class="kw">pub fn </span>make_producer&lt;<span class="lifetime">&#39;a</span>&gt;(
+    config: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Config,
+    reused_producers: <span class="kw-2">&amp;mut </span>ReusedProducersMap&lt;<span class="lifetime">&#39;a</span>&gt;,
+    kafka_topic: KafkaTopic,
+) -&gt; <span class="prelude-ty">Result</span>&lt;Producer, ServerError&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>client_config = ClientConfig::new();
+    <span class="kw">match </span>config
+        .kafka_config(kafka_topic)
+        .context(ServerErrorKind::KafkaError)<span class="question-mark">?
+    </span>{
+        KafkaConfig::Single(KafkaParams {
+            topic_name,
+            config_name,
+            params,
         }) =&gt; {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">producer</span>) <span class="op">=</span> <span class="ident">reused_producers</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">config_name</span>) {
-                <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Producer::Single</span> {
-                    <span class="ident">topic_name</span>: <span class="ident">topic_name</span>.<span class="ident">to_string</span>(),
-                    <span class="ident">producer</span>: <span class="ident">Arc::clone</span>(<span class="ident">producer</span>),
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(producer) = reused_producers.get(<span class="kw-2">&amp;</span>config_name) {
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(Producer::Single {
+                    topic_name: topic_name.to_string(),
+                    producer: Arc::clone(producer),
                 });
             }
 
-            <span class="kw">for</span> <span class="ident">config_p</span> <span class="kw">in</span> <span class="ident">params</span> {
-                <span class="ident">client_config</span>.<span class="ident">set</span>(<span class="ident">config_p</span>.<span class="ident">name</span>.<span class="ident">as_str</span>(), <span class="ident">config_p</span>.<span class="ident">value</span>.<span class="ident">as_str</span>());
+            <span class="kw">for </span>config_p <span class="kw">in </span>params {
+                client_config.set(config_p.name.as_str(), config_p.value.as_str());
             }
 
-            <span class="kw">let</span> <span class="ident">producer</span> <span class="op">=</span> <span class="ident">Arc::new</span>(
-                <span class="ident">client_config</span>
-                    .<span class="ident">create_with_context</span>(<span class="ident">CaptureErrorContext</span>)
-                    .<span class="ident">context</span>(<span class="ident">ServerErrorKind::KafkaError</span>)<span class="question-mark">?</span>,
+            <span class="kw">let </span>producer = Arc::new(
+                client_config
+                    .create_with_context(CaptureErrorContext)
+                    .context(ServerErrorKind::KafkaError)<span class="question-mark">?</span>,
             );
 
-            <span class="ident">reused_producers</span>.<span class="ident">insert</span>(<span class="ident">config_name</span>, <span class="ident">Arc::clone</span>(<span class="kw-2">&amp;</span><span class="ident">producer</span>));
-            <span class="prelude-val">Ok</span>(<span class="ident">Producer::Single</span> {
-                <span class="ident">topic_name</span>: <span class="ident">topic_name</span>.<span class="ident">to_string</span>(),
-                <span class="ident">producer</span>,
+            reused_producers.insert(config_name, Arc::clone(<span class="kw-2">&amp;</span>producer));
+            <span class="prelude-val">Ok</span>(Producer::Single {
+                topic_name: topic_name.to_string(),
+                producer,
             })
         }
-        <span class="ident">KafkaConfig::Sharded</span> { <span class="ident">shards</span>, <span class="ident">configs</span> } =&gt; {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">producers</span> <span class="op">=</span> <span class="ident">BTreeMap::new</span>();
-            <span class="kw">for</span> (<span class="ident">shard</span>, <span class="ident">kafka_params</span>) <span class="kw">in</span> <span class="ident">configs</span> {
-                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">producer</span>) <span class="op">=</span> <span class="ident">reused_producers</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">kafka_params</span>.<span class="ident">config_name</span>) {
-                    <span class="kw">let</span> <span class="ident">cached_producer</span> <span class="op">=</span> <span class="ident">Arc::clone</span>(<span class="ident">producer</span>);
-                    <span class="ident">producers</span>.<span class="ident">insert</span>(
-                        <span class="ident">shard</span>,
-                        (<span class="ident">kafka_params</span>.<span class="ident">topic_name</span>.<span class="ident">to_string</span>(), <span class="ident">cached_producer</span>),
+        KafkaConfig::Sharded { shards, configs } =&gt; {
+            <span class="kw">let </span><span class="kw-2">mut </span>producers = BTreeMap::new();
+            <span class="kw">for </span>(shard, kafka_params) <span class="kw">in </span>configs {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(producer) = reused_producers.get(<span class="kw-2">&amp;</span>kafka_params.config_name) {
+                    <span class="kw">let </span>cached_producer = Arc::clone(producer);
+                    producers.insert(
+                        shard,
+                        (kafka_params.topic_name.to_string(), cached_producer),
                     );
                     <span class="kw">continue</span>;
                 }
-                <span class="kw">for</span> <span class="ident">config_p</span> <span class="kw">in</span> <span class="ident">kafka_params</span>.<span class="ident">params</span> {
-                    <span class="ident">client_config</span>.<span class="ident">set</span>(<span class="ident">config_p</span>.<span class="ident">name</span>.<span class="ident">as_str</span>(), <span class="ident">config_p</span>.<span class="ident">value</span>.<span class="ident">as_str</span>());
+                <span class="kw">for </span>config_p <span class="kw">in </span>kafka_params.params {
+                    client_config.set(config_p.name.as_str(), config_p.value.as_str());
                 }
-                <span class="kw">let</span> <span class="ident">producer</span> <span class="op">=</span> <span class="ident">Arc::new</span>(
-                    <span class="ident">client_config</span>
-                        .<span class="ident">create_with_context</span>(<span class="ident">CaptureErrorContext</span>)
-                        .<span class="ident">context</span>(<span class="ident">ServerErrorKind::KafkaError</span>)<span class="question-mark">?</span>,
+                <span class="kw">let </span>producer = Arc::new(
+                    client_config
+                        .create_with_context(CaptureErrorContext)
+                        .context(ServerErrorKind::KafkaError)<span class="question-mark">?</span>,
                 );
-                <span class="ident">reused_producers</span>.<span class="ident">insert</span>(<span class="ident">kafka_params</span>.<span class="ident">config_name</span>, <span class="ident">Arc::clone</span>(<span class="kw-2">&amp;</span><span class="ident">producer</span>));
-                <span class="ident">producers</span>.<span class="ident">insert</span>(<span class="ident">shard</span>, (<span class="ident">kafka_params</span>.<span class="ident">topic_name</span>.<span class="ident">to_string</span>(), <span class="ident">producer</span>));
+                reused_producers.insert(kafka_params.config_name, Arc::clone(<span class="kw-2">&amp;</span>producer));
+                producers.insert(shard, (kafka_params.topic_name.to_string(), producer));
             }
-            <span class="prelude-val">Ok</span>(<span class="ident">Producer::Sharded</span>(<span class="ident">ShardedProducer</span> { <span class="ident">shards</span>, <span class="ident">producers</span> }))
+            <span class="prelude-val">Ok</span>(Producer::Sharded(ShardedProducer { shards, producers }))
         }
     }
 }
 
-<span class="doccomment">/// This object containes the Kafka producer variants for single and sharded configurations.</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Producer</span> {
-    <span class="ident">Single</span> {
-        <span class="ident">topic_name</span>: <span class="ident">String</span>,
-        <span class="ident">producer</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ThreadedProducer</span><span class="op">&gt;</span>,
+<span class="doccomment">/// This object containes the Kafka producer variants for single and sharded configurations.
+</span><span class="kw">pub enum </span>Producer {
+    Single {
+        topic_name: String,
+        producer: Arc&lt;ThreadedProducer&gt;,
     },
-    <span class="ident">Sharded</span>(<span class="ident">ShardedProducer</span>),
+    Sharded(ShardedProducer),
 }
 
-<span class="doccomment">/// Sharded producer configuration.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ShardedProducer</span> {
-    <span class="doccomment">/// The maximum number of shards for this producer.</span>
-    <span class="ident">shards</span>: <span class="ident">u64</span>,
-    <span class="doccomment">/// The actual Kafka producer assigned to the range of logical shards, where the `u64` in the map is</span>
-    <span class="doccomment">/// the inclusive beginning of the range.</span>
-    <span class="ident">producers</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">u64</span>, (<span class="ident">String</span>, <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ThreadedProducer</span><span class="op">&gt;</span>)<span class="op">&gt;</span>,
+<span class="doccomment">/// Sharded producer configuration.
+</span><span class="kw">pub struct </span>ShardedProducer {
+    <span class="doccomment">/// The maximum number of shards for this producer.
+    </span>shards: u64,
+    <span class="doccomment">/// The actual Kafka producer assigned to the range of logical shards, where the `u64` in the map is
+    /// the inclusive beginning of the range.
+    </span>producers: BTreeMap&lt;u64, (String, Arc&lt;ThreadedProducer&gt;)&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">ShardedProducer</span> {
-    <span class="doccomment">/// Returns topic name and the Kafka producer based on the provided sharding key.</span>
-    <span class="doccomment">/// Returns error [`StoreError::InvalidKafkaShardRange`] if the shard range for the provided sharding</span>
-    <span class="doccomment">/// key could not be found.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_producer</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">sharding_key</span>: <span class="ident">u64</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(<span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="kw-2">&amp;</span><span class="ident">ThreadedProducer</span>), <span class="ident">StoreError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">shard</span> <span class="op">=</span> <span class="ident">sharding_key</span> <span class="op">%</span> <span class="self">self</span>.<span class="ident">shards</span>;
-        <span class="kw">let</span> (<span class="ident">topic_name</span>, <span class="ident">producer</span>) <span class="op">=</span> <span class="self">self</span>
-            .<span class="ident">producers</span>
-            .<span class="ident">iter</span>()
-            .<span class="ident">take_while</span>(<span class="op">|</span>(<span class="ident">k</span>, <span class="kw">_</span>)<span class="op">|</span> <span class="kw-2">*</span><span class="ident">k</span> <span class="op">&lt;</span><span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">shard</span>)
-            .<span class="ident">last</span>()
-            .<span class="ident">map</span>(<span class="op">|</span>(<span class="kw">_</span>, <span class="ident">v</span>)<span class="op">|</span> <span class="ident">v</span>)
-            .<span class="ident">ok_or</span>(<span class="ident">StoreError::InvalidKafkaShardRange</span>)<span class="question-mark">?</span>;
+<span class="kw">impl </span>ShardedProducer {
+    <span class="doccomment">/// Returns topic name and the Kafka producer based on the provided sharding key.
+    /// Returns error [`StoreError::InvalidKafkaShardRange`] if the shard range for the provided sharding
+    /// key could not be found.
+    </span><span class="kw">pub fn </span>get_producer(<span class="kw-2">&amp;</span><span class="self">self</span>, sharding_key: u64) -&gt; <span class="prelude-ty">Result</span>&lt;(<span class="kw-2">&amp;</span>str, <span class="kw-2">&amp;</span>ThreadedProducer), StoreError&gt; {
+        <span class="kw">let </span>shard = sharding_key % <span class="self">self</span>.shards;
+        <span class="kw">let </span>(topic_name, producer) = <span class="self">self
+            </span>.producers
+            .iter()
+            .take_while(|(k, <span class="kw">_</span>)| <span class="kw-2">*</span>k &lt;= <span class="kw-2">&amp;</span>shard)
+            .last()
+            .map(|(<span class="kw">_</span>, v)| v)
+            .ok_or(StoreError::InvalidKafkaShardRange)<span class="question-mark">?</span>;
 
-        <span class="prelude-val">Ok</span>((<span class="ident">topic_name</span>, <span class="ident">producer</span>))
+        <span class="prelude-val">Ok</span>((topic_name, producer))
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Producer</span> {
-    <span class="doccomment">/// Sends the message to Kafka using correct producer for the current topic.</span>
-    <span class="kw">fn</span> <span class="ident">send</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">organization_id</span>: <span class="ident">u64</span>, <span class="ident">message</span>: <span class="ident">KafkaMessage</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">serialized</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">serialize</span>()<span class="question-mark">?</span>;
+<span class="kw">impl </span>Producer {
+    <span class="doccomment">/// Sends the message to Kafka using correct producer for the current topic.
+    </span><span class="kw">fn </span>send(<span class="kw-2">&amp;</span><span class="self">self</span>, organization_id: u64, message: KafkaMessage) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
+        <span class="kw">let </span>serialized = message.serialize()<span class="question-mark">?</span>;
         <span class="macro">metric!</span>(
-            <span class="ident">histogram</span>(<span class="ident">RelayHistograms::KafkaMessageSize</span>) <span class="op">=</span> <span class="ident">serialized</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u64</span>,
-            <span class="ident">variant</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">variant</span>()
+            histogram(RelayHistograms::KafkaMessageSize) = serialized.len() <span class="kw">as </span>u64,
+            variant = message.variant()
         );
-        <span class="kw">let</span> <span class="ident">key</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">key</span>();
-        <span class="kw">let</span> (<span class="ident">topic_name</span>, <span class="ident">producer</span>) <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident"><span class="self">Self</span>::Single</span> {
-                <span class="ident">topic_name</span>,
-                <span class="ident">producer</span>,
-            } =&gt; (<span class="ident">topic_name</span>.<span class="ident">as_str</span>(), <span class="ident">producer</span>.<span class="ident">as_ref</span>()),
+        <span class="kw">let </span>key = message.key();
+        <span class="kw">let </span>(topic_name, producer) = <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::Single {
+                topic_name,
+                producer,
+            } =&gt; (topic_name.as_str(), producer.as_ref()),
 
-            <span class="ident"><span class="self">Self</span>::Sharded</span>(<span class="ident">sharded</span>) =&gt; <span class="ident">sharded</span>.<span class="ident">get_producer</span>(<span class="ident">organization_id</span>)<span class="question-mark">?</span>,
+            <span class="self">Self</span>::Sharded(sharded) =&gt; sharded.get_producer(organization_id)<span class="question-mark">?</span>,
         };
-        <span class="kw">let</span> <span class="ident">record</span> <span class="op">=</span> <span class="ident">BaseRecord::to</span>(<span class="ident">topic_name</span>).<span class="ident">key</span>(<span class="kw-2">&amp;</span><span class="ident">key</span>).<span class="ident">payload</span>(<span class="kw-2">&amp;</span><span class="ident">serialized</span>);
+        <span class="kw">let </span>record = BaseRecord::to(topic_name).key(<span class="kw-2">&amp;</span>key).payload(<span class="kw-2">&amp;</span>serialized);
 
-        <span class="ident">producer</span>.<span class="ident">send</span>(<span class="ident">record</span>).<span class="ident">map_err</span>(<span class="op">|</span>(<span class="ident">kafka_error</span>, <span class="ident">_message</span>)<span class="op">|</span> {
-            <span class="ident">relay_log::with_scope</span>(
-                <span class="op">|</span><span class="ident">scope</span><span class="op">|</span> <span class="ident">scope</span>.<span class="ident">set_tag</span>(<span class="string">&quot;variant&quot;</span>, <span class="ident">message</span>.<span class="ident">variant</span>()),
-                <span class="op">|</span><span class="op">|</span> <span class="macro">relay_log::error!</span>(<span class="string">&quot;error sending kafka message: {}&quot;</span>, <span class="ident">kafka_error</span>),
+        producer.send(record).map_err(|(kafka_error, _message)| {
+            relay_log::with_scope(
+                |scope| scope.set_tag(<span class="string">&quot;variant&quot;</span>, message.variant()),
+                || <span class="macro">relay_log::error!</span>(<span class="string">&quot;error sending kafka message: {}&quot;</span>, kafka_error),
             );
-            <span class="ident">StoreError::SendFailed</span>(<span class="ident">kafka_error</span>)
+            StoreError::SendFailed(kafka_error)
         })
     }
 }
 
-<span class="kw">struct</span> <span class="ident">Producers</span> {
-    <span class="ident">events</span>: <span class="ident">Producer</span>,
-    <span class="ident">attachments</span>: <span class="ident">Producer</span>,
-    <span class="ident">transactions</span>: <span class="ident">Producer</span>,
-    <span class="ident">sessions</span>: <span class="ident">Producer</span>,
-    <span class="ident">metrics_sessions</span>: <span class="ident">Producer</span>,
-    <span class="ident">metrics_transactions</span>: <span class="ident">Producer</span>,
-    <span class="ident">profiles</span>: <span class="ident">Producer</span>,
-    <span class="ident">replay_events</span>: <span class="ident">Producer</span>,
-    <span class="ident">replay_recordings</span>: <span class="ident">Producer</span>,
+<span class="kw">struct </span>Producers {
+    events: Producer,
+    attachments: Producer,
+    transactions: Producer,
+    sessions: Producer,
+    metrics_sessions: Producer,
+    metrics_transactions: Producer,
+    profiles: Producer,
+    replay_events: Producer,
+    replay_recordings: Producer,
 }
 
-<span class="kw">impl</span> <span class="ident">Producers</span> {
-    <span class="doccomment">/// Get a producer by KafkaTopic value.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">kafka_topic</span>: <span class="ident">KafkaTopic</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Producer</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="ident">kafka_topic</span> {
-            <span class="ident">KafkaTopic::Attachments</span> =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">attachments</span>),
-            <span class="ident">KafkaTopic::Events</span> =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">events</span>),
-            <span class="ident">KafkaTopic::Transactions</span> =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">transactions</span>),
-            <span class="ident">KafkaTopic::Outcomes</span> <span class="op">|</span> <span class="ident">KafkaTopic::OutcomesBilling</span> =&gt; {
-                <span class="comment">// should be unreachable</span>
-                <span class="macro">relay_log::error!</span>(<span class="string">&quot;attempted to send data to outcomes topic from store forwarder. there is another actor for that.&quot;</span>);
-                <span class="prelude-val">None</span>
-            }
-            <span class="ident">KafkaTopic::Sessions</span> =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">sessions</span>),
-            <span class="ident">KafkaTopic::MetricsSessions</span> =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">metrics_sessions</span>),
-            <span class="ident">KafkaTopic::MetricsTransactions</span> =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">metrics_transactions</span>),
-            <span class="ident">KafkaTopic::Profiles</span> =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">profiles</span>),
-            <span class="ident">KafkaTopic::ReplayEvents</span> =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">replay_events</span>),
-            <span class="ident">KafkaTopic::ReplayRecordings</span> =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">replay_recordings</span>),
+<span class="kw">impl </span>Producers {
+    <span class="doccomment">/// Get a producer by KafkaTopic value.
+    </span><span class="kw">pub fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, kafka_topic: KafkaTopic) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Producer&gt; {
+        <span class="kw">match </span>kafka_topic {
+            KafkaTopic::Attachments =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.attachments),
+            KafkaTopic::Events =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.events),
+            KafkaTopic::Transactions =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.transactions),
+            KafkaTopic::Outcomes | KafkaTopic::OutcomesBilling =&gt; {
+                <span class="comment">// should be unreachable
+                </span><span class="macro">relay_log::error!</span>(<span class="string">&quot;attempted to send data to outcomes topic from store forwarder. there is another actor for that.&quot;</span>);
+                <span class="prelude-val">None
+            </span>}
+            KafkaTopic::Sessions =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.sessions),
+            KafkaTopic::MetricsSessions =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.metrics_sessions),
+            KafkaTopic::MetricsTransactions =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.metrics_transactions),
+            KafkaTopic::Profiles =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.profiles),
+            KafkaTopic::ReplayEvents =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.replay_events),
+            KafkaTopic::ReplayRecordings =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.replay_recordings),
         }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create</span>(<span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">reused_producers</span> <span class="op">=</span> <span class="ident">BTreeMap::new</span>();
-        <span class="kw">let</span> <span class="ident">producers</span> <span class="op">=</span> <span class="ident">Producers</span> {
-            <span class="ident">attachments</span>: <span class="ident">make_producer</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">config</span>, <span class="kw-2">&amp;mut</span> <span class="ident">reused_producers</span>, <span class="ident">KafkaTopic::Attachments</span>)<span class="question-mark">?</span>,
-            <span class="ident">events</span>: <span class="ident">make_producer</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">config</span>, <span class="kw-2">&amp;mut</span> <span class="ident">reused_producers</span>, <span class="ident">KafkaTopic::Events</span>)<span class="question-mark">?</span>,
-            <span class="ident">transactions</span>: <span class="ident">make_producer</span>(
-                <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">config</span>,
-                <span class="kw-2">&amp;mut</span> <span class="ident">reused_producers</span>,
-                <span class="ident">KafkaTopic::Transactions</span>,
+    <span class="kw">pub fn </span>create(config: <span class="kw-2">&amp;</span>Arc&lt;Config&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ServerError&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>reused_producers = BTreeMap::new();
+        <span class="kw">let </span>producers = Producers {
+            attachments: make_producer(config, <span class="kw-2">&amp;mut </span>reused_producers, KafkaTopic::Attachments)<span class="question-mark">?</span>,
+            events: make_producer(config, <span class="kw-2">&amp;mut </span>reused_producers, KafkaTopic::Events)<span class="question-mark">?</span>,
+            transactions: make_producer(config, <span class="kw-2">&amp;mut </span>reused_producers, KafkaTopic::Transactions)<span class="question-mark">?</span>,
+            sessions: make_producer(config, <span class="kw-2">&amp;mut </span>reused_producers, KafkaTopic::Sessions)<span class="question-mark">?</span>,
+            metrics_sessions: make_producer(
+                config,
+                <span class="kw-2">&amp;mut </span>reused_producers,
+                KafkaTopic::MetricsSessions,
             )<span class="question-mark">?</span>,
-            <span class="ident">sessions</span>: <span class="ident">make_producer</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">config</span>, <span class="kw-2">&amp;mut</span> <span class="ident">reused_producers</span>, <span class="ident">KafkaTopic::Sessions</span>)<span class="question-mark">?</span>,
-            <span class="ident">metrics_sessions</span>: <span class="ident">make_producer</span>(
-                <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">config</span>,
-                <span class="kw-2">&amp;mut</span> <span class="ident">reused_producers</span>,
-                <span class="ident">KafkaTopic::MetricsSessions</span>,
+            metrics_transactions: make_producer(
+                config,
+                <span class="kw-2">&amp;mut </span>reused_producers,
+                KafkaTopic::MetricsTransactions,
             )<span class="question-mark">?</span>,
-            <span class="ident">metrics_transactions</span>: <span class="ident">make_producer</span>(
-                <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">config</span>,
-                <span class="kw-2">&amp;mut</span> <span class="ident">reused_producers</span>,
-                <span class="ident">KafkaTopic::MetricsTransactions</span>,
+            profiles: make_producer(config, <span class="kw-2">&amp;mut </span>reused_producers, KafkaTopic::Profiles)<span class="question-mark">?</span>,
+            replay_recordings: make_producer(
+                config,
+                <span class="kw-2">&amp;mut </span>reused_producers,
+                KafkaTopic::ReplayRecordings,
             )<span class="question-mark">?</span>,
-            <span class="ident">profiles</span>: <span class="ident">make_producer</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">config</span>, <span class="kw-2">&amp;mut</span> <span class="ident">reused_producers</span>, <span class="ident">KafkaTopic::Profiles</span>)<span class="question-mark">?</span>,
-            <span class="ident">replay_recordings</span>: <span class="ident">make_producer</span>(
-                <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">config</span>,
-                <span class="kw-2">&amp;mut</span> <span class="ident">reused_producers</span>,
-                <span class="ident">KafkaTopic::ReplayRecordings</span>,
-            )<span class="question-mark">?</span>,
-            <span class="ident">replay_events</span>: <span class="ident">make_producer</span>(
-                <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">config</span>,
-                <span class="kw-2">&amp;mut</span> <span class="ident">reused_producers</span>,
-                <span class="ident">KafkaTopic::ReplayEvents</span>,
-            )<span class="question-mark">?</span>,
+            replay_events: make_producer(config, <span class="kw-2">&amp;mut </span>reused_producers, KafkaTopic::ReplayEvents)<span class="question-mark">?</span>,
         };
-        <span class="prelude-val">Ok</span>(<span class="ident">producers</span>)
+        <span class="prelude-val">Ok</span>(producers)
     }
 }
 
-<span class="doccomment">/// Publishes an [`Envelope`] to the Sentry core application through Kafka topics.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">StoreEnvelope</span> {
-    <span class="kw">pub</span> <span class="ident">envelope</span>: <span class="ident">Envelope</span>,
-    <span class="kw">pub</span> <span class="ident">start_time</span>: <span class="ident">Instant</span>,
-    <span class="kw">pub</span> <span class="ident">scoping</span>: <span class="ident">Scoping</span>,
+<span class="doccomment">/// Publishes an [`Envelope`] to the Sentry core application through Kafka topics.
+</span><span class="attribute">#[derive(Clone, Debug)]
+</span><span class="kw">pub struct </span>StoreEnvelope {
+    <span class="kw">pub </span>envelope: Envelope,
+    <span class="kw">pub </span>start_time: Instant,
+    <span class="kw">pub </span>scoping: Scoping,
 }
 
-<span class="doccomment">/// Service interface for the [`StoreEnvelope`] message.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Store</span>(<span class="ident">StoreEnvelope</span>, <span class="ident">Sender</span><span class="op">&lt;</span><span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span><span class="op">&gt;</span>);
+<span class="doccomment">/// Service interface for the [`StoreEnvelope`] message.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>Store(StoreEnvelope, Sender&lt;<span class="prelude-ty">Result</span>&lt;(), StoreError&gt;&gt;);
 
-<span class="kw">impl</span> <span class="ident">Interface</span> <span class="kw">for</span> <span class="ident">Store</span> {}
+<span class="kw">impl </span>Interface <span class="kw">for </span>Store {}
 
-<span class="kw">impl</span> <span class="ident">FromMessage</span><span class="op">&lt;</span><span class="ident">StoreEnvelope</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Store</span> {
-    <span class="kw">type</span> <span class="ident">Response</span> <span class="op">=</span> <span class="ident">AsyncResponse</span><span class="op">&lt;</span><span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span><span class="op">&gt;</span>;
+<span class="kw">impl </span>FromMessage&lt;StoreEnvelope&gt; <span class="kw">for </span>Store {
+    <span class="kw">type </span>Response = AsyncResponse&lt;<span class="prelude-ty">Result</span>&lt;(), StoreError&gt;&gt;;
 
-    <span class="kw">fn</span> <span class="ident">from_message</span>(<span class="ident">message</span>: <span class="ident">StoreEnvelope</span>, <span class="ident">sender</span>: <span class="ident">Sender</span><span class="op">&lt;</span><span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span>(<span class="ident">message</span>, <span class="ident">sender</span>)
+    <span class="kw">fn </span>from_message(message: StoreEnvelope, sender: Sender&lt;<span class="prelude-ty">Result</span>&lt;(), StoreError&gt;&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>(message, sender)
     }
 }
 
-<span class="doccomment">/// Service implementing the [`Store`] interface.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">StoreService</span> {
-    <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
-    <span class="ident">producers</span>: <span class="ident">Producers</span>,
+<span class="doccomment">/// Service implementing the [`Store`] interface.
+</span><span class="kw">pub struct </span>StoreService {
+    config: Arc&lt;Config&gt;,
+    producers: Producers,
 }
 
-<span class="kw">impl</span> <span class="ident">StoreService</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create</span>(<span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">producers</span> <span class="op">=</span> <span class="ident">Producers::create</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(<span class="self">Self</span> { <span class="ident">config</span>, <span class="ident">producers</span> })
+<span class="kw">impl </span>StoreService {
+    <span class="kw">pub fn </span>create(config: Arc&lt;Config&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ServerError&gt; {
+        <span class="kw">let </span>producers = Producers::create(<span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ config, producers })
     }
 
-    <span class="kw">fn</span> <span class="ident">handle_message</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">message</span>: <span class="ident">Store</span>) {
-        <span class="kw">let</span> <span class="ident">Store</span>(<span class="ident">message</span>, <span class="ident">sender</span>) <span class="op">=</span> <span class="ident">message</span>;
-        <span class="ident">sender</span>.<span class="ident">send</span>(<span class="self">self</span>.<span class="ident">handle_store_envelope</span>(<span class="ident">message</span>));
+    <span class="kw">fn </span>handle_message(<span class="kw-2">&amp;</span><span class="self">self</span>, message: Store) {
+        <span class="kw">let </span>Store(message, sender) = message;
+        sender.send(<span class="self">self</span>.handle_store_envelope(message));
     }
 
-    <span class="kw">fn</span> <span class="ident">handle_store_envelope</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">message</span>: <span class="ident">StoreEnvelope</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">StoreEnvelope</span> {
-            <span class="ident">envelope</span>,
-            <span class="ident">start_time</span>,
-            <span class="ident">scoping</span>,
-        } <span class="op">=</span> <span class="ident">message</span>;
-        <span class="kw">let</span> <span class="ident">retention</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">retention</span>();
-        <span class="kw">let</span> <span class="ident">client</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">client</span>();
-        <span class="kw">let</span> <span class="ident">event_id</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">event_id</span>();
-        <span class="kw">let</span> <span class="ident">event_item</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">get_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> {
+    <span class="kw">fn </span>handle_store_envelope(<span class="kw-2">&amp;</span><span class="self">self</span>, message: StoreEnvelope) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
+        <span class="kw">let </span>StoreEnvelope {
+            envelope,
+            start_time,
+            scoping,
+        } = message;
+        <span class="kw">let </span>retention = envelope.retention();
+        <span class="kw">let </span>client = envelope.meta().client();
+        <span class="kw">let </span>event_id = envelope.event_id();
+        <span class="kw">let </span>event_item = envelope.get_item_by(|item| {
             <span class="macro">matches!</span>(
-                <span class="ident">item</span>.<span class="ident">ty</span>(),
-                <span class="ident">ItemType::Event</span> <span class="op">|</span> <span class="ident">ItemType::Transaction</span> <span class="op">|</span> <span class="ident">ItemType::Security</span>
+                item.ty(),
+                ItemType::Event | ItemType::Transaction | ItemType::Security
             )
         });
 
-        <span class="kw">let</span> <span class="ident">topic</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">envelope</span>.<span class="ident">get_item_by</span>(<span class="ident">is_slow_item</span>).<span class="ident">is_some</span>() {
-            <span class="ident">KafkaTopic::Attachments</span>
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">event_item</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">ty</span>()) <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">ItemType::Transaction</span>) {
-            <span class="ident">KafkaTopic::Transactions</span>
-        } <span class="kw">else</span> {
-            <span class="ident">KafkaTopic::Events</span>
+        <span class="kw">let </span>topic = <span class="kw">if </span>envelope.get_item_by(is_slow_item).is_some() {
+            KafkaTopic::Attachments
+        } <span class="kw">else if </span>event_item.map(|x| x.ty()) == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>ItemType::Transaction) {
+            KafkaTopic::Transactions
+        } <span class="kw">else </span>{
+            KafkaTopic::Events
         };
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">attachments</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
+        <span class="kw">let </span><span class="kw-2">mut </span>attachments = Vec::new();
 
-        <span class="kw">for</span> <span class="ident">item</span> <span class="kw">in</span> <span class="ident">envelope</span>.<span class="ident">items</span>() {
-            <span class="kw">match</span> <span class="ident">item</span>.<span class="ident">ty</span>() {
-                <span class="ident">ItemType::Attachment</span> =&gt; {
-                    <span class="macro">debug_assert!</span>(<span class="ident">topic</span> <span class="op">==</span> <span class="ident">KafkaTopic::Attachments</span>);
-                    <span class="kw">let</span> <span class="ident">attachment</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">produce_attachment_chunks</span>(
-                        <span class="ident">event_id</span>.<span class="ident">ok_or</span>(<span class="ident">StoreError::NoEventId</span>)<span class="question-mark">?</span>,
-                        <span class="ident">scoping</span>.<span class="ident">organization_id</span>,
-                        <span class="ident">scoping</span>.<span class="ident">project_id</span>,
-                        <span class="ident">item</span>,
+        <span class="kw">for </span>item <span class="kw">in </span>envelope.items() {
+            <span class="kw">match </span>item.ty() {
+                ItemType::Attachment =&gt; {
+                    <span class="macro">debug_assert!</span>(topic == KafkaTopic::Attachments);
+                    <span class="kw">let </span>attachment = <span class="self">self</span>.produce_attachment_chunks(
+                        event_id.ok_or(StoreError::NoEventId)<span class="question-mark">?</span>,
+                        scoping.organization_id,
+                        scoping.project_id,
+                        item,
                     )<span class="question-mark">?</span>;
-                    <span class="ident">attachments</span>.<span class="ident">push</span>(<span class="ident">attachment</span>);
+                    attachments.push(attachment);
                 }
-                <span class="ident">ItemType::UserReport</span> =&gt; {
-                    <span class="macro">debug_assert!</span>(<span class="ident">topic</span> <span class="op">==</span> <span class="ident">KafkaTopic::Attachments</span>);
-                    <span class="self">self</span>.<span class="ident">produce_user_report</span>(
-                        <span class="ident">event_id</span>.<span class="ident">ok_or</span>(<span class="ident">StoreError::NoEventId</span>)<span class="question-mark">?</span>,
-                        <span class="ident">scoping</span>.<span class="ident">organization_id</span>,
-                        <span class="ident">scoping</span>.<span class="ident">project_id</span>,
-                        <span class="ident">start_time</span>,
-                        <span class="ident">item</span>,
+                ItemType::UserReport =&gt; {
+                    <span class="macro">debug_assert!</span>(topic == KafkaTopic::Attachments);
+                    <span class="self">self</span>.produce_user_report(
+                        event_id.ok_or(StoreError::NoEventId)<span class="question-mark">?</span>,
+                        scoping.organization_id,
+                        scoping.project_id,
+                        start_time,
+                        item,
                     )<span class="question-mark">?</span>;
                     <span class="macro">metric!</span>(
-                        <span class="ident">counter</span>(<span class="ident">RelayCounters::ProcessingMessageProduced</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
-                        <span class="ident">event_type</span> <span class="op">=</span> <span class="string">&quot;user_report&quot;</span>
-                    );
+                        counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
+                        event_type = <span class="string">&quot;user_report&quot;
+                    </span>);
                 }
-                <span class="ident">ItemType::Session</span> <span class="op">|</span> <span class="ident">ItemType::Sessions</span> =&gt; {
-                    <span class="self">self</span>.<span class="ident">produce_sessions</span>(
-                        <span class="ident">scoping</span>.<span class="ident">organization_id</span>,
-                        <span class="ident">scoping</span>.<span class="ident">project_id</span>,
-                        <span class="ident">retention</span>,
-                        <span class="ident">client</span>,
-                        <span class="ident">item</span>,
+                ItemType::Session | ItemType::Sessions =&gt; {
+                    <span class="self">self</span>.produce_sessions(
+                        scoping.organization_id,
+                        scoping.project_id,
+                        retention,
+                        client,
+                        item,
                     )<span class="question-mark">?</span>;
                 }
-                <span class="ident">ItemType::MetricBuckets</span> =&gt; {
-                    <span class="self">self</span>.<span class="ident">produce_metrics</span>(<span class="ident">scoping</span>.<span class="ident">organization_id</span>, <span class="ident">scoping</span>.<span class="ident">project_id</span>, <span class="ident">item</span>)<span class="question-mark">?</span>
-                }
-                <span class="ident">ItemType::Profile</span> =&gt; <span class="self">self</span>.<span class="ident">produce_profile</span>(
-                    <span class="ident">scoping</span>.<span class="ident">organization_id</span>,
-                    <span class="ident">scoping</span>.<span class="ident">project_id</span>,
-                    <span class="ident">scoping</span>.<span class="ident">key_id</span>,
-                    <span class="ident">start_time</span>,
-                    <span class="ident">item</span>,
+                ItemType::MetricBuckets =&gt; {
+                    <span class="self">self</span>.produce_metrics(scoping.organization_id, scoping.project_id, item)<span class="question-mark">?
+                </span>}
+                ItemType::Profile =&gt; <span class="self">self</span>.produce_profile(
+                    scoping.organization_id,
+                    scoping.project_id,
+                    scoping.key_id,
+                    start_time,
+                    item,
                 )<span class="question-mark">?</span>,
-                <span class="ident">ItemType::ReplayRecording</span> =&gt; {
-                    <span class="kw">let</span> <span class="ident">replay_recording</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">produce_replay_recording_chunks</span>(
-                        <span class="ident">event_id</span>.<span class="ident">ok_or</span>(<span class="ident">StoreError::NoEventId</span>)<span class="question-mark">?</span>,
-                        <span class="ident">scoping</span>.<span class="ident">organization_id</span>,
-                        <span class="ident">scoping</span>.<span class="ident">project_id</span>,
-                        <span class="ident">item</span>,
+                ItemType::ReplayRecording =&gt; {
+                    <span class="kw">let </span>replay_recording = <span class="self">self</span>.produce_replay_recording_chunks(
+                        event_id.ok_or(StoreError::NoEventId)<span class="question-mark">?</span>,
+                        scoping.organization_id,
+                        scoping.project_id,
+                        item,
                     )<span class="question-mark">?</span>;
                     <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Sending individual replay_recordings of envelope to kafka&quot;</span>);
-                    <span class="kw">let</span> <span class="ident">replay_recording_message</span> <span class="op">=</span>
-                        <span class="ident">KafkaMessage::ReplayRecording</span>(<span class="ident">ReplayRecordingKafkaMessage</span> {
-                            <span class="ident">replay_id</span>: <span class="ident">event_id</span>.<span class="ident">ok_or</span>(<span class="ident">StoreError::NoEventId</span>)<span class="question-mark">?</span>,
-                            <span class="ident">project_id</span>: <span class="ident">scoping</span>.<span class="ident">project_id</span>,
-                            <span class="ident">key_id</span>: <span class="ident">scoping</span>.<span class="ident">key_id</span>,
-                            <span class="ident">org_id</span>: <span class="ident">scoping</span>.<span class="ident">organization_id</span>,
-                            <span class="ident">received</span>: <span class="ident">UnixTimestamp::from_instant</span>(<span class="ident">start_time</span>).<span class="ident">as_secs</span>(),
-                            <span class="ident">retention_days</span>: <span class="ident">retention</span>,
-                            <span class="ident">replay_recording</span>,
+                    <span class="kw">let </span>replay_recording_message =
+                        KafkaMessage::ReplayRecording(ReplayRecordingKafkaMessage {
+                            replay_id: event_id.ok_or(StoreError::NoEventId)<span class="question-mark">?</span>,
+                            project_id: scoping.project_id,
+                            key_id: scoping.key_id,
+                            org_id: scoping.organization_id,
+                            received: UnixTimestamp::from_instant(start_time).as_secs(),
+                            retention_days: retention,
+                            replay_recording,
                         });
 
-                    <span class="self">self</span>.<span class="ident">produce</span>(
-                        <span class="ident">KafkaTopic::ReplayRecordings</span>,
-                        <span class="ident">scoping</span>.<span class="ident">organization_id</span>,
-                        <span class="ident">replay_recording_message</span>,
+                    <span class="self">self</span>.produce(
+                        KafkaTopic::ReplayRecordings,
+                        scoping.organization_id,
+                        replay_recording_message,
                     )<span class="question-mark">?</span>;
                     <span class="macro">metric!</span>(
-                        <span class="ident">counter</span>(<span class="ident">RelayCounters::ProcessingMessageProduced</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
-                        <span class="ident">event_type</span> <span class="op">=</span> <span class="string">&quot;replay_recording&quot;</span>
-                    );
+                        counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
+                        event_type = <span class="string">&quot;replay_recording&quot;
+                    </span>);
                 }
-                <span class="ident">ItemType::ReplayEvent</span> =&gt; <span class="self">self</span>.<span class="ident">produce_replay_event</span>(
-                    <span class="ident">event_id</span>.<span class="ident">ok_or</span>(<span class="ident">StoreError::NoEventId</span>)<span class="question-mark">?</span>,
-                    <span class="ident">scoping</span>.<span class="ident">organization_id</span>,
-                    <span class="ident">scoping</span>.<span class="ident">project_id</span>,
-                    <span class="ident">start_time</span>,
-                    <span class="ident">retention</span>,
-                    <span class="ident">item</span>,
+                ItemType::ReplayEvent =&gt; <span class="self">self</span>.produce_replay_event(
+                    event_id.ok_or(StoreError::NoEventId)<span class="question-mark">?</span>,
+                    scoping.organization_id,
+                    scoping.project_id,
+                    start_time,
+                    retention,
+                    item,
                 )<span class="question-mark">?</span>,
-                <span class="kw">_</span> =&gt; {}
+                <span class="kw">_ </span>=&gt; {}
             }
         }
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">event_item</span>) <span class="op">=</span> <span class="ident">event_item</span> {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(event_item) = event_item {
             <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Sending event item of envelope to kafka&quot;</span>);
-            <span class="kw">let</span> <span class="ident">event_message</span> <span class="op">=</span> <span class="ident">KafkaMessage::Event</span>(<span class="ident">EventKafkaMessage</span> {
-                <span class="ident">payload</span>: <span class="ident">event_item</span>.<span class="ident">payload</span>(),
-                <span class="ident">start_time</span>: <span class="ident">UnixTimestamp::from_instant</span>(<span class="ident">start_time</span>).<span class="ident">as_secs</span>(),
-                <span class="ident">event_id</span>: <span class="ident">event_id</span>.<span class="ident">ok_or</span>(<span class="ident">StoreError::NoEventId</span>)<span class="question-mark">?</span>,
-                <span class="ident">project_id</span>: <span class="ident">scoping</span>.<span class="ident">project_id</span>,
-                <span class="ident">remote_addr</span>: <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">client_addr</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">addr</span><span class="op">|</span> <span class="ident">addr</span>.<span class="ident">to_string</span>()),
-                <span class="ident">attachments</span>,
+            <span class="kw">let </span>event_message = KafkaMessage::Event(EventKafkaMessage {
+                payload: event_item.payload(),
+                start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+                event_id: event_id.ok_or(StoreError::NoEventId)<span class="question-mark">?</span>,
+                project_id: scoping.project_id,
+                remote_addr: envelope.meta().client_addr().map(|addr| addr.to_string()),
+                attachments,
             });
 
-            <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">topic</span>, <span class="ident">scoping</span>.<span class="ident">organization_id</span>, <span class="ident">event_message</span>)<span class="question-mark">?</span>;
+            <span class="self">self</span>.produce(topic, scoping.organization_id, event_message)<span class="question-mark">?</span>;
             <span class="macro">metric!</span>(
-                <span class="ident">counter</span>(<span class="ident">RelayCounters::ProcessingMessageProduced</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
-                <span class="ident">event_type</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">event_item</span>.<span class="ident">ty</span>().<span class="ident">to_string</span>()
+                counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
+                event_type = <span class="kw-2">&amp;</span>event_item.ty().to_string()
             );
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="op">!</span><span class="ident">attachments</span>.<span class="ident">is_empty</span>() {
+        } <span class="kw">else if </span>!attachments.is_empty() {
             <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Sending individual attachments of envelope to kafka&quot;</span>);
-            <span class="kw">for</span> <span class="ident">attachment</span> <span class="kw">in</span> <span class="ident">attachments</span> {
-                <span class="kw">let</span> <span class="ident">attachment_message</span> <span class="op">=</span> <span class="ident">KafkaMessage::Attachment</span>(<span class="ident">AttachmentKafkaMessage</span> {
-                    <span class="ident">event_id</span>: <span class="ident">event_id</span>.<span class="ident">ok_or</span>(<span class="ident">StoreError::NoEventId</span>)<span class="question-mark">?</span>,
-                    <span class="ident">project_id</span>: <span class="ident">scoping</span>.<span class="ident">project_id</span>,
-                    <span class="ident">attachment</span>,
+            <span class="kw">for </span>attachment <span class="kw">in </span>attachments {
+                <span class="kw">let </span>attachment_message = KafkaMessage::Attachment(AttachmentKafkaMessage {
+                    event_id: event_id.ok_or(StoreError::NoEventId)<span class="question-mark">?</span>,
+                    project_id: scoping.project_id,
+                    attachment,
                 });
 
-                <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">topic</span>, <span class="ident">scoping</span>.<span class="ident">organization_id</span>, <span class="ident">attachment_message</span>)<span class="question-mark">?</span>;
+                <span class="self">self</span>.produce(topic, scoping.organization_id, attachment_message)<span class="question-mark">?</span>;
                 <span class="macro">metric!</span>(
-                    <span class="ident">counter</span>(<span class="ident">RelayCounters::ProcessingMessageProduced</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
-                    <span class="ident">event_type</span> <span class="op">=</span> <span class="string">&quot;attachment&quot;</span>
-                );
+                    counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
+                    event_type = <span class="string">&quot;attachment&quot;
+                </span>);
             }
         }
 
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">produce</span>(
+    <span class="kw">fn </span>produce(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">topic</span>: <span class="ident">KafkaTopic</span>,
-        <span class="ident">organization_id</span>: <span class="ident">u64</span>,
-        <span class="ident">message</span>: <span class="ident">KafkaMessage</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">producer</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">producers</span>.<span class="ident">get</span>(<span class="ident">topic</span>) {
-            <span class="ident">producer</span>.<span class="ident">send</span>(<span class="ident">organization_id</span>, <span class="ident">message</span>)<span class="question-mark">?</span>;
+        topic: KafkaTopic,
+        organization_id: u64,
+        message: KafkaMessage,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(producer) = <span class="self">self</span>.producers.get(topic) {
+            producer.send(organization_id, message)<span class="question-mark">?</span>;
         }
 
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">produce_attachment_chunks</span>(
+    <span class="kw">fn </span>produce_attachment_chunks(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">event_id</span>: <span class="ident">EventId</span>,
-        <span class="ident">organization_id</span>: <span class="ident">u64</span>,
-        <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
-        <span class="ident">item</span>: <span class="kw-2">&amp;</span><span class="ident">Item</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ChunkedAttachment</span>, <span class="ident">StoreError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">id</span> <span class="op">=</span> <span class="ident">Uuid::new_v4</span>().<span class="ident">to_string</span>();
+        event_id: EventId,
+        organization_id: u64,
+        project_id: ProjectId,
+        item: <span class="kw-2">&amp;</span>Item,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;ChunkedAttachment, StoreError&gt; {
+        <span class="kw">let </span>id = Uuid::new_v4().to_string();
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">chunk_index</span> <span class="op">=</span> <span class="number">0</span>;
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">offset</span> <span class="op">=</span> <span class="number">0</span>;
-        <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">payload</span>();
-        <span class="kw">let</span> <span class="ident">size</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">len</span>();
+        <span class="kw">let </span><span class="kw-2">mut </span>chunk_index = <span class="number">0</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>offset = <span class="number">0</span>;
+        <span class="kw">let </span>payload = item.payload();
+        <span class="kw">let </span>size = item.len();
 
-        <span class="comment">// This skips chunks for empty attachments. The consumer does not require chunks for</span>
-        <span class="comment">// empty attachments. `chunks` will be `0` in this case.</span>
-        <span class="kw">while</span> <span class="ident">offset</span> <span class="op">&lt;</span> <span class="ident">size</span> {
-            <span class="kw">let</span> <span class="ident">max_chunk_size</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">attachment_chunk_size</span>();
-            <span class="kw">let</span> <span class="ident">chunk_size</span> <span class="op">=</span> <span class="ident">std::cmp::min</span>(<span class="ident">max_chunk_size</span>, <span class="ident">size</span> <span class="op">-</span> <span class="ident">offset</span>);
-            <span class="kw">let</span> <span class="ident">attachment_message</span> <span class="op">=</span> <span class="ident">KafkaMessage::AttachmentChunk</span>(<span class="ident">AttachmentChunkKafkaMessage</span> {
-                <span class="ident">payload</span>: <span class="ident">payload</span>.<span class="ident">slice</span>(<span class="ident">offset</span>, <span class="ident">offset</span> <span class="op">+</span> <span class="ident">chunk_size</span>),
-                <span class="ident">event_id</span>,
-                <span class="ident">project_id</span>,
-                <span class="ident">id</span>: <span class="ident">id</span>.<span class="ident">clone</span>(),
-                <span class="ident">chunk_index</span>,
+        <span class="comment">// This skips chunks for empty attachments. The consumer does not require chunks for
+        // empty attachments. `chunks` will be `0` in this case.
+        </span><span class="kw">while </span>offset &lt; size {
+            <span class="kw">let </span>max_chunk_size = <span class="self">self</span>.config.attachment_chunk_size();
+            <span class="kw">let </span>chunk_size = std::cmp::min(max_chunk_size, size - offset);
+            <span class="kw">let </span>attachment_message = KafkaMessage::AttachmentChunk(AttachmentChunkKafkaMessage {
+                payload: payload.slice(offset, offset + chunk_size),
+                event_id,
+                project_id,
+                id: id.clone(),
+                chunk_index,
             });
-            <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">KafkaTopic::Attachments</span>, <span class="ident">organization_id</span>, <span class="ident">attachment_message</span>)<span class="question-mark">?</span>;
-            <span class="ident">offset</span> <span class="op">+</span><span class="op">=</span> <span class="ident">chunk_size</span>;
-            <span class="ident">chunk_index</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
+            <span class="self">self</span>.produce(KafkaTopic::Attachments, organization_id, attachment_message)<span class="question-mark">?</span>;
+            offset += chunk_size;
+            chunk_index += <span class="number">1</span>;
         }
 
-        <span class="comment">// The chunk_index is incremented after every loop iteration. After we exit the loop, it</span>
-        <span class="comment">// is one larger than the last chunk, so it is equal to the number of chunks.</span>
+        <span class="comment">// The chunk_index is incremented after every loop iteration. After we exit the loop, it
+        // is one larger than the last chunk, so it is equal to the number of chunks.
 
-        <span class="prelude-val">Ok</span>(<span class="ident">ChunkedAttachment</span> {
-            <span class="ident">id</span>,
-            <span class="ident">name</span>: <span class="kw">match</span> <span class="ident">item</span>.<span class="ident">filename</span>() {
-                <span class="prelude-val">Some</span>(<span class="ident">name</span>) =&gt; <span class="ident">name</span>.<span class="ident">to_owned</span>(),
-                <span class="prelude-val">None</span> =&gt; <span class="ident">UNNAMED_ATTACHMENT</span>.<span class="ident">to_owned</span>(),
+        </span><span class="prelude-val">Ok</span>(ChunkedAttachment {
+            id,
+            name: <span class="kw">match </span>item.filename() {
+                <span class="prelude-val">Some</span>(name) =&gt; name.to_owned(),
+                <span class="prelude-val">None </span>=&gt; UNNAMED_ATTACHMENT.to_owned(),
             },
-            <span class="ident">content_type</span>: <span class="ident">item</span>
-                .<span class="ident">content_type</span>()
-                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">content_type</span><span class="op">|</span> <span class="ident">content_type</span>.<span class="ident">as_str</span>().<span class="ident">to_owned</span>()),
-            <span class="ident">attachment_type</span>: <span class="ident">item</span>.<span class="ident">attachment_type</span>().<span class="ident">unwrap_or_default</span>(),
-            <span class="ident">chunks</span>: <span class="ident">chunk_index</span>,
-            <span class="ident">size</span>: <span class="prelude-val">Some</span>(<span class="ident">size</span>),
-            <span class="ident">rate_limited</span>: <span class="prelude-val">Some</span>(<span class="ident">item</span>.<span class="ident">rate_limited</span>()),
+            content_type: item
+                .content_type()
+                .map(|content_type| content_type.as_str().to_owned()),
+            attachment_type: item.attachment_type().unwrap_or_default(),
+            chunks: chunk_index,
+            size: <span class="prelude-val">Some</span>(size),
+            rate_limited: <span class="prelude-val">Some</span>(item.rate_limited()),
         })
     }
 
-    <span class="kw">fn</span> <span class="ident">produce_user_report</span>(
+    <span class="kw">fn </span>produce_user_report(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">event_id</span>: <span class="ident">EventId</span>,
-        <span class="ident">organization_id</span>: <span class="ident">u64</span>,
-        <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
-        <span class="ident">start_time</span>: <span class="ident">Instant</span>,
-        <span class="ident">item</span>: <span class="kw-2">&amp;</span><span class="ident">Item</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="ident">KafkaMessage::UserReport</span>(<span class="ident">UserReportKafkaMessage</span> {
-            <span class="ident">project_id</span>,
-            <span class="ident">event_id</span>,
-            <span class="ident">payload</span>: <span class="ident">item</span>.<span class="ident">payload</span>(),
-            <span class="ident">start_time</span>: <span class="ident">UnixTimestamp::from_instant</span>(<span class="ident">start_time</span>).<span class="ident">as_secs</span>(),
+        event_id: EventId,
+        organization_id: u64,
+        project_id: ProjectId,
+        start_time: Instant,
+        item: <span class="kw-2">&amp;</span>Item,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
+        <span class="kw">let </span>message = KafkaMessage::UserReport(UserReportKafkaMessage {
+            project_id,
+            event_id,
+            payload: item.payload(),
+            start_time: UnixTimestamp::from_instant(start_time).as_secs(),
         });
 
-        <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">KafkaTopic::Attachments</span>, <span class="ident">organization_id</span>, <span class="ident">message</span>)
+        <span class="self">self</span>.produce(KafkaTopic::Attachments, organization_id, message)
     }
 
-    <span class="kw">fn</span> <span class="ident">produce_sessions</span>(
+    <span class="kw">fn </span>produce_sessions(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">org_id</span>: <span class="ident">u64</span>,
-        <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
-        <span class="ident">event_retention</span>: <span class="ident">u16</span>,
-        <span class="ident">client</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>,
-        <span class="ident">item</span>: <span class="kw-2">&amp;</span><span class="ident">Item</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="ident">item</span>.<span class="ident">ty</span>() {
-            <span class="ident">ItemType::Session</span> =&gt; {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">session</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">SessionUpdate::parse</span>(<span class="kw-2">&amp;</span><span class="ident">item</span>.<span class="ident">payload</span>()) {
-                    <span class="prelude-val">Ok</span>(<span class="ident">session</span>) =&gt; <span class="ident">session</span>,
-                    <span class="prelude-val">Err</span>(<span class="ident">error</span>) =&gt; {
-                        <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to store session: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>));
-                        <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
+        org_id: u64,
+        project_id: ProjectId,
+        event_retention: u16,
+        client: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
+        item: <span class="kw-2">&amp;</span>Item,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
+        <span class="kw">match </span>item.ty() {
+            ItemType::Session =&gt; {
+                <span class="kw">let </span><span class="kw-2">mut </span>session = <span class="kw">match </span>SessionUpdate::parse(<span class="kw-2">&amp;</span>item.payload()) {
+                    <span class="prelude-val">Ok</span>(session) =&gt; session,
+                    <span class="prelude-val">Err</span>(error) =&gt; {
+                        <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to store session: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error));
+                        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
                     }
                 };
 
-                <span class="kw">if</span> <span class="ident">session</span>.<span class="ident">status</span> <span class="op">==</span> <span class="ident">SessionStatus::Errored</span> {
-                    <span class="comment">// Individual updates should never have the status `errored`</span>
-                    <span class="ident">session</span>.<span class="ident">status</span> <span class="op">=</span> <span class="ident">SessionStatus::Exited</span>;
+                <span class="kw">if </span>session.status == SessionStatus::Errored {
+                    <span class="comment">// Individual updates should never have the status `errored`
+                    </span>session.status = SessionStatus::Exited;
                 }
-                <span class="self">self</span>.<span class="ident">produce_session_update</span>(<span class="ident">org_id</span>, <span class="ident">project_id</span>, <span class="ident">event_retention</span>, <span class="ident">client</span>, <span class="ident">session</span>)
+                <span class="self">self</span>.produce_session_update(org_id, project_id, event_retention, client, session)
             }
-            <span class="ident">ItemType::Sessions</span> =&gt; {
-                <span class="kw">let</span> <span class="ident">aggregates</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">SessionAggregates::parse</span>(<span class="kw-2">&amp;</span><span class="ident">item</span>.<span class="ident">payload</span>()) {
-                    <span class="prelude-val">Ok</span>(<span class="ident">aggregates</span>) =&gt; <span class="ident">aggregates</span>,
-                    <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">return</span> <span class="prelude-val">Ok</span>(()),
+            ItemType::Sessions =&gt; {
+                <span class="kw">let </span>aggregates = <span class="kw">match </span>SessionAggregates::parse(<span class="kw-2">&amp;</span>item.payload()) {
+                    <span class="prelude-val">Ok</span>(aggregates) =&gt; aggregates,
+                    <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(()),
                 };
 
-                <span class="self">self</span>.<span class="ident">produce_sessions_from_aggregate</span>(
-                    <span class="ident">org_id</span>,
-                    <span class="ident">project_id</span>,
-                    <span class="ident">event_retention</span>,
-                    <span class="ident">client</span>,
-                    <span class="ident">aggregates</span>,
+                <span class="self">self</span>.produce_sessions_from_aggregate(
+                    org_id,
+                    project_id,
+                    event_retention,
+                    client,
+                    aggregates,
                 )
             }
-            <span class="kw">_</span> =&gt; <span class="prelude-val">Ok</span>(()),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(()),
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">produce_sessions_from_aggregate</span>(
+    <span class="kw">fn </span>produce_sessions_from_aggregate(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">org_id</span>: <span class="ident">u64</span>,
-        <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
-        <span class="ident">event_retention</span>: <span class="ident">u16</span>,
-        <span class="ident">client</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>,
-        <span class="ident">aggregates</span>: <span class="ident">SessionAggregates</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">SessionAggregates</span> {
-            <span class="ident">aggregates</span>,
-            <span class="ident">attributes</span>,
-        } <span class="op">=</span> <span class="ident">aggregates</span>;
-        <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="ident">SessionKafkaMessage</span> {
-            <span class="ident">org_id</span>,
-            <span class="ident">project_id</span>,
-            <span class="ident">session_id</span>: <span class="ident">Uuid::nil</span>(),
-            <span class="ident">distinct_id</span>: <span class="ident">Uuid::nil</span>(),
-            <span class="ident">quantity</span>: <span class="number">1</span>,
-            <span class="ident">seq</span>: <span class="number">0</span>,
-            <span class="ident">received</span>: <span class="ident">protocol::datetime_to_timestamp</span>(<span class="ident">chrono::Utc::now</span>()),
-            <span class="ident">started</span>: <span class="number">0f64</span>,
-            <span class="ident">duration</span>: <span class="prelude-val">None</span>,
-            <span class="ident">errors</span>: <span class="number">0</span>,
-            <span class="ident">release</span>: <span class="ident">attributes</span>.<span class="ident">release</span>,
-            <span class="ident">environment</span>: <span class="ident">attributes</span>.<span class="ident">environment</span>,
-            <span class="ident">sdk</span>: <span class="ident">client</span>.<span class="ident">map</span>(<span class="ident">str::to_owned</span>),
-            <span class="ident">retention_days</span>: <span class="ident">event_retention</span>,
-            <span class="ident">status</span>: <span class="ident">SessionStatus::Exited</span>,
+        org_id: u64,
+        project_id: ProjectId,
+        event_retention: u16,
+        client: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
+        aggregates: SessionAggregates,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
+        <span class="kw">let </span>SessionAggregates {
+            aggregates,
+            attributes,
+        } = aggregates;
+        <span class="kw">let </span>message = SessionKafkaMessage {
+            org_id,
+            project_id,
+            session_id: Uuid::nil(),
+            distinct_id: Uuid::nil(),
+            quantity: <span class="number">1</span>,
+            seq: <span class="number">0</span>,
+            received: protocol::datetime_to_timestamp(chrono::Utc::now()),
+            started: <span class="number">0f64</span>,
+            duration: <span class="prelude-val">None</span>,
+            errors: <span class="number">0</span>,
+            release: attributes.release,
+            environment: attributes.environment,
+            sdk: client.map(str::to_owned),
+            retention_days: event_retention,
+            status: SessionStatus::Exited,
         };
 
-        <span class="kw">if</span> <span class="ident">aggregates</span>.<span class="ident">len</span>() <span class="op">&gt;</span> <span class="ident">MAX_EXPLODED_SESSIONS</span> {
+        <span class="kw">if </span>aggregates.len() &gt; MAX_EXPLODED_SESSIONS {
             <span class="macro">relay_log::warn!</span>(<span class="string">&quot;aggregated session items exceed threshold&quot;</span>);
         }
 
-        <span class="kw">for</span> <span class="ident">item</span> <span class="kw">in</span> <span class="ident">aggregates</span>.<span class="ident">into_iter</span>().<span class="ident">take</span>(<span class="ident">MAX_EXPLODED_SESSIONS</span>) {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">message</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">clone</span>();
-            <span class="ident">message</span>.<span class="ident">started</span> <span class="op">=</span> <span class="ident">protocol::datetime_to_timestamp</span>(<span class="ident">item</span>.<span class="ident">started</span>);
-            <span class="ident">message</span>.<span class="ident">distinct_id</span> <span class="op">=</span> <span class="ident">item</span>
-                .<span class="ident">distinct_id</span>
-                .<span class="ident">as_deref</span>()
-                .<span class="ident">map</span>(<span class="ident">make_distinct_id</span>)
-                .<span class="ident">unwrap_or_default</span>();
+        <span class="kw">for </span>item <span class="kw">in </span>aggregates.into_iter().take(MAX_EXPLODED_SESSIONS) {
+            <span class="kw">let </span><span class="kw-2">mut </span>message = message.clone();
+            message.started = protocol::datetime_to_timestamp(item.started);
+            message.distinct_id = item
+                .distinct_id
+                .as_deref()
+                .map(make_distinct_id)
+                .unwrap_or_default();
 
-            <span class="kw">if</span> <span class="ident">item</span>.<span class="ident">exited</span> <span class="op">&gt;</span> <span class="number">0</span> {
-                <span class="ident">message</span>.<span class="ident">errors</span> <span class="op">=</span> <span class="number">0</span>;
-                <span class="ident">message</span>.<span class="ident">quantity</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">exited</span>;
-                <span class="self">self</span>.<span class="ident">send_session_message</span>(<span class="ident">org_id</span>, <span class="ident">message</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>;
+            <span class="kw">if </span>item.exited &gt; <span class="number">0 </span>{
+                message.errors = <span class="number">0</span>;
+                message.quantity = item.exited;
+                <span class="self">self</span>.send_session_message(org_id, message.clone())<span class="question-mark">?</span>;
             }
-            <span class="kw">if</span> <span class="ident">item</span>.<span class="ident">errored</span> <span class="op">&gt;</span> <span class="number">0</span> {
-                <span class="ident">message</span>.<span class="ident">errors</span> <span class="op">=</span> <span class="number">1</span>;
-                <span class="ident">message</span>.<span class="ident">status</span> <span class="op">=</span> <span class="ident">SessionStatus::Errored</span>;
-                <span class="ident">message</span>.<span class="ident">quantity</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">errored</span>;
-                <span class="self">self</span>.<span class="ident">send_session_message</span>(<span class="ident">org_id</span>, <span class="ident">message</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>;
+            <span class="kw">if </span>item.errored &gt; <span class="number">0 </span>{
+                message.errors = <span class="number">1</span>;
+                message.status = SessionStatus::Errored;
+                message.quantity = item.errored;
+                <span class="self">self</span>.send_session_message(org_id, message.clone())<span class="question-mark">?</span>;
             }
-            <span class="kw">if</span> <span class="ident">item</span>.<span class="ident">abnormal</span> <span class="op">&gt;</span> <span class="number">0</span> {
-                <span class="ident">message</span>.<span class="ident">errors</span> <span class="op">=</span> <span class="number">1</span>;
-                <span class="ident">message</span>.<span class="ident">status</span> <span class="op">=</span> <span class="ident">SessionStatus::Abnormal</span>;
-                <span class="ident">message</span>.<span class="ident">quantity</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">abnormal</span>;
-                <span class="self">self</span>.<span class="ident">send_session_message</span>(<span class="ident">org_id</span>, <span class="ident">message</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>;
+            <span class="kw">if </span>item.abnormal &gt; <span class="number">0 </span>{
+                message.errors = <span class="number">1</span>;
+                message.status = SessionStatus::Abnormal;
+                message.quantity = item.abnormal;
+                <span class="self">self</span>.send_session_message(org_id, message.clone())<span class="question-mark">?</span>;
             }
-            <span class="kw">if</span> <span class="ident">item</span>.<span class="ident">crashed</span> <span class="op">&gt;</span> <span class="number">0</span> {
-                <span class="ident">message</span>.<span class="ident">errors</span> <span class="op">=</span> <span class="number">1</span>;
-                <span class="ident">message</span>.<span class="ident">status</span> <span class="op">=</span> <span class="ident">SessionStatus::Crashed</span>;
-                <span class="ident">message</span>.<span class="ident">quantity</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">crashed</span>;
-                <span class="self">self</span>.<span class="ident">send_session_message</span>(<span class="ident">org_id</span>, <span class="ident">message</span>)<span class="question-mark">?</span>;
+            <span class="kw">if </span>item.crashed &gt; <span class="number">0 </span>{
+                message.errors = <span class="number">1</span>;
+                message.status = SessionStatus::Crashed;
+                message.quantity = item.crashed;
+                <span class="self">self</span>.send_session_message(org_id, message)<span class="question-mark">?</span>;
             }
         }
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">produce_session_update</span>(
+    <span class="kw">fn </span>produce_session_update(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">org_id</span>: <span class="ident">u64</span>,
-        <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
-        <span class="ident">event_retention</span>: <span class="ident">u16</span>,
-        <span class="ident">client</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>,
-        <span class="ident">session</span>: <span class="ident">SessionUpdate</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">send_session_message</span>(
-            <span class="ident">org_id</span>,
-            <span class="ident">SessionKafkaMessage</span> {
-                <span class="ident">org_id</span>,
-                <span class="ident">project_id</span>,
-                <span class="ident">session_id</span>: <span class="ident">session</span>.<span class="ident">session_id</span>,
-                <span class="ident">distinct_id</span>: <span class="ident">session</span>
-                    .<span class="ident">distinct_id</span>
-                    .<span class="ident">as_deref</span>()
-                    .<span class="ident">map</span>(<span class="ident">make_distinct_id</span>)
-                    .<span class="ident">unwrap_or_default</span>(),
-                <span class="ident">quantity</span>: <span class="number">1</span>,
-                <span class="ident">seq</span>: <span class="kw">if</span> <span class="ident">session</span>.<span class="ident">init</span> { <span class="number">0</span> } <span class="kw">else</span> { <span class="ident">session</span>.<span class="ident">sequence</span> },
-                <span class="ident">received</span>: <span class="ident">protocol::datetime_to_timestamp</span>(<span class="ident">session</span>.<span class="ident">timestamp</span>),
-                <span class="ident">started</span>: <span class="ident">protocol::datetime_to_timestamp</span>(<span class="ident">session</span>.<span class="ident">started</span>),
-                <span class="ident">duration</span>: <span class="ident">session</span>.<span class="ident">duration</span>,
-                <span class="ident">status</span>: <span class="ident">session</span>.<span class="ident">status</span>,
-                <span class="ident">errors</span>: <span class="ident">session</span>
-                    .<span class="ident">errors</span>
-                    .<span class="ident">min</span>(<span class="ident">u16::max_value</span>().<span class="ident">into</span>())
-                    .<span class="ident">max</span>((<span class="ident">session</span>.<span class="ident">status</span> <span class="op">==</span> <span class="ident">SessionStatus::Crashed</span>) <span class="kw">as</span> <span class="kw">_</span>)
-                    <span class="kw">as</span> <span class="kw">_</span>,
-                <span class="ident">release</span>: <span class="ident">session</span>.<span class="ident">attributes</span>.<span class="ident">release</span>,
-                <span class="ident">environment</span>: <span class="ident">session</span>.<span class="ident">attributes</span>.<span class="ident">environment</span>,
-                <span class="ident">sdk</span>: <span class="ident">client</span>.<span class="ident">map</span>(<span class="ident">str::to_owned</span>),
-                <span class="ident">retention_days</span>: <span class="ident">event_retention</span>,
+        org_id: u64,
+        project_id: ProjectId,
+        event_retention: u16,
+        client: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
+        session: SessionUpdate,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
+        <span class="self">self</span>.send_session_message(
+            org_id,
+            SessionKafkaMessage {
+                org_id,
+                project_id,
+                session_id: session.session_id,
+                distinct_id: session
+                    .distinct_id
+                    .as_deref()
+                    .map(make_distinct_id)
+                    .unwrap_or_default(),
+                quantity: <span class="number">1</span>,
+                seq: <span class="kw">if </span>session.init { <span class="number">0 </span>} <span class="kw">else </span>{ session.sequence },
+                received: protocol::datetime_to_timestamp(session.timestamp),
+                started: protocol::datetime_to_timestamp(session.started),
+                duration: session.duration,
+                status: session.status,
+                errors: session
+                    .errors
+                    .min(u16::max_value().into())
+                    .max((session.status == SessionStatus::Crashed) <span class="kw">as _</span>)
+                    <span class="kw">as _</span>,
+                release: session.attributes.release,
+                environment: session.attributes.environment,
+                sdk: client.map(str::to_owned),
+                retention_days: event_retention,
             },
         )
     }
 
-    <span class="kw">fn</span> <span class="ident">send_metric_message</span>(
+    <span class="kw">fn </span>send_metric_message(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">organization_id</span>: <span class="ident">u64</span>,
-        <span class="ident">message</span>: <span class="ident">MetricKafkaMessage</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">mri</span> <span class="op">=</span> <span class="ident">MetricResourceIdentifier::parse</span>(<span class="kw-2">&amp;</span><span class="ident">message</span>.<span class="ident">name</span>);
-        <span class="kw">let</span> <span class="ident">topic</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">mri</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">mri</span><span class="op">|</span> <span class="ident">mri</span>.<span class="ident">namespace</span>) {
-            <span class="prelude-val">Ok</span>(<span class="ident">MetricNamespace::Transactions</span>) =&gt; <span class="ident">KafkaTopic::MetricsTransactions</span>,
-            <span class="prelude-val">Ok</span>(<span class="ident">MetricNamespace::Sessions</span>) =&gt; <span class="ident">KafkaTopic::MetricsSessions</span>,
-            <span class="prelude-val">Ok</span>(<span class="ident">MetricNamespace::Unsupported</span>) <span class="op">|</span> <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-                <span class="ident">relay_log::with_scope</span>(
-                    <span class="op">|</span><span class="ident">scope</span><span class="op">|</span> {
-                        <span class="ident">scope</span>.<span class="ident">set_extra</span>(<span class="string">&quot;metric_message.name&quot;</span>, <span class="ident">message</span>.<span class="ident">name</span>.<span class="ident">into</span>());
+        organization_id: u64,
+        message: MetricKafkaMessage,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
+        <span class="kw">let </span>mri = MetricResourceIdentifier::parse(<span class="kw-2">&amp;</span>message.name);
+        <span class="kw">let </span>topic = <span class="kw">match </span>mri.map(|mri| mri.namespace) {
+            <span class="prelude-val">Ok</span>(MetricNamespace::Transactions) =&gt; KafkaTopic::MetricsTransactions,
+            <span class="prelude-val">Ok</span>(MetricNamespace::Sessions) =&gt; KafkaTopic::MetricsSessions,
+            <span class="prelude-val">Ok</span>(MetricNamespace::Unsupported) | <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
+                relay_log::with_scope(
+                    |scope| {
+                        scope.set_extra(<span class="string">&quot;metric_message.name&quot;</span>, message.name.into());
                     },
-                    <span class="op">|</span><span class="op">|</span> {
+                    || {
                         <span class="macro">relay_log::error!</span>(<span class="string">&quot;Store actor dropping unknown metric usecase&quot;</span>);
                     },
                 );
-                <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(());
             }
         };
 
         <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Sending metric message to kafka&quot;</span>);
-        <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">topic</span>, <span class="ident">organization_id</span>, <span class="ident">KafkaMessage::Metric</span>(<span class="ident">message</span>))<span class="question-mark">?</span>;
+        <span class="self">self</span>.produce(topic, organization_id, KafkaMessage::Metric(message))<span class="question-mark">?</span>;
         <span class="macro">metric!</span>(
-            <span class="ident">counter</span>(<span class="ident">RelayCounters::ProcessingMessageProduced</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
-            <span class="ident">event_type</span> <span class="op">=</span> <span class="string">&quot;metric&quot;</span>
-        );
+            counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
+            event_type = <span class="string">&quot;metric&quot;
+        </span>);
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">produce_metrics</span>(
+    <span class="kw">fn </span>produce_metrics(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">org_id</span>: <span class="ident">u64</span>,
-        <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
-        <span class="ident">item</span>: <span class="kw-2">&amp;</span><span class="ident">Item</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">payload</span>();
+        org_id: u64,
+        project_id: ProjectId,
+        item: <span class="kw-2">&amp;</span>Item,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
+        <span class="kw">let </span>payload = item.payload();
 
-        <span class="kw">for</span> <span class="ident">bucket</span> <span class="kw">in</span> <span class="ident">Bucket::parse_all</span>(<span class="kw-2">&amp;</span><span class="ident">payload</span>).<span class="ident">unwrap_or_default</span>() {
-            <span class="self">self</span>.<span class="ident">send_metric_message</span>(
-                <span class="ident">org_id</span>,
-                <span class="ident">MetricKafkaMessage</span> {
-                    <span class="ident">org_id</span>,
-                    <span class="ident">project_id</span>,
-                    <span class="ident">name</span>: <span class="ident">bucket</span>.<span class="ident">name</span>,
-                    <span class="ident">value</span>: <span class="ident">bucket</span>.<span class="ident">value</span>,
-                    <span class="ident">timestamp</span>: <span class="ident">bucket</span>.<span class="ident">timestamp</span>,
-                    <span class="ident">tags</span>: <span class="ident">bucket</span>.<span class="ident">tags</span>,
+        <span class="kw">for </span>bucket <span class="kw">in </span>Bucket::parse_all(<span class="kw-2">&amp;</span>payload).unwrap_or_default() {
+            <span class="self">self</span>.send_metric_message(
+                org_id,
+                MetricKafkaMessage {
+                    org_id,
+                    project_id,
+                    name: bucket.name,
+                    value: bucket.value,
+                    timestamp: bucket.timestamp,
+                    tags: bucket.tags,
                 },
             )<span class="question-mark">?</span>;
         }
@@ -1900,138 +1884,138 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">send_session_message</span>(
+    <span class="kw">fn </span>send_session_message(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">organization_id</span>: <span class="ident">u64</span>,
-        <span class="ident">message</span>: <span class="ident">SessionKafkaMessage</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
+        organization_id: u64,
+        message: SessionKafkaMessage,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
         <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Sending session item to kafka&quot;</span>);
-        <span class="self">self</span>.<span class="ident">produce</span>(
-            <span class="ident">KafkaTopic::Sessions</span>,
-            <span class="ident">organization_id</span>,
-            <span class="ident">KafkaMessage::Session</span>(<span class="ident">message</span>),
+        <span class="self">self</span>.produce(
+            KafkaTopic::Sessions,
+            organization_id,
+            KafkaMessage::Session(message),
         )<span class="question-mark">?</span>;
         <span class="macro">metric!</span>(
-            <span class="ident">counter</span>(<span class="ident">RelayCounters::ProcessingMessageProduced</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
-            <span class="ident">event_type</span> <span class="op">=</span> <span class="string">&quot;session&quot;</span>
-        );
+            counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
+            event_type = <span class="string">&quot;session&quot;
+        </span>);
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">produce_profile</span>(
+    <span class="kw">fn </span>produce_profile(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">organization_id</span>: <span class="ident">u64</span>,
-        <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
-        <span class="ident">key_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
-        <span class="ident">start_time</span>: <span class="ident">Instant</span>,
-        <span class="ident">item</span>: <span class="kw-2">&amp;</span><span class="ident">Item</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="ident">ProfileKafkaMessage</span> {
-            <span class="ident">organization_id</span>,
-            <span class="ident">project_id</span>,
-            <span class="ident">key_id</span>,
-            <span class="ident">received</span>: <span class="ident">UnixTimestamp::from_instant</span>(<span class="ident">start_time</span>).<span class="ident">as_secs</span>(),
-            <span class="ident">payload</span>: <span class="ident">item</span>.<span class="ident">payload</span>(),
+        organization_id: u64,
+        project_id: ProjectId,
+        key_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+        start_time: Instant,
+        item: <span class="kw-2">&amp;</span>Item,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
+        <span class="kw">let </span>message = ProfileKafkaMessage {
+            organization_id,
+            project_id,
+            key_id,
+            received: UnixTimestamp::from_instant(start_time).as_secs(),
+            payload: item.payload(),
         };
         <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Sending profile to Kafka&quot;</span>);
-        <span class="self">self</span>.<span class="ident">produce</span>(
-            <span class="ident">KafkaTopic::Profiles</span>,
-            <span class="ident">organization_id</span>,
-            <span class="ident">KafkaMessage::Profile</span>(<span class="ident">message</span>),
+        <span class="self">self</span>.produce(
+            KafkaTopic::Profiles,
+            organization_id,
+            KafkaMessage::Profile(message),
         )<span class="question-mark">?</span>;
         <span class="macro">metric!</span>(
-            <span class="ident">counter</span>(<span class="ident">RelayCounters::ProcessingMessageProduced</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
-            <span class="ident">event_type</span> <span class="op">=</span> <span class="string">&quot;profile&quot;</span>
-        );
+            counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
+            event_type = <span class="string">&quot;profile&quot;
+        </span>);
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">produce_replay_event</span>(
+    <span class="kw">fn </span>produce_replay_event(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">replay_id</span>: <span class="ident">EventId</span>,
-        <span class="ident">organization_id</span>: <span class="ident">u64</span>,
-        <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
-        <span class="ident">start_time</span>: <span class="ident">Instant</span>,
-        <span class="ident">retention_days</span>: <span class="ident">u16</span>,
-        <span class="ident">item</span>: <span class="kw-2">&amp;</span><span class="ident">Item</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="ident">ReplayEventKafkaMessage</span> {
-            <span class="ident">replay_id</span>,
-            <span class="ident">project_id</span>,
-            <span class="ident">retention_days</span>,
-            <span class="ident">start_time</span>: <span class="ident">UnixTimestamp::from_instant</span>(<span class="ident">start_time</span>).<span class="ident">as_secs</span>(),
-            <span class="ident">payload</span>: <span class="ident">item</span>.<span class="ident">payload</span>(),
+        replay_id: EventId,
+        organization_id: u64,
+        project_id: ProjectId,
+        start_time: Instant,
+        retention_days: u16,
+        item: <span class="kw-2">&amp;</span>Item,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
+        <span class="kw">let </span>message = ReplayEventKafkaMessage {
+            replay_id,
+            project_id,
+            retention_days,
+            start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+            payload: item.payload(),
         };
         <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Sending replay event to Kafka&quot;</span>);
-        <span class="self">self</span>.<span class="ident">produce</span>(
-            <span class="ident">KafkaTopic::ReplayEvents</span>,
-            <span class="ident">organization_id</span>,
-            <span class="ident">KafkaMessage::ReplayEvent</span>(<span class="ident">message</span>),
+        <span class="self">self</span>.produce(
+            KafkaTopic::ReplayEvents,
+            organization_id,
+            KafkaMessage::ReplayEvent(message),
         )<span class="question-mark">?</span>;
         <span class="macro">metric!</span>(
-            <span class="ident">counter</span>(<span class="ident">RelayCounters::ProcessingMessageProduced</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
-            <span class="ident">event_type</span> <span class="op">=</span> <span class="string">&quot;replay_event&quot;</span>
-        );
+            counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
+            event_type = <span class="string">&quot;replay_event&quot;
+        </span>);
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">produce_replay_recording_chunks</span>(
+    <span class="kw">fn </span>produce_replay_recording_chunks(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">replay_id</span>: <span class="ident">EventId</span>,
-        <span class="ident">organization_id</span>: <span class="ident">u64</span>,
-        <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
-        <span class="ident">item</span>: <span class="kw-2">&amp;</span><span class="ident">Item</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ChunkedReplayRecording</span>, <span class="ident">StoreError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">id</span> <span class="op">=</span> <span class="ident">Uuid::new_v4</span>().<span class="ident">to_string</span>();
+        replay_id: EventId,
+        organization_id: u64,
+        project_id: ProjectId,
+        item: <span class="kw-2">&amp;</span>Item,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;ChunkedReplayRecording, StoreError&gt; {
+        <span class="kw">let </span>id = Uuid::new_v4().to_string();
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">chunk_index</span> <span class="op">=</span> <span class="number">0</span>;
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">offset</span> <span class="op">=</span> <span class="number">0</span>;
-        <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">payload</span>();
-        <span class="kw">let</span> <span class="ident">size</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">len</span>();
+        <span class="kw">let </span><span class="kw-2">mut </span>chunk_index = <span class="number">0</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>offset = <span class="number">0</span>;
+        <span class="kw">let </span>payload = item.payload();
+        <span class="kw">let </span>size = item.len();
 
-        <span class="comment">// This skips chunks for empty replay recordings. The consumer does not require chunks for</span>
-        <span class="comment">// empty replay recordings. `chunks` will be `0` in this case.</span>
-        <span class="kw">while</span> <span class="ident">offset</span> <span class="op">&lt;</span> <span class="ident">size</span> {
-            <span class="kw">let</span> <span class="ident">max_chunk_size</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">attachment_chunk_size</span>();
-            <span class="kw">let</span> <span class="ident">chunk_size</span> <span class="op">=</span> <span class="ident">std::cmp::min</span>(<span class="ident">max_chunk_size</span>, <span class="ident">size</span> <span class="op">-</span> <span class="ident">offset</span>);
+        <span class="comment">// This skips chunks for empty replay recordings. The consumer does not require chunks for
+        // empty replay recordings. `chunks` will be `0` in this case.
+        </span><span class="kw">while </span>offset &lt; size {
+            <span class="kw">let </span>max_chunk_size = <span class="self">self</span>.config.attachment_chunk_size();
+            <span class="kw">let </span>chunk_size = std::cmp::min(max_chunk_size, size - offset);
 
-            <span class="kw">let</span> <span class="ident">replay_recording_chunk_message</span> <span class="op">=</span>
-                <span class="ident">KafkaMessage::ReplayRecordingChunk</span>(<span class="ident">ReplayRecordingChunkKafkaMessage</span> {
-                    <span class="ident">payload</span>: <span class="ident">payload</span>.<span class="ident">slice</span>(<span class="ident">offset</span>, <span class="ident">offset</span> <span class="op">+</span> <span class="ident">chunk_size</span>),
-                    <span class="ident">replay_id</span>,
-                    <span class="ident">project_id</span>,
-                    <span class="ident">id</span>: <span class="ident">id</span>.<span class="ident">clone</span>(),
-                    <span class="ident">chunk_index</span>,
+            <span class="kw">let </span>replay_recording_chunk_message =
+                KafkaMessage::ReplayRecordingChunk(ReplayRecordingChunkKafkaMessage {
+                    payload: payload.slice(offset, offset + chunk_size),
+                    replay_id,
+                    project_id,
+                    id: id.clone(),
+                    chunk_index,
                 });
-            <span class="self">self</span>.<span class="ident">produce</span>(
-                <span class="ident">KafkaTopic::ReplayRecordings</span>,
-                <span class="ident">organization_id</span>,
-                <span class="ident">replay_recording_chunk_message</span>,
+            <span class="self">self</span>.produce(
+                KafkaTopic::ReplayRecordings,
+                organization_id,
+                replay_recording_chunk_message,
             )<span class="question-mark">?</span>;
-            <span class="ident">offset</span> <span class="op">+</span><span class="op">=</span> <span class="ident">chunk_size</span>;
-            <span class="ident">chunk_index</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
+            offset += chunk_size;
+            chunk_index += <span class="number">1</span>;
         }
 
-        <span class="comment">// The chunk_index is incremented after every loop iteration. After we exit the loop, it</span>
-        <span class="comment">// is one larger than the last chunk, so it is equal to the number of chunks.</span>
+        <span class="comment">// The chunk_index is incremented after every loop iteration. After we exit the loop, it
+        // is one larger than the last chunk, so it is equal to the number of chunks.
 
-        <span class="prelude-val">Ok</span>(<span class="ident">ChunkedReplayRecording</span> {
-            <span class="ident">id</span>,
-            <span class="ident">chunks</span>: <span class="ident">chunk_index</span>,
-            <span class="ident">size</span>: <span class="prelude-val">Some</span>(<span class="ident">size</span>),
+        </span><span class="prelude-val">Ok</span>(ChunkedReplayRecording {
+            id,
+            chunks: chunk_index,
+            size: <span class="prelude-val">Some</span>(size),
         })
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Service</span> <span class="kw">for</span> <span class="ident">StoreService</span> {
-    <span class="kw">type</span> <span class="ident">Interface</span> <span class="op">=</span> <span class="ident">Store</span>;
+<span class="kw">impl </span>Service <span class="kw">for </span>StoreService {
+    <span class="kw">type </span>Interface = Store;
 
-    <span class="kw">fn</span> <span class="ident">spawn_handler</span>(<span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">rx</span>: <span class="ident">relay_system::Receiver</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Interface</span><span class="op">&gt;</span>) {
-        <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
+    <span class="kw">fn </span>spawn_handler(<span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+        tokio::spawn(<span class="kw">async move </span>{
             <span class="macro">relay_log::info!</span>(<span class="string">&quot;store forwarder started&quot;</span>);
 
-            <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">message</span>) <span class="op">=</span> <span class="ident">rx</span>.<span class="ident">recv</span>().<span class="kw">await</span> {
-                <span class="self">self</span>.<span class="ident">handle_message</span>(<span class="ident">message</span>);
+            <span class="kw">while let </span><span class="prelude-val">Some</span>(message) = rx.recv().<span class="kw">await </span>{
+                <span class="self">self</span>.handle_message(message);
             }
 
             <span class="macro">relay_log::info!</span>(<span class="string">&quot;store forwarder stopped&quot;</span>);
@@ -2039,298 +2023,298 @@
     }
 }
 
-<span class="doccomment">/// Common attributes for both standalone attachments and processing-relevant attachments.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Serialize</span>)]</span>
-<span class="kw">struct</span> <span class="ident">ChunkedAttachment</span> {
-    <span class="doccomment">/// The attachment ID within the event.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The triple `(project_id, event_id, id)` identifies an attachment uniquely.</span>
-    <span class="ident">id</span>: <span class="ident">String</span>,
+<span class="doccomment">/// Common attributes for both standalone attachments and processing-relevant attachments.
+</span><span class="attribute">#[derive(Debug, Serialize)]
+</span><span class="kw">struct </span>ChunkedAttachment {
+    <span class="doccomment">/// The attachment ID within the event.
+    ///
+    /// The triple `(project_id, event_id, id)` identifies an attachment uniquely.
+    </span>id: String,
 
-    <span class="doccomment">/// File name of the attachment file.</span>
-    <span class="ident">name</span>: <span class="ident">String</span>,
+    <span class="doccomment">/// File name of the attachment file.
+    </span>name: String,
 
-    <span class="doccomment">/// Content type of the attachment payload.</span>
-    <span class="ident">content_type</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Content type of the attachment payload.
+    </span>content_type: <span class="prelude-ty">Option</span>&lt;String&gt;,
 
-    <span class="doccomment">/// The Sentry-internal attachment type used in the processing pipeline.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">serialize_with</span> <span class="op">=</span> <span class="string">&quot;serialize_attachment_type&quot;</span>)]</span>
-    <span class="ident">attachment_type</span>: <span class="ident">AttachmentType</span>,
+    <span class="doccomment">/// The Sentry-internal attachment type used in the processing pipeline.
+    </span><span class="attribute">#[serde(serialize_with = <span class="string">&quot;serialize_attachment_type&quot;</span>)]
+    </span>attachment_type: AttachmentType,
 
-    <span class="doccomment">/// Number of chunks. Must be greater than zero.</span>
-    <span class="ident">chunks</span>: <span class="ident">usize</span>,
+    <span class="doccomment">/// Number of chunks. Must be greater than zero.
+    </span>chunks: usize,
 
-    <span class="doccomment">/// The size of the attachment in bytes.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
-    <span class="ident">size</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The size of the attachment in bytes.
+    </span><span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>size: <span class="prelude-ty">Option</span>&lt;usize&gt;,
 
-    <span class="doccomment">/// Whether this attachment was rate limited and should be removed after processing.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// By default, rate limited attachments are immediately removed from Envelopes. For processing,</span>
-    <span class="doccomment">/// native crash reports still need to be retained. These attachments are marked with the</span>
-    <span class="doccomment">/// `rate_limited` header, which signals to the processing pipeline that the attachment should</span>
-    <span class="doccomment">/// not be persisted after processing.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
-    <span class="ident">rate_limited</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Whether this attachment was rate limited and should be removed after processing.
+    ///
+    /// By default, rate limited attachments are immediately removed from Envelopes. For processing,
+    /// native crash reports still need to be retained. These attachments are marked with the
+    /// `rate_limited` header, which signals to the processing pipeline that the attachment should
+    /// not be persisted after processing.
+    </span><span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>rate_limited: <span class="prelude-ty">Option</span>&lt;bool&gt;,
 }
 
-<span class="doccomment">/// attributes for Replay Recordings</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Serialize</span>)]</span>
-<span class="kw">struct</span> <span class="ident">ChunkedReplayRecording</span> {
-    <span class="doccomment">/// The attachment ID within the event.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The triple `(project_id, event_id, id)` identifies an attachment uniquely.</span>
-    <span class="ident">id</span>: <span class="ident">String</span>,
+<span class="doccomment">/// attributes for Replay Recordings
+</span><span class="attribute">#[derive(Debug, Serialize)]
+</span><span class="kw">struct </span>ChunkedReplayRecording {
+    <span class="doccomment">/// The attachment ID within the event.
+    ///
+    /// The triple `(project_id, event_id, id)` identifies an attachment uniquely.
+    </span>id: String,
 
-    <span class="doccomment">/// Number of chunks. Must be greater than zero.</span>
-    <span class="ident">chunks</span>: <span class="ident">usize</span>,
+    <span class="doccomment">/// Number of chunks. Must be greater than zero.
+    </span>chunks: usize,
 
-    <span class="doccomment">/// The size of the attachment in bytes.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
-    <span class="ident">size</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The size of the attachment in bytes.
+    </span><span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>size: <span class="prelude-ty">Option</span>&lt;usize&gt;,
 }
 
-<span class="doccomment">/// A hack to make rmp-serde behave more like serde-json when serializing enums.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Cannot serialize bytes.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// See &lt;https://github.com/3Hren/msgpack-rust/pull/214&gt;</span>
-<span class="kw">fn</span> <span class="ident">serialize_attachment_type</span><span class="op">&lt;</span><span class="ident">S</span>, <span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">t</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">S</span>: <span class="ident">serde::Serializer</span>,
-    <span class="ident">T</span>: <span class="ident">serde::Serialize</span>,
+<span class="doccomment">/// A hack to make rmp-serde behave more like serde-json when serializing enums.
+///
+/// Cannot serialize bytes.
+///
+/// See &lt;https://github.com/3Hren/msgpack-rust/pull/214&gt;
+</span><span class="kw">fn </span>serialize_attachment_type&lt;S, T&gt;(t: <span class="kw-2">&amp;</span>T, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
+<span class="kw">where
+    </span>S: serde::Serializer,
+    T: serde::Serialize,
 {
-    <span class="ident">serde_json::to_value</span>(<span class="ident">t</span>)
-        .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">S::Error::custom</span>(<span class="ident">e</span>.<span class="ident">to_string</span>()))<span class="question-mark">?</span>
-        .<span class="ident">serialize</span>(<span class="ident">serializer</span>)
+    serde_json::to_value(t)
+        .map_err(|e| S::Error::custom(e.to_string()))<span class="question-mark">?
+        </span>.serialize(serializer)
 }
 
-<span class="doccomment">/// Container payload for event messages.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Serialize</span>)]</span>
-<span class="kw">struct</span> <span class="ident">EventKafkaMessage</span> {
-    <span class="doccomment">/// Raw event payload.</span>
-    <span class="ident">payload</span>: <span class="ident">Bytes</span>,
-    <span class="doccomment">/// Time at which the event was received by Relay.</span>
-    <span class="ident">start_time</span>: <span class="ident">u64</span>,
-    <span class="doccomment">/// The event id.</span>
-    <span class="ident">event_id</span>: <span class="ident">EventId</span>,
-    <span class="doccomment">/// The project id for the current event.</span>
-    <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
-    <span class="doccomment">/// The client ip address.</span>
-    <span class="ident">remote_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// Attachments that are potentially relevant for processing.</span>
-    <span class="ident">attachments</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">ChunkedAttachment</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Container payload for event messages.
+</span><span class="attribute">#[derive(Debug, Serialize)]
+</span><span class="kw">struct </span>EventKafkaMessage {
+    <span class="doccomment">/// Raw event payload.
+    </span>payload: Bytes,
+    <span class="doccomment">/// Time at which the event was received by Relay.
+    </span>start_time: u64,
+    <span class="doccomment">/// The event id.
+    </span>event_id: EventId,
+    <span class="doccomment">/// The project id for the current event.
+    </span>project_id: ProjectId,
+    <span class="doccomment">/// The client ip address.
+    </span>remote_addr: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    <span class="doccomment">/// Attachments that are potentially relevant for processing.
+    </span>attachments: Vec&lt;ChunkedAttachment&gt;,
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Serialize</span>)]</span>
-<span class="kw">struct</span> <span class="ident">ReplayEventKafkaMessage</span> {
-    <span class="doccomment">/// Raw event payload.</span>
-    <span class="ident">payload</span>: <span class="ident">Bytes</span>,
-    <span class="doccomment">/// Time at which the event was received by Relay.</span>
-    <span class="ident">start_time</span>: <span class="ident">u64</span>,
-    <span class="doccomment">/// The event id.</span>
-    <span class="ident">replay_id</span>: <span class="ident">EventId</span>,
-    <span class="doccomment">/// The project id for the current event.</span>
-    <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
-    <span class="ident">retention_days</span>: <span class="ident">u16</span>,
+<span class="attribute">#[derive(Clone, Debug, Serialize)]
+</span><span class="kw">struct </span>ReplayEventKafkaMessage {
+    <span class="doccomment">/// Raw event payload.
+    </span>payload: Bytes,
+    <span class="doccomment">/// Time at which the event was received by Relay.
+    </span>start_time: u64,
+    <span class="doccomment">/// The event id.
+    </span>replay_id: EventId,
+    <span class="doccomment">/// The project id for the current event.
+    </span>project_id: ProjectId,
+    retention_days: u16,
 }
 
-<span class="doccomment">/// Container payload for chunks of attachments.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Serialize</span>)]</span>
-<span class="kw">struct</span> <span class="ident">AttachmentChunkKafkaMessage</span> {
-    <span class="doccomment">/// Chunk payload of the attachment.</span>
-    <span class="ident">payload</span>: <span class="ident">Bytes</span>,
-    <span class="doccomment">/// The event id.</span>
-    <span class="ident">event_id</span>: <span class="ident">EventId</span>,
-    <span class="doccomment">/// The project id for the current event.</span>
-    <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
-    <span class="doccomment">/// The attachment ID within the event.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The triple `(project_id, event_id, id)` identifies an attachment uniquely.</span>
-    <span class="ident">id</span>: <span class="ident">String</span>,
-    <span class="doccomment">/// Sequence number of chunk. Starts at 0 and ends at `AttachmentKafkaMessage.num_chunks - 1`.</span>
-    <span class="ident">chunk_index</span>: <span class="ident">usize</span>,
+<span class="doccomment">/// Container payload for chunks of attachments.
+</span><span class="attribute">#[derive(Debug, Serialize)]
+</span><span class="kw">struct </span>AttachmentChunkKafkaMessage {
+    <span class="doccomment">/// Chunk payload of the attachment.
+    </span>payload: Bytes,
+    <span class="doccomment">/// The event id.
+    </span>event_id: EventId,
+    <span class="doccomment">/// The project id for the current event.
+    </span>project_id: ProjectId,
+    <span class="doccomment">/// The attachment ID within the event.
+    ///
+    /// The triple `(project_id, event_id, id)` identifies an attachment uniquely.
+    </span>id: String,
+    <span class="doccomment">/// Sequence number of chunk. Starts at 0 and ends at `AttachmentKafkaMessage.num_chunks - 1`.
+    </span>chunk_index: usize,
 }
 
-<span class="doccomment">/// A &quot;standalone&quot; attachment.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Still belongs to an event but can be sent independently (like UserReport) and is not</span>
-<span class="doccomment">/// considered in processing.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Serialize</span>)]</span>
-<span class="kw">struct</span> <span class="ident">AttachmentKafkaMessage</span> {
-    <span class="doccomment">/// The event id.</span>
-    <span class="ident">event_id</span>: <span class="ident">EventId</span>,
-    <span class="doccomment">/// The project id for the current event.</span>
-    <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
-    <span class="doccomment">/// The attachment.</span>
-    <span class="ident">attachment</span>: <span class="ident">ChunkedAttachment</span>,
+<span class="doccomment">/// A &quot;standalone&quot; attachment.
+///
+/// Still belongs to an event but can be sent independently (like UserReport) and is not
+/// considered in processing.
+</span><span class="attribute">#[derive(Debug, Serialize)]
+</span><span class="kw">struct </span>AttachmentKafkaMessage {
+    <span class="doccomment">/// The event id.
+    </span>event_id: EventId,
+    <span class="doccomment">/// The project id for the current event.
+    </span>project_id: ProjectId,
+    <span class="doccomment">/// The attachment.
+    </span>attachment: ChunkedAttachment,
 }
 
-<span class="doccomment">/// Container payload for chunks of attachments.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Serialize</span>)]</span>
-<span class="kw">struct</span> <span class="ident">ReplayRecordingChunkKafkaMessage</span> {
-    <span class="doccomment">/// Chunk payload of the replay recording.</span>
-    <span class="ident">payload</span>: <span class="ident">Bytes</span>,
-    <span class="doccomment">/// The replay id.</span>
-    <span class="ident">replay_id</span>: <span class="ident">EventId</span>,
-    <span class="doccomment">/// The project id for the current replay.</span>
-    <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
-    <span class="doccomment">/// The recording ID within the replay.</span>
-    <span class="ident">id</span>: <span class="ident">String</span>,
-    <span class="doccomment">/// Sequence number of chunk. Starts at 0 and ends at `ReplayRecordingKafkaMessage.num_chunks - 1`.</span>
-    <span class="doccomment">/// the tuple (id, chunk_index) is the unique identifier for a single chunk.</span>
-    <span class="ident">chunk_index</span>: <span class="ident">usize</span>,
+<span class="doccomment">/// Container payload for chunks of attachments.
+</span><span class="attribute">#[derive(Debug, Serialize)]
+</span><span class="kw">struct </span>ReplayRecordingChunkKafkaMessage {
+    <span class="doccomment">/// Chunk payload of the replay recording.
+    </span>payload: Bytes,
+    <span class="doccomment">/// The replay id.
+    </span>replay_id: EventId,
+    <span class="doccomment">/// The project id for the current replay.
+    </span>project_id: ProjectId,
+    <span class="doccomment">/// The recording ID within the replay.
+    </span>id: String,
+    <span class="doccomment">/// Sequence number of chunk. Starts at 0 and ends at `ReplayRecordingKafkaMessage.num_chunks - 1`.
+    /// the tuple (id, chunk_index) is the unique identifier for a single chunk.
+    </span>chunk_index: usize,
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Serialize</span>)]</span>
-<span class="kw">struct</span> <span class="ident">ReplayRecordingKafkaMessage</span> {
-    <span class="doccomment">/// The replay id.</span>
-    <span class="ident">replay_id</span>: <span class="ident">EventId</span>,
-    <span class="doccomment">/// The project id for the current recording.</span>
-    <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
-    <span class="doccomment">/// The key_id for the current recording.</span>
-    <span class="ident">key_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// The org id for the current recording.</span>
-    <span class="ident">org_id</span>: <span class="ident">u64</span>,
-    <span class="doccomment">/// The timestamp of when the recording was Received by relay</span>
-    <span class="ident">received</span>: <span class="ident">u64</span>,
-    <span class="doccomment">/// The recording attachment.</span>
-    <span class="ident">replay_recording</span>: <span class="ident">ChunkedReplayRecording</span>,
-    <span class="ident">retention_days</span>: <span class="ident">u16</span>,
+<span class="attribute">#[derive(Debug, Serialize)]
+</span><span class="kw">struct </span>ReplayRecordingKafkaMessage {
+    <span class="doccomment">/// The replay id.
+    </span>replay_id: EventId,
+    <span class="doccomment">/// The project id for the current recording.
+    </span>project_id: ProjectId,
+    <span class="doccomment">/// The key_id for the current recording.
+    </span>key_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+    <span class="doccomment">/// The org id for the current recording.
+    </span>org_id: u64,
+    <span class="doccomment">/// The timestamp of when the recording was Received by relay
+    </span>received: u64,
+    <span class="doccomment">/// The recording attachment.
+    </span>replay_recording: ChunkedReplayRecording,
+    retention_days: u16,
 }
 
-<span class="doccomment">/// User report for an event wrapped up in a message ready for consumption in Kafka.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Is always independent of an event and can be sent as part of any envelope.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Serialize</span>)]</span>
-<span class="kw">struct</span> <span class="ident">UserReportKafkaMessage</span> {
-    <span class="doccomment">/// The project id for the current event.</span>
-    <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
-    <span class="ident">start_time</span>: <span class="ident">u64</span>,
-    <span class="ident">payload</span>: <span class="ident">Bytes</span>,
+<span class="doccomment">/// User report for an event wrapped up in a message ready for consumption in Kafka.
+///
+/// Is always independent of an event and can be sent as part of any envelope.
+</span><span class="attribute">#[derive(Debug, Serialize)]
+</span><span class="kw">struct </span>UserReportKafkaMessage {
+    <span class="doccomment">/// The project id for the current event.
+    </span>project_id: ProjectId,
+    start_time: u64,
+    payload: Bytes,
 
-    <span class="comment">// Used for KafkaMessage::key</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip</span>)]</span>
-    <span class="ident">event_id</span>: <span class="ident">EventId</span>,
+    <span class="comment">// Used for KafkaMessage::key
+    </span><span class="attribute">#[serde(skip)]
+    </span>event_id: EventId,
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Serialize</span>)]</span>
-<span class="kw">struct</span> <span class="ident">SessionKafkaMessage</span> {
-    <span class="ident">org_id</span>: <span class="ident">u64</span>,
-    <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
-    <span class="ident">session_id</span>: <span class="ident">Uuid</span>,
-    <span class="ident">distinct_id</span>: <span class="ident">Uuid</span>,
-    <span class="ident">quantity</span>: <span class="ident">u32</span>,
-    <span class="ident">seq</span>: <span class="ident">u64</span>,
-    <span class="ident">received</span>: <span class="ident">f64</span>,
-    <span class="ident">started</span>: <span class="ident">f64</span>,
-    <span class="ident">duration</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span>,
-    <span class="ident">status</span>: <span class="ident">SessionStatus</span>,
-    <span class="ident">errors</span>: <span class="ident">u16</span>,
-    <span class="ident">release</span>: <span class="ident">String</span>,
-    <span class="ident">environment</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="ident">sdk</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="ident">retention_days</span>: <span class="ident">u16</span>,
+<span class="attribute">#[derive(Clone, Debug, Serialize)]
+</span><span class="kw">struct </span>SessionKafkaMessage {
+    org_id: u64,
+    project_id: ProjectId,
+    session_id: Uuid,
+    distinct_id: Uuid,
+    quantity: u32,
+    seq: u64,
+    received: f64,
+    started: f64,
+    duration: <span class="prelude-ty">Option</span>&lt;f64&gt;,
+    status: SessionStatus,
+    errors: u16,
+    release: String,
+    environment: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    sdk: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    retention_days: u16,
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Serialize</span>)]</span>
-<span class="kw">struct</span> <span class="ident">MetricKafkaMessage</span> {
-    <span class="ident">org_id</span>: <span class="ident">u64</span>,
-    <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
-    <span class="ident">name</span>: <span class="ident">String</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">flatten</span>)]</span>
-    <span class="ident">value</span>: <span class="ident">BucketValue</span>,
-    <span class="ident">timestamp</span>: <span class="ident">UnixTimestamp</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;BTreeMap::is_empty&quot;</span>)]</span>
-    <span class="ident">tags</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">String</span><span class="op">&gt;</span>,
+<span class="attribute">#[derive(Clone, Debug, Serialize)]
+</span><span class="kw">struct </span>MetricKafkaMessage {
+    org_id: u64,
+    project_id: ProjectId,
+    name: String,
+    <span class="attribute">#[serde(flatten)]
+    </span>value: BucketValue,
+    timestamp: UnixTimestamp,
+    <span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;BTreeMap::is_empty&quot;</span>)]
+    </span>tags: BTreeMap&lt;String, String&gt;,
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Serialize</span>)]</span>
-<span class="kw">struct</span> <span class="ident">ProfileKafkaMessage</span> {
-    <span class="ident">organization_id</span>: <span class="ident">u64</span>,
-    <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
-    <span class="ident">key_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
-    <span class="ident">received</span>: <span class="ident">u64</span>,
-    <span class="ident">payload</span>: <span class="ident">Bytes</span>,
+<span class="attribute">#[derive(Clone, Debug, Serialize)]
+</span><span class="kw">struct </span>ProfileKafkaMessage {
+    organization_id: u64,
+    project_id: ProjectId,
+    key_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+    received: u64,
+    payload: Bytes,
 }
 
-<span class="doccomment">/// An enum over all possible ingest messages.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Serialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">tag</span> <span class="op">=</span> <span class="string">&quot;type&quot;</span>, <span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;snake_case&quot;</span>)]</span>
-<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::large_enum_variant</span>)]</span>
-<span class="kw">enum</span> <span class="ident">KafkaMessage</span> {
-    <span class="ident">Event</span>(<span class="ident">EventKafkaMessage</span>),
-    <span class="ident">Attachment</span>(<span class="ident">AttachmentKafkaMessage</span>),
-    <span class="ident">AttachmentChunk</span>(<span class="ident">AttachmentChunkKafkaMessage</span>),
-    <span class="ident">UserReport</span>(<span class="ident">UserReportKafkaMessage</span>),
-    <span class="ident">Session</span>(<span class="ident">SessionKafkaMessage</span>),
-    <span class="ident">Metric</span>(<span class="ident">MetricKafkaMessage</span>),
-    <span class="ident">Profile</span>(<span class="ident">ProfileKafkaMessage</span>),
-    <span class="ident">ReplayEvent</span>(<span class="ident">ReplayEventKafkaMessage</span>),
-    <span class="ident">ReplayRecording</span>(<span class="ident">ReplayRecordingKafkaMessage</span>),
-    <span class="ident">ReplayRecordingChunk</span>(<span class="ident">ReplayRecordingChunkKafkaMessage</span>),
+<span class="doccomment">/// An enum over all possible ingest messages.
+</span><span class="attribute">#[derive(Debug, Serialize)]
+#[serde(tag = <span class="string">&quot;type&quot;</span>, rename_all = <span class="string">&quot;snake_case&quot;</span>)]
+#[allow(clippy::large_enum_variant)]
+</span><span class="kw">enum </span>KafkaMessage {
+    Event(EventKafkaMessage),
+    Attachment(AttachmentKafkaMessage),
+    AttachmentChunk(AttachmentChunkKafkaMessage),
+    UserReport(UserReportKafkaMessage),
+    Session(SessionKafkaMessage),
+    Metric(MetricKafkaMessage),
+    Profile(ProfileKafkaMessage),
+    ReplayEvent(ReplayEventKafkaMessage),
+    ReplayRecording(ReplayRecordingKafkaMessage),
+    ReplayRecordingChunk(ReplayRecordingChunkKafkaMessage),
 }
 
-<span class="kw">impl</span> <span class="ident">KafkaMessage</span> {
-    <span class="kw">fn</span> <span class="ident">variant</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">KafkaMessage::Event</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;event&quot;</span>,
-            <span class="ident">KafkaMessage::Attachment</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;attachment&quot;</span>,
-            <span class="ident">KafkaMessage::AttachmentChunk</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;attachment_chunk&quot;</span>,
-            <span class="ident">KafkaMessage::UserReport</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;user_report&quot;</span>,
-            <span class="ident">KafkaMessage::Session</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;session&quot;</span>,
-            <span class="ident">KafkaMessage::Metric</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;metric&quot;</span>,
-            <span class="ident">KafkaMessage::Profile</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;profile&quot;</span>,
-            <span class="ident">KafkaMessage::ReplayEvent</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;replay_event&quot;</span>,
-            <span class="ident">KafkaMessage::ReplayRecording</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;replay_recording&quot;</span>,
-            <span class="ident">KafkaMessage::ReplayRecordingChunk</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;replay_recording_chunk&quot;</span>,
+<span class="kw">impl </span>KafkaMessage {
+    <span class="kw">fn </span>variant(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            KafkaMessage::Event(<span class="kw">_</span>) =&gt; <span class="string">&quot;event&quot;</span>,
+            KafkaMessage::Attachment(<span class="kw">_</span>) =&gt; <span class="string">&quot;attachment&quot;</span>,
+            KafkaMessage::AttachmentChunk(<span class="kw">_</span>) =&gt; <span class="string">&quot;attachment_chunk&quot;</span>,
+            KafkaMessage::UserReport(<span class="kw">_</span>) =&gt; <span class="string">&quot;user_report&quot;</span>,
+            KafkaMessage::Session(<span class="kw">_</span>) =&gt; <span class="string">&quot;session&quot;</span>,
+            KafkaMessage::Metric(<span class="kw">_</span>) =&gt; <span class="string">&quot;metric&quot;</span>,
+            KafkaMessage::Profile(<span class="kw">_</span>) =&gt; <span class="string">&quot;profile&quot;</span>,
+            KafkaMessage::ReplayEvent(<span class="kw">_</span>) =&gt; <span class="string">&quot;replay_event&quot;</span>,
+            KafkaMessage::ReplayRecording(<span class="kw">_</span>) =&gt; <span class="string">&quot;replay_recording&quot;</span>,
+            KafkaMessage::ReplayRecordingChunk(<span class="kw">_</span>) =&gt; <span class="string">&quot;replay_recording_chunk&quot;</span>,
         }
     }
 
-    <span class="doccomment">/// Returns the partitioning key for this kafka message determining.</span>
-    <span class="kw">fn</span> <span class="ident">key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; [<span class="ident">u8</span>; <span class="number">16</span>] {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">uuid</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident"><span class="self">Self</span>::Event</span>(<span class="ident">message</span>) =&gt; <span class="ident">message</span>.<span class="ident">event_id</span>.<span class="number">0</span>,
-            <span class="ident"><span class="self">Self</span>::Attachment</span>(<span class="ident">message</span>) =&gt; <span class="ident">message</span>.<span class="ident">event_id</span>.<span class="number">0</span>,
-            <span class="ident"><span class="self">Self</span>::AttachmentChunk</span>(<span class="ident">message</span>) =&gt; <span class="ident">message</span>.<span class="ident">event_id</span>.<span class="number">0</span>,
-            <span class="ident"><span class="self">Self</span>::UserReport</span>(<span class="ident">message</span>) =&gt; <span class="ident">message</span>.<span class="ident">event_id</span>.<span class="number">0</span>,
-            <span class="ident"><span class="self">Self</span>::Session</span>(<span class="ident">_message</span>) =&gt; <span class="ident">Uuid::nil</span>(), <span class="comment">// Explicit random partitioning for sessions</span>
-            <span class="ident"><span class="self">Self</span>::Metric</span>(<span class="ident">_message</span>) =&gt; <span class="ident">Uuid::nil</span>(),  <span class="comment">// TODO(ja): Determine a partitioning key</span>
-            <span class="ident"><span class="self">Self</span>::Profile</span>(<span class="ident">_message</span>) =&gt; <span class="ident">Uuid::nil</span>(),
-            <span class="ident"><span class="self">Self</span>::ReplayEvent</span>(<span class="ident">message</span>) =&gt; <span class="ident">message</span>.<span class="ident">replay_id</span>.<span class="number">0</span>,
-            <span class="ident"><span class="self">Self</span>::ReplayRecording</span>(<span class="ident">message</span>) =&gt; <span class="ident">message</span>.<span class="ident">replay_id</span>.<span class="number">0</span>,
-            <span class="ident"><span class="self">Self</span>::ReplayRecordingChunk</span>(<span class="ident">message</span>) =&gt; <span class="ident">message</span>.<span class="ident">replay_id</span>.<span class="number">0</span>,
+    <span class="doccomment">/// Returns the partitioning key for this kafka message determining.
+    </span><span class="kw">fn </span>key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; [u8; <span class="number">16</span>] {
+        <span class="kw">let </span><span class="kw-2">mut </span>uuid = <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::Event(message) =&gt; message.event_id.<span class="number">0</span>,
+            <span class="self">Self</span>::Attachment(message) =&gt; message.event_id.<span class="number">0</span>,
+            <span class="self">Self</span>::AttachmentChunk(message) =&gt; message.event_id.<span class="number">0</span>,
+            <span class="self">Self</span>::UserReport(message) =&gt; message.event_id.<span class="number">0</span>,
+            <span class="self">Self</span>::Session(_message) =&gt; Uuid::nil(), <span class="comment">// Explicit random partitioning for sessions
+            </span><span class="self">Self</span>::Metric(_message) =&gt; Uuid::nil(),  <span class="comment">// TODO(ja): Determine a partitioning key
+            </span><span class="self">Self</span>::Profile(_message) =&gt; Uuid::nil(),
+            <span class="self">Self</span>::ReplayEvent(message) =&gt; message.replay_id.<span class="number">0</span>,
+            <span class="self">Self</span>::ReplayRecording(message) =&gt; message.replay_id.<span class="number">0</span>,
+            <span class="self">Self</span>::ReplayRecordingChunk(message) =&gt; message.replay_id.<span class="number">0</span>,
         };
 
-        <span class="kw">if</span> <span class="ident">uuid</span>.<span class="ident">is_nil</span>() {
-            <span class="ident">uuid</span> <span class="op">=</span> <span class="ident">Uuid::new_v4</span>();
+        <span class="kw">if </span>uuid.is_nil() {
+            uuid = Uuid::new_v4();
         }
 
-        <span class="kw-2">*</span><span class="ident">uuid</span>.<span class="ident">as_bytes</span>()
+        <span class="kw-2">*</span>uuid.as_bytes()
     }
 
-    <span class="doccomment">/// Serializes the message into its binary format.</span>
-    <span class="kw">fn</span> <span class="ident">serialize</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">StoreError</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">KafkaMessage::Session</span>(<span class="ident">message</span>) =&gt; {
-                <span class="ident">serde_json::to_vec</span>(<span class="ident">message</span>).<span class="ident">map_err</span>(<span class="ident">StoreError::InvalidJson</span>)
+    <span class="doccomment">/// Serializes the message into its binary format.
+    </span><span class="kw">fn </span>serialize(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, StoreError&gt; {
+        <span class="kw">match </span><span class="self">self </span>{
+            KafkaMessage::Session(message) =&gt; {
+                serde_json::to_vec(message).map_err(StoreError::InvalidJson)
             }
-            <span class="ident">KafkaMessage::Metric</span>(<span class="ident">message</span>) =&gt; {
-                <span class="ident">serde_json::to_vec</span>(<span class="ident">message</span>).<span class="ident">map_err</span>(<span class="ident">StoreError::InvalidJson</span>)
+            KafkaMessage::Metric(message) =&gt; {
+                serde_json::to_vec(message).map_err(StoreError::InvalidJson)
             }
-            <span class="ident">KafkaMessage::ReplayEvent</span>(<span class="ident">message</span>) =&gt; {
-                <span class="ident">serde_json::to_vec</span>(<span class="ident">message</span>).<span class="ident">map_err</span>(<span class="ident">StoreError::InvalidJson</span>)
+            KafkaMessage::ReplayEvent(message) =&gt; {
+                serde_json::to_vec(message).map_err(StoreError::InvalidJson)
             }
-            <span class="kw">_</span> =&gt; <span class="ident">rmp_serde::to_vec_named</span>(<span class="kw-2">&amp;</span><span class="self">self</span>).<span class="ident">map_err</span>(<span class="ident">StoreError::InvalidMsgPack</span>),
+            <span class="kw">_ </span>=&gt; rmp_serde::to_vec_named(<span class="kw-2">&amp;</span><span class="self">self</span>).map_err(StoreError::InvalidMsgPack),
         }
     }
 }
 
-<span class="doccomment">/// Determines if the given item is considered slow.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Slow items must be routed to the `Attachments` topic.</span>
-<span class="kw">fn</span> <span class="ident">is_slow_item</span>(<span class="ident">item</span>: <span class="kw-2">&amp;</span><span class="ident">Item</span>) -&gt; <span class="ident">bool</span> {
-    <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="kw-2">&amp;</span><span class="ident">ItemType::Attachment</span> <span class="op">|</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="kw-2">&amp;</span><span class="ident">ItemType::UserReport</span>
+<span class="doccomment">/// Determines if the given item is considered slow.
+///
+/// Slow items must be routed to the `Attachments` topic.
+</span><span class="kw">fn </span>is_slow_item(item: <span class="kw-2">&amp;</span>Item) -&gt; bool {
+    item.ty() == <span class="kw-2">&amp;</span>ItemType::Attachment || item.ty() == <span class="kw-2">&amp;</span>ItemType::UserReport
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

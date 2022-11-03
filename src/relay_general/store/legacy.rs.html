@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/store/legacy.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>legacy.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/store/legacy.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>legacy.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_general/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -37,42 +37,42 @@
 <span id="35">35</span>
 <span id="36">36</span>
 <span id="37">37</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::mem</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>std::mem;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor</span>::{<span class="ident">ProcessingState</span>, <span class="ident">Processor</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">DebugId</span>, <span class="ident">DebugImage</span>, <span class="ident">NativeDebugImage</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Meta</span>, <span class="ident">ProcessingResult</span>};
+<span class="kw">use </span><span class="kw">crate</span>::processor::{ProcessingState, Processor};
+<span class="kw">use </span><span class="kw">crate</span>::protocol::{DebugId, DebugImage, NativeDebugImage};
+<span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Meta, ProcessingResult};
 
-<span class="doccomment">/// Converts legacy data structures to current format.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">LegacyProcessor</span>;
+<span class="doccomment">/// Converts legacy data structures to current format.
+</span><span class="kw">pub struct </span>LegacyProcessor;
 
-<span class="kw">impl</span> <span class="ident">Processor</span> <span class="kw">for</span> <span class="ident">LegacyProcessor</span> {
-    <span class="kw">fn</span> <span class="ident">process_debug_image</span>(
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
-        <span class="ident">image</span>: <span class="kw-2">&amp;mut</span> <span class="ident">DebugImage</span>,
-        <span class="ident">_meta</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Meta</span>,
-        <span class="ident">_state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="ident">ProcessingResult</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">DebugImage::Apple</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">apple</span>) <span class="op">=</span> <span class="ident">image</span> {
-            <span class="kw">let</span> <span class="ident">native</span> <span class="op">=</span> <span class="ident">NativeDebugImage</span> {
-                <span class="ident">code_id</span>: <span class="ident">Annotated::empty</span>(),
-                <span class="ident">code_file</span>: <span class="ident">mem::replace</span>(<span class="kw-2">&amp;mut</span> <span class="ident">apple</span>.<span class="ident">name</span>, <span class="ident">Annotated::empty</span>()).<span class="ident">map_value</span>(<span class="ident">From::from</span>),
-                <span class="ident">debug_id</span>: <span class="ident">mem::replace</span>(<span class="kw-2">&amp;mut</span> <span class="ident">apple</span>.<span class="ident">uuid</span>, <span class="ident">Annotated::empty</span>())
-                    .<span class="ident">map_value</span>(<span class="ident">DebugId::from</span>),
-                <span class="ident">debug_file</span>: <span class="ident">Annotated::empty</span>(),
-                <span class="ident">debug_checksum</span>: <span class="ident">Annotated::empty</span>(),
-                <span class="ident">arch</span>: <span class="ident">mem::replace</span>(<span class="kw-2">&amp;mut</span> <span class="ident">apple</span>.<span class="ident">arch</span>, <span class="ident">Annotated::empty</span>()),
-                <span class="ident">image_addr</span>: <span class="ident">mem::replace</span>(<span class="kw-2">&amp;mut</span> <span class="ident">apple</span>.<span class="ident">image_addr</span>, <span class="ident">Annotated::empty</span>()),
-                <span class="ident">image_size</span>: <span class="ident">mem::replace</span>(<span class="kw-2">&amp;mut</span> <span class="ident">apple</span>.<span class="ident">image_size</span>, <span class="ident">Annotated::empty</span>()),
-                <span class="ident">image_vmaddr</span>: <span class="ident">mem::replace</span>(<span class="kw-2">&amp;mut</span> <span class="ident">apple</span>.<span class="ident">image_vmaddr</span>, <span class="ident">Annotated::empty</span>()),
-                <span class="ident">other</span>: <span class="ident">mem::take</span>(<span class="kw-2">&amp;mut</span> <span class="ident">apple</span>.<span class="ident">other</span>),
+<span class="kw">impl </span>Processor <span class="kw">for </span>LegacyProcessor {
+    <span class="kw">fn </span>process_debug_image(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        image: <span class="kw-2">&amp;mut </span>DebugImage,
+        _meta: <span class="kw-2">&amp;mut </span>Meta,
+        _state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+    ) -&gt; ProcessingResult {
+        <span class="kw">if let </span>DebugImage::Apple(<span class="kw-2">ref mut </span>apple) = image {
+            <span class="kw">let </span>native = NativeDebugImage {
+                code_id: Annotated::empty(),
+                code_file: mem::replace(<span class="kw-2">&amp;mut </span>apple.name, Annotated::empty()).map_value(From::from),
+                debug_id: mem::replace(<span class="kw-2">&amp;mut </span>apple.uuid, Annotated::empty())
+                    .map_value(DebugId::from),
+                debug_file: Annotated::empty(),
+                debug_checksum: Annotated::empty(),
+                arch: mem::replace(<span class="kw-2">&amp;mut </span>apple.arch, Annotated::empty()),
+                image_addr: mem::replace(<span class="kw-2">&amp;mut </span>apple.image_addr, Annotated::empty()),
+                image_size: mem::replace(<span class="kw-2">&amp;mut </span>apple.image_size, Annotated::empty()),
+                image_vmaddr: mem::replace(<span class="kw-2">&amp;mut </span>apple.image_vmaddr, Annotated::empty()),
+                other: mem::take(<span class="kw-2">&amp;mut </span>apple.other),
             };
 
-            <span class="kw-2">*</span><span class="ident">image</span> <span class="op">=</span> <span class="ident">DebugImage::MachO</span>(<span class="ident">Box::new</span>(<span class="ident">native</span>));
+            <span class="kw-2">*</span>image = DebugImage::MachO(Box::new(native));
         }
 
         <span class="prelude-val">Ok</span>(())
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

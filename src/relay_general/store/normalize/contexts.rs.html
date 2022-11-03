@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/store/normalize/contexts.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>contexts.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../../storage.js"></script><script defer src="../../../../source-script.js"></script><script defer src="../../../../source-files.js"></script><script defer src="../../../../main.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/store/normalize/contexts.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>contexts.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../../normalize.css"><link rel="stylesheet" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../../ayu.css" disabled><link rel="stylesheet" href="../../../../dark.css" disabled><link rel="stylesheet" href="../../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../../storage.js"></script><script defer src="../../../../source-script.js"></script><script defer src="../../../../source-files.js"></script><script defer src="../../../../main.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../../relay_general/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -583,588 +583,588 @@
 <span id="581">581</span>
 <span id="582">582</span>
 <span id="583">583</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">once_cell::sync::Lazy</span>;
-<span class="kw">use</span> <span class="ident">regex::Regex</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>once_cell::sync::Lazy;
+<span class="kw">use </span>regex::Regex;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">Context</span>, <span class="ident">OsContext</span>, <span class="ident">ResponseContext</span>, <span class="ident">RuntimeContext</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Empty</span>};
+<span class="kw">use </span><span class="kw">crate</span>::protocol::{Context, OsContext, ResponseContext, RuntimeContext};
+<span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Empty};
 
-<span class="doccomment">/// Environment.OSVersion (GetVersionEx) or RuntimeInformation.OSDescription on Windows</span>
-<span class="kw">static</span> <span class="ident">OS_WINDOWS_REGEX1</span>: <span class="ident">Lazy</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Lazy::new</span>(<span class="op">|</span><span class="op">|</span> {
-    <span class="ident">Regex::new</span>(<span class="string">r#&quot;^(Microsoft )?Windows (NT )?(?P&lt;version&gt;\d+\.\d+\.(?P&lt;build_number&gt;\d+)).*$&quot;#</span>)
-        .<span class="ident">unwrap</span>()
+<span class="doccomment">/// Environment.OSVersion (GetVersionEx) or RuntimeInformation.OSDescription on Windows
+</span><span class="kw">static </span>OS_WINDOWS_REGEX1: Lazy&lt;Regex&gt; = Lazy::new(|| {
+    Regex::new(<span class="string">r#&quot;^(Microsoft )?Windows (NT )?(?P&lt;version&gt;\d+\.\d+\.(?P&lt;build_number&gt;\d+)).*$&quot;#</span>)
+        .unwrap()
 });
-<span class="kw">static</span> <span class="ident">OS_WINDOWS_REGEX2</span>: <span class="ident">Lazy</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Lazy::new</span>(<span class="op">|</span><span class="op">|</span> {
-    <span class="ident">Regex::new</span>(<span class="string">r#&quot;^Windows\s+\d+\s+\((?P&lt;version&gt;\d+\.\d+\.(?P&lt;build_number&gt;\d+)).*$&quot;#</span>).<span class="ident">unwrap</span>()
-});
-
-<span class="kw">static</span> <span class="ident">OS_ANDROID_REGEX</span>: <span class="ident">Lazy</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Lazy::new</span>(<span class="op">|</span><span class="op">|</span> {
-    <span class="ident">Regex::new</span>(<span class="string">r#&quot;^Android (OS )?(?P&lt;version&gt;\d+(\.\d+){0,2}) / API-(?P&lt;api&gt;(\d+))&quot;#</span>).<span class="ident">unwrap</span>()
+<span class="kw">static </span>OS_WINDOWS_REGEX2: Lazy&lt;Regex&gt; = Lazy::new(|| {
+    Regex::new(<span class="string">r#&quot;^Windows\s+\d+\s+\((?P&lt;version&gt;\d+\.\d+\.(?P&lt;build_number&gt;\d+)).*$&quot;#</span>).unwrap()
 });
 
-<span class="doccomment">/// Format sent by Unreal Engine on macOS</span>
-<span class="kw">static</span> <span class="ident">OS_MACOS_REGEX</span>: <span class="ident">Lazy</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Lazy::new</span>(<span class="op">|</span><span class="op">|</span> {
-    <span class="ident">Regex::new</span>(<span class="string">r#&quot;^Mac OS X (?P&lt;version&gt;\d+\.\d+\.\d+)( \((?P&lt;build&gt;[a-fA-F0-9]+)\))?$&quot;#</span>).<span class="ident">unwrap</span>()
+<span class="kw">static </span>OS_ANDROID_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
+    Regex::new(<span class="string">r#&quot;^Android (OS )?(?P&lt;version&gt;\d+(\.\d+){0,2}) / API-(?P&lt;api&gt;(\d+))&quot;#</span>).unwrap()
 });
 
-<span class="doccomment">/// Specific regex to parse Linux distros</span>
-<span class="kw">static</span> <span class="ident">OS_LINUX_DISTRO_UNAME_REGEX</span>: <span class="ident">Lazy</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Lazy::new</span>(<span class="op">|</span><span class="op">|</span> {
-    <span class="ident">Regex::new</span>(<span class="string">r#&quot;^Linux (?P&lt;kernel_version&gt;\d+\.\d+(\.\d+(\.[1-9]+)?)?) (?P&lt;name&gt;[a-zA-Z]+) (?P&lt;version&gt;\d+(\.\d+){0,2})&quot;#</span>).<span class="ident">unwrap</span>()
+<span class="doccomment">/// Format sent by Unreal Engine on macOS
+</span><span class="kw">static </span>OS_MACOS_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
+    Regex::new(<span class="string">r#&quot;^Mac OS X (?P&lt;version&gt;\d+\.\d+\.\d+)( \((?P&lt;build&gt;[a-fA-F0-9]+)\))?$&quot;#</span>).unwrap()
 });
 
-<span class="doccomment">/// Environment.OSVersion or RuntimeInformation.OSDescription (uname) on Mono and CoreCLR on</span>
-<span class="doccomment">/// macOS, iOS, Linux, etc.</span>
-<span class="kw">static</span> <span class="ident">OS_UNAME_REGEX</span>: <span class="ident">Lazy</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Lazy::new</span>(<span class="op">|</span><span class="op">|</span> {
-    <span class="ident">Regex::new</span>(<span class="string">r#&quot;^(?P&lt;name&gt;[a-zA-Z]+) (?P&lt;kernel_version&gt;\d+\.\d+(\.\d+(\.[1-9]+)?)?)&quot;#</span>).<span class="ident">unwrap</span>()
+<span class="doccomment">/// Specific regex to parse Linux distros
+</span><span class="kw">static </span>OS_LINUX_DISTRO_UNAME_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
+    Regex::new(<span class="string">r#&quot;^Linux (?P&lt;kernel_version&gt;\d+\.\d+(\.\d+(\.[1-9]+)?)?) (?P&lt;name&gt;[a-zA-Z]+) (?P&lt;version&gt;\d+(\.\d+){0,2})&quot;#</span>).unwrap()
 });
 
-<span class="doccomment">/// Mono 5.4, .NET Core 2.0</span>
-<span class="kw">static</span> <span class="ident">RUNTIME_DOTNET_REGEX</span>: <span class="ident">Lazy</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span>
-    <span class="ident">Lazy::new</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Regex::new</span>(<span class="string">r#&quot;^(?P&lt;name&gt;.*) (?P&lt;version&gt;\d+\.\d+(\.\d+){0,2}).*$&quot;#</span>).<span class="ident">unwrap</span>());
+<span class="doccomment">/// Environment.OSVersion or RuntimeInformation.OSDescription (uname) on Mono and CoreCLR on
+/// macOS, iOS, Linux, etc.
+</span><span class="kw">static </span>OS_UNAME_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
+    Regex::new(<span class="string">r#&quot;^(?P&lt;name&gt;[a-zA-Z]+) (?P&lt;kernel_version&gt;\d+\.\d+(\.\d+(\.[1-9]+)?)?)&quot;#</span>).unwrap()
+});
 
-<span class="kw">fn</span> <span class="ident">normalize_runtime_context</span>(<span class="ident">runtime</span>: <span class="kw-2">&amp;mut</span> <span class="ident">RuntimeContext</span>) {
-    <span class="kw">if</span> <span class="ident">runtime</span>.<span class="ident">name</span>.<span class="ident">value</span>().<span class="ident">is_empty</span>() <span class="op">&amp;&amp;</span> <span class="ident">runtime</span>.<span class="ident">version</span>.<span class="ident">value</span>().<span class="ident">is_empty</span>() {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">raw_description</span>) <span class="op">=</span> <span class="ident">runtime</span>.<span class="ident">raw_description</span>.<span class="ident">as_str</span>() {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">captures</span>) <span class="op">=</span> <span class="ident">RUNTIME_DOTNET_REGEX</span>.<span class="ident">captures</span>(<span class="ident">raw_description</span>) {
-                <span class="ident">runtime</span>.<span class="ident">name</span> <span class="op">=</span> <span class="ident">captures</span>.<span class="ident">name</span>(<span class="string">&quot;name&quot;</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">as_str</span>().<span class="ident">to_string</span>()).<span class="ident">into</span>();
-                <span class="ident">runtime</span>.<span class="ident">version</span> <span class="op">=</span> <span class="ident">captures</span>
-                    .<span class="ident">name</span>(<span class="string">&quot;version&quot;</span>)
-                    .<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">as_str</span>().<span class="ident">to_string</span>())
-                    .<span class="ident">into</span>();
+<span class="doccomment">/// Mono 5.4, .NET Core 2.0
+</span><span class="kw">static </span>RUNTIME_DOTNET_REGEX: Lazy&lt;Regex&gt; =
+    Lazy::new(|| Regex::new(<span class="string">r#&quot;^(?P&lt;name&gt;.*) (?P&lt;version&gt;\d+\.\d+(\.\d+){0,2}).*$&quot;#</span>).unwrap());
+
+<span class="kw">fn </span>normalize_runtime_context(runtime: <span class="kw-2">&amp;mut </span>RuntimeContext) {
+    <span class="kw">if </span>runtime.name.value().is_empty() &amp;&amp; runtime.version.value().is_empty() {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(raw_description) = runtime.raw_description.as_str() {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(captures) = RUNTIME_DOTNET_REGEX.captures(raw_description) {
+                runtime.name = captures.name(<span class="string">&quot;name&quot;</span>).map(|m| m.as_str().to_string()).into();
+                runtime.version = captures
+                    .name(<span class="string">&quot;version&quot;</span>)
+                    .map(|m| m.as_str().to_string())
+                    .into();
             }
         }
     }
 
-    <span class="comment">// RuntimeInformation.FrameworkDescription doesn&#39;t return a very useful value.</span>
-    <span class="comment">// Example: &quot;.NET Framework 4.7.3056.0&quot;</span>
-    <span class="comment">// Use release keys from registry sent as #build</span>
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">name</span>) <span class="op">=</span> <span class="ident">runtime</span>.<span class="ident">name</span>.<span class="ident">as_str</span>() {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">build</span>) <span class="op">=</span> <span class="ident">runtime</span>.<span class="ident">build</span>.<span class="ident">as_str</span>() {
-            <span class="kw">if</span> <span class="ident">name</span>.<span class="ident">starts_with</span>(<span class="string">&quot;.NET Framework&quot;</span>) {
-                <span class="kw">let</span> <span class="ident">version</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">build</span> {
-                    <span class="string">&quot;378389&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.5&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="string">&quot;378675&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.5.1&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="string">&quot;378758&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.5.1&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="string">&quot;379893&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.5.2&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="string">&quot;393295&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.6&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="string">&quot;393297&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.6&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="string">&quot;394254&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.6.1&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="string">&quot;394271&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.6.1&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="string">&quot;394802&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.6.2&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="string">&quot;394806&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.6.2&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="string">&quot;460798&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.7&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="string">&quot;460805&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.7&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="string">&quot;461308&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.7.1&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="string">&quot;461310&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.7.1&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="string">&quot;461808&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.7.2&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="string">&quot;461814&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.7.2&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="string">&quot;528040&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.8&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="string">&quot;528049&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.8&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="string">&quot;528209&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.8&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="string">&quot;528372&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.8&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="string">&quot;528449&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.8&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
+    <span class="comment">// RuntimeInformation.FrameworkDescription doesn&#39;t return a very useful value.
+    // Example: &quot;.NET Framework 4.7.3056.0&quot;
+    // Use release keys from registry sent as #build
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(name) = runtime.name.as_str() {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(build) = runtime.build.as_str() {
+            <span class="kw">if </span>name.starts_with(<span class="string">&quot;.NET Framework&quot;</span>) {
+                <span class="kw">let </span>version = <span class="kw">match </span>build {
+                    <span class="string">&quot;378389&quot; </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.5&quot;</span>.to_string()),
+                    <span class="string">&quot;378675&quot; </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.5.1&quot;</span>.to_string()),
+                    <span class="string">&quot;378758&quot; </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.5.1&quot;</span>.to_string()),
+                    <span class="string">&quot;379893&quot; </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.5.2&quot;</span>.to_string()),
+                    <span class="string">&quot;393295&quot; </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.6&quot;</span>.to_string()),
+                    <span class="string">&quot;393297&quot; </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.6&quot;</span>.to_string()),
+                    <span class="string">&quot;394254&quot; </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.6.1&quot;</span>.to_string()),
+                    <span class="string">&quot;394271&quot; </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.6.1&quot;</span>.to_string()),
+                    <span class="string">&quot;394802&quot; </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.6.2&quot;</span>.to_string()),
+                    <span class="string">&quot;394806&quot; </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.6.2&quot;</span>.to_string()),
+                    <span class="string">&quot;460798&quot; </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.7&quot;</span>.to_string()),
+                    <span class="string">&quot;460805&quot; </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.7&quot;</span>.to_string()),
+                    <span class="string">&quot;461308&quot; </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.7.1&quot;</span>.to_string()),
+                    <span class="string">&quot;461310&quot; </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.7.1&quot;</span>.to_string()),
+                    <span class="string">&quot;461808&quot; </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.7.2&quot;</span>.to_string()),
+                    <span class="string">&quot;461814&quot; </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.7.2&quot;</span>.to_string()),
+                    <span class="string">&quot;528040&quot; </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.8&quot;</span>.to_string()),
+                    <span class="string">&quot;528049&quot; </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.8&quot;</span>.to_string()),
+                    <span class="string">&quot;528209&quot; </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.8&quot;</span>.to_string()),
+                    <span class="string">&quot;528372&quot; </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.8&quot;</span>.to_string()),
+                    <span class="string">&quot;528449&quot; </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;4.8&quot;</span>.to_string()),
+                    <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
                 };
 
-                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">version</span>) <span class="op">=</span> <span class="ident">version</span> {
-                    <span class="ident">runtime</span>.<span class="ident">version</span> <span class="op">=</span> <span class="ident">version</span>.<span class="ident">into</span>();
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(version) = version {
+                    runtime.version = version.into();
                 }
             }
         }
     }
 }
 
-<span class="doccomment">/// Parses the Windows build number from the description and maps it to a marketing name.</span>
-<span class="doccomment">/// Source: &lt;https://en.wikipedia.org/wiki/List_of_Microsoft_Windows_versions&gt;.</span>
-<span class="doccomment">/// Note: We cannot distinguish between Windows Server and PC versions, so we map to the PC versions</span>
-<span class="doccomment">/// here.</span>
-<span class="kw">fn</span> <span class="ident">get_windows_version</span>(<span class="ident">description</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="kw-2">&amp;</span><span class="ident">str</span>)<span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">captures</span> <span class="op">=</span> <span class="ident">OS_WINDOWS_REGEX1</span>
-        .<span class="ident">captures</span>(<span class="ident">description</span>)
-        .<span class="ident">or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">OS_WINDOWS_REGEX2</span>.<span class="ident">captures</span>(<span class="ident">description</span>))<span class="question-mark">?</span>;
+<span class="doccomment">/// Parses the Windows build number from the description and maps it to a marketing name.
+/// Source: &lt;https://en.wikipedia.org/wiki/List_of_Microsoft_Windows_versions&gt;.
+/// Note: We cannot distinguish between Windows Server and PC versions, so we map to the PC versions
+/// here.
+</span><span class="kw">fn </span>get_windows_version(description: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;(<span class="kw-2">&amp;</span>str, <span class="kw-2">&amp;</span>str)&gt; {
+    <span class="kw">let </span>captures = OS_WINDOWS_REGEX1
+        .captures(description)
+        .or_else(|| OS_WINDOWS_REGEX2.captures(description))<span class="question-mark">?</span>;
 
-    <span class="kw">let</span> <span class="ident">full_version</span> <span class="op">=</span> <span class="ident">captures</span>.<span class="ident">name</span>(<span class="string">&quot;version&quot;</span>)<span class="question-mark">?</span>.<span class="ident">as_str</span>();
-    <span class="kw">let</span> <span class="ident">build_number_str</span> <span class="op">=</span> <span class="ident">captures</span>.<span class="ident">name</span>(<span class="string">&quot;build_number&quot;</span>)<span class="question-mark">?</span>.<span class="ident">as_str</span>();
-    <span class="kw">let</span> <span class="ident">build_number</span> <span class="op">=</span> <span class="ident">build_number_str</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>().<span class="ident">ok</span>()<span class="question-mark">?</span>;
+    <span class="kw">let </span>full_version = captures.name(<span class="string">&quot;version&quot;</span>)<span class="question-mark">?</span>.as_str();
+    <span class="kw">let </span>build_number_str = captures.name(<span class="string">&quot;build_number&quot;</span>)<span class="question-mark">?</span>.as_str();
+    <span class="kw">let </span>build_number = build_number_str.parse::&lt;u64&gt;().ok()<span class="question-mark">?</span>;
 
-    <span class="kw">let</span> <span class="ident">version_name</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">build_number</span> {
-        <span class="comment">// Not considering versions below Windows XP</span>
-        <span class="number">2600</span>..<span class="op">=</span><span class="number">3790</span> =&gt; <span class="string">&quot;XP&quot;</span>,
-        <span class="number">6002</span> =&gt; <span class="string">&quot;Vista&quot;</span>,
-        <span class="number">7601</span> =&gt; <span class="string">&quot;7&quot;</span>,
-        <span class="number">9200</span> =&gt; <span class="string">&quot;8&quot;</span>,
-        <span class="number">9600</span> =&gt; <span class="string">&quot;8.1&quot;</span>,
-        <span class="number">10240</span>..<span class="op">=</span><span class="number">19044</span> =&gt; <span class="string">&quot;10&quot;</span>,
-        <span class="number">22000</span>..<span class="op">=</span><span class="number">22999</span> =&gt; <span class="string">&quot;11&quot;</span>,
-        <span class="comment">// Fall back to raw version:</span>
-        <span class="kw">_</span> =&gt; <span class="ident">full_version</span>,
+    <span class="kw">let </span>version_name = <span class="kw">match </span>build_number {
+        <span class="comment">// Not considering versions below Windows XP
+        </span><span class="number">2600</span>..=<span class="number">3790 </span>=&gt; <span class="string">&quot;XP&quot;</span>,
+        <span class="number">6002 </span>=&gt; <span class="string">&quot;Vista&quot;</span>,
+        <span class="number">7601 </span>=&gt; <span class="string">&quot;7&quot;</span>,
+        <span class="number">9200 </span>=&gt; <span class="string">&quot;8&quot;</span>,
+        <span class="number">9600 </span>=&gt; <span class="string">&quot;8.1&quot;</span>,
+        <span class="number">10240</span>..=<span class="number">19044 </span>=&gt; <span class="string">&quot;10&quot;</span>,
+        <span class="number">22000</span>..=<span class="number">22999 </span>=&gt; <span class="string">&quot;11&quot;</span>,
+        <span class="comment">// Fall back to raw version:
+        </span><span class="kw">_ </span>=&gt; full_version,
     };
 
-    <span class="prelude-val">Some</span>((<span class="ident">version_name</span>, <span class="ident">build_number_str</span>))
+    <span class="prelude-val">Some</span>((version_name, build_number_str))
 }
 
-<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
-<span class="comment">// TODO use this to add a tag `android.api` to the message (not yet 100% decided)</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_android_api_version</span>(<span class="ident">description</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">captures</span>) <span class="op">=</span> <span class="ident">OS_ANDROID_REGEX</span>.<span class="ident">captures</span>(<span class="ident">description</span>) {
-        <span class="ident">captures</span>.<span class="ident">name</span>(<span class="string">&quot;api&quot;</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">as_str</span>())
-    } <span class="kw">else</span> {
-        <span class="prelude-val">None</span>
-    }
+<span class="attribute">#[allow(dead_code)]
+</span><span class="comment">// TODO use this to add a tag `android.api` to the message (not yet 100% decided)
+</span><span class="kw">pub fn </span>get_android_api_version(description: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(captures) = OS_ANDROID_REGEX.captures(description) {
+        captures.name(<span class="string">&quot;api&quot;</span>).map(|m| m.as_str())
+    } <span class="kw">else </span>{
+        <span class="prelude-val">None
+    </span>}
 }
 
-<span class="kw">fn</span> <span class="ident">normalize_os_context</span>(<span class="ident">os</span>: <span class="kw-2">&amp;mut</span> <span class="ident">OsContext</span>) {
-    <span class="kw">if</span> <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">value</span>().<span class="ident">is_some</span>() <span class="op">|</span><span class="op">|</span> <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">value</span>().<span class="ident">is_some</span>() {
+<span class="kw">fn </span>normalize_os_context(os: <span class="kw-2">&amp;mut </span>OsContext) {
+    <span class="kw">if </span>os.name.value().is_some() || os.version.value().is_some() {
         <span class="kw">return</span>;
     }
 
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">raw_description</span>) <span class="op">=</span> <span class="ident">os</span>.<span class="ident">raw_description</span>.<span class="ident">as_str</span>() {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="ident">version</span>, <span class="ident">build_number</span>)) <span class="op">=</span> <span class="ident">get_windows_version</span>(<span class="ident">raw_description</span>) {
-            <span class="ident">os</span>.<span class="ident">name</span> <span class="op">=</span> <span class="string">&quot;Windows&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>();
-            <span class="ident">os</span>.<span class="ident">version</span> <span class="op">=</span> <span class="ident">version</span>.<span class="ident">to_string</span>().<span class="ident">into</span>();
-            <span class="kw">if</span> <span class="ident">os</span>.<span class="ident">build</span>.<span class="ident">is_empty</span>() {
-                <span class="comment">// Keep raw version as build</span>
-                <span class="ident">os</span>.<span class="ident">build</span>.<span class="ident">set_value</span>(<span class="prelude-val">Some</span>(<span class="ident">build_number</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()));
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(raw_description) = os.raw_description.as_str() {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>((version, build_number)) = get_windows_version(raw_description) {
+            os.name = <span class="string">&quot;Windows&quot;</span>.to_string().into();
+            os.version = version.to_string().into();
+            <span class="kw">if </span>os.build.is_empty() {
+                <span class="comment">// Keep raw version as build
+                </span>os.build.set_value(<span class="prelude-val">Some</span>(build_number.to_string().into()));
             }
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">captures</span>) <span class="op">=</span> <span class="ident">OS_MACOS_REGEX</span>.<span class="ident">captures</span>(<span class="ident">raw_description</span>) {
-            <span class="ident">os</span>.<span class="ident">name</span> <span class="op">=</span> <span class="string">&quot;macOS&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>();
-            <span class="ident">os</span>.<span class="ident">version</span> <span class="op">=</span> <span class="ident">captures</span>
-                .<span class="ident">name</span>(<span class="string">&quot;version&quot;</span>)
-                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">as_str</span>().<span class="ident">to_string</span>())
-                .<span class="ident">into</span>();
-            <span class="ident">os</span>.<span class="ident">build</span> <span class="op">=</span> <span class="ident">captures</span>
-                .<span class="ident">name</span>(<span class="string">&quot;build&quot;</span>)
-                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">as_str</span>().<span class="ident">to_string</span>().<span class="ident">into</span>())
-                .<span class="ident">into</span>();
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">captures</span>) <span class="op">=</span> <span class="ident">OS_LINUX_DISTRO_UNAME_REGEX</span>.<span class="ident">captures</span>(<span class="ident">raw_description</span>) {
-            <span class="ident">os</span>.<span class="ident">name</span> <span class="op">=</span> <span class="ident">captures</span>.<span class="ident">name</span>(<span class="string">&quot;name&quot;</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">as_str</span>().<span class="ident">to_string</span>()).<span class="ident">into</span>();
-            <span class="ident">os</span>.<span class="ident">version</span> <span class="op">=</span> <span class="ident">captures</span>
-                .<span class="ident">name</span>(<span class="string">&quot;version&quot;</span>)
-                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">as_str</span>().<span class="ident">to_string</span>())
-                .<span class="ident">into</span>();
-            <span class="ident">os</span>.<span class="ident">kernel_version</span> <span class="op">=</span> <span class="ident">captures</span>
-                .<span class="ident">name</span>(<span class="string">&quot;kernel_version&quot;</span>)
-                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">as_str</span>().<span class="ident">to_string</span>())
-                .<span class="ident">into</span>();
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">captures</span>) <span class="op">=</span> <span class="ident">OS_UNAME_REGEX</span>.<span class="ident">captures</span>(<span class="ident">raw_description</span>) {
-            <span class="ident">os</span>.<span class="ident">name</span> <span class="op">=</span> <span class="ident">captures</span>.<span class="ident">name</span>(<span class="string">&quot;name&quot;</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">as_str</span>().<span class="ident">to_string</span>()).<span class="ident">into</span>();
-            <span class="ident">os</span>.<span class="ident">kernel_version</span> <span class="op">=</span> <span class="ident">captures</span>
-                .<span class="ident">name</span>(<span class="string">&quot;kernel_version&quot;</span>)
-                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">as_str</span>().<span class="ident">to_string</span>())
-                .<span class="ident">into</span>();
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">captures</span>) <span class="op">=</span> <span class="ident">OS_ANDROID_REGEX</span>.<span class="ident">captures</span>(<span class="ident">raw_description</span>) {
-            <span class="ident">os</span>.<span class="ident">name</span> <span class="op">=</span> <span class="string">&quot;Android&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>();
-            <span class="ident">os</span>.<span class="ident">version</span> <span class="op">=</span> <span class="ident">captures</span>
-                .<span class="ident">name</span>(<span class="string">&quot;version&quot;</span>)
-                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">as_str</span>().<span class="ident">to_string</span>())
-                .<span class="ident">into</span>();
+        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(captures) = OS_MACOS_REGEX.captures(raw_description) {
+            os.name = <span class="string">&quot;macOS&quot;</span>.to_string().into();
+            os.version = captures
+                .name(<span class="string">&quot;version&quot;</span>)
+                .map(|m| m.as_str().to_string())
+                .into();
+            os.build = captures
+                .name(<span class="string">&quot;build&quot;</span>)
+                .map(|m| m.as_str().to_string().into())
+                .into();
+        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(captures) = OS_LINUX_DISTRO_UNAME_REGEX.captures(raw_description) {
+            os.name = captures.name(<span class="string">&quot;name&quot;</span>).map(|m| m.as_str().to_string()).into();
+            os.version = captures
+                .name(<span class="string">&quot;version&quot;</span>)
+                .map(|m| m.as_str().to_string())
+                .into();
+            os.kernel_version = captures
+                .name(<span class="string">&quot;kernel_version&quot;</span>)
+                .map(|m| m.as_str().to_string())
+                .into();
+        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(captures) = OS_UNAME_REGEX.captures(raw_description) {
+            os.name = captures.name(<span class="string">&quot;name&quot;</span>).map(|m| m.as_str().to_string()).into();
+            os.kernel_version = captures
+                .name(<span class="string">&quot;kernel_version&quot;</span>)
+                .map(|m| m.as_str().to_string())
+                .into();
+        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(captures) = OS_ANDROID_REGEX.captures(raw_description) {
+            os.name = <span class="string">&quot;Android&quot;</span>.to_string().into();
+            os.version = captures
+                .name(<span class="string">&quot;version&quot;</span>)
+                .map(|m| m.as_str().to_string())
+                .into();
         }
     }
 }
 
-<span class="kw">fn</span> <span class="ident">normalize_response</span>(<span class="ident">response</span>: <span class="kw-2">&amp;mut</span> <span class="ident">ResponseContext</span>) {
-    <span class="kw">let</span> <span class="ident">headers</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">response</span>.<span class="ident">headers</span>.<span class="ident">value_mut</span>() {
-        <span class="prelude-val">Some</span>(<span class="ident">headers</span>) =&gt; <span class="ident">headers</span>,
-        <span class="prelude-val">None</span> =&gt; <span class="kw">return</span>,
+<span class="kw">fn </span>normalize_response(response: <span class="kw-2">&amp;mut </span>ResponseContext) {
+    <span class="kw">let </span>headers = <span class="kw">match </span>response.headers.value_mut() {
+        <span class="prelude-val">Some</span>(headers) =&gt; headers,
+        <span class="prelude-val">None </span>=&gt; <span class="kw">return</span>,
     };
 
-    <span class="kw">if</span> <span class="ident">response</span>.<span class="ident">cookies</span>.<span class="ident">value</span>().<span class="ident">is_some</span>() {
-        <span class="ident">headers</span>.<span class="ident">remove</span>(<span class="string">&quot;Set-Cookie&quot;</span>);
+    <span class="kw">if </span>response.cookies.value().is_some() {
+        headers.remove(<span class="string">&quot;Set-Cookie&quot;</span>);
         <span class="kw">return</span>;
     }
 
-    <span class="kw">let</span> <span class="ident">cookie_header</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">headers</span>.<span class="ident">get_header</span>(<span class="string">&quot;Set-Cookie&quot;</span>) {
-        <span class="prelude-val">Some</span>(<span class="ident">header</span>) =&gt; <span class="ident">header</span>,
-        <span class="prelude-val">None</span> =&gt; <span class="kw">return</span>,
+    <span class="kw">let </span>cookie_header = <span class="kw">match </span>headers.get_header(<span class="string">&quot;Set-Cookie&quot;</span>) {
+        <span class="prelude-val">Some</span>(header) =&gt; header,
+        <span class="prelude-val">None </span>=&gt; <span class="kw">return</span>,
     };
 
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">new_cookies</span>) <span class="op">=</span> <span class="ident"><span class="kw">crate</span>::protocol::Cookies::parse</span>(<span class="ident">cookie_header</span>) {
-        <span class="ident">response</span>.<span class="ident">cookies</span> <span class="op">=</span> <span class="ident">Annotated::from</span>(<span class="ident">new_cookies</span>);
-        <span class="ident">headers</span>.<span class="ident">remove</span>(<span class="string">&quot;Set-Cookie&quot;</span>);
+    <span class="kw">if let </span><span class="prelude-val">Ok</span>(new_cookies) = <span class="kw">crate</span>::protocol::Cookies::parse(cookie_header) {
+        response.cookies = Annotated::from(new_cookies);
+        headers.remove(<span class="string">&quot;Set-Cookie&quot;</span>);
     }
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">normalize_context</span>(<span class="ident">context</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Context</span>) {
-    <span class="kw">match</span> <span class="ident">context</span> {
-        <span class="ident">Context::Runtime</span>(<span class="ident">runtime</span>) =&gt; <span class="ident">normalize_runtime_context</span>(<span class="ident">runtime</span>),
-        <span class="ident">Context::Os</span>(<span class="ident">os</span>) =&gt; <span class="ident">normalize_os_context</span>(<span class="ident">os</span>),
-        <span class="ident">Context::Response</span>(<span class="ident">response</span>) =&gt; <span class="ident">normalize_response</span>(<span class="ident">response</span>),
-        <span class="kw">_</span> =&gt; (),
+<span class="kw">pub fn </span>normalize_context(context: <span class="kw-2">&amp;mut </span>Context) {
+    <span class="kw">match </span>context {
+        Context::Runtime(runtime) =&gt; normalize_runtime_context(runtime),
+        Context::Os(os) =&gt; normalize_os_context(os),
+        Context::Response(response) =&gt; normalize_response(response),
+        <span class="kw">_ </span>=&gt; (),
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">similar_asserts::assert_eq</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>similar_asserts::assert_eq;
 
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol::LenientString</span>;
+    <span class="kw">use </span><span class="kw">crate</span>::protocol::LenientString;
 
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_dotnet_framework_48_without_build_id</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">runtime</span> <span class="op">=</span> <span class="ident">RuntimeContext</span> {
-            <span class="ident">raw_description</span>: <span class="string">&quot;.NET Framework 4.8.4250.0&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-            ..<span class="ident">RuntimeContext::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_dotnet_framework_48_without_build_id() {
+        <span class="kw">let </span><span class="kw-2">mut </span>runtime = RuntimeContext {
+            raw_description: <span class="string">&quot;.NET Framework 4.8.4250.0&quot;</span>.to_string().into(),
+            ..RuntimeContext::default()
         };
 
-        <span class="ident">normalize_runtime_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">runtime</span>);
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;.NET Framework&quot;</span>), <span class="ident">runtime</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;4.8.4250.0&quot;</span>), <span class="ident">runtime</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+        normalize_runtime_context(<span class="kw-2">&amp;mut </span>runtime);
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;.NET Framework&quot;</span>), runtime.name.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;4.8.4250.0&quot;</span>), runtime.version.as_str());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_dotnet_framework_472</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">runtime</span> <span class="op">=</span> <span class="ident">RuntimeContext</span> {
-            <span class="ident">raw_description</span>: <span class="string">&quot;.NET Framework 4.7.3056.0&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-            <span class="ident">build</span>: <span class="ident">LenientString</span>(<span class="string">&quot;461814&quot;</span>.<span class="ident">to_string</span>()).<span class="ident">into</span>(),
-            ..<span class="ident">RuntimeContext::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_dotnet_framework_472() {
+        <span class="kw">let </span><span class="kw-2">mut </span>runtime = RuntimeContext {
+            raw_description: <span class="string">&quot;.NET Framework 4.7.3056.0&quot;</span>.to_string().into(),
+            build: LenientString(<span class="string">&quot;461814&quot;</span>.to_string()).into(),
+            ..RuntimeContext::default()
         };
 
-        <span class="ident">normalize_runtime_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">runtime</span>);
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;.NET Framework&quot;</span>), <span class="ident">runtime</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;4.7.2&quot;</span>), <span class="ident">runtime</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+        normalize_runtime_context(<span class="kw-2">&amp;mut </span>runtime);
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;.NET Framework&quot;</span>), runtime.name.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;4.7.2&quot;</span>), runtime.version.as_str());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_dotnet_framework_future_version</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">runtime</span> <span class="op">=</span> <span class="ident">RuntimeContext</span> {
-            <span class="ident">raw_description</span>: <span class="string">&quot;.NET Framework 200.0&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-            <span class="ident">build</span>: <span class="ident">LenientString</span>(<span class="string">&quot;999999&quot;</span>.<span class="ident">to_string</span>()).<span class="ident">into</span>(),
-            ..<span class="ident">RuntimeContext::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_dotnet_framework_future_version() {
+        <span class="kw">let </span><span class="kw-2">mut </span>runtime = RuntimeContext {
+            raw_description: <span class="string">&quot;.NET Framework 200.0&quot;</span>.to_string().into(),
+            build: LenientString(<span class="string">&quot;999999&quot;</span>.to_string()).into(),
+            ..RuntimeContext::default()
         };
 
-        <span class="comment">// Unmapped build number doesn&#39;t override version</span>
-        <span class="ident">normalize_runtime_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">runtime</span>);
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;.NET Framework&quot;</span>), <span class="ident">runtime</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;200.0&quot;</span>), <span class="ident">runtime</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+        <span class="comment">// Unmapped build number doesn&#39;t override version
+        </span>normalize_runtime_context(<span class="kw-2">&amp;mut </span>runtime);
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;.NET Framework&quot;</span>), runtime.name.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;200.0&quot;</span>), runtime.version.as_str());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_dotnet_native</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">runtime</span> <span class="op">=</span> <span class="ident">RuntimeContext</span> {
-            <span class="ident">raw_description</span>: <span class="string">&quot;.NET Native 2.0&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-            ..<span class="ident">RuntimeContext::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_dotnet_native() {
+        <span class="kw">let </span><span class="kw-2">mut </span>runtime = RuntimeContext {
+            raw_description: <span class="string">&quot;.NET Native 2.0&quot;</span>.to_string().into(),
+            ..RuntimeContext::default()
         };
 
-        <span class="ident">normalize_runtime_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">runtime</span>);
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;.NET Native&quot;</span>), <span class="ident">runtime</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;2.0&quot;</span>), <span class="ident">runtime</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+        normalize_runtime_context(<span class="kw-2">&amp;mut </span>runtime);
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;.NET Native&quot;</span>), runtime.name.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;2.0&quot;</span>), runtime.version.as_str());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_dotnet_core</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">runtime</span> <span class="op">=</span> <span class="ident">RuntimeContext</span> {
-            <span class="ident">raw_description</span>: <span class="string">&quot;.NET Core 2.0&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-            ..<span class="ident">RuntimeContext::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_dotnet_core() {
+        <span class="kw">let </span><span class="kw-2">mut </span>runtime = RuntimeContext {
+            raw_description: <span class="string">&quot;.NET Core 2.0&quot;</span>.to_string().into(),
+            ..RuntimeContext::default()
         };
 
-        <span class="ident">normalize_runtime_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">runtime</span>);
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;.NET Core&quot;</span>), <span class="ident">runtime</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;2.0&quot;</span>), <span class="ident">runtime</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+        normalize_runtime_context(<span class="kw-2">&amp;mut </span>runtime);
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;.NET Core&quot;</span>), runtime.name.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;2.0&quot;</span>), runtime.version.as_str());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_windows_7_or_server_2008</span>() {
-        <span class="comment">// Environment.OSVersion on Windows 7 (CoreCLR 1.0+, .NET Framework 1.1+, Mono 1+)</span>
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
-            <span class="ident">raw_description</span>: <span class="string">&quot;Microsoft Windows NT 6.1.7601 Service Pack 1&quot;</span>
-                .<span class="ident">to_string</span>()
-                .<span class="ident">into</span>(),
-            ..<span class="ident">OsContext::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_windows_7_or_server_2008() {
+        <span class="comment">// Environment.OSVersion on Windows 7 (CoreCLR 1.0+, .NET Framework 1.1+, Mono 1+)
+        </span><span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
+            raw_description: <span class="string">&quot;Microsoft Windows NT 6.1.7601 Service Pack 1&quot;
+                </span>.to_string()
+                .into(),
+            ..OsContext::default()
         };
 
-        <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">os</span>);
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Windows&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;7&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+        normalize_os_context(<span class="kw-2">&amp;mut </span>os);
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Windows&quot;</span>), os.name.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;7&quot;</span>), os.version.as_str());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_windows_8_or_server_2012_or_later</span>() {
-        <span class="comment">// Environment.OSVersion on Windows 10 (CoreCLR 1.0+, .NET Framework 1.1+, Mono 1+)</span>
-        <span class="comment">// *or later, due to GetVersionEx deprecated on Windows 8.1</span>
-        <span class="comment">// It&#39;s a potentially really misleading API on newer platforms</span>
-        <span class="comment">// Only used if RuntimeInformation.OSDescription is not available (old runtimes)</span>
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
-            <span class="ident">raw_description</span>: <span class="string">&quot;Microsoft Windows NT 6.2.9200.0&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-            ..<span class="ident">OsContext::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_windows_8_or_server_2012_or_later() {
+        <span class="comment">// Environment.OSVersion on Windows 10 (CoreCLR 1.0+, .NET Framework 1.1+, Mono 1+)
+        // *or later, due to GetVersionEx deprecated on Windows 8.1
+        // It&#39;s a potentially really misleading API on newer platforms
+        // Only used if RuntimeInformation.OSDescription is not available (old runtimes)
+        </span><span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
+            raw_description: <span class="string">&quot;Microsoft Windows NT 6.2.9200.0&quot;</span>.to_string().into(),
+            ..OsContext::default()
         };
 
-        <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">os</span>);
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Windows&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;8&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+        normalize_os_context(<span class="kw-2">&amp;mut </span>os);
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Windows&quot;</span>), os.name.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;8&quot;</span>), os.version.as_str());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_windows_10</span>() {
-        <span class="comment">// RuntimeInformation.OSDescription on Windows 10 (CoreCLR 2.0+, .NET</span>
-        <span class="comment">// Framework 4.7.1+, Mono 5.4+)</span>
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
-            <span class="ident">raw_description</span>: <span class="string">&quot;Microsoft Windows 10.0.16299&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-            ..<span class="ident">OsContext::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_windows_10() {
+        <span class="comment">// RuntimeInformation.OSDescription on Windows 10 (CoreCLR 2.0+, .NET
+        // Framework 4.7.1+, Mono 5.4+)
+        </span><span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
+            raw_description: <span class="string">&quot;Microsoft Windows 10.0.16299&quot;</span>.to_string().into(),
+            ..OsContext::default()
         };
 
-        <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">os</span>);
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Windows&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;10&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+        normalize_os_context(<span class="kw-2">&amp;mut </span>os);
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Windows&quot;</span>), os.name.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;10&quot;</span>), os.version.as_str());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_windows_11</span>() {
-        <span class="comment">// https://github.com/getsentry/relay/issues/1201</span>
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
-            <span class="ident">raw_description</span>: <span class="string">&quot;Microsoft Windows 10.0.22000&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-            ..<span class="ident">OsContext::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_windows_11() {
+        <span class="comment">// https://github.com/getsentry/relay/issues/1201
+        </span><span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
+            raw_description: <span class="string">&quot;Microsoft Windows 10.0.22000&quot;</span>.to_string().into(),
+            ..OsContext::default()
         };
 
-        <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">os</span>);
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Windows&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;11&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+        normalize_os_context(<span class="kw-2">&amp;mut </span>os);
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Windows&quot;</span>), os.name.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;11&quot;</span>), os.version.as_str());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_windows_11_future1</span>() {
-        <span class="comment">// This is fictional as of today, but let&#39;s be explicit about the behavior we expect.</span>
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
-            <span class="ident">raw_description</span>: <span class="string">&quot;Microsoft Windows 10.0.22001&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-            ..<span class="ident">OsContext::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_windows_11_future1() {
+        <span class="comment">// This is fictional as of today, but let&#39;s be explicit about the behavior we expect.
+        </span><span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
+            raw_description: <span class="string">&quot;Microsoft Windows 10.0.22001&quot;</span>.to_string().into(),
+            ..OsContext::default()
         };
 
-        <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">os</span>);
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Windows&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;11&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+        normalize_os_context(<span class="kw-2">&amp;mut </span>os);
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Windows&quot;</span>), os.name.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;11&quot;</span>), os.version.as_str());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_windows_11_future2</span>() {
-        <span class="comment">// This is fictional, but let&#39;s be explicit about the behavior we expect.</span>
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
-            <span class="ident">raw_description</span>: <span class="string">&quot;Microsoft Windows 10.1.23456&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-            ..<span class="ident">OsContext::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_windows_11_future2() {
+        <span class="comment">// This is fictional, but let&#39;s be explicit about the behavior we expect.
+        </span><span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
+            raw_description: <span class="string">&quot;Microsoft Windows 10.1.23456&quot;</span>.to_string().into(),
+            ..OsContext::default()
         };
 
-        <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">os</span>);
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Windows&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;10.1.23456&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+        normalize_os_context(<span class="kw-2">&amp;mut </span>os);
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Windows&quot;</span>), os.name.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;10.1.23456&quot;</span>), os.version.as_str());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_macos_os_version</span>() {
-        <span class="comment">// Environment.OSVersion on macOS (CoreCLR 1.0+, Mono 1+)</span>
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
-            <span class="ident">raw_description</span>: <span class="string">&quot;Unix 17.5.0.0&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-            ..<span class="ident">OsContext::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_macos_os_version() {
+        <span class="comment">// Environment.OSVersion on macOS (CoreCLR 1.0+, Mono 1+)
+        </span><span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
+            raw_description: <span class="string">&quot;Unix 17.5.0.0&quot;</span>.to_string().into(),
+            ..OsContext::default()
         };
 
-        <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">os</span>);
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Unix&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;17.5.0&quot;</span>), <span class="ident">os</span>.<span class="ident">kernel_version</span>.<span class="ident">as_str</span>());
+        normalize_os_context(<span class="kw-2">&amp;mut </span>os);
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Unix&quot;</span>), os.name.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;17.5.0&quot;</span>), os.kernel_version.as_str());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_macos_runtime</span>() {
-        <span class="comment">// RuntimeInformation.OSDescription on macOS (CoreCLR 2.0+, Mono 5.4+)</span>
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
-        <span class="ident">raw_description</span>: <span class="string">&quot;Darwin 17.5.0 Darwin Kernel Version 17.5.0: Mon Mar  5 22:24:32 PST 2018; root:xnu-4570.51.1~1/RELEASE_X86_64&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-        ..<span class="ident">OsContext::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_macos_runtime() {
+        <span class="comment">// RuntimeInformation.OSDescription on macOS (CoreCLR 2.0+, Mono 5.4+)
+        </span><span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
+        raw_description: <span class="string">&quot;Darwin 17.5.0 Darwin Kernel Version 17.5.0: Mon Mar  5 22:24:32 PST 2018; root:xnu-4570.51.1~1/RELEASE_X86_64&quot;</span>.to_string().into(),
+        ..OsContext::default()
     };
 
-        <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">os</span>);
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Darwin&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;17.5.0&quot;</span>), <span class="ident">os</span>.<span class="ident">kernel_version</span>.<span class="ident">as_str</span>());
+        normalize_os_context(<span class="kw-2">&amp;mut </span>os);
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Darwin&quot;</span>), os.name.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;17.5.0&quot;</span>), os.kernel_version.as_str());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_centos_os_version</span>() {
-        <span class="comment">// Environment.OSVersion on CentOS 7 (CoreCLR 1.0+, Mono 1+)</span>
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
-            <span class="ident">raw_description</span>: <span class="string">&quot;Unix 3.10.0.693&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-            ..<span class="ident">OsContext::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_centos_os_version() {
+        <span class="comment">// Environment.OSVersion on CentOS 7 (CoreCLR 1.0+, Mono 1+)
+        </span><span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
+            raw_description: <span class="string">&quot;Unix 3.10.0.693&quot;</span>.to_string().into(),
+            ..OsContext::default()
         };
 
-        <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">os</span>);
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Unix&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;3.10.0.693&quot;</span>), <span class="ident">os</span>.<span class="ident">kernel_version</span>.<span class="ident">as_str</span>());
+        normalize_os_context(<span class="kw-2">&amp;mut </span>os);
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Unix&quot;</span>), os.name.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;3.10.0.693&quot;</span>), os.kernel_version.as_str());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_centos_runtime_info</span>() {
-        <span class="comment">// RuntimeInformation.OSDescription on CentOS 7 (CoreCLR 2.0+, Mono 5.4+)</span>
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
-            <span class="ident">raw_description</span>: <span class="string">&quot;Linux 3.10.0-693.21.1.el7.x86_64 #1 SMP Wed Mar 7 19:03:37 UTC 2018&quot;</span>
-                .<span class="ident">to_string</span>()
-                .<span class="ident">into</span>(),
-            ..<span class="ident">OsContext::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_centos_runtime_info() {
+        <span class="comment">// RuntimeInformation.OSDescription on CentOS 7 (CoreCLR 2.0+, Mono 5.4+)
+        </span><span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
+            raw_description: <span class="string">&quot;Linux 3.10.0-693.21.1.el7.x86_64 #1 SMP Wed Mar 7 19:03:37 UTC 2018&quot;
+                </span>.to_string()
+                .into(),
+            ..OsContext::default()
         };
 
-        <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">os</span>);
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Linux&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;3.10.0&quot;</span>), <span class="ident">os</span>.<span class="ident">kernel_version</span>.<span class="ident">as_str</span>());
+        normalize_os_context(<span class="kw-2">&amp;mut </span>os);
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Linux&quot;</span>), os.name.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;3.10.0&quot;</span>), os.kernel_version.as_str());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_wsl_ubuntu</span>() {
-        <span class="comment">// RuntimeInformation.OSDescription on Windows Subsystem for Linux (Ubuntu)</span>
-        <span class="comment">// (CoreCLR 2.0+, Mono 5.4+)</span>
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
-            <span class="ident">raw_description</span>: <span class="string">&quot;Linux 4.4.0-43-Microsoft #1-Microsoft Wed Dec 31 14:42:53 PST 2014&quot;</span>
-                .<span class="ident">to_string</span>()
-                .<span class="ident">into</span>(),
-            ..<span class="ident">OsContext::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_wsl_ubuntu() {
+        <span class="comment">// RuntimeInformation.OSDescription on Windows Subsystem for Linux (Ubuntu)
+        // (CoreCLR 2.0+, Mono 5.4+)
+        </span><span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
+            raw_description: <span class="string">&quot;Linux 4.4.0-43-Microsoft #1-Microsoft Wed Dec 31 14:42:53 PST 2014&quot;
+                </span>.to_string()
+                .into(),
+            ..OsContext::default()
         };
 
-        <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">os</span>);
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Linux&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;4.4.0&quot;</span>), <span class="ident">os</span>.<span class="ident">kernel_version</span>.<span class="ident">as_str</span>());
+        normalize_os_context(<span class="kw-2">&amp;mut </span>os);
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Linux&quot;</span>), os.name.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;4.4.0&quot;</span>), os.kernel_version.as_str());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_macos_with_build</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
-            <span class="ident">raw_description</span>: <span class="string">&quot;Mac OS X 10.14.2 (18C54)&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-            ..<span class="ident">OsContext::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_macos_with_build() {
+        <span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
+            raw_description: <span class="string">&quot;Mac OS X 10.14.2 (18C54)&quot;</span>.to_string().into(),
+            ..OsContext::default()
         };
 
-        <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">os</span>);
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;macOS&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;10.14.2&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;18C54&quot;</span>), <span class="ident">os</span>.<span class="ident">build</span>.<span class="ident">as_str</span>());
+        normalize_os_context(<span class="kw-2">&amp;mut </span>os);
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;macOS&quot;</span>), os.name.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;10.14.2&quot;</span>), os.version.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;18C54&quot;</span>), os.build.as_str());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_macos_without_build</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
-            <span class="ident">raw_description</span>: <span class="string">&quot;Mac OS X 10.14.2&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-            ..<span class="ident">OsContext::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_macos_without_build() {
+        <span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
+            raw_description: <span class="string">&quot;Mac OS X 10.14.2&quot;</span>.to_string().into(),
+            ..OsContext::default()
         };
 
-        <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">os</span>);
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;macOS&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;10.14.2&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, <span class="ident">os</span>.<span class="ident">build</span>.<span class="ident">value</span>());
+        normalize_os_context(<span class="kw-2">&amp;mut </span>os);
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;macOS&quot;</span>), os.name.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;10.14.2&quot;</span>), os.version.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, os.build.value());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_name_not_overwritten</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
-            <span class="ident">name</span>: <span class="string">&quot;Properly defined name&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-            <span class="ident">raw_description</span>: <span class="string">&quot;Linux 4.4.0&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-            ..<span class="ident">OsContext::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_name_not_overwritten() {
+        <span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
+            name: <span class="string">&quot;Properly defined name&quot;</span>.to_string().into(),
+            raw_description: <span class="string">&quot;Linux 4.4.0&quot;</span>.to_string().into(),
+            ..OsContext::default()
         };
 
-        <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">os</span>);
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Properly defined name&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
+        normalize_os_context(<span class="kw-2">&amp;mut </span>os);
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Properly defined name&quot;</span>), os.name.as_str());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_version_not_overwritten</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
-            <span class="ident">version</span>: <span class="string">&quot;Properly defined version&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-            <span class="ident">raw_description</span>: <span class="string">&quot;Linux 4.4.0&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-            ..<span class="ident">OsContext::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_version_not_overwritten() {
+        <span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
+            version: <span class="string">&quot;Properly defined version&quot;</span>.to_string().into(),
+            raw_description: <span class="string">&quot;Linux 4.4.0&quot;</span>.to_string().into(),
+            ..OsContext::default()
         };
 
-        <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">os</span>);
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Properly defined version&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+        normalize_os_context(<span class="kw-2">&amp;mut </span>os);
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Properly defined version&quot;</span>), os.version.as_str());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_no_name</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext::default</span>();
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_no_name() {
+        <span class="kw">let </span><span class="kw-2">mut </span>os = OsContext::default();
 
-        <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">os</span>);
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">value</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">value</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, <span class="ident">os</span>.<span class="ident">kernel_version</span>.<span class="ident">value</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, <span class="ident">os</span>.<span class="ident">raw_description</span>.<span class="ident">value</span>());
+        normalize_os_context(<span class="kw-2">&amp;mut </span>os);
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, os.name.value());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, os.version.value());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, os.kernel_version.value());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, os.raw_description.value());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_unity_mac_os</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
-            <span class="ident">raw_description</span>: <span class="string">&quot;Mac OS X 10.16.0&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-            ..<span class="ident">OsContext::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_unity_mac_os() {
+        <span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
+            raw_description: <span class="string">&quot;Mac OS X 10.16.0&quot;</span>.to_string().into(),
+            ..OsContext::default()
         };
-        <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">os</span>);
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;macOS&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;10.16.0&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, <span class="ident">os</span>.<span class="ident">build</span>.<span class="ident">value</span>());
+        normalize_os_context(<span class="kw-2">&amp;mut </span>os);
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;macOS&quot;</span>), os.name.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;10.16.0&quot;</span>), os.version.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, os.build.value());
     }
 
-    <span class="comment">//OS_WINDOWS_REGEX = r#&quot;^(Microsoft )?Windows (NT )?(?P&lt;version&gt;\d+\.\d+\.\d+).*$&quot;#;</span>
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_unity_windows_os</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
-            <span class="ident">raw_description</span>: <span class="string">&quot;Windows 10  (10.0.19042) 64bit&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-            ..<span class="ident">OsContext::default</span>()
+    <span class="comment">//OS_WINDOWS_REGEX = r#&quot;^(Microsoft )?Windows (NT )?(?P&lt;version&gt;\d+\.\d+\.\d+).*$&quot;#;
+    </span><span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_unity_windows_os() {
+        <span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
+            raw_description: <span class="string">&quot;Windows 10  (10.0.19042) 64bit&quot;</span>.to_string().into(),
+            ..OsContext::default()
         };
-        <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">os</span>);
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Windows&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;10&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">LenientString</span>(<span class="string">&quot;19042&quot;</span>.<span class="ident">to_string</span>())), <span class="ident">os</span>.<span class="ident">build</span>.<span class="ident">value</span>());
+        normalize_os_context(<span class="kw-2">&amp;mut </span>os);
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Windows&quot;</span>), os.name.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;10&quot;</span>), os.version.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>LenientString(<span class="string">&quot;19042&quot;</span>.to_string())), os.build.value());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_unity_android_os</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
-            <span class="ident">raw_description</span>: <span class="string">&quot;Android OS 11 / API-30 (RP1A.201005.001/2107031736)&quot;</span>
-                .<span class="ident">to_string</span>()
-                .<span class="ident">into</span>(),
-            ..<span class="ident">OsContext::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_unity_android_os() {
+        <span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
+            raw_description: <span class="string">&quot;Android OS 11 / API-30 (RP1A.201005.001/2107031736)&quot;
+                </span>.to_string()
+                .into(),
+            ..OsContext::default()
         };
-        <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">os</span>);
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Android&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;11&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, <span class="ident">os</span>.<span class="ident">build</span>.<span class="ident">value</span>());
+        normalize_os_context(<span class="kw-2">&amp;mut </span>os);
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Android&quot;</span>), os.name.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;11&quot;</span>), os.version.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, os.build.value());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_unity_android_api_version</span>() {
-        <span class="kw">let</span> <span class="ident">description</span> <span class="op">=</span> <span class="string">&quot;Android OS 11 / API-30 (RP1A.201005.001/2107031736)&quot;</span>;
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;30&quot;</span>), <span class="ident">get_android_api_version</span>(<span class="ident">description</span>));
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_unity_android_api_version() {
+        <span class="kw">let </span>description = <span class="string">&quot;Android OS 11 / API-30 (RP1A.201005.001/2107031736)&quot;</span>;
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;30&quot;</span>), get_android_api_version(description));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_linux_5_11</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
-            <span class="ident">raw_description</span>: <span class="string">&quot;Linux 5.11 Ubuntu 20.04 64bit&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-            ..<span class="ident">OsContext::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_linux_5_11() {
+        <span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
+            raw_description: <span class="string">&quot;Linux 5.11 Ubuntu 20.04 64bit&quot;</span>.to_string().into(),
+            ..OsContext::default()
         };
-        <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">os</span>);
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Ubuntu&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;20.04&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;5.11&quot;</span>), <span class="ident">os</span>.<span class="ident">kernel_version</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, <span class="ident">os</span>.<span class="ident">build</span>.<span class="ident">value</span>());
+        normalize_os_context(<span class="kw-2">&amp;mut </span>os);
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Ubuntu&quot;</span>), os.name.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;20.04&quot;</span>), os.version.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;5.11&quot;</span>), os.kernel_version.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, os.build.value());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_android_4_4_2</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
-            <span class="ident">raw_description</span>: <span class="string">&quot;Android OS 4.4.2 / API-19 (KOT49H/A536_S186_150813_ROW)&quot;</span>
-                .<span class="ident">to_string</span>()
-                .<span class="ident">into</span>(),
-            ..<span class="ident">OsContext::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_android_4_4_2() {
+        <span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
+            raw_description: <span class="string">&quot;Android OS 4.4.2 / API-19 (KOT49H/A536_S186_150813_ROW)&quot;
+                </span>.to_string()
+                .into(),
+            ..OsContext::default()
         };
-        <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">os</span>);
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Android&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;4.4.2&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, <span class="ident">os</span>.<span class="ident">build</span>.<span class="ident">value</span>());
+        normalize_os_context(<span class="kw-2">&amp;mut </span>os);
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Android&quot;</span>), os.name.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;4.4.2&quot;</span>), os.version.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, os.build.value());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_ios_15_0</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
-            <span class="ident">raw_description</span>: <span class="string">&quot;iOS 15.0&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-            ..<span class="ident">OsContext::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_ios_15_0() {
+        <span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
+            raw_description: <span class="string">&quot;iOS 15.0&quot;</span>.to_string().into(),
+            ..OsContext::default()
         };
-        <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">os</span>);
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;iOS&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
+        normalize_os_context(<span class="kw-2">&amp;mut </span>os);
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;iOS&quot;</span>), os.name.as_str());
 
-        <span class="comment">// XXX: This behavior of putting it into kernel_version vs version is probably not desired and</span>
-        <span class="comment">// may be revisited</span>
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;15.0&quot;</span>), <span class="ident">os</span>.<span class="ident">kernel_version</span>.<span class="ident">as_str</span>());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, <span class="ident">os</span>.<span class="ident">build</span>.<span class="ident">value</span>());
+        <span class="comment">// XXX: This behavior of putting it into kernel_version vs version is probably not desired and
+        // may be revisited
+        </span><span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;15.0&quot;</span>), os.kernel_version.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, os.build.value());
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

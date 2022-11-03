@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-filter/src/localhost.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>localhost.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_filter/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_filter/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-filter/src/localhost.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>localhost.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_filter/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_filter/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_filter/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -163,168 +163,168 @@
 <span id="161">161</span>
 <span id="162">162</span>
 <span id="163">163</span>
-</pre><pre class="rust"><code><span class="doccomment">//! Implements filtering for events originating from the localhost</span>
-<span class="kw">use</span> <span class="ident">url::Url</span>;
+</pre><pre class="rust"><code><span class="doccomment">//! Implements filtering for events originating from the localhost
+</span><span class="kw">use </span>url::Url;
 
-<span class="kw">use</span> <span class="ident">relay_general::protocol::Event</span>;
+<span class="kw">use </span>relay_general::protocol::Event;
 
-<span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">FilterConfig</span>, <span class="ident">FilterStatKey</span>};
+<span class="kw">use crate</span>::{FilterConfig, FilterStatKey};
 
-<span class="kw">const</span> <span class="ident">LOCAL_IPS</span>: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="ident">str</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="string">&quot;127.0.0.1&quot;</span>, <span class="string">&quot;::1&quot;</span>];
-<span class="kw">const</span> <span class="ident">LOCAL_DOMAINS</span>: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="ident">str</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="string">&quot;127.0.0.1&quot;</span>, <span class="string">&quot;localhost&quot;</span>];
+<span class="kw">const </span>LOCAL_IPS: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[<span class="string">&quot;127.0.0.1&quot;</span>, <span class="string">&quot;::1&quot;</span>];
+<span class="kw">const </span>LOCAL_DOMAINS: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[<span class="string">&quot;127.0.0.1&quot;</span>, <span class="string">&quot;localhost&quot;</span>];
 
-<span class="doccomment">/// Check if the event originates from the local host.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">matches</span>(<span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>) -&gt; <span class="ident">bool</span> {
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">ip_addr</span>) <span class="op">=</span> <span class="ident">get_ip_addr</span>(<span class="ident">event</span>) {
-        <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="ident">local_ip</span> <span class="kw">in</span> <span class="ident">LOCAL_IPS</span> {
-            <span class="kw">if</span> <span class="ident">local_ip</span> <span class="op">==</span> <span class="ident">ip_addr</span> {
-                <span class="kw">return</span> <span class="bool-val">true</span>;
+<span class="doccomment">/// Check if the event originates from the local host.
+</span><span class="kw">pub fn </span>matches(event: <span class="kw-2">&amp;</span>Event) -&gt; bool {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(ip_addr) = get_ip_addr(event) {
+        <span class="kw">for </span><span class="kw-2">&amp;</span>local_ip <span class="kw">in </span>LOCAL_IPS {
+            <span class="kw">if </span>local_ip == ip_addr {
+                <span class="kw">return </span><span class="bool-val">true</span>;
             }
         }
     }
 
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">url</span>) <span class="op">=</span> <span class="ident">get_url</span>(<span class="ident">event</span>) {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">host</span>) <span class="op">=</span> <span class="ident">url</span>.<span class="ident">host_str</span>() {
-            <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="ident">local_domain</span> <span class="kw">in</span> <span class="ident">LOCAL_DOMAINS</span> {
-                <span class="kw">if</span> <span class="ident">host</span> <span class="op">==</span> <span class="ident">local_domain</span> {
-                    <span class="kw">return</span> <span class="bool-val">true</span>;
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(url) = get_url(event) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(host) = url.host_str() {
+            <span class="kw">for </span><span class="kw-2">&amp;</span>local_domain <span class="kw">in </span>LOCAL_DOMAINS {
+                <span class="kw">if </span>host == local_domain {
+                    <span class="kw">return </span><span class="bool-val">true</span>;
                 }
             }
         }
     }
 
-    <span class="bool-val">false</span>
-}
+    <span class="bool-val">false
+</span>}
 
-<span class="doccomment">/// Filters events originating from the local host.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">should_filter</span>(<span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>, <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">FilterConfig</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">FilterStatKey</span><span class="op">&gt;</span> {
-    <span class="kw">if</span> <span class="op">!</span><span class="ident">config</span>.<span class="ident">is_enabled</span> {
-        <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
+<span class="doccomment">/// Filters events originating from the local host.
+</span><span class="kw">pub fn </span>should_filter(event: <span class="kw-2">&amp;</span>Event, config: <span class="kw-2">&amp;</span>FilterConfig) -&gt; <span class="prelude-ty">Result</span>&lt;(), FilterStatKey&gt; {
+    <span class="kw">if </span>!config.is_enabled {
+        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     }
-    <span class="kw">if</span> <span class="ident">matches</span>(<span class="ident">event</span>) {
-        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">FilterStatKey::Localhost</span>);
+    <span class="kw">if </span>matches(event) {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(FilterStatKey::Localhost);
     }
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">fn</span> <span class="ident">get_ip_addr</span>(<span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">user</span>.<span class="ident">value</span>()<span class="question-mark">?</span>;
-    <span class="prelude-val">Some</span>(<span class="ident">user</span>.<span class="ident">ip_address</span>.<span class="ident">value</span>()<span class="question-mark">?</span>.<span class="ident">as_ref</span>())
+<span class="kw">fn </span>get_ip_addr(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
+    <span class="kw">let </span>user = event.user.value()<span class="question-mark">?</span>;
+    <span class="prelude-val">Some</span>(user.ip_address.value()<span class="question-mark">?</span>.as_ref())
 }
 
-<span class="kw">fn</span> <span class="ident">get_url</span>(<span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Url</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">url_str</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">request</span>.<span class="ident">value</span>()<span class="question-mark">?</span>.<span class="ident">url</span>.<span class="ident">value</span>()<span class="question-mark">?</span>;
-    <span class="ident">Url::parse</span>(<span class="ident">url_str</span>).<span class="ident">ok</span>()
+<span class="kw">fn </span>get_url(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;Url&gt; {
+    <span class="kw">let </span>url_str = event.request.value()<span class="question-mark">?</span>.url.value()<span class="question-mark">?</span>;
+    Url::parse(url_str).ok()
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{<span class="ident">IpAddr</span>, <span class="ident">Request</span>, <span class="ident">User</span>};
-    <span class="kw">use</span> <span class="ident">relay_general::types::Annotated</span>;
+    <span class="kw">use </span>relay_general::protocol::{IpAddr, Request, User};
+    <span class="kw">use </span>relay_general::types::Annotated;
 
-    <span class="kw">fn</span> <span class="ident">get_event_with_ip_addr</span>(<span class="ident">val</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">Event</span> {
-        <span class="ident">Event</span> {
-            <span class="ident">user</span>: <span class="ident">Annotated::from</span>(<span class="ident">User</span> {
-                <span class="ident">ip_address</span>: <span class="ident">Annotated::from</span>(<span class="ident">IpAddr</span>(<span class="ident">val</span>.<span class="ident">to_string</span>())),
-                ..<span class="ident">User::default</span>()
+    <span class="kw">fn </span>get_event_with_ip_addr(val: <span class="kw-2">&amp;</span>str) -&gt; Event {
+        Event {
+            user: Annotated::from(User {
+                ip_address: Annotated::from(IpAddr(val.to_string())),
+                ..User::default()
             }),
-            ..<span class="ident">Event::default</span>()
+            ..Event::default()
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">get_event_with_domain</span>(<span class="ident">val</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">Event</span> {
-        <span class="ident">Event</span> {
-            <span class="ident">request</span>: <span class="ident">Annotated::from</span>(<span class="ident">Request</span> {
-                <span class="ident">url</span>: <span class="ident">Annotated::from</span>(<span class="macro">format!</span>(<span class="string">&quot;http://{}:8080/&quot;</span>, <span class="ident">val</span>)),
-                ..<span class="ident">Request::default</span>()
+    <span class="kw">fn </span>get_event_with_domain(val: <span class="kw-2">&amp;</span>str) -&gt; Event {
+        Event {
+            request: Annotated::from(Request {
+                url: Annotated::from(<span class="macro">format!</span>(<span class="string">&quot;http://{}:8080/&quot;</span>, val)),
+                ..Request::default()
             }),
-            ..<span class="ident">Event::default</span>()
+            ..Event::default()
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_dont_filter_when_disabled</span>() {
-        <span class="kw">for</span> <span class="ident">event</span> <span class="kw">in</span> <span class="kw-2">&amp;</span>[
-            <span class="ident">get_event_with_ip_addr</span>(<span class="string">&quot;127.0.0.1&quot;</span>),
-            <span class="ident">get_event_with_domain</span>(<span class="string">&quot;localhost&quot;</span>),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_dont_filter_when_disabled() {
+        <span class="kw">for </span>event <span class="kw">in </span><span class="kw-2">&amp;</span>[
+            get_event_with_ip_addr(<span class="string">&quot;127.0.0.1&quot;</span>),
+            get_event_with_domain(<span class="string">&quot;localhost&quot;</span>),
         ] {
-            <span class="kw">let</span> <span class="ident">filter_result</span> <span class="op">=</span> <span class="ident">should_filter</span>(<span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="ident">FilterConfig</span> { <span class="ident">is_enabled</span>: <span class="bool-val">false</span> });
+            <span class="kw">let </span>filter_result = should_filter(event, <span class="kw-2">&amp;</span>FilterConfig { is_enabled: <span class="bool-val">false </span>});
             <span class="macro">assert_eq!</span>(
-                <span class="ident">filter_result</span>,
+                filter_result,
                 <span class="prelude-val">Ok</span>(()),
-                <span class="string">&quot;Event filtered although filter should have been disabled.&quot;</span>
-            );
+                <span class="string">&quot;Event filtered although filter should have been disabled.&quot;
+            </span>);
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_filter_local_ip</span>() {
-        <span class="kw">for</span> <span class="ident">ip_addr</span> <span class="kw">in</span> <span class="kw-2">&amp;</span>[<span class="string">&quot;127.0.0.1&quot;</span>, <span class="string">&quot;::1&quot;</span>] {
-            <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">get_event_with_ip_addr</span>(<span class="ident">ip_addr</span>);
-            <span class="kw">let</span> <span class="ident">filter_result</span> <span class="op">=</span> <span class="ident">should_filter</span>(<span class="kw-2">&amp;</span><span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="ident">FilterConfig</span> { <span class="ident">is_enabled</span>: <span class="bool-val">true</span> });
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_filter_local_ip() {
+        <span class="kw">for </span>ip_addr <span class="kw">in </span><span class="kw-2">&amp;</span>[<span class="string">&quot;127.0.0.1&quot;</span>, <span class="string">&quot;::1&quot;</span>] {
+            <span class="kw">let </span>event = get_event_with_ip_addr(ip_addr);
+            <span class="kw">let </span>filter_result = should_filter(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>FilterConfig { is_enabled: <span class="bool-val">true </span>});
             <span class="macro">assert_ne!</span>(
-                <span class="ident">filter_result</span>,
+                filter_result,
                 <span class="prelude-val">Ok</span>(()),
                 <span class="string">&quot;Failed to filter address &#39;{}&#39;&quot;</span>,
-                <span class="ident">ip_addr</span>
+                ip_addr
             );
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_dont_filter_non_local_ip</span>() {
-        <span class="kw">for</span> <span class="ident">ip_addr</span> <span class="kw">in</span> <span class="kw-2">&amp;</span>[<span class="string">&quot;133.12.12.1&quot;</span>, <span class="string">&quot;2001:db8:0:0:0:ff00:42:8329&quot;</span>] {
-            <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">get_event_with_ip_addr</span>(<span class="ident">ip_addr</span>);
-            <span class="kw">let</span> <span class="ident">filter_result</span> <span class="op">=</span> <span class="ident">should_filter</span>(<span class="kw-2">&amp;</span><span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="ident">FilterConfig</span> { <span class="ident">is_enabled</span>: <span class="bool-val">true</span> });
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_dont_filter_non_local_ip() {
+        <span class="kw">for </span>ip_addr <span class="kw">in </span><span class="kw-2">&amp;</span>[<span class="string">&quot;133.12.12.1&quot;</span>, <span class="string">&quot;2001:db8:0:0:0:ff00:42:8329&quot;</span>] {
+            <span class="kw">let </span>event = get_event_with_ip_addr(ip_addr);
+            <span class="kw">let </span>filter_result = should_filter(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>FilterConfig { is_enabled: <span class="bool-val">true </span>});
             <span class="macro">assert_eq!</span>(
-                <span class="ident">filter_result</span>,
+                filter_result,
                 <span class="prelude-val">Ok</span>(()),
                 <span class="string">&quot;Filtered valid ip address &#39;{}&#39;&quot;</span>,
-                <span class="ident">ip_addr</span>
+                ip_addr
             );
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_dont_filter_missing_ip_or_domains</span>() {
-        <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Event::default</span>();
-        <span class="kw">let</span> <span class="ident">filter_result</span> <span class="op">=</span> <span class="ident">should_filter</span>(<span class="kw-2">&amp;</span><span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="ident">FilterConfig</span> { <span class="ident">is_enabled</span>: <span class="bool-val">true</span> });
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_dont_filter_missing_ip_or_domains() {
+        <span class="kw">let </span>event = Event::default();
+        <span class="kw">let </span>filter_result = should_filter(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>FilterConfig { is_enabled: <span class="bool-val">true </span>});
         <span class="macro">assert_eq!</span>(
-            <span class="ident">filter_result</span>,
+            filter_result,
             <span class="prelude-val">Ok</span>(()),
-            <span class="string">&quot;Filtered event with no ip address and no domain.&quot;</span>
-        );
+            <span class="string">&quot;Filtered event with no ip address and no domain.&quot;
+        </span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_filter_local_domains</span>() {
-        <span class="kw">for</span> <span class="ident">domain</span> <span class="kw">in</span> <span class="kw-2">&amp;</span>[<span class="string">&quot;127.0.0.1&quot;</span>, <span class="string">&quot;localhost&quot;</span>] {
-            <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">get_event_with_domain</span>(<span class="ident">domain</span>);
-            <span class="kw">let</span> <span class="ident">filter_result</span> <span class="op">=</span> <span class="ident">should_filter</span>(<span class="kw-2">&amp;</span><span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="ident">FilterConfig</span> { <span class="ident">is_enabled</span>: <span class="bool-val">true</span> });
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_filter_local_domains() {
+        <span class="kw">for </span>domain <span class="kw">in </span><span class="kw-2">&amp;</span>[<span class="string">&quot;127.0.0.1&quot;</span>, <span class="string">&quot;localhost&quot;</span>] {
+            <span class="kw">let </span>event = get_event_with_domain(domain);
+            <span class="kw">let </span>filter_result = should_filter(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>FilterConfig { is_enabled: <span class="bool-val">true </span>});
             <span class="macro">assert_ne!</span>(
-                <span class="ident">filter_result</span>,
+                filter_result,
                 <span class="prelude-val">Ok</span>(()),
                 <span class="string">&quot;Failed to filter domain &#39;{}&#39;&quot;</span>,
-                <span class="ident">domain</span>
+                domain
             );
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_dont_filter_non_local_domains</span>() {
-        <span class="kw">for</span> <span class="ident">domain</span> <span class="kw">in</span> <span class="kw-2">&amp;</span>[<span class="string">&quot;my.dom.com&quot;</span>, <span class="string">&quot;123.123.123.44&quot;</span>] {
-            <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">get_event_with_domain</span>(<span class="ident">domain</span>);
-            <span class="kw">let</span> <span class="ident">filter_result</span> <span class="op">=</span> <span class="ident">should_filter</span>(<span class="kw-2">&amp;</span><span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="ident">FilterConfig</span> { <span class="ident">is_enabled</span>: <span class="bool-val">true</span> });
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_dont_filter_non_local_domains() {
+        <span class="kw">for </span>domain <span class="kw">in </span><span class="kw-2">&amp;</span>[<span class="string">&quot;my.dom.com&quot;</span>, <span class="string">&quot;123.123.123.44&quot;</span>] {
+            <span class="kw">let </span>event = get_event_with_domain(domain);
+            <span class="kw">let </span>filter_result = should_filter(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>FilterConfig { is_enabled: <span class="bool-val">true </span>});
             <span class="macro">assert_eq!</span>(
-                <span class="ident">filter_result</span>,
+                filter_result,
                 <span class="prelude-val">Ok</span>(()),
                 <span class="string">&quot;Filtered perfectly valid domain &#39;{}&#39;&quot;</span>,
-                <span class="ident">domain</span>
+                domain
             );
         }
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_filter" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_filter" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

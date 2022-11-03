@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay/src/setup.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>setup.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay/src/setup.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>setup.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -73,13 +73,13 @@
 <span id="71">71</span>
 <span id="72">72</span>
 <span id="73">73</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">failure</span>::{<span class="ident">err_msg</span>, <span class="ident">Error</span>};
+</pre><pre class="rust"><code><span class="kw">use </span>failure::{err_msg, Error};
 
-<span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">RelayMode</span>};
+<span class="kw">use </span>relay_config::{Config, RelayMode};
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">check_config</span>(<span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
-    <span class="kw">if</span> <span class="ident">config</span>.<span class="ident">relay_mode</span>() <span class="op">==</span> <span class="ident">RelayMode::Managed</span> <span class="op">&amp;&amp;</span> <span class="ident">config</span>.<span class="ident">credentials</span>().<span class="ident">is_none</span>() {
-        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">err_msg</span>(
+<span class="kw">pub fn </span>check_config(config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
+    <span class="kw">if </span>config.relay_mode() == RelayMode::Managed &amp;&amp; config.credentials().is_none() {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(err_msg(
             <span class="string">&quot;relay has no credentials, which are required in managed mode. \
              Generate some with \&quot;relay credentials generate\&quot; first.&quot;</span>,
         ));
@@ -88,63 +88,63 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="doccomment">/// Print spawn infos to the log.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">dump_spawn_infos</span>(<span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) {
-    <span class="kw">if</span> <span class="ident">config</span>.<span class="ident">path</span>().<span class="ident">as_os_str</span>().<span class="ident">is_empty</span>() {
+<span class="doccomment">/// Print spawn infos to the log.
+</span><span class="kw">pub fn </span>dump_spawn_infos(config: <span class="kw-2">&amp;</span>Config) {
+    <span class="kw">if </span>config.path().as_os_str().is_empty() {
         <span class="macro">relay_log::info!</span>(<span class="string">&quot;launching relay without config folder&quot;</span>);
-    } <span class="kw">else</span> {
+    } <span class="kw">else </span>{
         <span class="macro">relay_log::info!</span>(
             <span class="string">&quot;launching relay from config folder {}&quot;</span>,
-            <span class="ident">config</span>.<span class="ident">path</span>().<span class="ident">display</span>()
+            config.path().display()
         );
     }
-    <span class="macro">relay_log::info!</span>(<span class="string">&quot;  relay mode: {}&quot;</span>, <span class="ident">config</span>.<span class="ident">relay_mode</span>());
+    <span class="macro">relay_log::info!</span>(<span class="string">&quot;  relay mode: {}&quot;</span>, config.relay_mode());
 
-    <span class="kw">match</span> <span class="ident">config</span>.<span class="ident">relay_id</span>() {
-        <span class="prelude-val">Some</span>(<span class="ident">id</span>) =&gt; <span class="macro">relay_log::info!</span>(<span class="string">&quot;  relay id: {}&quot;</span>, <span class="ident">id</span>),
-        <span class="prelude-val">None</span> =&gt; <span class="macro">relay_log::info!</span>(<span class="string">&quot;  relay id: -&quot;</span>),
+    <span class="kw">match </span>config.relay_id() {
+        <span class="prelude-val">Some</span>(id) =&gt; <span class="macro">relay_log::info!</span>(<span class="string">&quot;  relay id: {}&quot;</span>, id),
+        <span class="prelude-val">None </span>=&gt; <span class="macro">relay_log::info!</span>(<span class="string">&quot;  relay id: -&quot;</span>),
     };
-    <span class="kw">match</span> <span class="ident">config</span>.<span class="ident">public_key</span>() {
-        <span class="prelude-val">Some</span>(<span class="ident">key</span>) =&gt; <span class="macro">relay_log::info!</span>(<span class="string">&quot;  public key: {}&quot;</span>, <span class="ident">key</span>),
-        <span class="prelude-val">None</span> =&gt; <span class="macro">relay_log::info!</span>(<span class="string">&quot;  public key: -&quot;</span>),
+    <span class="kw">match </span>config.public_key() {
+        <span class="prelude-val">Some</span>(key) =&gt; <span class="macro">relay_log::info!</span>(<span class="string">&quot;  public key: {}&quot;</span>, key),
+        <span class="prelude-val">None </span>=&gt; <span class="macro">relay_log::info!</span>(<span class="string">&quot;  public key: -&quot;</span>),
     };
-    <span class="macro">relay_log::info!</span>(<span class="string">&quot;  log level: {}&quot;</span>, <span class="ident">config</span>.<span class="ident">logging</span>().<span class="ident">level</span>);
+    <span class="macro">relay_log::info!</span>(<span class="string">&quot;  log level: {}&quot;</span>, config.logging().level);
 }
 
-<span class="doccomment">/// Dumps out credential info.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">dump_credentials</span>(<span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) {
-    <span class="kw">match</span> <span class="ident">config</span>.<span class="ident">relay_id</span>() {
-        <span class="prelude-val">Some</span>(<span class="ident">id</span>) =&gt; <span class="macro">println!</span>(<span class="string">&quot;  relay id: {}&quot;</span>, <span class="ident">id</span>),
-        <span class="prelude-val">None</span> =&gt; <span class="macro">println!</span>(<span class="string">&quot;  relay id: -&quot;</span>),
+<span class="doccomment">/// Dumps out credential info.
+</span><span class="kw">pub fn </span>dump_credentials(config: <span class="kw-2">&amp;</span>Config) {
+    <span class="kw">match </span>config.relay_id() {
+        <span class="prelude-val">Some</span>(id) =&gt; <span class="macro">println!</span>(<span class="string">&quot;  relay id: {}&quot;</span>, id),
+        <span class="prelude-val">None </span>=&gt; <span class="macro">println!</span>(<span class="string">&quot;  relay id: -&quot;</span>),
     };
-    <span class="kw">match</span> <span class="ident">config</span>.<span class="ident">public_key</span>() {
-        <span class="prelude-val">Some</span>(<span class="ident">key</span>) =&gt; <span class="macro">println!</span>(<span class="string">&quot;  public key: {}&quot;</span>, <span class="ident">key</span>),
-        <span class="prelude-val">None</span> =&gt; <span class="macro">println!</span>(<span class="string">&quot;  public key: -&quot;</span>),
+    <span class="kw">match </span>config.public_key() {
+        <span class="prelude-val">Some</span>(key) =&gt; <span class="macro">println!</span>(<span class="string">&quot;  public key: {}&quot;</span>, key),
+        <span class="prelude-val">None </span>=&gt; <span class="macro">println!</span>(<span class="string">&quot;  public key: -&quot;</span>),
     };
 }
 
-<span class="doccomment">/// Initialize the metric system.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">init_metrics</span>(<span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">addrs</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">statsd_addrs</span>()<span class="question-mark">?</span>;
-    <span class="kw">if</span> <span class="ident">addrs</span>.<span class="ident">is_empty</span>() {
-        <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
+<span class="doccomment">/// Initialize the metric system.
+</span><span class="kw">pub fn </span>init_metrics(config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
+    <span class="kw">let </span>addrs = config.statsd_addrs()<span class="question-mark">?</span>;
+    <span class="kw">if </span>addrs.is_empty() {
+        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     }
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">default_tags</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">metrics_default_tags</span>().<span class="ident">clone</span>();
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">hostname_tag</span>) <span class="op">=</span> <span class="ident">config</span>.<span class="ident">metrics_hostname_tag</span>() {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">hostname</span>) <span class="op">=</span> <span class="ident">hostname::get</span>().<span class="ident">ok</span>().<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">into_string</span>().<span class="ident">ok</span>()) {
-            <span class="ident">default_tags</span>.<span class="ident">insert</span>(<span class="ident">hostname_tag</span>.<span class="ident">to_owned</span>(), <span class="ident">hostname</span>);
+    <span class="kw">let </span><span class="kw-2">mut </span>default_tags = config.metrics_default_tags().clone();
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(hostname_tag) = config.metrics_hostname_tag() {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(hostname) = hostname::get().ok().and_then(|s| s.into_string().ok()) {
+            default_tags.insert(hostname_tag.to_owned(), hostname);
         }
     }
-    <span class="ident">relay_statsd::init</span>(
-        <span class="ident">config</span>.<span class="ident">metrics_prefix</span>(),
-        <span class="kw-2">&amp;</span><span class="ident">addrs</span>[..],
-        <span class="ident">default_tags</span>,
-        <span class="ident">config</span>.<span class="ident">metrics_buffering</span>(),
-        <span class="ident">config</span>.<span class="ident">metrics_sample_rate</span>(),
+    relay_statsd::init(
+        config.metrics_prefix(),
+        <span class="kw-2">&amp;</span>addrs[..],
+        default_tags,
+        config.metrics_buffering(),
+        config.metrics_sample_rate(),
     );
 
     <span class="prelude-val">Ok</span>(())
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

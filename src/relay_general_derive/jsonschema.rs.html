@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/derive/src/jsonschema.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>jsonschema.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_general_derive/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_general_derive/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/derive/src/jsonschema.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>jsonschema.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_general_derive/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_general_derive/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_general_derive/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -124,129 +124,129 @@
 <span id="122">122</span>
 <span id="123">123</span>
 <span id="124">124</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">proc_macro2::TokenStream</span>;
-<span class="kw">use</span> <span class="ident">quote::quote</span>;
-<span class="kw">use</span> <span class="ident">syn</span>::{<span class="ident">parse_quote</span>, <span class="ident">Attribute</span>, <span class="ident">Lit</span>, <span class="ident">Meta</span>, <span class="ident">MetaNameValue</span>, <span class="ident">Visibility</span>};
+</pre><pre class="rust"><code><span class="kw">use </span>proc_macro2::TokenStream;
+<span class="kw">use </span>quote::quote;
+<span class="kw">use </span>syn::{parse_quote, Attribute, Lit, Meta, MetaNameValue, Visibility};
 
-<span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">parse_field_attributes</span>, <span class="ident">parse_variant_attributes</span>};
+<span class="kw">use crate</span>::{parse_field_attributes, parse_variant_attributes};
 
-<span class="doccomment">/// Take an attribute set from the original struct and:</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// 1. Filter out all attibutes but `schemars` and `doc`.</span>
-<span class="doccomment">/// 2. Replace #[doc = &quot;foo&quot;] with #[schemars(description = &quot;foo&quot;)]. While schemars already uses</span>
-<span class="doccomment">///    docstrings for its jsonschema description by default, it applies line-wrapping logic that</span>
-<span class="doccomment">///    destroys markdown. Explicitly setting description bypasses that.</span>
-<span class="doccomment">///</span>
-<span class="kw">fn</span> <span class="ident">transform_attributes</span>(<span class="ident">attrs</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Attribute</span><span class="op">&gt;</span>) {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">description</span> <span class="op">=</span> <span class="ident">String::new</span>();
+<span class="doccomment">/// Take an attribute set from the original struct and:
+///
+/// 1. Filter out all attibutes but `schemars` and `doc`.
+/// 2. Replace #[doc = &quot;foo&quot;] with #[schemars(description = &quot;foo&quot;)]. While schemars already uses
+///    docstrings for its jsonschema description by default, it applies line-wrapping logic that
+///    destroys markdown. Explicitly setting description bypasses that.
+///
+</span><span class="kw">fn </span>transform_attributes(attrs: <span class="kw-2">&amp;mut </span>Vec&lt;Attribute&gt;) {
+    <span class="kw">let </span><span class="kw-2">mut </span>description = String::new();
 
-    <span class="ident">attrs</span>.<span class="ident">retain</span>(<span class="op">|</span><span class="ident">attr</span><span class="op">|</span> {
-        <span class="kw">if</span> <span class="ident">attr</span>.<span class="ident">path</span>.<span class="ident">is_ident</span>(<span class="string">&quot;doc&quot;</span>) {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">Meta::NameValue</span>(<span class="ident">MetaNameValue</span> {
-                <span class="ident">lit</span>: <span class="ident">Lit::Str</span>(<span class="ident">s</span>), ..
-            })) <span class="op">=</span> <span class="ident">attr</span>.<span class="ident">parse_meta</span>()
+    attrs.retain(|attr| {
+        <span class="kw">if </span>attr.path.is_ident(<span class="string">&quot;doc&quot;</span>) {
+            <span class="kw">if let </span><span class="prelude-val">Ok</span>(Meta::NameValue(MetaNameValue {
+                lit: Lit::Str(s), ..
+            })) = attr.parse_meta()
             {
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">description</span>.<span class="ident">is_empty</span>() {
-                    <span class="ident">description</span>.<span class="ident">push</span>(<span class="string">&#39;\n&#39;</span>);
+                <span class="kw">if </span>!description.is_empty() {
+                    description.push(<span class="string">&#39;\n&#39;</span>);
                 }
-                <span class="ident">description</span>.<span class="ident">push_str</span>(<span class="kw-2">&amp;</span><span class="ident">s</span>.<span class="ident">value</span>());
-                <span class="kw">return</span> <span class="bool-val">false</span>;
+                description.push_str(<span class="kw-2">&amp;</span>s.value());
+                <span class="kw">return </span><span class="bool-val">false</span>;
             }
         }
 
-        <span class="ident">attr</span>.<span class="ident">path</span>.<span class="ident">is_ident</span>(<span class="string">&quot;schemars&quot;</span>)
+        attr.path.is_ident(<span class="string">&quot;schemars&quot;</span>)
     });
 
-    <span class="kw">if</span> <span class="op">!</span><span class="ident">description</span>.<span class="ident">is_empty</span>() {
-        <span class="ident">attrs</span>.<span class="ident">push</span>(<span class="macro">parse_quote!</span>(<span class="attribute">#[<span class="ident">schemars</span>(<span class="ident">description</span> <span class="op">=</span> #<span class="ident">description</span>)]</span>));
+    <span class="kw">if </span>!description.is_empty() {
+        attrs.push(<span class="macro">parse_quote!</span>(<span class="attribute">#[schemars(description = #description)]</span>));
     }
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">derive_jsonschema</span>(<span class="kw-2">mut</span> <span class="ident">s</span>: <span class="ident">synstructure::Structure</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">TokenStream</span> {
-    <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">add_bounds</span>(<span class="ident">synstructure::AddBounds::Generics</span>);
+<span class="kw">pub fn </span>derive_jsonschema(<span class="kw-2">mut </span>s: synstructure::Structure&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; TokenStream {
+    <span class="kw">let _ </span>= s.add_bounds(synstructure::AddBounds::Generics);
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">arms</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
+    <span class="kw">let </span><span class="kw-2">mut </span>arms = Vec::new();
 
-    <span class="kw">let</span> <span class="ident">is_single_variant</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">variants</span>().<span class="ident">len</span>() <span class="op">==</span> <span class="number">1</span>;
+    <span class="kw">let </span>is_single_variant = s.variants().len() == <span class="number">1</span>;
 
-    <span class="kw">for</span> <span class="ident">variant</span> <span class="kw">in</span> <span class="ident">s</span>.<span class="ident">variants</span>() {
-        <span class="comment">// parse_variant_attributes currently cannot deal with struct attributes. Structs are</span>
-        <span class="comment">// represented as single-variant enums in synstructure.</span>
-        <span class="kw">if</span> <span class="op">!</span><span class="ident">is_single_variant</span> {
-            <span class="kw">let</span> <span class="ident">variant_attrs</span> <span class="op">=</span> <span class="ident">parse_variant_attributes</span>(<span class="ident">variant</span>.<span class="ident">ast</span>().<span class="ident">attrs</span>);
+    <span class="kw">for </span>variant <span class="kw">in </span>s.variants() {
+        <span class="comment">// parse_variant_attributes currently cannot deal with struct attributes. Structs are
+        // represented as single-variant enums in synstructure.
+        </span><span class="kw">if </span>!is_single_variant {
+            <span class="kw">let </span>variant_attrs = parse_variant_attributes(variant.ast().attrs);
 
-            <span class="kw">if</span> <span class="ident">variant_attrs</span>.<span class="ident">omit_from_schema</span> {
+            <span class="kw">if </span>variant_attrs.omit_from_schema {
                 <span class="kw">continue</span>;
             }
         }
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">fields</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
+        <span class="kw">let </span><span class="kw-2">mut </span>fields = Vec::new();
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">is_tuple_struct</span> <span class="op">=</span> <span class="bool-val">false</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>is_tuple_struct = <span class="bool-val">false</span>;
 
-        <span class="kw">for</span> (<span class="ident">index</span>, <span class="ident">bi</span>) <span class="kw">in</span> <span class="ident">variant</span>.<span class="ident">bindings</span>().<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
-            <span class="kw">let</span> <span class="ident">field_attrs</span> <span class="op">=</span> <span class="ident">parse_field_attributes</span>(<span class="ident">index</span>, <span class="ident">bi</span>.<span class="ident">ast</span>(), <span class="kw-2">&amp;mut</span> <span class="ident">is_tuple_struct</span>);
-            <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">field_attrs</span>.<span class="ident">field_name</span>;
+        <span class="kw">for </span>(index, bi) <span class="kw">in </span>variant.bindings().iter().enumerate() {
+            <span class="kw">let </span>field_attrs = parse_field_attributes(index, bi.ast(), <span class="kw-2">&amp;mut </span>is_tuple_struct);
+            <span class="kw">let </span>name = field_attrs.field_name;
 
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ast</span> <span class="op">=</span> <span class="ident">bi</span>.<span class="ident">ast</span>().<span class="ident">clone</span>();
-            <span class="ident">ast</span>.<span class="ident">vis</span> <span class="op">=</span> <span class="ident">Visibility::Inherited</span>;
-            <span class="ident">transform_attributes</span>(<span class="kw-2">&amp;mut</span> <span class="ident">ast</span>.<span class="ident">attrs</span>);
+            <span class="kw">let </span><span class="kw-2">mut </span>ast = bi.ast().clone();
+            ast.vis = Visibility::Inherited;
+            transform_attributes(<span class="kw-2">&amp;mut </span>ast.attrs);
 
-            <span class="ident">ast</span>.<span class="ident">attrs</span>.<span class="ident">push</span>(<span class="macro">parse_quote!</span>(<span class="attribute">#[<span class="ident">schemars</span>(<span class="ident">rename</span> <span class="op">=</span> #<span class="ident">name</span>)]</span>));
+            ast.attrs.push(<span class="macro">parse_quote!</span>(<span class="attribute">#[schemars(rename = #name)]</span>));
 
-            <span class="kw">if</span> <span class="op">!</span><span class="ident">field_attrs</span>.<span class="ident">required</span>.<span class="ident">unwrap_or</span>(<span class="bool-val">false</span>) {
-                <span class="ident">ast</span>.<span class="ident">attrs</span>
-                    .<span class="ident">push</span>(<span class="macro">parse_quote!</span>(<span class="attribute">#[<span class="ident">schemars</span>(<span class="ident">default</span> <span class="op">=</span> <span class="string">&quot;__schemars_null&quot;</span>)]</span>));
+            <span class="kw">if </span>!field_attrs.required.unwrap_or(<span class="bool-val">false</span>) {
+                ast.attrs
+                    .push(<span class="macro">parse_quote!</span>(<span class="attribute">#[schemars(default = <span class="string">&quot;__schemars_null&quot;</span>)]</span>));
             }
 
-            <span class="kw">if</span> <span class="ident">field_attrs</span>.<span class="ident">additional_properties</span> <span class="op">|</span><span class="op">|</span> <span class="ident">field_attrs</span>.<span class="ident">omit_from_schema</span> {
-                <span class="ident">ast</span>.<span class="ident">attrs</span>.<span class="ident">push</span>(<span class="macro">parse_quote!</span>(<span class="attribute">#[<span class="ident">schemars</span>(<span class="ident">skip</span>)]</span>));
+            <span class="kw">if </span>field_attrs.additional_properties || field_attrs.omit_from_schema {
+                ast.attrs.push(<span class="macro">parse_quote!</span>(<span class="attribute">#[schemars(skip)]</span>));
             }
 
-            <span class="ident">fields</span>.<span class="ident">push</span>(<span class="ident">ast</span>);
+            fields.push(ast);
         }
 
-        <span class="kw">let</span> <span class="ident">ident</span> <span class="op">=</span> <span class="ident">variant</span>.<span class="ident">ast</span>().<span class="ident">ident</span>;
+        <span class="kw">let </span>ident = variant.ast().ident;
 
-        <span class="kw">let</span> <span class="ident">arm</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">is_tuple_struct</span> {
-            <span class="macro">quote!</span>( #<span class="ident">ident</span>( #(#<span class="ident">fields</span>),<span class="op">*</span> ) )
-        } <span class="kw">else</span> {
-            <span class="macro">quote!</span>( #<span class="ident">ident</span> { #(#<span class="ident">fields</span>),<span class="op">*</span> } )
+        <span class="kw">let </span>arm = <span class="kw">if </span>is_tuple_struct {
+            <span class="macro">quote!</span>( #ident( #(#fields),* ) )
+        } <span class="kw">else </span>{
+            <span class="macro">quote!</span>( #ident { #(#fields),* } )
         };
 
-        <span class="ident">arms</span>.<span class="ident">push</span>(<span class="ident">arm</span>);
+        arms.push(arm);
     }
 
-    <span class="kw">let</span> <span class="ident">ident</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">s</span>.<span class="ident">ast</span>().<span class="ident">ident</span>;
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">attrs</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">ast</span>().<span class="ident">attrs</span>.<span class="ident">clone</span>();
-    <span class="ident">transform_attributes</span>(<span class="kw-2">&amp;mut</span> <span class="ident">attrs</span>);
+    <span class="kw">let </span>ident = <span class="kw-2">&amp;</span>s.ast().ident;
+    <span class="kw">let </span><span class="kw-2">mut </span>attrs = s.ast().attrs.clone();
+    transform_attributes(<span class="kw-2">&amp;mut </span>attrs);
 
-    <span class="ident">s</span>.<span class="ident">gen_impl</span>(<span class="macro">quote!</span> {
-        <span class="comment">// Massive hack to tell schemars that fields are nullable. Causes it to emit {&quot;default&quot;:</span>
-        <span class="comment">// null} even though Option&lt;()&gt; is not a valid instance of T.</span>
-        <span class="kw">fn</span> <span class="ident">__schemars_null</span>() -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-            <span class="prelude-val">None</span>
-        }
+    s.gen_impl(<span class="macro">quote! </span>{
+        <span class="comment">// Massive hack to tell schemars that fields are nullable. Causes it to emit {&quot;default&quot;:
+        // null} even though Option&lt;()&gt; is not a valid instance of T.
+        </span><span class="kw">fn </span>__schemars_null() -&gt; <span class="prelude-ty">Option</span>&lt;()&gt; {
+            <span class="prelude-val">None
+        </span>}
 
-        <span class="attribute">#[<span class="ident">automatically_derived</span>]</span>
-        <span class="ident">gen</span> <span class="kw">impl</span> <span class="ident">schemars::JsonSchema</span> <span class="kw">for</span> @<span class="self">Self</span> {
-            <span class="kw">fn</span> <span class="ident">schema_name</span>() -&gt; <span class="ident">String</span> {
-                <span class="macro">stringify!</span>(#<span class="ident">ident</span>).<span class="ident">to_owned</span>()
+        <span class="attribute">#[automatically_derived]
+        </span>gen <span class="kw">impl </span>schemars::JsonSchema <span class="kw">for </span>@<span class="self">Self </span>{
+            <span class="kw">fn </span>schema_name() -&gt; String {
+                <span class="macro">stringify!</span>(#ident).to_owned()
             }
 
-            <span class="kw">fn</span> <span class="ident">json_schema</span>(<span class="ident">gen</span>: <span class="kw-2">&amp;mut</span> <span class="ident">schemars::gen::SchemaGenerator</span>) -&gt; <span class="ident">schemars::schema::Schema</span> {
-                <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">schemars::JsonSchema</span>)]</span>
-                <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">schemars</span>(<span class="ident">untagged</span>))]</span>
-                <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">schemars</span>(<span class="ident">deny_unknown_fields</span>))]</span>
-                #(#<span class="ident">attrs</span>)<span class="op">*</span>
-                <span class="kw">enum</span> <span class="ident">Helper</span> {
-                    #(#<span class="ident">arms</span>),<span class="op">*</span>
+            <span class="kw">fn </span>json_schema(gen: <span class="kw-2">&amp;mut </span>schemars::gen::SchemaGenerator) -&gt; schemars::schema::Schema {
+                <span class="attribute">#[derive(schemars::JsonSchema)]
+                #[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, schemars(untagged))]
+                #[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, schemars(deny_unknown_fields))]
+                </span>#(#attrs)*
+                <span class="kw">enum </span>Helper {
+                    #(#arms),*
                 }
 
-                <span class="ident">Helper::json_schema</span>(<span class="ident">gen</span>)
+                Helper::json_schema(gen)
             }
         }
     })
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_general_derive" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_general_derive" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-aws-extension/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_aws_extension/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_aws_extension/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-aws-extension/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_aws_extension/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_aws_extension/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_aws_extension/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -31,36 +31,36 @@
 <span id="29">29</span>
 <span id="30">30</span>
 <span id="31">31</span>
-</pre><pre class="rust"><code><span class="doccomment">//! AWS extension implementation for Sentry&#39;s AWS Lambda layer.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! An AWS extension is a binary that is bundled along with the SDK and its dependencies in an AWS</span>
-<span class="doccomment">//! Layer that is added to a user&#39;s Lambda function. The Lambda Runtime will start the extension</span>
-<span class="doccomment">//! binary as a concurrent process that runs independently of the actual function invocation and</span>
-<span class="doccomment">//! continues running across multiple function invocations.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Sentry&#39;s extension is basically existing Relay running in proxy mode with an additional</span>
-<span class="doccomment">//! [`AwsExtension`] service. The service takes care of the extension lifecycle, namely registering</span>
-<span class="doccomment">//! the extension and continuously polling for next events. Note that the interval between two next</span>
-<span class="doccomment">//! event calls adds to the billing time of the lambda invocation.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! The main advantage we get currently from the extension is the lambda function not having to wait</span>
-<span class="doccomment">//! for the event being sent to Sentry by the SDK. The actual sending happens in a concurrent Relay</span>
-<span class="doccomment">//! process so the main function can return sooner and reduce response time of the user&#39;s function.</span>
-<span class="doccomment">//! In the future, we might use some of [`RegisterResponse`] and [`NextEventResponse`]&#39;s fields in</span>
-<span class="doccomment">//! the event payload but that requires intercepting the envelope and modifying it before sending to</span>
-<span class="doccomment">//! upstream.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! See the official [Lambda Extensions API</span>
-<span class="doccomment">//! documentation](https://docs.aws.amazon.com/lambda/latest/dg/runtimes-extensions-api.html) for</span>
-<span class="doccomment">//! further details.</span>
-<span class="attribute">#![<span class="ident">warn</span>(<span class="ident">missing_docs</span>)]</span>
-<span class="attribute">#![<span class="ident">doc</span>(
-    <span class="ident">html_logo_url</span> <span class="op">=</span> <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
-    <span class="ident">html_favicon_url</span> <span class="op">=</span> <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>
-)]</span>
-<span class="attribute">#![<span class="ident">allow</span>(<span class="ident">clippy::derive_partial_eq_without_eq</span>)]</span>
+</pre><pre class="rust"><code><span class="doccomment">//! AWS extension implementation for Sentry&#39;s AWS Lambda layer.
+//!
+//! An AWS extension is a binary that is bundled along with the SDK and its dependencies in an AWS
+//! Layer that is added to a user&#39;s Lambda function. The Lambda Runtime will start the extension
+//! binary as a concurrent process that runs independently of the actual function invocation and
+//! continues running across multiple function invocations.
+//!
+//! Sentry&#39;s extension is basically existing Relay running in proxy mode with an additional
+//! [`AwsExtension`] service. The service takes care of the extension lifecycle, namely registering
+//! the extension and continuously polling for next events. Note that the interval between two next
+//! event calls adds to the billing time of the lambda invocation.
+//!
+//! The main advantage we get currently from the extension is the lambda function not having to wait
+//! for the event being sent to Sentry by the SDK. The actual sending happens in a concurrent Relay
+//! process so the main function can return sooner and reduce response time of the user&#39;s function.
+//! In the future, we might use some of [`RegisterResponse`] and [`NextEventResponse`]&#39;s fields in
+//! the event payload but that requires intercepting the envelope and modifying it before sending to
+//! upstream.
+//!
+//! See the official [Lambda Extensions API
+//! documentation](https://docs.aws.amazon.com/lambda/latest/dg/runtimes-extensions-api.html) for
+//! further details.
+</span><span class="attribute">#![warn(missing_docs)]
+#![doc(
+    html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
+    html_favicon_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;
+</span>)]
+#![allow(clippy::derive_partial_eq_without_eq)]
 
-<span class="kw">mod</span> <span class="ident">aws_extension</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">aws_extension</span>::<span class="kw-2">*</span>;
+</span><span class="kw">mod </span>aws_extension;
+<span class="kw">pub use </span>aws_extension::<span class="kw-2">*</span>;
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_aws_extension" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_aws_extension" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

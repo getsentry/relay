@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/protocol/contexts/trace.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>trace.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../../storage.js"></script><script defer src="../../../../source-script.js"></script><script defer src="../../../../source-files.js"></script><script defer src="../../../../main.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/protocol/contexts/trace.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>trace.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../../normalize.css"><link rel="stylesheet" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../../ayu.css" disabled><link rel="stylesheet" href="../../../../dark.css" disabled><link rel="stylesheet" href="../../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../../storage.js"></script><script defer src="../../../../source-script.js"></script><script defer src="../../../../source-files.js"></script><script defer src="../../../../main.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../../relay_general/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -247,205 +247,205 @@
 <span id="245">245</span>
 <span id="246">246</span>
 <span id="247">247</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">once_cell::sync::OnceCell</span>;
-<span class="kw">use</span> <span class="ident">regex::Regex</span>;
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Serialize</span>, <span class="ident">Serializer</span>};
+</pre><pre class="rust"><code><span class="kw">use </span>once_cell::sync::OnceCell;
+<span class="kw">use </span>regex::Regex;
+<span class="kw">use </span>serde::{Serialize, Serializer};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor::ProcessValue</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol::OperationType</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{
-    <span class="ident">Annotated</span>, <span class="ident">Empty</span>, <span class="ident">Error</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">Object</span>, <span class="ident">SkipSerialization</span>, <span class="ident">Value</span>,
+<span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
+<span class="kw">use </span><span class="kw">crate</span>::protocol::OperationType;
+<span class="kw">use </span><span class="kw">crate</span>::types::{
+    Annotated, Empty, Error, FromValue, IntoValue, Object, SkipSerialization, Value,
 };
 
-<span class="doccomment">/// A 32-character hex string as described in the W3C trace context spec.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>)]</span>
-<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TraceId</span>(<span class="kw">pub</span> <span class="ident">String</span>);
+<span class="doccomment">/// A 32-character hex string as described in the W3C trace context spec.
+</span><span class="attribute">#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
+#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+</span><span class="kw">pub struct </span>TraceId(<span class="kw">pub </span>String);
 
-<span class="kw">impl</span> <span class="ident">FromValue</span> <span class="kw">for</span> <span class="ident">TraceId</span> {
-    <span class="kw">fn</span> <span class="ident">from_value</span>(<span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="ident">value</span> {
-            <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value::String</span>(<span class="ident">value</span>)), <span class="kw-2">mut</span> <span class="ident">meta</span>) =&gt; {
-                <span class="kw">static</span> <span class="ident">TRACE_ID</span>: <span class="ident">OnceCell</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">OnceCell::new</span>();
-                <span class="kw">let</span> <span class="ident">regex</span> <span class="op">=</span> <span class="ident">TRACE_ID</span>.<span class="ident">get_or_init</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Regex::new</span>(<span class="string">&quot;^[a-fA-F0-9]{32}$&quot;</span>).<span class="ident">unwrap</span>());
+<span class="kw">impl </span>FromValue <span class="kw">for </span>TraceId {
+    <span class="kw">fn </span>from_value(value: Annotated&lt;Value&gt;) -&gt; Annotated&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">match </span>value {
+            Annotated(<span class="prelude-val">Some</span>(Value::String(value)), <span class="kw-2">mut </span>meta) =&gt; {
+                <span class="kw">static </span>TRACE_ID: OnceCell&lt;Regex&gt; = OnceCell::new();
+                <span class="kw">let </span>regex = TRACE_ID.get_or_init(|| Regex::new(<span class="string">&quot;^[a-fA-F0-9]{32}$&quot;</span>).unwrap());
 
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">regex</span>.<span class="ident">is_match</span>(<span class="kw-2">&amp;</span><span class="ident">value</span>) <span class="op">|</span><span class="op">|</span> <span class="ident">value</span>.<span class="ident">bytes</span>().<span class="ident">all</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span> <span class="op">==</span> <span class="string">b&#39;0&#39;</span>) {
-                    <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::invalid</span>(<span class="string">&quot;not a valid trace id&quot;</span>));
-                    <span class="ident">meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>));
-                    <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>)
-                } <span class="kw">else</span> {
-                    <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">TraceId</span>(<span class="ident">value</span>.<span class="ident">to_ascii_lowercase</span>())), <span class="ident">meta</span>)
+                <span class="kw">if </span>!regex.is_match(<span class="kw-2">&amp;</span>value) || value.bytes().all(|x| x == <span class="string">b&#39;0&#39;</span>) {
+                    meta.add_error(Error::invalid(<span class="string">&quot;not a valid trace id&quot;</span>));
+                    meta.set_original_value(<span class="prelude-val">Some</span>(value));
+                    Annotated(<span class="prelude-val">None</span>, meta)
+                } <span class="kw">else </span>{
+                    Annotated(<span class="prelude-val">Some</span>(TraceId(value.to_ascii_lowercase())), meta)
                 }
             }
-            <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>) =&gt; <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>),
-            <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="kw-2">mut</span> <span class="ident">meta</span>) =&gt; {
-                <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::expected</span>(<span class="string">&quot;trace id&quot;</span>));
-                <span class="ident">meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>));
-                <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>)
+            Annotated(<span class="prelude-val">None</span>, meta) =&gt; Annotated(<span class="prelude-val">None</span>, meta),
+            Annotated(<span class="prelude-val">Some</span>(value), <span class="kw-2">mut </span>meta) =&gt; {
+                meta.add_error(Error::expected(<span class="string">&quot;trace id&quot;</span>));
+                meta.set_original_value(<span class="prelude-val">Some</span>(value));
+                Annotated(<span class="prelude-val">None</span>, meta)
             }
         }
     }
 }
 
-<span class="doccomment">/// A 16-character hex string as described in the W3C trace context spec.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">Eq</span>, <span class="ident">Hash</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>)]</span>
-<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SpanId</span>(<span class="kw">pub</span> <span class="ident">String</span>);
+<span class="doccomment">/// A 16-character hex string as described in the W3C trace context spec.
+</span><span class="attribute">#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, Empty, IntoValue, ProcessValue)]
+#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+</span><span class="kw">pub struct </span>SpanId(<span class="kw">pub </span>String);
 
-<span class="kw">impl</span> <span class="ident">FromValue</span> <span class="kw">for</span> <span class="ident">SpanId</span> {
-    <span class="kw">fn</span> <span class="ident">from_value</span>(<span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="ident">value</span> {
-            <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value::String</span>(<span class="ident">value</span>)), <span class="kw-2">mut</span> <span class="ident">meta</span>) =&gt; {
-                <span class="kw">static</span> <span class="ident">SPAN_ID</span>: <span class="ident">OnceCell</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">OnceCell::new</span>();
-                <span class="kw">let</span> <span class="ident">regex</span> <span class="op">=</span> <span class="ident">SPAN_ID</span>.<span class="ident">get_or_init</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Regex::new</span>(<span class="string">&quot;^[a-fA-F0-9]{16}$&quot;</span>).<span class="ident">unwrap</span>());
+<span class="kw">impl </span>FromValue <span class="kw">for </span>SpanId {
+    <span class="kw">fn </span>from_value(value: Annotated&lt;Value&gt;) -&gt; Annotated&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">match </span>value {
+            Annotated(<span class="prelude-val">Some</span>(Value::String(value)), <span class="kw-2">mut </span>meta) =&gt; {
+                <span class="kw">static </span>SPAN_ID: OnceCell&lt;Regex&gt; = OnceCell::new();
+                <span class="kw">let </span>regex = SPAN_ID.get_or_init(|| Regex::new(<span class="string">&quot;^[a-fA-F0-9]{16}$&quot;</span>).unwrap());
 
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">regex</span>.<span class="ident">is_match</span>(<span class="kw-2">&amp;</span><span class="ident">value</span>) <span class="op">|</span><span class="op">|</span> <span class="ident">value</span>.<span class="ident">bytes</span>().<span class="ident">all</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span> <span class="op">==</span> <span class="string">b&#39;0&#39;</span>) {
-                    <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::invalid</span>(<span class="string">&quot;not a valid span id&quot;</span>));
-                    <span class="ident">meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>));
-                    <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>)
-                } <span class="kw">else</span> {
-                    <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">SpanId</span>(<span class="ident">value</span>.<span class="ident">to_ascii_lowercase</span>())), <span class="ident">meta</span>)
+                <span class="kw">if </span>!regex.is_match(<span class="kw-2">&amp;</span>value) || value.bytes().all(|x| x == <span class="string">b&#39;0&#39;</span>) {
+                    meta.add_error(Error::invalid(<span class="string">&quot;not a valid span id&quot;</span>));
+                    meta.set_original_value(<span class="prelude-val">Some</span>(value));
+                    Annotated(<span class="prelude-val">None</span>, meta)
+                } <span class="kw">else </span>{
+                    Annotated(<span class="prelude-val">Some</span>(SpanId(value.to_ascii_lowercase())), meta)
                 }
             }
-            <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>) =&gt; <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>),
-            <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="kw-2">mut</span> <span class="ident">meta</span>) =&gt; {
-                <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::expected</span>(<span class="string">&quot;span id&quot;</span>));
-                <span class="ident">meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>));
-                <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>)
+            Annotated(<span class="prelude-val">None</span>, meta) =&gt; Annotated(<span class="prelude-val">None</span>, meta),
+            Annotated(<span class="prelude-val">Some</span>(value), <span class="kw-2">mut </span>meta) =&gt; {
+                meta.add_error(Error::expected(<span class="string">&quot;span id&quot;</span>));
+                meta.set_original_value(<span class="prelude-val">Some</span>(value));
+                Annotated(<span class="prelude-val">None</span>, meta)
             }
         }
     }
 }
 
-<span class="doccomment">/// Trace context</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>)]</span>
-<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
-<span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">process_func</span> <span class="op">=</span> <span class="string">&quot;process_trace_context&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TraceContext</span> {
-    <span class="doccomment">/// The trace ID.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">required</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">trace_id</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">TraceId</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Trace context
+</span><span class="attribute">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[metastructure(process_func = <span class="string">&quot;process_trace_context&quot;</span>)]
+</span><span class="kw">pub struct </span>TraceContext {
+    <span class="doccomment">/// The trace ID.
+    </span><span class="attribute">#[metastructure(required = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="kw">pub </span>trace_id: Annotated&lt;TraceId&gt;,
 
-    <span class="doccomment">/// The ID of the span.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">required</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">span_id</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">SpanId</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The ID of the span.
+    </span><span class="attribute">#[metastructure(required = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="kw">pub </span>span_id: Annotated&lt;SpanId&gt;,
 
-    <span class="doccomment">/// The ID of the span enclosing this span.</span>
-    <span class="kw">pub</span> <span class="ident">parent_span_id</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">SpanId</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The ID of the span enclosing this span.
+    </span><span class="kw">pub </span>parent_span_id: Annotated&lt;SpanId&gt;,
 
-    <span class="doccomment">/// Span type (see `OperationType` docs).</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">max_chars</span> <span class="op">=</span> <span class="string">&quot;enumlike&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">op</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">OperationType</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Span type (see `OperationType` docs).
+    </span><span class="attribute">#[metastructure(max_chars = <span class="string">&quot;enumlike&quot;</span>)]
+    </span><span class="kw">pub </span>op: Annotated&lt;OperationType&gt;,
 
-    <span class="doccomment">/// Whether the trace failed or succeeded. Currently only used to indicate status of individual</span>
-    <span class="doccomment">/// transactions.</span>
-    <span class="kw">pub</span> <span class="ident">status</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">SpanStatus</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Whether the trace failed or succeeded. Currently only used to indicate status of individual
+    /// transactions.
+    </span><span class="kw">pub </span>status: Annotated&lt;SpanStatus&gt;,
 
-    <span class="doccomment">/// The amount of time in milliseconds spent in this transaction span,</span>
-    <span class="doccomment">/// excluding its immediate child spans.</span>
-    <span class="kw">pub</span> <span class="ident">exclusive_time</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The amount of time in milliseconds spent in this transaction span,
+    /// excluding its immediate child spans.
+    </span><span class="kw">pub </span>exclusive_time: Annotated&lt;f64&gt;,
 
-    <span class="doccomment">/// The client-side sample rate as reported in the envelope&#39;s `trace.sample_rate` header.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The server takes this field from envelope headers and writes it back into the event. Clients</span>
-    <span class="doccomment">/// should not ever send this value.</span>
-    <span class="kw">pub</span> <span class="ident">client_sample_rate</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The client-side sample rate as reported in the envelope&#39;s `trace.sample_rate` header.
+    ///
+    /// The server takes this field from envelope headers and writes it back into the event. Clients
+    /// should not ever send this value.
+    </span><span class="kw">pub </span>client_sample_rate: Annotated&lt;f64&gt;,
 
-    <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">additional_properties</span>, <span class="ident">retain</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>, <span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">other</span>: <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
+    </span><span class="attribute">#[metastructure(additional_properties, retain = <span class="string">&quot;true&quot;</span>, pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
 }
 
-<span class="attribute">#[<span class="ident">doc</span>(<span class="ident">inline</span>)]</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">ParseSpanStatusError</span>, <span class="ident">SpanStatus</span>};
+<span class="attribute">#[doc(inline)]
+</span><span class="kw">pub use </span>relay_common::{ParseSpanStatusError, SpanStatus};
 
-<span class="kw">impl</span> <span class="ident">ProcessValue</span> <span class="kw">for</span> <span class="ident">SpanStatus</span> {}
+<span class="kw">impl </span>ProcessValue <span class="kw">for </span>SpanStatus {}
 
-<span class="kw">impl</span> <span class="ident">Empty</span> <span class="kw">for</span> <span class="ident">SpanStatus</span> {
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="bool-val">false</span>
-    }
+<span class="kw">impl </span>Empty <span class="kw">for </span>SpanStatus {
+    <span class="attribute">#[inline]
+    </span><span class="kw">fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="bool-val">false
+    </span>}
 }
 
-<span class="kw">impl</span> <span class="ident">FromValue</span> <span class="kw">for</span> <span class="ident">SpanStatus</span> {
-    <span class="kw">fn</span> <span class="ident">from_value</span>(<span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="ident">value</span> {
-            <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value::String</span>(<span class="ident">value</span>)), <span class="kw-2">mut</span> <span class="ident">meta</span>) =&gt; <span class="kw">match</span> <span class="ident">value</span>.<span class="ident">parse</span>() {
-                <span class="prelude-val">Ok</span>(<span class="ident">status</span>) =&gt; <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">status</span>), <span class="ident">meta</span>),
+<span class="kw">impl </span>FromValue <span class="kw">for </span>SpanStatus {
+    <span class="kw">fn </span>from_value(value: Annotated&lt;Value&gt;) -&gt; Annotated&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">match </span>value {
+            Annotated(<span class="prelude-val">Some</span>(Value::String(value)), <span class="kw-2">mut </span>meta) =&gt; <span class="kw">match </span>value.parse() {
+                <span class="prelude-val">Ok</span>(status) =&gt; Annotated(<span class="prelude-val">Some</span>(status), meta),
                 <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-                    <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::expected</span>(<span class="string">&quot;a trace status&quot;</span>));
-                    <span class="ident">meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>));
-                    <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>)
+                    meta.add_error(Error::expected(<span class="string">&quot;a trace status&quot;</span>));
+                    meta.set_original_value(<span class="prelude-val">Some</span>(value));
+                    Annotated(<span class="prelude-val">None</span>, meta)
                 }
             },
-            <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value::I64</span>(<span class="ident">value</span>)), <span class="kw-2">mut</span> <span class="ident">meta</span>) =&gt; <span class="ident">Annotated</span>(
-                <span class="prelude-val">Some</span>(<span class="kw">match</span> <span class="ident">value</span> {
-                    <span class="number">0</span> =&gt; <span class="ident">SpanStatus::Ok</span>,
-                    <span class="number">1</span> =&gt; <span class="ident">SpanStatus::Cancelled</span>,
-                    <span class="number">2</span> =&gt; <span class="ident">SpanStatus::Unknown</span>,
-                    <span class="number">3</span> =&gt; <span class="ident">SpanStatus::InvalidArgument</span>,
-                    <span class="number">4</span> =&gt; <span class="ident">SpanStatus::DeadlineExceeded</span>,
-                    <span class="number">5</span> =&gt; <span class="ident">SpanStatus::NotFound</span>,
-                    <span class="number">6</span> =&gt; <span class="ident">SpanStatus::AlreadyExists</span>,
-                    <span class="number">7</span> =&gt; <span class="ident">SpanStatus::PermissionDenied</span>,
-                    <span class="number">8</span> =&gt; <span class="ident">SpanStatus::ResourceExhausted</span>,
-                    <span class="number">9</span> =&gt; <span class="ident">SpanStatus::FailedPrecondition</span>,
-                    <span class="number">10</span> =&gt; <span class="ident">SpanStatus::Aborted</span>,
-                    <span class="number">11</span> =&gt; <span class="ident">SpanStatus::OutOfRange</span>,
-                    <span class="number">12</span> =&gt; <span class="ident">SpanStatus::Unimplemented</span>,
-                    <span class="number">13</span> =&gt; <span class="ident">SpanStatus::InternalError</span>,
-                    <span class="number">14</span> =&gt; <span class="ident">SpanStatus::Unavailable</span>,
-                    <span class="number">15</span> =&gt; <span class="ident">SpanStatus::DataLoss</span>,
-                    <span class="number">16</span> =&gt; <span class="ident">SpanStatus::Unauthenticated</span>,
-                    <span class="kw">_</span> =&gt; {
-                        <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::expected</span>(<span class="string">&quot;a trace status&quot;</span>));
-                        <span class="ident">meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>));
-                        <span class="kw">return</span> <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>);
+            Annotated(<span class="prelude-val">Some</span>(Value::I64(value)), <span class="kw-2">mut </span>meta) =&gt; Annotated(
+                <span class="prelude-val">Some</span>(<span class="kw">match </span>value {
+                    <span class="number">0 </span>=&gt; SpanStatus::Ok,
+                    <span class="number">1 </span>=&gt; SpanStatus::Cancelled,
+                    <span class="number">2 </span>=&gt; SpanStatus::Unknown,
+                    <span class="number">3 </span>=&gt; SpanStatus::InvalidArgument,
+                    <span class="number">4 </span>=&gt; SpanStatus::DeadlineExceeded,
+                    <span class="number">5 </span>=&gt; SpanStatus::NotFound,
+                    <span class="number">6 </span>=&gt; SpanStatus::AlreadyExists,
+                    <span class="number">7 </span>=&gt; SpanStatus::PermissionDenied,
+                    <span class="number">8 </span>=&gt; SpanStatus::ResourceExhausted,
+                    <span class="number">9 </span>=&gt; SpanStatus::FailedPrecondition,
+                    <span class="number">10 </span>=&gt; SpanStatus::Aborted,
+                    <span class="number">11 </span>=&gt; SpanStatus::OutOfRange,
+                    <span class="number">12 </span>=&gt; SpanStatus::Unimplemented,
+                    <span class="number">13 </span>=&gt; SpanStatus::InternalError,
+                    <span class="number">14 </span>=&gt; SpanStatus::Unavailable,
+                    <span class="number">15 </span>=&gt; SpanStatus::DataLoss,
+                    <span class="number">16 </span>=&gt; SpanStatus::Unauthenticated,
+                    <span class="kw">_ </span>=&gt; {
+                        meta.add_error(Error::expected(<span class="string">&quot;a trace status&quot;</span>));
+                        meta.set_original_value(<span class="prelude-val">Some</span>(value));
+                        <span class="kw">return </span>Annotated(<span class="prelude-val">None</span>, meta);
                     }
                 }),
-                <span class="ident">meta</span>,
+                meta,
             ),
-            <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>) =&gt; <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>),
-            <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="kw-2">mut</span> <span class="ident">meta</span>) =&gt; {
-                <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::expected</span>(<span class="string">&quot;a string&quot;</span>));
-                <span class="ident">meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>));
-                <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>)
+            Annotated(<span class="prelude-val">None</span>, meta) =&gt; Annotated(<span class="prelude-val">None</span>, meta),
+            Annotated(<span class="prelude-val">Some</span>(value), <span class="kw-2">mut </span>meta) =&gt; {
+                meta.add_error(Error::expected(<span class="string">&quot;a string&quot;</span>));
+                meta.set_original_value(<span class="prelude-val">Some</span>(value));
+                Annotated(<span class="prelude-val">None</span>, meta)
             }
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">IntoValue</span> <span class="kw">for</span> <span class="ident">SpanStatus</span> {
-    <span class="kw">fn</span> <span class="ident">into_value</span>(<span class="self">self</span>) -&gt; <span class="ident">Value</span> {
-        <span class="ident">Value::String</span>(<span class="self">self</span>.<span class="ident">to_string</span>())
+<span class="kw">impl </span>IntoValue <span class="kw">for </span>SpanStatus {
+    <span class="kw">fn </span>into_value(<span class="self">self</span>) -&gt; Value {
+        Value::String(<span class="self">self</span>.to_string())
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_payload</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">s</span>: <span class="ident">S</span>, <span class="ident">_behavior</span>: <span class="ident">SkipSerialization</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="self">Self</span>: <span class="ident">Sized</span>,
-        <span class="ident">S</span>: <span class="ident">Serializer</span>,
+    <span class="kw">fn </span>serialize_payload&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, s: S, _behavior: SkipSerialization) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
+    <span class="kw">where
+        </span><span class="self">Self</span>: Sized,
+        S: Serializer,
     {
-        <span class="ident">Serialize::serialize</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">to_string</span>(), <span class="ident">s</span>)
+        Serialize::serialize(<span class="kw-2">&amp;</span><span class="self">self</span>.to_string(), s)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">TraceContext</span> {
-    <span class="doccomment">/// The key under which a trace context is generally stored (in `Contexts`)</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">default_key</span>() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
-        <span class="string">&quot;trace&quot;</span>
-    }
+<span class="kw">impl </span>TraceContext {
+    <span class="doccomment">/// The key under which a trace context is generally stored (in `Contexts`)
+    </span><span class="kw">pub fn </span>default_key() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="string">&quot;trace&quot;
+    </span>}
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol::Context</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span><span class="kw">crate</span>::protocol::Context;
 
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">test_trace_context_roundtrip</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="attribute">#[test]
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>test_trace_context_roundtrip() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;trace_id&quot;: &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;,
   &quot;span_id&quot;: &quot;fa90fdead5f74052&quot;,
   &quot;parent_span_id&quot;: &quot;fa90fdead5f74053&quot;,
@@ -456,43 +456,43 @@
   &quot;other&quot;: &quot;value&quot;,
   &quot;type&quot;: &quot;trace&quot;
 }&quot;#</span>;
-        <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Context::Trace</span>(<span class="ident">Box::new</span>(<span class="ident">TraceContext</span> {
-            <span class="ident">trace_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">TraceId</span>(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.<span class="ident">into</span>())),
-            <span class="ident">span_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">SpanId</span>(<span class="string">&quot;fa90fdead5f74052&quot;</span>.<span class="ident">into</span>())),
-            <span class="ident">parent_span_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">SpanId</span>(<span class="string">&quot;fa90fdead5f74053&quot;</span>.<span class="ident">into</span>())),
-            <span class="ident">op</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;http&quot;</span>.<span class="ident">into</span>()),
-            <span class="ident">status</span>: <span class="ident">Annotated::new</span>(<span class="ident">SpanStatus::Ok</span>),
-            <span class="ident">exclusive_time</span>: <span class="ident">Annotated::new</span>(<span class="number">0.0</span>),
-            <span class="ident">client_sample_rate</span>: <span class="ident">Annotated::new</span>(<span class="number">0.5</span>),
-            <span class="ident">other</span>: {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                <span class="ident">map</span>.<span class="ident">insert</span>(
-                    <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                    <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+        <span class="kw">let </span>context = Annotated::new(Context::Trace(Box::new(TraceContext {
+            trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
+            span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74052&quot;</span>.into())),
+            parent_span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
+            op: Annotated::new(<span class="string">&quot;http&quot;</span>.into()),
+            status: Annotated::new(SpanStatus::Ok),
+            exclusive_time: Annotated::new(<span class="number">0.0</span>),
+            client_sample_rate: Annotated::new(<span class="number">0.5</span>),
+            other: {
+                <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
+                map.insert(
+                    <span class="string">&quot;other&quot;</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_string())),
                 );
-                <span class="ident">map</span>
+                map
             },
         })));
 
-        <span class="macro">assert_eq!</span>(<span class="ident">context</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">context</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(context, Annotated::from_json(json).unwrap());
+        <span class="macro">assert_eq!</span>(json, context.to_json_pretty().unwrap());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">test_trace_context_normalization</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="attribute">#[test]
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>test_trace_context_normalization() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;trace_id&quot;: &quot;4C79F60C11214EB38604F4AE0781BFB2&quot;,
   &quot;span_id&quot;: &quot;FA90FDEAD5F74052&quot;,
   &quot;type&quot;: &quot;trace&quot;
 }&quot;#</span>;
-        <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Context::Trace</span>(<span class="ident">Box::new</span>(<span class="ident">TraceContext</span> {
-            <span class="ident">trace_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">TraceId</span>(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.<span class="ident">into</span>())),
-            <span class="ident">span_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">SpanId</span>(<span class="string">&quot;fa90fdead5f74052&quot;</span>.<span class="ident">into</span>())),
-            ..<span class="ident">Default::default</span>()
+        <span class="kw">let </span>context = Annotated::new(Context::Trace(Box::new(TraceContext {
+            trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
+            span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74052&quot;</span>.into())),
+            ..Default::default()
         })));
 
-        <span class="macro">assert_eq!</span>(<span class="ident">context</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(context, Annotated::from_json(json).unwrap());
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

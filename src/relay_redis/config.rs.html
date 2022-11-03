@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-redis/src/config.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>config.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_redis/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_redis/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-redis/src/config.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>config.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_redis/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_redis/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_redis/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -117,122 +117,122 @@
 <span id="115">115</span>
 <span id="116">116</span>
 <span id="117">117</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
+</pre><pre class="rust"><code><span class="kw">use </span>serde::{Deserialize, Serialize};
 
-<span class="kw">const</span> <span class="kw">fn</span> <span class="ident">default_max_connections</span>() -&gt; <span class="ident">u32</span> {
-    <span class="number">24</span>
+<span class="kw">const fn </span>default_max_connections() -&gt; u32 {
+    <span class="number">24
+</span>}
+
+<span class="doccomment">/// Additional configuration options for a redis client.
+</span><span class="attribute">#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[serde(default)]
+</span><span class="kw">pub struct </span>RedisConfigOptions {
+    <span class="doccomment">/// Maximum number of connections managed by the pool.
+    </span><span class="attribute">#[serde(default = <span class="string">&quot;default_max_connections&quot;</span>)]
+    </span><span class="kw">pub </span>max_connections: u32,
 }
 
-<span class="doccomment">/// Additional configuration options for a redis client.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RedisConfigOptions</span> {
-    <span class="doccomment">/// Maximum number of connections managed by the pool.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span> <span class="op">=</span> <span class="string">&quot;default_max_connections&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">max_connections</span>: <span class="ident">u32</span>,
-}
-
-<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">RedisConfigOptions</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> {
-            <span class="ident">max_connections</span>: <span class="ident">default_max_connections</span>(),
+<span class="kw">impl </span>Default <span class="kw">for </span>RedisConfigOptions {
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            max_connections: default_max_connections(),
         }
     }
 }
 
-<span class="doccomment">/// Configuration for connecting a redis client.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">untagged</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">RedisConfig</span> {
-    <span class="doccomment">/// Connect to a Redis cluster.</span>
-    <span class="ident">Cluster</span> {
-        <span class="doccomment">/// List of `redis://` urls to use in cluster mode.</span>
-        <span class="doccomment">///</span>
-        <span class="doccomment">/// This can also be a single node which is configured in cluster mode.</span>
-        <span class="ident">cluster_nodes</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Configuration for connecting a redis client.
+</span><span class="attribute">#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[serde(untagged)]
+</span><span class="kw">pub enum </span>RedisConfig {
+    <span class="doccomment">/// Connect to a Redis cluster.
+    </span>Cluster {
+        <span class="doccomment">/// List of `redis://` urls to use in cluster mode.
+        ///
+        /// This can also be a single node which is configured in cluster mode.
+        </span>cluster_nodes: Vec&lt;String&gt;,
 
-        <span class="doccomment">/// Additional configuration options for the redis client and a connections pool.</span>
-        <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">flatten</span>)]</span>
-        <span class="ident">options</span>: <span class="ident">RedisConfigOptions</span>,
+        <span class="doccomment">/// Additional configuration options for the redis client and a connections pool.
+        </span><span class="attribute">#[serde(flatten)]
+        </span>options: RedisConfigOptions,
     },
 
-    <span class="doccomment">/// Connect to a single Redis instance.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Contains the `redis://` url to the node.</span>
-    <span class="ident">Single</span>(<span class="ident">String</span>),
+    <span class="doccomment">/// Connect to a single Redis instance.
+    ///
+    /// Contains the `redis://` url to the node.
+    </span>Single(String),
 
-    <span class="doccomment">/// Connect to a single Redis instance.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Allows to provide more configuration options, e.g. `max_connections`.</span>
-    <span class="ident">SingleWithOpts</span> {
-        <span class="doccomment">/// Containes the `redis://` url to the node.</span>
-        <span class="ident">server</span>: <span class="ident">String</span>,
+    <span class="doccomment">/// Connect to a single Redis instance.
+    ///
+    /// Allows to provide more configuration options, e.g. `max_connections`.
+    </span>SingleWithOpts {
+        <span class="doccomment">/// Containes the `redis://` url to the node.
+        </span>server: String,
 
-        <span class="doccomment">/// Additional configuration options for the redis client and a connections pool.</span>
-        <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">flatten</span>)]</span>
-        <span class="ident">options</span>: <span class="ident">RedisConfigOptions</span>,
+        <span class="doccomment">/// Additional configuration options for the redis client and a connections pool.
+        </span><span class="attribute">#[serde(flatten)]
+        </span>options: RedisConfigOptions,
     },
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_redis_single_opts</span>() {
-        <span class="kw">let</span> <span class="ident">yaml</span> <span class="op">=</span> <span class="string">r###&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_redis_single_opts() {
+        <span class="kw">let </span>yaml = <span class="string">r###&quot;
 server: &quot;redis://127.0.0.1:6379&quot;
 max_connections: 42
 &quot;###</span>;
 
-        <span class="kw">let</span> <span class="ident">config</span>: <span class="ident">RedisConfig</span> <span class="op">=</span> <span class="ident">serde_yaml::from_str</span>(<span class="ident">yaml</span>)
-            .<span class="ident">expect</span>(<span class="string">&quot;Parsed processing redis config: single with options&quot;</span>);
+        <span class="kw">let </span>config: RedisConfig = serde_yaml::from_str(yaml)
+            .expect(<span class="string">&quot;Parsed processing redis config: single with options&quot;</span>);
 
-        <span class="kw">match</span> <span class="ident">config</span> {
-            <span class="ident">RedisConfig::SingleWithOpts</span> { <span class="ident">server</span>, <span class="ident">options</span> } =&gt; {
-                <span class="macro">assert_eq!</span>(<span class="ident">options</span>.<span class="ident">max_connections</span>, <span class="number">42</span>);
-                <span class="macro">assert_eq!</span>(<span class="ident">server</span>, <span class="string">&quot;redis://127.0.0.1:6379&quot;</span>);
+        <span class="kw">match </span>config {
+            RedisConfig::SingleWithOpts { server, options } =&gt; {
+                <span class="macro">assert_eq!</span>(options.max_connections, <span class="number">42</span>);
+                <span class="macro">assert_eq!</span>(server, <span class="string">&quot;redis://127.0.0.1:6379&quot;</span>);
             }
-            <span class="ident">e</span> =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Expected RedisConfig::SingleWithOpts but got {:?}&quot;</span>, <span class="ident">e</span>),
+            e =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Expected RedisConfig::SingleWithOpts but got {:?}&quot;</span>, e),
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_redis_single_opts_default</span>() {
-        <span class="kw">let</span> <span class="ident">yaml</span> <span class="op">=</span> <span class="string">r###&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_redis_single_opts_default() {
+        <span class="kw">let </span>yaml = <span class="string">r###&quot;
 server: &quot;redis://127.0.0.1:6379&quot;
 &quot;###</span>;
 
-        <span class="kw">let</span> <span class="ident">config</span>: <span class="ident">RedisConfig</span> <span class="op">=</span> <span class="ident">serde_yaml::from_str</span>(<span class="ident">yaml</span>)
-            .<span class="ident">expect</span>(<span class="string">&quot;Parsed processing redis config: single with options&quot;</span>);
+        <span class="kw">let </span>config: RedisConfig = serde_yaml::from_str(yaml)
+            .expect(<span class="string">&quot;Parsed processing redis config: single with options&quot;</span>);
 
-        <span class="kw">match</span> <span class="ident">config</span> {
-            <span class="ident">RedisConfig::SingleWithOpts</span> { <span class="ident">options</span>, .. } =&gt; {
-                <span class="comment">// check if all the defaults are correctly set</span>
-                <span class="macro">assert_eq!</span>(<span class="ident">options</span>.<span class="ident">max_connections</span>, <span class="number">24</span>);
+        <span class="kw">match </span>config {
+            RedisConfig::SingleWithOpts { options, .. } =&gt; {
+                <span class="comment">// check if all the defaults are correctly set
+                </span><span class="macro">assert_eq!</span>(options.max_connections, <span class="number">24</span>);
             }
-            <span class="ident">e</span> =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Expected RedisConfig::SingleWithOpts but got {:?}&quot;</span>, <span class="ident">e</span>),
+            e =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Expected RedisConfig::SingleWithOpts but got {:?}&quot;</span>, e),
         }
     }
 
-    <span class="comment">// To make sure that we have backwards compatibility and still support the redis configuration</span>
-    <span class="comment">// when the single `redis://...` address is provided.</span>
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_redis_single</span>() {
-        <span class="kw">let</span> <span class="ident">yaml</span> <span class="op">=</span> <span class="string">r###&quot;
+    <span class="comment">// To make sure that we have backwards compatibility and still support the redis configuration
+    // when the single `redis://...` address is provided.
+    </span><span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_redis_single() {
+        <span class="kw">let </span>yaml = <span class="string">r###&quot;
 &quot;redis://127.0.0.1:6379&quot;
 &quot;###</span>;
 
-        <span class="kw">let</span> <span class="ident">config</span>: <span class="ident">RedisConfig</span> <span class="op">=</span> <span class="ident">serde_yaml::from_str</span>(<span class="ident">yaml</span>)
-            .<span class="ident">expect</span>(<span class="string">&quot;Parsed processing redis config: single with options&quot;</span>);
+        <span class="kw">let </span>config: RedisConfig = serde_yaml::from_str(yaml)
+            .expect(<span class="string">&quot;Parsed processing redis config: single with options&quot;</span>);
 
-        <span class="kw">match</span> <span class="ident">config</span> {
-            <span class="ident">RedisConfig::Single</span>(<span class="ident">server</span>) =&gt; {
-                <span class="macro">assert_eq!</span>(<span class="ident">server</span>, <span class="string">&quot;redis://127.0.0.1:6379&quot;</span>);
+        <span class="kw">match </span>config {
+            RedisConfig::Single(server) =&gt; {
+                <span class="macro">assert_eq!</span>(server, <span class="string">&quot;redis://127.0.0.1:6379&quot;</span>);
             }
-            <span class="ident">e</span> =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Expected RedisConfig::Single but got {:?}&quot;</span>, <span class="ident">e</span>),
+            e =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Expected RedisConfig::Single but got {:?}&quot;</span>, e),
         }
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_redis" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_redis" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

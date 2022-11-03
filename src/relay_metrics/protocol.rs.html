@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-metrics/src/protocol.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>protocol.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_metrics/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_metrics/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-metrics/src/protocol.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>protocol.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_metrics/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_metrics/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_metrics/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -902,686 +902,686 @@
 <span id="900">900</span>
 <span id="901">901</span>
 <span id="902">902</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
-<span class="kw">use</span> <span class="ident">std::fmt</span>;
-<span class="kw">use</span> <span class="ident">std::iter::FusedIterator</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
+<span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::iter::FusedIterator;
 
-<span class="kw">use</span> <span class="ident">hash32</span>::{<span class="ident">FnvHasher</span>, <span class="ident">Hasher</span>};
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
+<span class="kw">use </span>hash32::{FnvHasher, Hasher};
+<span class="kw">use </span>serde::{Deserialize, Serialize};
 
-<span class="attribute">#[<span class="ident">doc</span>(<span class="ident">inline</span>)]</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">relay_common</span>::{
-    <span class="ident">CustomUnit</span>, <span class="ident">DurationUnit</span>, <span class="ident">FractionUnit</span>, <span class="ident">InformationUnit</span>, <span class="ident">MetricUnit</span>, <span class="ident">ParseMetricUnitError</span>,
-    <span class="ident">UnixTimestamp</span>,
+<span class="attribute">#[doc(inline)]
+</span><span class="kw">pub use </span>relay_common::{
+    CustomUnit, DurationUnit, FractionUnit, InformationUnit, MetricUnit, ParseMetricUnitError,
+    UnixTimestamp,
 };
 
-<span class="doccomment">/// Type used for Counter metric</span>
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">CounterType</span> <span class="op">=</span> <span class="ident">f64</span>;
+<span class="doccomment">/// Type used for Counter metric
+</span><span class="kw">pub type </span>CounterType = f64;
 
-<span class="doccomment">/// Type of distribution entries</span>
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">DistributionType</span> <span class="op">=</span> <span class="ident">f64</span>;
+<span class="doccomment">/// Type of distribution entries
+</span><span class="kw">pub type </span>DistributionType = f64;
 
-<span class="doccomment">/// Type used for set elements in Set metric</span>
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">SetType</span> <span class="op">=</span> <span class="ident">u32</span>;
+<span class="doccomment">/// Type used for set elements in Set metric
+</span><span class="kw">pub type </span>SetType = u32;
 
-<span class="doccomment">/// Type used for Gauge entries</span>
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">GaugeType</span> <span class="op">=</span> <span class="ident">f64</span>;
+<span class="doccomment">/// Type used for Gauge entries
+</span><span class="kw">pub type </span>GaugeType = f64;
 
-<span class="doccomment">/// The [typed value](Metric::value) of a metric.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">tag</span> <span class="op">=</span> <span class="string">&quot;type&quot;</span>, <span class="ident">content</span> <span class="op">=</span> <span class="string">&quot;value&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">MetricValue</span> {
-    <span class="doccomment">/// Counts instances of an event. See [`MetricType::Counter`].</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;c&quot;</span>)]</span>
-    <span class="ident">Counter</span>(<span class="ident">CounterType</span>),
-    <span class="doccomment">/// Builds a statistical distribution over values reported. See [`MetricType::Distribution`].</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;d&quot;</span>)]</span>
-    <span class="ident">Distribution</span>(<span class="ident">DistributionType</span>),
-    <span class="doccomment">/// Counts the number of unique reported values. See [`MetricType::Set`].</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Set values can be specified as strings in the submission protocol. They are always hashed</span>
-    <span class="doccomment">/// into a 32-bit value and the original value is dropped. If the submission protocol contains a</span>
-    <span class="doccomment">/// 32-bit integer, it will be used directly, instead.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;s&quot;</span>)]</span>
-    <span class="ident">Set</span>(<span class="ident">SetType</span>),
-    <span class="doccomment">/// Stores absolute snapshots of values. See [`MetricType::Gauge`].</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;g&quot;</span>)]</span>
-    <span class="ident">Gauge</span>(<span class="ident">GaugeType</span>),
+<span class="doccomment">/// The [typed value](Metric::value) of a metric.
+</span><span class="attribute">#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(tag = <span class="string">&quot;type&quot;</span>, content = <span class="string">&quot;value&quot;</span>)]
+</span><span class="kw">pub enum </span>MetricValue {
+    <span class="doccomment">/// Counts instances of an event. See [`MetricType::Counter`].
+    </span><span class="attribute">#[serde(rename = <span class="string">&quot;c&quot;</span>)]
+    </span>Counter(CounterType),
+    <span class="doccomment">/// Builds a statistical distribution over values reported. See [`MetricType::Distribution`].
+    </span><span class="attribute">#[serde(rename = <span class="string">&quot;d&quot;</span>)]
+    </span>Distribution(DistributionType),
+    <span class="doccomment">/// Counts the number of unique reported values. See [`MetricType::Set`].
+    ///
+    /// Set values can be specified as strings in the submission protocol. They are always hashed
+    /// into a 32-bit value and the original value is dropped. If the submission protocol contains a
+    /// 32-bit integer, it will be used directly, instead.
+    </span><span class="attribute">#[serde(rename = <span class="string">&quot;s&quot;</span>)]
+    </span>Set(SetType),
+    <span class="doccomment">/// Stores absolute snapshots of values. See [`MetricType::Gauge`].
+    </span><span class="attribute">#[serde(rename = <span class="string">&quot;g&quot;</span>)]
+    </span>Gauge(GaugeType),
 }
 
-<span class="kw">impl</span> <span class="ident">MetricValue</span> {
-    <span class="doccomment">/// Creates a [`MetricValue::Set`] from the given string.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_from_str</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident"><span class="self">Self</span>::Set</span>(<span class="ident">hash_set_value</span>(<span class="ident">string</span>))
+<span class="kw">impl </span>MetricValue {
+    <span class="doccomment">/// Creates a [`MetricValue::Set`] from the given string.
+    </span><span class="kw">pub fn </span>set_from_str(string: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::Set(hash_set_value(string))
     }
 
-    <span class="doccomment">/// Creates a [`MetricValue::Set`] from any type that implements `Display`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_from_display</span>(<span class="ident">display</span>: <span class="kw">impl</span> <span class="ident">fmt::Display</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident"><span class="self">Self</span>::set_from_str</span>(<span class="kw-2">&amp;</span><span class="ident">display</span>.<span class="ident">to_string</span>())
+    <span class="doccomment">/// Creates a [`MetricValue::Set`] from any type that implements `Display`.
+    </span><span class="kw">pub fn </span>set_from_display(display: <span class="kw">impl </span>fmt::Display) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::set_from_str(<span class="kw-2">&amp;</span>display.to_string())
     }
 
-    <span class="doccomment">/// Returns the type of this value.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">ty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">MetricType</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident"><span class="self">Self</span>::Counter</span>(<span class="kw">_</span>) =&gt; <span class="ident">MetricType::Counter</span>,
-            <span class="ident"><span class="self">Self</span>::Distribution</span>(<span class="kw">_</span>) =&gt; <span class="ident">MetricType::Distribution</span>,
-            <span class="ident"><span class="self">Self</span>::Set</span>(<span class="kw">_</span>) =&gt; <span class="ident">MetricType::Set</span>,
-            <span class="ident"><span class="self">Self</span>::Gauge</span>(<span class="kw">_</span>) =&gt; <span class="ident">MetricType::Gauge</span>,
+    <span class="doccomment">/// Returns the type of this value.
+    </span><span class="kw">pub fn </span>ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; MetricType {
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::Counter(<span class="kw">_</span>) =&gt; MetricType::Counter,
+            <span class="self">Self</span>::Distribution(<span class="kw">_</span>) =&gt; MetricType::Distribution,
+            <span class="self">Self</span>::Set(<span class="kw">_</span>) =&gt; MetricType::Set,
+            <span class="self">Self</span>::Gauge(<span class="kw">_</span>) =&gt; MetricType::Gauge,
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">MetricValue</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">MetricValue::Counter</span>(<span class="ident">value</span>) =&gt; <span class="ident">value</span>.<span class="ident">fmt</span>(<span class="ident">f</span>),
-            <span class="ident">MetricValue::Distribution</span>(<span class="ident">value</span>) =&gt; <span class="ident">value</span>.<span class="ident">fmt</span>(<span class="ident">f</span>),
-            <span class="ident">MetricValue::Set</span>(<span class="ident">value</span>) =&gt; <span class="ident">value</span>.<span class="ident">fmt</span>(<span class="ident">f</span>),
-            <span class="ident">MetricValue::Gauge</span>(<span class="ident">value</span>) =&gt; <span class="ident">value</span>.<span class="ident">fmt</span>(<span class="ident">f</span>),
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>MetricValue {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">match </span><span class="self">self </span>{
+            MetricValue::Counter(value) =&gt; value.fmt(f),
+            MetricValue::Distribution(value) =&gt; value.fmt(f),
+            MetricValue::Set(value) =&gt; value.fmt(f),
+            MetricValue::Gauge(value) =&gt; value.fmt(f),
         }
     }
 }
 
-<span class="doccomment">/// The type of a [`MetricValue`], determining its aggregation and evaluation.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">MetricType</span> {
-    <span class="doccomment">/// Counts instances of an event.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Counters can be incremented and decremented. The default operation is to increment a counter</span>
-    <span class="doccomment">/// by `1`, although increments by larger values are equally possible.</span>
-    <span class="ident">Counter</span>,
-    <span class="doccomment">/// Builds a statistical distribution over values reported.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Based on individual reported values, distributions allow to query the maximum, minimum, or</span>
-    <span class="doccomment">/// average of the reported values, as well as statistical quantiles. With an increasing number</span>
-    <span class="doccomment">/// of values in the distribution, its accuracy becomes approximate.</span>
-    <span class="ident">Distribution</span>,
-    <span class="doccomment">/// Counts the number of unique reported values.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Sets allow sending arbitrary discrete values, including strings, and store the deduplicated</span>
-    <span class="doccomment">/// count. With an increasing number of unique values in the set, its accuracy becomes</span>
-    <span class="doccomment">/// approximate. It is not possible to query individual values from a set.</span>
-    <span class="ident">Set</span>,
-    <span class="doccomment">/// Stores absolute snapshots of values.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// In addition to plain [counters](Self::Counter), gauges store a snapshot of the maximum,</span>
-    <span class="doccomment">/// minimum and sum of all values, as well as the last reported value.</span>
-    <span class="ident">Gauge</span>,
+<span class="doccomment">/// The type of a [`MetricValue`], determining its aggregation and evaluation.
+</span><span class="attribute">#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+</span><span class="kw">pub enum </span>MetricType {
+    <span class="doccomment">/// Counts instances of an event.
+    ///
+    /// Counters can be incremented and decremented. The default operation is to increment a counter
+    /// by `1`, although increments by larger values are equally possible.
+    </span>Counter,
+    <span class="doccomment">/// Builds a statistical distribution over values reported.
+    ///
+    /// Based on individual reported values, distributions allow to query the maximum, minimum, or
+    /// average of the reported values, as well as statistical quantiles. With an increasing number
+    /// of values in the distribution, its accuracy becomes approximate.
+    </span>Distribution,
+    <span class="doccomment">/// Counts the number of unique reported values.
+    ///
+    /// Sets allow sending arbitrary discrete values, including strings, and store the deduplicated
+    /// count. With an increasing number of unique values in the set, its accuracy becomes
+    /// approximate. It is not possible to query individual values from a set.
+    </span>Set,
+    <span class="doccomment">/// Stores absolute snapshots of values.
+    ///
+    /// In addition to plain [counters](Self::Counter), gauges store a snapshot of the maximum,
+    /// minimum and sum of all values, as well as the last reported value.
+    </span>Gauge,
 }
 
-<span class="kw">impl</span> <span class="ident">MetricType</span> {
-    <span class="doccomment">/// Return the shortcode for this metric type.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">MetricType::Counter</span> =&gt; <span class="string">&quot;c&quot;</span>,
-            <span class="ident">MetricType::Distribution</span> =&gt; <span class="string">&quot;d&quot;</span>,
-            <span class="ident">MetricType::Set</span> =&gt; <span class="string">&quot;s&quot;</span>,
-            <span class="ident">MetricType::Gauge</span> =&gt; <span class="string">&quot;g&quot;</span>,
+<span class="kw">impl </span>MetricType {
+    <span class="doccomment">/// Return the shortcode for this metric type.
+    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            MetricType::Counter =&gt; <span class="string">&quot;c&quot;</span>,
+            MetricType::Distribution =&gt; <span class="string">&quot;d&quot;</span>,
+            MetricType::Set =&gt; <span class="string">&quot;s&quot;</span>,
+            MetricType::Gauge =&gt; <span class="string">&quot;g&quot;</span>,
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">MetricType</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="self">self</span>.<span class="ident">as_str</span>())
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>MetricType {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        f.write_str(<span class="self">self</span>.as_str())
     }
 }
 
-<span class="kw">impl</span> <span class="ident">std::str::FromStr</span> <span class="kw">for</span> <span class="ident">MetricType</span> {
-    <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="ident">ParseMetricError</span>;
+<span class="kw">impl </span>std::str::FromStr <span class="kw">for </span>MetricType {
+    <span class="kw">type </span><span class="prelude-val">Err </span>= ParseMetricError;
 
-    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
-        <span class="prelude-val">Ok</span>(<span class="kw">match</span> <span class="ident">s</span> {
-            <span class="string">&quot;c&quot;</span> <span class="op">|</span> <span class="string">&quot;m&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Counter</span>,
-            <span class="string">&quot;h&quot;</span> <span class="op">|</span> <span class="string">&quot;d&quot;</span> <span class="op">|</span> <span class="string">&quot;ms&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Distribution</span>,
-            <span class="string">&quot;s&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Set</span>,
-            <span class="string">&quot;g&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Gauge</span>,
-            <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ParseMetricError</span>(())),
+    <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
+        <span class="prelude-val">Ok</span>(<span class="kw">match </span>s {
+            <span class="string">&quot;c&quot; </span>| <span class="string">&quot;m&quot; </span>=&gt; <span class="self">Self</span>::Counter,
+            <span class="string">&quot;h&quot; </span>| <span class="string">&quot;d&quot; </span>| <span class="string">&quot;ms&quot; </span>=&gt; <span class="self">Self</span>::Distribution,
+            <span class="string">&quot;s&quot; </span>=&gt; <span class="self">Self</span>::Set,
+            <span class="string">&quot;g&quot; </span>=&gt; <span class="self">Self</span>::Gauge,
+            <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(ParseMetricError(())),
         })
     }
 }
 
-<span class="macro">relay_common::impl_str_serde!</span>(<span class="ident">MetricType</span>, <span class="string">&quot;a metric type string&quot;</span>);
+<span class="macro">relay_common::impl_str_serde!</span>(MetricType, <span class="string">&quot;a metric type string&quot;</span>);
 
-<span class="doccomment">/// An error returned by [`Metric::parse`] and [`Metric::parse_all`].</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ParseMetricError</span>(());
+<span class="doccomment">/// An error returned by [`Metric::parse`] and [`Metric::parse_all`].
+</span><span class="attribute">#[derive(Clone, Copy, Debug)]
+</span><span class="kw">pub struct </span>ParseMetricError(());
 
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">ParseMetricError</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;failed to parse metric&quot;</span>)
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>ParseMetricError {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;failed to parse metric&quot;</span>)
     }
 }
 
-<span class="doccomment">/// Validates a metric name. This is the statsd name, i.e. without type or unit.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Metric names cannot be empty, must begin with a letter and can consist of ASCII alphanumerics,</span>
-<span class="doccomment">/// underscores, slashes and periods.</span>
-<span class="kw">fn</span> <span class="ident">is_valid_name</span>(<span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">bool</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">iter</span> <span class="op">=</span> <span class="ident">name</span>.<span class="ident">as_bytes</span>().<span class="ident">iter</span>();
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">first_byte</span>) <span class="op">=</span> <span class="ident">iter</span>.<span class="ident">next</span>() {
-        <span class="kw">if</span> <span class="ident">first_byte</span>.<span class="ident">is_ascii_alphabetic</span>() {
-            <span class="kw">return</span> <span class="ident">iter</span>.<span class="ident">all</span>(<span class="op">|</span><span class="ident">b</span><span class="op">|</span> <span class="ident">b</span>.<span class="ident">is_ascii_alphanumeric</span>() <span class="op">|</span><span class="op">|</span> <span class="macro">matches!</span>(<span class="ident">b</span>, <span class="string">b&#39;.&#39;</span> <span class="op">|</span> <span class="string">b&#39;_&#39;</span> <span class="op">|</span> <span class="string">b&#39;/&#39;</span>));
+<span class="doccomment">/// Validates a metric name. This is the statsd name, i.e. without type or unit.
+///
+/// Metric names cannot be empty, must begin with a letter and can consist of ASCII alphanumerics,
+/// underscores, slashes and periods.
+</span><span class="kw">fn </span>is_valid_name(name: <span class="kw-2">&amp;</span>str) -&gt; bool {
+    <span class="kw">let </span><span class="kw-2">mut </span>iter = name.as_bytes().iter();
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(first_byte) = iter.next() {
+        <span class="kw">if </span>first_byte.is_ascii_alphabetic() {
+            <span class="kw">return </span>iter.all(|b| b.is_ascii_alphanumeric() || <span class="macro">matches!</span>(b, <span class="string">b&#39;.&#39; </span>| <span class="string">b&#39;_&#39; </span>| <span class="string">b&#39;/&#39;</span>));
         }
     }
-    <span class="bool-val">false</span>
+    <span class="bool-val">false
+</span>}
+
+<span class="doccomment">/// The namespace of a metric.
+///
+/// Namespaces allow to identify the product entity that the metric got extracted from, and/or
+/// identify the use case that the metric belongs to. These namespaces cannot be defined freely,
+/// instead they are defined by Sentry. Over time, there will be more namespaces as we introduce
+/// new metrics-based products.
+///
+/// Right now this successfully deserializes any kind of string, but in reality only `&quot;sessions&quot;`
+/// (for release health) and `&quot;transactions&quot;` (for metrics-enhanced performance) is supported.
+/// Everything else is dropped both in the metrics aggregator and in the store actor.
+</span><span class="attribute">#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+</span><span class="kw">pub enum </span>MetricNamespace {
+    <span class="doccomment">/// Metrics extracted from sessions.
+    </span>Sessions,
+    <span class="doccomment">/// Metrics extracted from transaction events.
+    </span>Transactions,
+    <span class="doccomment">/// Metrics that relay either doesn&#39;t know or recognize the namespace of, will be dropped before
+    /// aggregating. For instance, an MRI of `c:something_new/foo@none` has the namespace
+    /// `something_new`, but as Relay doesn&#39;t support that namespace, it gets deserialized into
+    /// this variant.
+    ///
+    /// Relay currently drops all metrics whose namespace ends up being deserialized as
+    /// `unsupported`. We may revise that in the future.
+    </span>Unsupported,
 }
 
-<span class="doccomment">/// The namespace of a metric.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Namespaces allow to identify the product entity that the metric got extracted from, and/or</span>
-<span class="doccomment">/// identify the use case that the metric belongs to. These namespaces cannot be defined freely,</span>
-<span class="doccomment">/// instead they are defined by Sentry. Over time, there will be more namespaces as we introduce</span>
-<span class="doccomment">/// new metrics-based products.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Right now this successfully deserializes any kind of string, but in reality only `&quot;sessions&quot;`</span>
-<span class="doccomment">/// (for release health) and `&quot;transactions&quot;` (for metrics-enhanced performance) is supported.</span>
-<span class="doccomment">/// Everything else is dropped both in the metrics aggregator and in the store actor.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">MetricNamespace</span> {
-    <span class="doccomment">/// Metrics extracted from sessions.</span>
-    <span class="ident">Sessions</span>,
-    <span class="doccomment">/// Metrics extracted from transaction events.</span>
-    <span class="ident">Transactions</span>,
-    <span class="doccomment">/// Metrics that relay either doesn&#39;t know or recognize the namespace of, will be dropped before</span>
-    <span class="doccomment">/// aggregating. For instance, an MRI of `c:something_new/foo@none` has the namespace</span>
-    <span class="doccomment">/// `something_new`, but as Relay doesn&#39;t support that namespace, it gets deserialized into</span>
-    <span class="doccomment">/// this variant.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Relay currently drops all metrics whose namespace ends up being deserialized as</span>
-    <span class="doccomment">/// `unsupported`. We may revise that in the future.</span>
-    <span class="ident">Unsupported</span>,
-}
+<span class="kw">impl </span>std::str::FromStr <span class="kw">for </span>MetricNamespace {
+    <span class="kw">type </span><span class="prelude-val">Err </span>= ParseMetricError;
 
-<span class="kw">impl</span> <span class="ident">std::str::FromStr</span> <span class="kw">for</span> <span class="ident">MetricNamespace</span> {
-    <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="ident">ParseMetricError</span>;
-
-    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">ns</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="ident">ns</span> {
-            <span class="string">&quot;sessions&quot;</span> =&gt; <span class="prelude-val">Ok</span>(<span class="ident">MetricNamespace::Sessions</span>),
-            <span class="string">&quot;transactions&quot;</span> =&gt; <span class="prelude-val">Ok</span>(<span class="ident">MetricNamespace::Transactions</span>),
-            <span class="kw">_</span> =&gt; <span class="prelude-val">Ok</span>(<span class="ident">MetricNamespace::Unsupported</span>),
-        }
-    }
-}
-
-<span class="macro">relay_common::impl_str_serde!</span>(<span class="ident">MetricNamespace</span>, <span class="string">&quot;a valid metric namespace&quot;</span>);
-
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">MetricNamespace</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">MetricNamespace::Sessions</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;sessions&quot;</span>),
-            <span class="ident">MetricNamespace::Transactions</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;transactions&quot;</span>),
-            <span class="ident">MetricNamespace::Unsupported</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;unsupported&quot;</span>),
+    <span class="kw">fn </span>from_str(ns: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
+        <span class="kw">match </span>ns {
+            <span class="string">&quot;sessions&quot; </span>=&gt; <span class="prelude-val">Ok</span>(MetricNamespace::Sessions),
+            <span class="string">&quot;transactions&quot; </span>=&gt; <span class="prelude-val">Ok</span>(MetricNamespace::Transactions),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(MetricNamespace::Unsupported),
         }
     }
 }
 
-<span class="doccomment">/// A metric name parsed as MRI, a naming scheme which includes most of the metric&#39;s bucket key</span>
-<span class="doccomment">/// (excl. timestamp and tags).</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// For more information see [`Metric::name`].</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MetricResourceIdentifier</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="doccomment">/// The metric type.</span>
-    <span class="kw">pub</span> <span class="ident">ty</span>: <span class="ident">MetricType</span>,
-    <span class="doccomment">/// The namespace/usecase for this metric. For example `sessions` or `transactions`. In the</span>
-    <span class="doccomment">/// case of the statsd protocol, a missing namespace is converted into the valueconverted into</span>
-    <span class="doccomment">/// the value `&quot;custom&quot;`.</span>
-    <span class="kw">pub</span> <span class="ident">namespace</span>: <span class="ident">MetricNamespace</span>,
-    <span class="doccomment">/// The actual name, such as `duration` as part of `d:transactions/duration@ms`</span>
-    <span class="kw">pub</span> <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>,
-    <span class="doccomment">/// The metric unit.</span>
-    <span class="kw">pub</span> <span class="ident">unit</span>: <span class="ident">MetricUnit</span>,
+<span class="macro">relay_common::impl_str_serde!</span>(MetricNamespace, <span class="string">&quot;a valid metric namespace&quot;</span>);
+
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>MetricNamespace {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">match </span><span class="self">self </span>{
+            MetricNamespace::Sessions =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;sessions&quot;</span>),
+            MetricNamespace::Transactions =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;transactions&quot;</span>),
+            MetricNamespace::Unsupported =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;unsupported&quot;</span>),
+        }
+    }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">MetricResourceIdentifier</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="doccomment">/// Parses and validates an MRI of the form `&lt;ty&gt;:&lt;ns&gt;/&lt;name&gt;@&lt;unit&gt;`</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ParseMetricError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> (<span class="ident">raw_ty</span>, <span class="ident">rest</span>) <span class="op">=</span> <span class="ident">name</span>.<span class="ident">split_once</span>(<span class="string">&#39;:&#39;</span>).<span class="ident">ok_or</span>(<span class="ident">ParseMetricError</span>(()))<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">ty</span> <span class="op">=</span> <span class="ident">raw_ty</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>;
+<span class="doccomment">/// A metric name parsed as MRI, a naming scheme which includes most of the metric&#39;s bucket key
+/// (excl. timestamp and tags).
+///
+/// For more information see [`Metric::name`].
+</span><span class="kw">pub struct </span>MetricResourceIdentifier&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="doccomment">/// The metric type.
+    </span><span class="kw">pub </span>ty: MetricType,
+    <span class="doccomment">/// The namespace/usecase for this metric. For example `sessions` or `transactions`. In the
+    /// case of the statsd protocol, a missing namespace is converted into the valueconverted into
+    /// the value `&quot;custom&quot;`.
+    </span><span class="kw">pub </span>namespace: MetricNamespace,
+    <span class="doccomment">/// The actual name, such as `duration` as part of `d:transactions/duration@ms`
+    </span><span class="kw">pub </span>name: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str,
+    <span class="doccomment">/// The metric unit.
+    </span><span class="kw">pub </span>unit: MetricUnit,
+}
 
-        <span class="kw">let</span> (<span class="ident">raw_namespace</span>, <span class="ident">rest</span>) <span class="op">=</span> <span class="ident">rest</span>.<span class="ident">split_once</span>(<span class="string">&#39;/&#39;</span>).<span class="ident">ok_or</span>(<span class="ident">ParseMetricError</span>(()))<span class="question-mark">?</span>;
-        <span class="kw">let</span> (<span class="ident">name</span>, <span class="ident">unit</span>) <span class="op">=</span> <span class="ident">parse_name_unit</span>(<span class="ident">rest</span>).<span class="ident">ok_or</span>(<span class="ident">ParseMetricError</span>(()))<span class="question-mark">?</span>;
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; MetricResourceIdentifier&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="doccomment">/// Parses and validates an MRI of the form `&lt;ty&gt;:&lt;ns&gt;/&lt;name&gt;@&lt;unit&gt;`
+    </span><span class="kw">pub fn </span>parse(name: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ParseMetricError&gt; {
+        <span class="kw">let </span>(raw_ty, rest) = name.split_once(<span class="string">&#39;:&#39;</span>).ok_or(ParseMetricError(()))<span class="question-mark">?</span>;
+        <span class="kw">let </span>ty = raw_ty.parse()<span class="question-mark">?</span>;
 
-        <span class="prelude-val">Ok</span>(<span class="self">Self</span> {
-            <span class="ident">ty</span>,
-            <span class="ident">namespace</span>: <span class="ident">raw_namespace</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>,
-            <span class="ident">name</span>,
-            <span class="ident">unit</span>,
+        <span class="kw">let </span>(raw_namespace, rest) = rest.split_once(<span class="string">&#39;/&#39;</span>).ok_or(ParseMetricError(()))<span class="question-mark">?</span>;
+        <span class="kw">let </span>(name, unit) = parse_name_unit(rest).ok_or(ParseMetricError(()))<span class="question-mark">?</span>;
+
+        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
+            ty,
+            namespace: raw_namespace.parse()<span class="question-mark">?</span>,
+            name,
+            unit,
         })
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">MetricResourceIdentifier</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="comment">// `&lt;ty&gt;:&lt;ns&gt;/&lt;name&gt;@&lt;unit&gt;`</span>
-        <span class="macro">write!</span>(
-            <span class="ident">f</span>,
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; fmt::Display <span class="kw">for </span>MetricResourceIdentifier&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="comment">// `&lt;ty&gt;:&lt;ns&gt;/&lt;name&gt;@&lt;unit&gt;`
+        </span><span class="macro">write!</span>(
+            f,
             <span class="string">&quot;{}:{}/{}@{}&quot;</span>,
-            <span class="self">self</span>.<span class="ident">ty</span>, <span class="self">self</span>.<span class="ident">namespace</span>, <span class="self">self</span>.<span class="ident">name</span>, <span class="self">self</span>.<span class="ident">unit</span>
+            <span class="self">self</span>.ty, <span class="self">self</span>.namespace, <span class="self">self</span>.name, <span class="self">self</span>.unit
         )
     }
 }
 
-<span class="doccomment">/// Validates a tag key.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Tag keys currently only need to not contain ASCII control characters. This might change.</span>
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">is_valid_tag_key</span>(<span class="ident">tag_key</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">bool</span> {
-    <span class="comment">// iterating over bytes produces better asm, and we&#39;re only checking for ascii chars</span>
-    <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="ident">byte</span> <span class="kw">in</span> <span class="ident">tag_key</span>.<span class="ident">as_bytes</span>() {
-        <span class="kw">if</span> (<span class="ident">byte</span> <span class="kw">as</span> <span class="ident">char</span>).<span class="ident">is_ascii_control</span>() {
-            <span class="kw">return</span> <span class="bool-val">false</span>;
+<span class="doccomment">/// Validates a tag key.
+///
+/// Tag keys currently only need to not contain ASCII control characters. This might change.
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>is_valid_tag_key(tag_key: <span class="kw-2">&amp;</span>str) -&gt; bool {
+    <span class="comment">// iterating over bytes produces better asm, and we&#39;re only checking for ascii chars
+    </span><span class="kw">for </span><span class="kw-2">&amp;</span>byte <span class="kw">in </span>tag_key.as_bytes() {
+        <span class="kw">if </span>(byte <span class="kw">as </span>char).is_ascii_control() {
+            <span class="kw">return </span><span class="bool-val">false</span>;
         }
     }
-    <span class="bool-val">true</span>
+    <span class="bool-val">true
+</span>}
+
+<span class="doccomment">/// Validates a tag value.
+///
+/// Tag values are never entirely rejected, but invalid characters (ASCII control characters) are
+/// stripped out.
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>validate_tag_value(tag_value: <span class="kw-2">&amp;mut </span>String) {
+    tag_value.retain(|c| !c.is_ascii_control());
 }
 
-<span class="doccomment">/// Validates a tag value.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Tag values are never entirely rejected, but invalid characters (ASCII control characters) are</span>
-<span class="doccomment">/// stripped out.</span>
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">validate_tag_value</span>(<span class="ident">tag_value</span>: <span class="kw-2">&amp;mut</span> <span class="ident">String</span>) {
-    <span class="ident">tag_value</span>.<span class="ident">retain</span>(<span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="op">!</span><span class="ident">c</span>.<span class="ident">is_ascii_control</span>());
-}
-
-<span class="doccomment">/// Parses the `name[@unit]` part of a metric string.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Returns [`MetricUnit::None`] if no unit is specified. Returns `None` if the name or value are</span>
-<span class="doccomment">/// invalid.</span>
-<span class="kw">fn</span> <span class="ident">parse_name_unit</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">MetricUnit</span>)<span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">components</span> <span class="op">=</span> <span class="ident">string</span>.<span class="ident">split</span>(<span class="string">&#39;@&#39;</span>);
-    <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">components</span>.<span class="ident">next</span>()<span class="question-mark">?</span>;
-    <span class="kw">if</span> <span class="op">!</span><span class="ident">is_valid_name</span>(<span class="ident">name</span>) {
-        <span class="kw">return</span> <span class="prelude-val">None</span>;
+<span class="doccomment">/// Parses the `name[@unit]` part of a metric string.
+///
+/// Returns [`MetricUnit::None`] if no unit is specified. Returns `None` if the name or value are
+/// invalid.
+</span><span class="kw">fn </span>parse_name_unit(string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;(<span class="kw-2">&amp;</span>str, MetricUnit)&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>components = string.split(<span class="string">&#39;@&#39;</span>);
+    <span class="kw">let </span>name = components.next()<span class="question-mark">?</span>;
+    <span class="kw">if </span>!is_valid_name(name) {
+        <span class="kw">return </span><span class="prelude-val">None</span>;
     }
 
-    <span class="kw">let</span> <span class="ident">unit</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">components</span>.<span class="ident">next</span>() {
-        <span class="prelude-val">Some</span>(<span class="ident">s</span>) =&gt; <span class="ident">s</span>.<span class="ident">parse</span>().<span class="ident">ok</span>()<span class="question-mark">?</span>,
-        <span class="prelude-val">None</span> =&gt; <span class="ident">MetricUnit::default</span>(),
+    <span class="kw">let </span>unit = <span class="kw">match </span>components.next() {
+        <span class="prelude-val">Some</span>(s) =&gt; s.parse().ok()<span class="question-mark">?</span>,
+        <span class="prelude-val">None </span>=&gt; MetricUnit::default(),
     };
 
-    <span class="prelude-val">Some</span>((<span class="ident">name</span>, <span class="ident">unit</span>))
+    <span class="prelude-val">Some</span>((name, unit))
 }
 
-<span class="doccomment">/// Hashes the given set value.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Sets only guarantee 32-bit accuracy, but arbitrary strings are allowed on the protocol. Upon</span>
-<span class="doccomment">/// parsing, they are hashed and only used as hashes subsequently.</span>
-<span class="kw">fn</span> <span class="ident">hash_set_value</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">u32</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">hasher</span> <span class="op">=</span> <span class="ident">FnvHasher::default</span>();
-    <span class="ident">hasher</span>.<span class="ident">write</span>(<span class="ident">string</span>.<span class="ident">as_bytes</span>());
-    <span class="ident">hasher</span>.<span class="ident">finish</span>()
+<span class="doccomment">/// Hashes the given set value.
+///
+/// Sets only guarantee 32-bit accuracy, but arbitrary strings are allowed on the protocol. Upon
+/// parsing, they are hashed and only used as hashes subsequently.
+</span><span class="kw">fn </span>hash_set_value(string: <span class="kw-2">&amp;</span>str) -&gt; u32 {
+    <span class="kw">let </span><span class="kw-2">mut </span>hasher = FnvHasher::default();
+    hasher.write(string.as_bytes());
+    hasher.finish()
 }
 
-<span class="doccomment">/// Parses a metric value given its type.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Returns `None` if the value is invalid for the given type.</span>
-<span class="kw">fn</span> <span class="ident">parse_value</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">ty</span>: <span class="ident">MetricType</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">MetricValue</span><span class="op">&gt;</span> {
-    <span class="prelude-val">Some</span>(<span class="kw">match</span> <span class="ident">ty</span> {
-        <span class="ident">MetricType::Counter</span> =&gt; <span class="ident">MetricValue::Counter</span>(<span class="ident">string</span>.<span class="ident">parse</span>().<span class="ident">ok</span>()<span class="question-mark">?</span>),
-        <span class="ident">MetricType::Distribution</span> =&gt; <span class="ident">MetricValue::Distribution</span>(<span class="ident">string</span>.<span class="ident">parse</span>().<span class="ident">ok</span>()<span class="question-mark">?</span>),
-        <span class="ident">MetricType::Set</span> =&gt; {
-            <span class="ident">MetricValue::Set</span>(<span class="ident">string</span>.<span class="ident">parse</span>().<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">hash_set_value</span>(<span class="ident">string</span>)))
+<span class="doccomment">/// Parses a metric value given its type.
+///
+/// Returns `None` if the value is invalid for the given type.
+</span><span class="kw">fn </span>parse_value(string: <span class="kw-2">&amp;</span>str, ty: MetricType) -&gt; <span class="prelude-ty">Option</span>&lt;MetricValue&gt; {
+    <span class="prelude-val">Some</span>(<span class="kw">match </span>ty {
+        MetricType::Counter =&gt; MetricValue::Counter(string.parse().ok()<span class="question-mark">?</span>),
+        MetricType::Distribution =&gt; MetricValue::Distribution(string.parse().ok()<span class="question-mark">?</span>),
+        MetricType::Set =&gt; {
+            MetricValue::Set(string.parse().unwrap_or_else(|<span class="kw">_</span>| hash_set_value(string)))
         }
-        <span class="ident">MetricType::Gauge</span> =&gt; <span class="ident">MetricValue::Gauge</span>(<span class="ident">string</span>.<span class="ident">parse</span>().<span class="ident">ok</span>()<span class="question-mark">?</span>),
+        MetricType::Gauge =&gt; MetricValue::Gauge(string.parse().ok()<span class="question-mark">?</span>),
     })
 }
 
-<span class="doccomment">/// Parses the `name[@unit]:value` part of a metric string.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Returns [`MetricUnit::None`] if no unit is specified. Returns `None` if any of the components is</span>
-<span class="doccomment">/// invalid.</span>
-<span class="kw">fn</span> <span class="ident">parse_name_unit_value</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">ty</span>: <span class="ident">MetricType</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">MetricUnit</span>, <span class="ident">MetricValue</span>)<span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">components</span> <span class="op">=</span> <span class="ident">string</span>.<span class="ident">splitn</span>(<span class="number">2</span>, <span class="string">&#39;:&#39;</span>);
-    <span class="kw">let</span> (<span class="ident">name</span>, <span class="ident">unit</span>) <span class="op">=</span> <span class="ident">components</span>.<span class="ident">next</span>().<span class="ident">and_then</span>(<span class="ident">parse_name_unit</span>)<span class="question-mark">?</span>;
-    <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">components</span>.<span class="ident">next</span>().<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">parse_value</span>(<span class="ident">s</span>, <span class="ident">ty</span>))<span class="question-mark">?</span>;
-    <span class="prelude-val">Some</span>((<span class="ident">name</span>, <span class="ident">unit</span>, <span class="ident">value</span>))
+<span class="doccomment">/// Parses the `name[@unit]:value` part of a metric string.
+///
+/// Returns [`MetricUnit::None`] if no unit is specified. Returns `None` if any of the components is
+/// invalid.
+</span><span class="kw">fn </span>parse_name_unit_value(string: <span class="kw-2">&amp;</span>str, ty: MetricType) -&gt; <span class="prelude-ty">Option</span>&lt;(<span class="kw-2">&amp;</span>str, MetricUnit, MetricValue)&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>components = string.splitn(<span class="number">2</span>, <span class="string">&#39;:&#39;</span>);
+    <span class="kw">let </span>(name, unit) = components.next().and_then(parse_name_unit)<span class="question-mark">?</span>;
+    <span class="kw">let </span>value = components.next().and_then(|s| parse_value(s, ty))<span class="question-mark">?</span>;
+    <span class="prelude-val">Some</span>((name, unit, value))
 }
 
-<span class="doccomment">/// Parses tags in the format `tag1,tag2:value`.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Tag values are optional. For tags with missing values, an empty `&quot;&quot;` value is assumed.</span>
-<span class="kw">fn</span> <span class="ident">parse_tags</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">String</span><span class="op">&gt;</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">BTreeMap::new</span>();
+<span class="doccomment">/// Parses tags in the format `tag1,tag2:value`.
+///
+/// Tag values are optional. For tags with missing values, an empty `&quot;&quot;` value is assumed.
+</span><span class="kw">fn </span>parse_tags(string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;BTreeMap&lt;String, String&gt;&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>map = BTreeMap::new();
 
-    <span class="kw">for</span> <span class="ident">pair</span> <span class="kw">in</span> <span class="ident">string</span>.<span class="ident">split</span>(<span class="string">&#39;,&#39;</span>) {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">name_value</span> <span class="op">=</span> <span class="ident">pair</span>.<span class="ident">splitn</span>(<span class="number">2</span>, <span class="string">&#39;:&#39;</span>);
+    <span class="kw">for </span>pair <span class="kw">in </span>string.split(<span class="string">&#39;,&#39;</span>) {
+        <span class="kw">let </span><span class="kw-2">mut </span>name_value = pair.splitn(<span class="number">2</span>, <span class="string">&#39;:&#39;</span>);
 
-        <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">name_value</span>.<span class="ident">next</span>()<span class="question-mark">?</span>;
-        <span class="kw">if</span> <span class="op">!</span><span class="ident">is_valid_tag_key</span>(<span class="ident">name</span>) {
+        <span class="kw">let </span>name = name_value.next()<span class="question-mark">?</span>;
+        <span class="kw">if </span>!is_valid_tag_key(name) {
             <span class="kw">continue</span>;
         }
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">name_value</span>.<span class="ident">next</span>().<span class="ident">unwrap_or_default</span>().<span class="ident">to_owned</span>();
+        <span class="kw">let </span><span class="kw-2">mut </span>value = name_value.next().unwrap_or_default().to_owned();
 
-        <span class="ident">validate_tag_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">value</span>);
+        validate_tag_value(<span class="kw-2">&amp;mut </span>value);
 
-        <span class="ident">map</span>.<span class="ident">insert</span>(<span class="ident">name</span>.<span class="ident">to_owned</span>(), <span class="ident">value</span>);
+        map.insert(name.to_owned(), value);
     }
 
-    <span class="prelude-val">Some</span>(<span class="ident">map</span>)
+    <span class="prelude-val">Some</span>(map)
 }
 
-<span class="doccomment">/// A single metric value representing the payload sent from clients.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// As opposed to bucketed metric aggregations, this single metrics always represent a single</span>
-<span class="doccomment">/// submission and cannot store multiple values.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// See the [crate documentation](crate) for general information on Metrics.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// # Submission Protocol</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```text</span>
-<span class="doccomment">/// &lt;name&gt;[@unit]:&lt;value&gt;|&lt;type&gt;|#&lt;tag_key&gt;:&lt;tag_value&gt;,&lt;tag&gt;</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// See the field documentation on this struct for more information on the components. An example</span>
-<span class="doccomment">/// submission looks like this:</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```text</span>
-<span class="doccomment">/// endpoint.response_time@millisecond:57|d|#route:user_index</span>
-<span class="doccomment">/// endpoint.hits:1|c|#route:user_index</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// To parse a submission payload, use [`Metric::parse_all`].</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// # JSON Representation</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// In addition to the submission protocol, metrics can be represented as structured data in JSON.</span>
-<span class="doccomment">/// In addition to the field values from the submission protocol, a timestamp is added to every</span>
-<span class="doccomment">/// metric (see [crate documentation](crate)).</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```json</span>
-<span class="doccomment">/// {</span>
-<span class="doccomment">///   &quot;name&quot;: &quot;endpoint.response_time&quot;,</span>
-<span class="doccomment">///   &quot;unit&quot;: &quot;millisecond&quot;,</span>
-<span class="doccomment">///   &quot;value&quot;: 57,</span>
-<span class="doccomment">///   &quot;type&quot;: &quot;d&quot;,</span>
-<span class="doccomment">///   &quot;timestamp&quot;: 1615889449,</span>
-<span class="doccomment">///   &quot;tags&quot;: {</span>
-<span class="doccomment">///     &quot;route&quot;: &quot;user_index&quot;</span>
-<span class="doccomment">///   }</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// # Hashing of Sets</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Set values can be specified as strings in the submission protocol. They are always hashed</span>
-<span class="doccomment">/// into a 32-bit value and the original value is dropped. If the submission protocol contains a</span>
-<span class="doccomment">/// 32-bit integer, it will be used directly, instead.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// **Example**:</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```text</span>
-<span class="doccomment">/// endpoint.users:e2546e4c-ecd0-43ad-ae27-87960e57a658|s</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The above submission is represented as:</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```json</span>
-<span class="doccomment">/// {</span>
-<span class="doccomment">///   &quot;name&quot;: &quot;endpoint.users&quot;,</span>
-<span class="doccomment">///   &quot;value&quot;: 4267882815,</span>
-<span class="doccomment">///   &quot;type&quot;: &quot;s&quot;</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">/// ```</span>
+<span class="doccomment">/// A single metric value representing the payload sent from clients.
+///
+/// As opposed to bucketed metric aggregations, this single metrics always represent a single
+/// submission and cannot store multiple values.
+///
+/// See the [crate documentation](crate) for general information on Metrics.
+///
+/// # Submission Protocol
+///
+/// ```text
+/// &lt;name&gt;[@unit]:&lt;value&gt;|&lt;type&gt;|#&lt;tag_key&gt;:&lt;tag_value&gt;,&lt;tag&gt;
+/// ```
+///
+/// See the field documentation on this struct for more information on the components. An example
+/// submission looks like this:
+///
+/// ```text
+/// endpoint.response_time@millisecond:57|d|#route:user_index
+/// endpoint.hits:1|c|#route:user_index
+/// ```
+///
+/// To parse a submission payload, use [`Metric::parse_all`].
+///
+/// # JSON Representation
+///
+/// In addition to the submission protocol, metrics can be represented as structured data in JSON.
+/// In addition to the field values from the submission protocol, a timestamp is added to every
+/// metric (see [crate documentation](crate)).
+///
+/// ```json
+/// {
+///   &quot;name&quot;: &quot;endpoint.response_time&quot;,
+///   &quot;unit&quot;: &quot;millisecond&quot;,
+///   &quot;value&quot;: 57,
+///   &quot;type&quot;: &quot;d&quot;,
+///   &quot;timestamp&quot;: 1615889449,
+///   &quot;tags&quot;: {
+///     &quot;route&quot;: &quot;user_index&quot;
+///   }
+/// }
+/// ```
+///
+/// # Hashing of Sets
+///
+/// Set values can be specified as strings in the submission protocol. They are always hashed
+/// into a 32-bit value and the original value is dropped. If the submission protocol contains a
+/// 32-bit integer, it will be used directly, instead.
+///
+/// **Example**:
+///
+/// ```text
+/// endpoint.users:e2546e4c-ecd0-43ad-ae27-87960e57a658|s
+/// ```
+///
+/// The above submission is represented as:
+///
+/// ```json
+/// {
+///   &quot;name&quot;: &quot;endpoint.users&quot;,
+///   &quot;value&quot;: 4267882815,
+///   &quot;type&quot;: &quot;s&quot;
+/// }
+/// ```
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Metric</span> {
-    <span class="doccomment">/// The metric resource identifier, in short MRI.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// MRIs follow three core principles:</span>
+</span><span class="attribute">#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+</span><span class="kw">pub struct </span>Metric {
+    <span class="doccomment">/// The metric resource identifier, in short MRI.
+    ///
+    /// MRIs follow three core principles:
 
-    <span class="doccomment">/// 1. **Robustness:** Metrics must be addressed via a stable identifier. During ingestion in</span>
-    <span class="doccomment">///    Relay and Snuba, metrics are preaggregated and bucketed based on this identifier, so it</span>
-    <span class="doccomment">///    cannot change over time without breaking bucketing.</span>
-    <span class="doccomment">/// 2. **Uniqueness:** The identifier for metrics must be unique across variations of units and</span>
-    <span class="doccomment">///    metric types, within and across use cases, as well as between projects and</span>
-    <span class="doccomment">///    organizations.</span>
-    <span class="doccomment">/// 3. **Abstraction:** The user-facing product changes its terminology over time, and splits</span>
-    <span class="doccomment">///    concepts into smaller parts. The internal metric identifiers must abstract from that,</span>
-    <span class="doccomment">///    and offer sufficient granularity to allow for such changes.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// MRIs have the format `&lt;type&gt;:&lt;ns&gt;/&lt;name&gt;@&lt;unit&gt;`, comprising the following components:</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// * **Type:** counter (`c`), set (`s`), distribution (`d`), gauge (`g`), and evaluated (`e`)</span>
-    <span class="doccomment">///   for derived numeric metrics (the latter is a pure query-time construct and is not relevant</span>
-    <span class="doccomment">///   to Relay or ingestion). See [`MetricType`].</span>
-    <span class="doccomment">/// * **Namespace:** Identifying the product entity and use case affiliation of the metric. See</span>
-    <span class="doccomment">/// [`MetricNamespace`].</span>
-    <span class="doccomment">/// * **Name:** The display name of the metric in the allowed character set.</span>
-    <span class="doccomment">/// * **Unit:** The verbatim unit name. See [`MetricUnit`].</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Parsing a metric (or set of metrics) should not fail hard if the MRI is invalid, so this is</span>
-    <span class="doccomment">/// typed as string. Later in the metrics aggregator, the MRI is parsed using</span>
-    <span class="doccomment">/// [`MetricResourceIdentifier`] and validated for invalid characters as well.</span>
-    <span class="doccomment">/// [`MetricResourceIdentifier`] is also used in the kafka producer to route certain namespaces</span>
-    <span class="doccomment">/// to certain topics.</span>
-    <span class="kw">pub</span> <span class="ident">name</span>: <span class="ident">String</span>,
-    <span class="doccomment">/// The value of the metric.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// [Distributions](MetricType::Distribution) and [counters](MetricType::Counter) require numeric</span>
-    <span class="doccomment">/// values which can either be integral or floating point. In contrast, [sets](MetricType::Set)</span>
-    <span class="doccomment">/// and [gauges](MetricType::Gauge) can store any unique value including custom strings.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">flatten</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">value</span>: <span class="ident">MetricValue</span>,
-    <span class="doccomment">/// The timestamp for this metric value.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// If a timestamp is not supplied in the item header of the envelope, the</span>
-    <span class="doccomment">/// default timestamp supplied to [`Metric::parse`] or [`Metric::parse_all`]</span>
-    <span class="doccomment">/// is associated with the metric.</span>
-    <span class="kw">pub</span> <span class="ident">timestamp</span>: <span class="ident">UnixTimestamp</span>,
-    <span class="doccomment">/// A list of tags adding dimensions to the metric for filtering and aggregation.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Tags are preceded with a hash `#` and specified in a comma (`,`) separated list. Each tag</span>
-    <span class="doccomment">/// can either be a tag name, or a `name:value` combination. For tags with missing values, an</span>
-    <span class="doccomment">/// empty `&quot;&quot;` value is assumed.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Tags are optional and can be omitted.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;BTreeMap::is_empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">tags</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">String</span><span class="op">&gt;</span>,
+    /// 1. **Robustness:** Metrics must be addressed via a stable identifier. During ingestion in
+    ///    Relay and Snuba, metrics are preaggregated and bucketed based on this identifier, so it
+    ///    cannot change over time without breaking bucketing.
+    /// 2. **Uniqueness:** The identifier for metrics must be unique across variations of units and
+    ///    metric types, within and across use cases, as well as between projects and
+    ///    organizations.
+    /// 3. **Abstraction:** The user-facing product changes its terminology over time, and splits
+    ///    concepts into smaller parts. The internal metric identifiers must abstract from that,
+    ///    and offer sufficient granularity to allow for such changes.
+    ///
+    /// MRIs have the format `&lt;type&gt;:&lt;ns&gt;/&lt;name&gt;@&lt;unit&gt;`, comprising the following components:
+    ///
+    /// * **Type:** counter (`c`), set (`s`), distribution (`d`), gauge (`g`), and evaluated (`e`)
+    ///   for derived numeric metrics (the latter is a pure query-time construct and is not relevant
+    ///   to Relay or ingestion). See [`MetricType`].
+    /// * **Namespace:** Identifying the product entity and use case affiliation of the metric. See
+    /// [`MetricNamespace`].
+    /// * **Name:** The display name of the metric in the allowed character set.
+    /// * **Unit:** The verbatim unit name. See [`MetricUnit`].
+    ///
+    /// Parsing a metric (or set of metrics) should not fail hard if the MRI is invalid, so this is
+    /// typed as string. Later in the metrics aggregator, the MRI is parsed using
+    /// [`MetricResourceIdentifier`] and validated for invalid characters as well.
+    /// [`MetricResourceIdentifier`] is also used in the kafka producer to route certain namespaces
+    /// to certain topics.
+    </span><span class="kw">pub </span>name: String,
+    <span class="doccomment">/// The value of the metric.
+    ///
+    /// [Distributions](MetricType::Distribution) and [counters](MetricType::Counter) require numeric
+    /// values which can either be integral or floating point. In contrast, [sets](MetricType::Set)
+    /// and [gauges](MetricType::Gauge) can store any unique value including custom strings.
+    </span><span class="attribute">#[serde(flatten)]
+    </span><span class="kw">pub </span>value: MetricValue,
+    <span class="doccomment">/// The timestamp for this metric value.
+    ///
+    /// If a timestamp is not supplied in the item header of the envelope, the
+    /// default timestamp supplied to [`Metric::parse`] or [`Metric::parse_all`]
+    /// is associated with the metric.
+    </span><span class="kw">pub </span>timestamp: UnixTimestamp,
+    <span class="doccomment">/// A list of tags adding dimensions to the metric for filtering and aggregation.
+    ///
+    /// Tags are preceded with a hash `#` and specified in a comma (`,`) separated list. Each tag
+    /// can either be a tag name, or a `name:value` combination. For tags with missing values, an
+    /// empty `&quot;&quot;` value is assumed.
+    ///
+    /// Tags are optional and can be omitted.
+    </span><span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;BTreeMap::is_empty&quot;</span>)]
+    </span><span class="kw">pub </span>tags: BTreeMap&lt;String, String&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">Metric</span> {
-    <span class="doccomment">/// Creates a new metric using the MRI naming format.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// See [`Metric::name`].</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// MRI is the metric resource identifier in the format `&lt;type&gt;:&lt;ns&gt;/&lt;name&gt;@&lt;unit&gt;`. This name</span>
-    <span class="doccomment">/// ensures that just the name determines correct bucketing of metrics with name collisions.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_mri</span>(
-        <span class="ident">namespace</span>: <span class="ident">MetricNamespace</span>,
-        <span class="ident">name</span>: <span class="kw">impl</span> <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span>,
-        <span class="ident">unit</span>: <span class="ident">MetricUnit</span>,
-        <span class="ident">value</span>: <span class="ident">MetricValue</span>,
-        <span class="ident">timestamp</span>: <span class="ident">UnixTimestamp</span>,
-        <span class="ident">tags</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">String</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> {
-            <span class="ident">name</span>: <span class="ident">MetricResourceIdentifier</span> {
-                <span class="ident">ty</span>: <span class="ident">value</span>.<span class="ident">ty</span>(),
-                <span class="ident">name</span>: <span class="ident">name</span>.<span class="ident">as_ref</span>(),
-                <span class="ident">namespace</span>,
-                <span class="ident">unit</span>,
+<span class="kw">impl </span>Metric {
+    <span class="doccomment">/// Creates a new metric using the MRI naming format.
+    ///
+    /// See [`Metric::name`].
+    ///
+    /// MRI is the metric resource identifier in the format `&lt;type&gt;:&lt;ns&gt;/&lt;name&gt;@&lt;unit&gt;`. This name
+    /// ensures that just the name determines correct bucketing of metrics with name collisions.
+    </span><span class="kw">pub fn </span>new_mri(
+        namespace: MetricNamespace,
+        name: <span class="kw">impl </span>AsRef&lt;str&gt;,
+        unit: MetricUnit,
+        value: MetricValue,
+        timestamp: UnixTimestamp,
+        tags: BTreeMap&lt;String, String&gt;,
+    ) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            name: MetricResourceIdentifier {
+                ty: value.ty(),
+                name: name.as_ref(),
+                namespace,
+                unit,
             }
-            .<span class="ident">to_string</span>(),
-            <span class="ident">value</span>,
-            <span class="ident">timestamp</span>,
-            <span class="ident">tags</span>,
+            .to_string(),
+            value,
+            timestamp,
+            tags,
         }
     }
 
-    <span class="doccomment">/// Parse statsd-compatible payload of format</span>
-    <span class="doccomment">/// ```text</span>
-    <span class="doccomment">/// [&lt;ns&gt;/]&lt;name&gt;[@&lt;unit&gt;]:&lt;value&gt;|&lt;type&gt;[|#&lt;tags&gt;]`</span>
-    <span class="doccomment">/// ```</span>
-    <span class="kw">fn</span> <span class="ident">parse_str</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">timestamp</span>: <span class="ident">UnixTimestamp</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">components</span> <span class="op">=</span> <span class="ident">string</span>.<span class="ident">split</span>(<span class="string">&#39;|&#39;</span>);
+    <span class="doccomment">/// Parse statsd-compatible payload of format
+    /// ```text
+    /// [&lt;ns&gt;/]&lt;name&gt;[@&lt;unit&gt;]:&lt;value&gt;|&lt;type&gt;[|#&lt;tags&gt;]`
+    /// ```
+    </span><span class="kw">fn </span>parse_str(string: <span class="kw-2">&amp;</span>str, timestamp: UnixTimestamp) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>components = string.split(<span class="string">&#39;|&#39;</span>);
 
-        <span class="kw">let</span> <span class="ident">name_value_str</span> <span class="op">=</span> <span class="ident">components</span>.<span class="ident">next</span>()<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">ty</span> <span class="op">=</span> <span class="ident">components</span>.<span class="ident">next</span>().<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">parse</span>().<span class="ident">ok</span>())<span class="question-mark">?</span>;
-        <span class="kw">let</span> (<span class="ident">name_and_namespace</span>, <span class="ident">unit</span>, <span class="ident">value</span>) <span class="op">=</span> <span class="ident">parse_name_unit_value</span>(<span class="ident">name_value_str</span>, <span class="ident">ty</span>)<span class="question-mark">?</span>;
-        <span class="kw">let</span> (<span class="ident">raw_namespace</span>, <span class="ident">name</span>) <span class="op">=</span> <span class="ident">name_and_namespace</span>
-            .<span class="ident">split_once</span>(<span class="string">&#39;/&#39;</span>)
-            .<span class="ident">unwrap_or</span>((<span class="string">&quot;custom&quot;</span>, <span class="ident">string</span>));
+        <span class="kw">let </span>name_value_str = components.next()<span class="question-mark">?</span>;
+        <span class="kw">let </span>ty = components.next().and_then(|s| s.parse().ok())<span class="question-mark">?</span>;
+        <span class="kw">let </span>(name_and_namespace, unit, value) = parse_name_unit_value(name_value_str, ty)<span class="question-mark">?</span>;
+        <span class="kw">let </span>(raw_namespace, name) = name_and_namespace
+            .split_once(<span class="string">&#39;/&#39;</span>)
+            .unwrap_or((<span class="string">&quot;custom&quot;</span>, string));
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metric</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::new_mri</span>(
-            <span class="ident">raw_namespace</span>.<span class="ident">parse</span>().<span class="ident">ok</span>()<span class="question-mark">?</span>,
-            <span class="ident">name</span>,
-            <span class="ident">unit</span>,
-            <span class="ident">value</span>,
-            <span class="ident">timestamp</span>,
-            <span class="ident">BTreeMap::new</span>(),
+        <span class="kw">let </span><span class="kw-2">mut </span>metric = <span class="self">Self</span>::new_mri(
+            raw_namespace.parse().ok()<span class="question-mark">?</span>,
+            name,
+            unit,
+            value,
+            timestamp,
+            BTreeMap::new(),
         );
 
-        <span class="kw">for</span> <span class="ident">component</span> <span class="kw">in</span> <span class="ident">components</span> {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="string">&#39;#&#39;</span>) <span class="op">=</span> <span class="ident">component</span>.<span class="ident">chars</span>().<span class="ident">next</span>() {
-                <span class="ident">metric</span>.<span class="ident">tags</span> <span class="op">=</span> <span class="ident">parse_tags</span>(<span class="ident">component</span>.<span class="ident">get</span>(<span class="number">1</span>..)<span class="question-mark">?</span>)<span class="question-mark">?</span>;
+        <span class="kw">for </span>component <span class="kw">in </span>components {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="string">&#39;#&#39;</span>) = component.chars().next() {
+                metric.tags = parse_tags(component.get(<span class="number">1</span>..)<span class="question-mark">?</span>)<span class="question-mark">?</span>;
             }
         }
 
-        <span class="prelude-val">Some</span>(<span class="ident">metric</span>)
+        <span class="prelude-val">Some</span>(metric)
     }
 
-    <span class="doccomment">/// Parses a single metric value from the raw protocol.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// See the [`Metric`] for more information on the protocol.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// # Example</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// ```</span>
-    <span class="doccomment">/// use relay_metrics::{Metric, UnixTimestamp};</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// let metric = Metric::parse(b&quot;response_time@millisecond:57|d&quot;, UnixTimestamp::now())</span>
-    <span class="doccomment">///     .expect(&quot;metric should parse&quot;);</span>
-    <span class="doccomment">/// ```</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">slice</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">timestamp</span>: <span class="ident">UnixTimestamp</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ParseMetricError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">string</span> <span class="op">=</span> <span class="ident">std::str::from_utf8</span>(<span class="ident">slice</span>).<span class="ident">or</span>(<span class="prelude-val">Err</span>(<span class="ident">ParseMetricError</span>(())))<span class="question-mark">?</span>;
-        <span class="ident"><span class="self">Self</span>::parse_str</span>(<span class="ident">string</span>, <span class="ident">timestamp</span>).<span class="ident">ok_or</span>(<span class="ident">ParseMetricError</span>(()))
+    <span class="doccomment">/// Parses a single metric value from the raw protocol.
+    ///
+    /// See the [`Metric`] for more information on the protocol.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_metrics::{Metric, UnixTimestamp};
+    ///
+    /// let metric = Metric::parse(b&quot;response_time@millisecond:57|d&quot;, UnixTimestamp::now())
+    ///     .expect(&quot;metric should parse&quot;);
+    /// ```
+    </span><span class="kw">pub fn </span>parse(slice: <span class="kw-2">&amp;</span>[u8], timestamp: UnixTimestamp) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ParseMetricError&gt; {
+        <span class="kw">let </span>string = std::str::from_utf8(slice).or(<span class="prelude-val">Err</span>(ParseMetricError(())))<span class="question-mark">?</span>;
+        <span class="self">Self</span>::parse_str(string, timestamp).ok_or(ParseMetricError(()))
     }
 
-    <span class="doccomment">/// Parses a set of metric values from the raw protocol.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Returns a metric result for each line in `slice`, ignoring empty lines. Both UNIX newlines</span>
-    <span class="doccomment">/// (`\n`) and Windows newlines (`\r\n`) are supported.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// It is possible to continue consuming the iterator after `Err` is yielded.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// See the [`Metric`] for more information on the protocol.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// # Example</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// ```</span>
-    <span class="doccomment">/// use relay_metrics::{Metric, UnixTimestamp};</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// let data = br#&quot;</span>
-    <span class="doccomment">/// endpoint.response_time@millisecond:57|d</span>
-    <span class="doccomment">/// endpoint.hits:1|c</span>
-    <span class="doccomment">/// &quot;#;</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// for metric_result in Metric::parse_all(data, UnixTimestamp::now()) {</span>
-    <span class="doccomment">///     let metric = metric_result.expect(&quot;metric should parse&quot;);</span>
-    <span class="doccomment">///     println!(&quot;Metric {}: {}&quot;, metric.name, metric.value);</span>
-    <span class="doccomment">/// }</span>
-    <span class="doccomment">/// ```</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse_all</span>(<span class="ident">slice</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">timestamp</span>: <span class="ident">UnixTimestamp</span>) -&gt; <span class="ident">ParseMetrics</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span> {
-        <span class="ident">ParseMetrics</span> { <span class="ident">slice</span>, <span class="ident">timestamp</span> }
-    }
-}
-
-<span class="doccomment">/// Common interface for `Metric` and `Bucket`.</span>
-<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">MetricsContainer</span> {
-    <span class="doccomment">/// Returns the full metric name (MRI) of this container.</span>
-    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">str</span>;
-
-    <span class="doccomment">/// Returns the number of raw data points in this container.</span>
-    <span class="doccomment">/// See [`crate::aggregation::BucketValue::len()`].</span>
-    <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span>;
-
-    <span class="doccomment">/// Returns `true` if this container contains no values.</span>
-    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">0</span>
+    <span class="doccomment">/// Parses a set of metric values from the raw protocol.
+    ///
+    /// Returns a metric result for each line in `slice`, ignoring empty lines. Both UNIX newlines
+    /// (`\n`) and Windows newlines (`\r\n`) are supported.
+    ///
+    /// It is possible to continue consuming the iterator after `Err` is yielded.
+    ///
+    /// See the [`Metric`] for more information on the protocol.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_metrics::{Metric, UnixTimestamp};
+    ///
+    /// let data = br#&quot;
+    /// endpoint.response_time@millisecond:57|d
+    /// endpoint.hits:1|c
+    /// &quot;#;
+    ///
+    /// for metric_result in Metric::parse_all(data, UnixTimestamp::now()) {
+    ///     let metric = metric_result.expect(&quot;metric should parse&quot;);
+    ///     println!(&quot;Metric {}: {}&quot;, metric.name, metric.value);
+    /// }
+    /// ```
+    </span><span class="kw">pub fn </span>parse_all(slice: <span class="kw-2">&amp;</span>[u8], timestamp: UnixTimestamp) -&gt; ParseMetrics&lt;<span class="lifetime">&#39;_</span>&gt; {
+        ParseMetrics { slice, timestamp }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">MetricsContainer</span> <span class="kw">for</span> <span class="ident">Metric</span> {
-    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">str</span> {
-        <span class="self">self</span>.<span class="ident">name</span>.<span class="ident">as_str</span>()
-    }
+<span class="doccomment">/// Common interface for `Metric` and `Bucket`.
+</span><span class="kw">pub trait </span>MetricsContainer {
+    <span class="doccomment">/// Returns the full metric name (MRI) of this container.
+    </span><span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str;
 
-    <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
-        <span class="number">1</span>
-    }
+    <span class="doccomment">/// Returns the number of raw data points in this container.
+    /// See [`crate::aggregation::BucketValue::len()`].
+    </span><span class="kw">fn </span>len(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize;
+
+    <span class="doccomment">/// Returns `true` if this container contains no values.
+    </span><span class="kw">fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.len() == <span class="number">0
+    </span>}
 }
 
-<span class="doccomment">/// Iterator over parsed metrics returned from [`Metric::parse_all`].</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ParseMetrics</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="ident">slice</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>],
-    <span class="ident">timestamp</span>: <span class="ident">UnixTimestamp</span>,
+<span class="kw">impl </span>MetricsContainer <span class="kw">for </span>Metric {
+    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+        <span class="self">self</span>.name.as_str()
+    }
+
+    <span class="kw">fn </span>len(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="number">1
+    </span>}
 }
 
-<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">ParseMetrics</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> {
-            <span class="ident">slice</span>: <span class="kw-2">&amp;</span>[],
-            <span class="comment">// The timestamp will never be returned.</span>
-            <span class="ident">timestamp</span>: <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">4711</span>),
+<span class="doccomment">/// Iterator over parsed metrics returned from [`Metric::parse_all`].
+</span><span class="attribute">#[derive(Clone, Debug)]
+</span><span class="kw">pub struct </span>ParseMetrics&lt;<span class="lifetime">&#39;a</span>&gt; {
+    slice: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8],
+    timestamp: UnixTimestamp,
+}
+
+<span class="kw">impl </span>Default <span class="kw">for </span>ParseMetrics&lt;<span class="lifetime">&#39;_</span>&gt; {
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            slice: <span class="kw-2">&amp;</span>[],
+            <span class="comment">// The timestamp will never be returned.
+            </span>timestamp: UnixTimestamp::from_secs(<span class="number">4711</span>),
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Iterator</span> <span class="kw">for</span> <span class="ident">ParseMetrics</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span> {
-    <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Metric</span>, <span class="ident">ParseMetricError</span><span class="op">&gt;</span>;
+<span class="kw">impl </span>Iterator <span class="kw">for </span>ParseMetrics&lt;<span class="lifetime">&#39;_</span>&gt; {
+    <span class="kw">type </span>Item = <span class="prelude-ty">Result</span>&lt;Metric, ParseMetricError&gt;;
 
-    <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Item</span><span class="op">&gt;</span> {
-        <span class="kw">loop</span> {
-            <span class="kw">if</span> <span class="self">self</span>.<span class="ident">slice</span>.<span class="ident">is_empty</span>() {
-                <span class="kw">return</span> <span class="prelude-val">None</span>;
+    <span class="kw">fn </span>next(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>::Item&gt; {
+        <span class="kw">loop </span>{
+            <span class="kw">if </span><span class="self">self</span>.slice.is_empty() {
+                <span class="kw">return </span><span class="prelude-val">None</span>;
             }
 
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">split</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">slice</span>.<span class="ident">splitn</span>(<span class="number">2</span>, <span class="op">|</span><span class="kw-2">&amp;</span><span class="ident">b</span><span class="op">|</span> <span class="ident">b</span> <span class="op">==</span> <span class="string">b&#39;\n&#39;</span>);
-            <span class="kw">let</span> <span class="ident">current</span> <span class="op">=</span> <span class="ident">split</span>.<span class="ident">next</span>()<span class="question-mark">?</span>;
-            <span class="self">self</span>.<span class="ident">slice</span> <span class="op">=</span> <span class="ident">split</span>.<span class="ident">next</span>().<span class="ident">unwrap_or_default</span>();
+            <span class="kw">let </span><span class="kw-2">mut </span>split = <span class="self">self</span>.slice.splitn(<span class="number">2</span>, |<span class="kw-2">&amp;</span>b| b == <span class="string">b&#39;\n&#39;</span>);
+            <span class="kw">let </span>current = split.next()<span class="question-mark">?</span>;
+            <span class="self">self</span>.slice = split.next().unwrap_or_default();
 
-            <span class="kw">let</span> <span class="ident">string</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">std::str::from_utf8</span>(<span class="ident">current</span>) {
-                <span class="prelude-val">Ok</span>(<span class="ident">string</span>) =&gt; <span class="ident">string</span>.<span class="ident">strip_suffix</span>(<span class="string">&#39;\r&#39;</span>).<span class="ident">unwrap_or</span>(<span class="ident">string</span>),
-                <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="prelude-val">Err</span>(<span class="ident">ParseMetricError</span>(()))),
+            <span class="kw">let </span>string = <span class="kw">match </span>std::str::from_utf8(current) {
+                <span class="prelude-val">Ok</span>(string) =&gt; string.strip_suffix(<span class="string">&#39;\r&#39;</span>).unwrap_or(string),
+                <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="prelude-val">Err</span>(ParseMetricError(()))),
             };
 
-            <span class="kw">if</span> <span class="op">!</span><span class="ident">string</span>.<span class="ident">is_empty</span>() {
-                <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">Metric::parse_str</span>(<span class="ident">string</span>, <span class="self">self</span>.<span class="ident">timestamp</span>).<span class="ident">ok_or</span>(<span class="ident">ParseMetricError</span>(())));
+            <span class="kw">if </span>!string.is_empty() {
+                <span class="kw">return </span><span class="prelude-val">Some</span>(Metric::parse_str(string, <span class="self">self</span>.timestamp).ok_or(ParseMetricError(())));
             }
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">FusedIterator</span> <span class="kw">for</span> <span class="ident">ParseMetrics</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span> {}
+<span class="kw">impl </span>FusedIterator <span class="kw">for </span>ParseMetrics&lt;<span class="lifetime">&#39;_</span>&gt; {}
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_sizeof_unit</span>() {
-        <span class="macro">assert_eq!</span>(<span class="ident">std::mem::size_of</span>::<span class="op">&lt;</span><span class="ident">MetricUnit</span><span class="op">&gt;</span>(), <span class="number">16</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">std::mem::align_of</span>::<span class="op">&lt;</span><span class="ident">MetricUnit</span><span class="op">&gt;</span>(), <span class="number">1</span>);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_sizeof_unit() {
+        <span class="macro">assert_eq!</span>(std::mem::size_of::&lt;MetricUnit&gt;(), <span class="number">16</span>);
+        <span class="macro">assert_eq!</span>(std::mem::align_of::&lt;MetricUnit&gt;(), <span class="number">1</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_parse_garbage</span>() {
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;x23-408j17z4232@#34d\nc3456y7^😎&quot;</span>;
-        <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">4711</span>);
-        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">Metric::parse</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>(), <span class="ident">timestamp</span>);
-        <span class="macro">assert!</span>(<span class="ident">result</span>.<span class="ident">is_err</span>());
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_parse_garbage() {
+        <span class="kw">let </span>s = <span class="string">&quot;x23-408j17z4232@#34d\nc3456y7^😎&quot;</span>;
+        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
+        <span class="kw">let </span>result = Metric::parse(s.as_bytes(), timestamp);
+        <span class="macro">assert!</span>(result.is_err());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_parse_counter</span>() {
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;transactions/foo:42|c&quot;</span>;
-        <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">4711</span>);
-        <span class="kw">let</span> <span class="ident">metric</span> <span class="op">=</span> <span class="ident">Metric::parse</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>(), <span class="ident">timestamp</span>).<span class="ident">unwrap</span>();
-        <span class="macro">insta::assert_debug_snapshot!</span>(<span class="ident">metric</span>, @<span class="string">r###&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_parse_counter() {
+        <span class="kw">let </span>s = <span class="string">&quot;transactions/foo:42|c&quot;</span>;
+        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
+        <span class="kw">let </span>metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
+        <span class="macro">insta::assert_debug_snapshot!</span>(metric, @<span class="string">r###&quot;
         Metric {
             name: &quot;c:transactions/foo@none&quot;,
             value: Counter(
@@ -1593,12 +1593,12 @@
         &quot;###</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_parse_distribution</span>() {
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;transactions/foo:17.5|d&quot;</span>;
-        <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">4711</span>);
-        <span class="kw">let</span> <span class="ident">metric</span> <span class="op">=</span> <span class="ident">Metric::parse</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>(), <span class="ident">timestamp</span>).<span class="ident">unwrap</span>();
-        <span class="macro">insta::assert_debug_snapshot!</span>(<span class="ident">metric</span>, @<span class="string">r###&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_parse_distribution() {
+        <span class="kw">let </span>s = <span class="string">&quot;transactions/foo:17.5|d&quot;</span>;
+        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
+        <span class="kw">let </span>metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
+        <span class="macro">insta::assert_debug_snapshot!</span>(metric, @<span class="string">r###&quot;
         Metric {
             name: &quot;d:transactions/foo@none&quot;,
             value: Distribution(
@@ -1610,20 +1610,20 @@
         &quot;###</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_parse_histogram</span>() {
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;transactions/foo:17.5|h&quot;</span>; <span class="comment">// common alias for distribution</span>
-        <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">4711</span>);
-        <span class="kw">let</span> <span class="ident">metric</span> <span class="op">=</span> <span class="ident">Metric::parse</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>(), <span class="ident">timestamp</span>).<span class="ident">unwrap</span>();
-        <span class="macro">assert_eq!</span>(<span class="ident">metric</span>.<span class="ident">value</span>, <span class="ident">MetricValue::Distribution</span>(<span class="number">17.5</span>));
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_parse_histogram() {
+        <span class="kw">let </span>s = <span class="string">&quot;transactions/foo:17.5|h&quot;</span>; <span class="comment">// common alias for distribution
+        </span><span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
+        <span class="kw">let </span>metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
+        <span class="macro">assert_eq!</span>(metric.value, MetricValue::Distribution(<span class="number">17.5</span>));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_parse_set</span>() {
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;transactions/foo:e2546e4c-ecd0-43ad-ae27-87960e57a658|s&quot;</span>;
-        <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">4711</span>);
-        <span class="kw">let</span> <span class="ident">metric</span> <span class="op">=</span> <span class="ident">Metric::parse</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>(), <span class="ident">timestamp</span>).<span class="ident">unwrap</span>();
-        <span class="macro">insta::assert_debug_snapshot!</span>(<span class="ident">metric</span>, @<span class="string">r###&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_parse_set() {
+        <span class="kw">let </span>s = <span class="string">&quot;transactions/foo:e2546e4c-ecd0-43ad-ae27-87960e57a658|s&quot;</span>;
+        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
+        <span class="kw">let </span>metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
+        <span class="macro">insta::assert_debug_snapshot!</span>(metric, @<span class="string">r###&quot;
         Metric {
             name: &quot;s:transactions/foo@none&quot;,
             value: Set(
@@ -1635,12 +1635,12 @@
         &quot;###</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_parse_gauge</span>() {
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;transactions/foo:42|g&quot;</span>;
-        <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">4711</span>);
-        <span class="kw">let</span> <span class="ident">metric</span> <span class="op">=</span> <span class="ident">Metric::parse</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>(), <span class="ident">timestamp</span>).<span class="ident">unwrap</span>();
-        <span class="macro">insta::assert_debug_snapshot!</span>(<span class="ident">metric</span>, @<span class="string">r###&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_parse_gauge() {
+        <span class="kw">let </span>s = <span class="string">&quot;transactions/foo:42|g&quot;</span>;
+        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
+        <span class="kw">let </span>metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
+        <span class="macro">insta::assert_debug_snapshot!</span>(metric, @<span class="string">r###&quot;
         Metric {
             name: &quot;g:transactions/foo@none&quot;,
             value: Gauge(
@@ -1652,30 +1652,30 @@
         &quot;###</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_parse_unit</span>() {
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;transactions/foo@second:17.5|d&quot;</span>;
-        <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">4711</span>);
-        <span class="kw">let</span> <span class="ident">metric</span> <span class="op">=</span> <span class="ident">Metric::parse</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>(), <span class="ident">timestamp</span>).<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="ident">mri</span> <span class="op">=</span> <span class="ident">MetricResourceIdentifier::parse</span>(<span class="kw-2">&amp;</span><span class="ident">metric</span>.<span class="ident">name</span>).<span class="ident">unwrap</span>();
-        <span class="macro">assert_eq!</span>(<span class="ident">mri</span>.<span class="ident">unit</span>, <span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::Second</span>));
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_parse_unit() {
+        <span class="kw">let </span>s = <span class="string">&quot;transactions/foo@second:17.5|d&quot;</span>;
+        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
+        <span class="kw">let </span>metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
+        <span class="kw">let </span>mri = MetricResourceIdentifier::parse(<span class="kw-2">&amp;</span>metric.name).unwrap();
+        <span class="macro">assert_eq!</span>(mri.unit, MetricUnit::Duration(DurationUnit::Second));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_parse_unit_regression</span>() {
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;transactions/foo@s:17.5|d&quot;</span>;
-        <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">4711</span>);
-        <span class="kw">let</span> <span class="ident">metric</span> <span class="op">=</span> <span class="ident">Metric::parse</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>(), <span class="ident">timestamp</span>).<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="ident">mri</span> <span class="op">=</span> <span class="ident">MetricResourceIdentifier::parse</span>(<span class="kw-2">&amp;</span><span class="ident">metric</span>.<span class="ident">name</span>).<span class="ident">unwrap</span>();
-        <span class="macro">assert_eq!</span>(<span class="ident">mri</span>.<span class="ident">unit</span>, <span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::Second</span>));
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_parse_unit_regression() {
+        <span class="kw">let </span>s = <span class="string">&quot;transactions/foo@s:17.5|d&quot;</span>;
+        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
+        <span class="kw">let </span>metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
+        <span class="kw">let </span>mri = MetricResourceIdentifier::parse(<span class="kw-2">&amp;</span>metric.name).unwrap();
+        <span class="macro">assert_eq!</span>(mri.unit, MetricUnit::Duration(DurationUnit::Second));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_parse_tags</span>() {
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;transactions/foo:17.5|d|#foo,bar:baz&quot;</span>;
-        <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">4711</span>);
-        <span class="kw">let</span> <span class="ident">metric</span> <span class="op">=</span> <span class="ident">Metric::parse</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>(), <span class="ident">timestamp</span>).<span class="ident">unwrap</span>();
-        <span class="macro">insta::assert_debug_snapshot!</span>(<span class="ident">metric</span>.<span class="ident">tags</span>, @<span class="string">r###&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_parse_tags() {
+        <span class="kw">let </span>s = <span class="string">&quot;transactions/foo:17.5|d|#foo,bar:baz&quot;</span>;
+        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
+        <span class="kw">let </span>metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
+        <span class="macro">insta::assert_debug_snapshot!</span>(metric.tags, @<span class="string">r###&quot;
         {
             &quot;bar&quot;: &quot;baz&quot;,
             &quot;foo&quot;: &quot;&quot;,
@@ -1683,33 +1683,33 @@
         &quot;###</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_parse_invalid_name</span>() {
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;foo#bar:42|c&quot;</span>;
-        <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">4711</span>);
-        <span class="kw">let</span> <span class="ident">metric</span> <span class="op">=</span> <span class="ident">Metric::parse</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>(), <span class="ident">timestamp</span>);
-        <span class="macro">assert!</span>(<span class="ident">metric</span>.<span class="ident">is_err</span>());
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_parse_invalid_name() {
+        <span class="kw">let </span>s = <span class="string">&quot;foo#bar:42|c&quot;</span>;
+        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
+        <span class="kw">let </span>metric = Metric::parse(s.as_bytes(), timestamp);
+        <span class="macro">assert!</span>(metric.is_err());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_parse_empty_name</span>() {
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;:42|c&quot;</span>;
-        <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">4711</span>);
-        <span class="kw">let</span> <span class="ident">metric</span> <span class="op">=</span> <span class="ident">Metric::parse</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>(), <span class="ident">timestamp</span>);
-        <span class="macro">assert!</span>(<span class="ident">metric</span>.<span class="ident">is_err</span>());
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_parse_empty_name() {
+        <span class="kw">let </span>s = <span class="string">&quot;:42|c&quot;</span>;
+        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
+        <span class="kw">let </span>metric = Metric::parse(s.as_bytes(), timestamp);
+        <span class="macro">assert!</span>(metric.is_err());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_parse_invalid_name_with_leading_digit</span>() {
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;64bit:42|c&quot;</span>;
-        <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">4711</span>);
-        <span class="kw">let</span> <span class="ident">metric</span> <span class="op">=</span> <span class="ident">Metric::parse</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>(), <span class="ident">timestamp</span>);
-        <span class="macro">assert!</span>(<span class="ident">metric</span>.<span class="ident">is_err</span>());
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_parse_invalid_name_with_leading_digit() {
+        <span class="kw">let </span>s = <span class="string">&quot;64bit:42|c&quot;</span>;
+        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
+        <span class="kw">let </span>metric = Metric::parse(s.as_bytes(), timestamp);
+        <span class="macro">assert!</span>(metric.is_err());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_serde_json</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_serde_json() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;name&quot;: &quot;foo&quot;,
   &quot;type&quot;: &quot;c&quot;,
   &quot;value&quot;: 42.0,
@@ -1720,8 +1720,8 @@
   }
 }&quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">metric</span> <span class="op">=</span> <span class="ident">serde_json::from_str</span>::<span class="op">&lt;</span><span class="ident">Metric</span><span class="op">&gt;</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>();
-        <span class="macro">insta::assert_debug_snapshot!</span>(<span class="ident">metric</span>, @<span class="string">r###&quot;
+        <span class="kw">let </span>metric = serde_json::from_str::&lt;Metric&gt;(json).unwrap();
+        <span class="macro">insta::assert_debug_snapshot!</span>(metric, @<span class="string">r###&quot;
         Metric {
             name: &quot;foo&quot;,
             value: Counter(
@@ -1735,22 +1735,22 @@
         }
         &quot;###</span>);
 
-        <span class="kw">let</span> <span class="ident">string</span> <span class="op">=</span> <span class="ident">serde_json::to_string_pretty</span>(<span class="kw-2">&amp;</span><span class="ident">metric</span>).<span class="ident">unwrap</span>();
-        <span class="macro">assert_eq!</span>(<span class="ident">string</span>, <span class="ident">json</span>);
+        <span class="kw">let </span>string = serde_json::to_string_pretty(<span class="kw-2">&amp;</span>metric).unwrap();
+        <span class="macro">assert_eq!</span>(string, json);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_serde_json_defaults</span>() {
-        <span class="comment">// NB: timestamp is required in JSON as opposed to the text representation</span>
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_serde_json_defaults() {
+        <span class="comment">// NB: timestamp is required in JSON as opposed to the text representation
+        </span><span class="kw">let </span>json = <span class="string">r#&quot;{
             &quot;name&quot;: &quot;foo&quot;,
             &quot;value&quot;: 42,
             &quot;type&quot;: &quot;c&quot;,
             &quot;timestamp&quot;: 4711
         }&quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">metric</span> <span class="op">=</span> <span class="ident">serde_json::from_str</span>::<span class="op">&lt;</span><span class="ident">Metric</span><span class="op">&gt;</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>();
-        <span class="macro">insta::assert_debug_snapshot!</span>(<span class="ident">metric</span>, @<span class="string">r###&quot;
+        <span class="kw">let </span>metric = serde_json::from_str::&lt;Metric&gt;(json).unwrap();
+        <span class="macro">insta::assert_debug_snapshot!</span>(metric, @<span class="string">r###&quot;
         Metric {
             name: &quot;foo&quot;,
             value: Counter(
@@ -1762,47 +1762,47 @@
         &quot;###</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_parse_all</span>() {
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;transactions/foo:42|c\nbar:17|c&quot;</span>;
-        <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">4711</span>);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_parse_all() {
+        <span class="kw">let </span>s = <span class="string">&quot;transactions/foo:42|c\nbar:17|c&quot;</span>;
+        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
 
-        <span class="kw">let</span> <span class="ident">metrics</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Metric</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Metric::parse_all</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>(), <span class="ident">timestamp</span>)
-            .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span><span class="op">&gt;</span>()
-            .<span class="ident">unwrap</span>();
+        <span class="kw">let </span>metrics: Vec&lt;Metric&gt; = Metric::parse_all(s.as_bytes(), timestamp)
+            .collect::&lt;<span class="prelude-ty">Result</span>&lt;<span class="kw">_</span>, <span class="kw">_</span>&gt;&gt;()
+            .unwrap();
 
-        <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>.<span class="ident">len</span>(), <span class="number">2</span>);
+        <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">2</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_parse_all_crlf</span>() {
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;transactions/foo:42|c\r\nbar:17|c&quot;</span>;
-        <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">4711</span>);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_parse_all_crlf() {
+        <span class="kw">let </span>s = <span class="string">&quot;transactions/foo:42|c\r\nbar:17|c&quot;</span>;
+        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
 
-        <span class="kw">let</span> <span class="ident">metrics</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Metric</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Metric::parse_all</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>(), <span class="ident">timestamp</span>)
-            .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span><span class="op">&gt;</span>()
-            .<span class="ident">unwrap</span>();
+        <span class="kw">let </span>metrics: Vec&lt;Metric&gt; = Metric::parse_all(s.as_bytes(), timestamp)
+            .collect::&lt;<span class="prelude-ty">Result</span>&lt;<span class="kw">_</span>, <span class="kw">_</span>&gt;&gt;()
+            .unwrap();
 
-        <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>.<span class="ident">len</span>(), <span class="number">2</span>);
+        <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">2</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_parse_all_empty_lines</span>() {
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;transactions/foo:42|c\n\n\nbar:17|c&quot;</span>;
-        <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">4711</span>);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_parse_all_empty_lines() {
+        <span class="kw">let </span>s = <span class="string">&quot;transactions/foo:42|c\n\n\nbar:17|c&quot;</span>;
+        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
 
-        <span class="kw">let</span> <span class="ident">metric_count</span> <span class="op">=</span> <span class="ident">Metric::parse_all</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>(), <span class="ident">timestamp</span>).<span class="ident">count</span>();
-        <span class="macro">assert_eq!</span>(<span class="ident">metric_count</span>, <span class="number">2</span>);
+        <span class="kw">let </span>metric_count = Metric::parse_all(s.as_bytes(), timestamp).count();
+        <span class="macro">assert_eq!</span>(metric_count, <span class="number">2</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_parse_all_trailing</span>() {
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;transactions/foo:42|c\nbar:17|c\n&quot;</span>;
-        <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">4711</span>);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_parse_all_trailing() {
+        <span class="kw">let </span>s = <span class="string">&quot;transactions/foo:42|c\nbar:17|c\n&quot;</span>;
+        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
 
-        <span class="kw">let</span> <span class="ident">metric_count</span> <span class="op">=</span> <span class="ident">Metric::parse_all</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>(), <span class="ident">timestamp</span>).<span class="ident">count</span>();
-        <span class="macro">assert_eq!</span>(<span class="ident">metric_count</span>, <span class="number">2</span>);
+        <span class="kw">let </span>metric_count = Metric::parse_all(s.as_bytes(), timestamp).count();
+        <span class="macro">assert_eq!</span>(metric_count, <span class="number">2</span>);
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_metrics" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_metrics" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/utils/param_parser.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>param_parser.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/utils/param_parser.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>param_parser.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_server/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -306,151 +306,151 @@
 <span id="304">304</span>
 <span id="305">305</span>
 <span id="306">306</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">serde_json::Value</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>serde_json::Value;
 
-<span class="kw">enum</span> <span class="ident">IndexingState</span> {
-    <span class="ident">LookingForLeftParenthesis</span>,
-    <span class="ident">Accumulating</span>(<span class="ident">usize</span>),
-    <span class="ident">Starting</span>,
+<span class="kw">enum </span>IndexingState {
+    LookingForLeftParenthesis,
+    Accumulating(usize),
+    Starting,
 }
 
-<span class="doccomment">/// Updates a json Value at the specified path.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">update_nested_value</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="ident">target</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Value</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="ident">str</span>], <span class="ident">value</span>: <span class="ident">V</span>)
-<span class="kw">where</span>
-    <span class="ident">V</span>: <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Updates a json Value at the specified path.
+</span><span class="kw">pub fn </span>update_nested_value&lt;V&gt;(target: <span class="kw-2">&amp;mut </span>Value, path: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str], value: V)
+<span class="kw">where
+    </span>V: Into&lt;String&gt;,
 {
-    <span class="kw">let</span> <span class="ident">map</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">target</span> {
-        <span class="ident">Value::Object</span>(<span class="ident">map</span>) =&gt; <span class="ident">map</span>,
-        <span class="kw">_</span> =&gt; <span class="kw">return</span>,
+    <span class="kw">let </span>map = <span class="kw">match </span>target {
+        Value::Object(map) =&gt; map,
+        <span class="kw">_ </span>=&gt; <span class="kw">return</span>,
     };
 
-    <span class="kw">let</span> (<span class="ident">key</span>, <span class="ident">rest</span>) <span class="op">=</span> <span class="kw">match</span> <span class="ident">path</span>.<span class="ident">split_first</span>() {
-        <span class="prelude-val">Some</span>(<span class="ident">tuple</span>) =&gt; <span class="ident">tuple</span>,
-        <span class="prelude-val">None</span> =&gt; <span class="kw">return</span>,
+    <span class="kw">let </span>(key, rest) = <span class="kw">match </span>path.split_first() {
+        <span class="prelude-val">Some</span>(tuple) =&gt; tuple,
+        <span class="prelude-val">None </span>=&gt; <span class="kw">return</span>,
     };
 
-    <span class="kw">let</span> <span class="ident">entry</span> <span class="op">=</span> <span class="ident">map</span>.<span class="ident">entry</span>(<span class="ident">key</span>.<span class="ident">to_owned</span>());
+    <span class="kw">let </span>entry = map.entry(key.to_owned());
 
-    <span class="kw">if</span> <span class="ident">rest</span>.<span class="ident">is_empty</span>() {
-        <span class="ident">entry</span>.<span class="ident">or_insert_with</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Value::String</span>(<span class="ident">value</span>.<span class="ident">into</span>()));
-    } <span class="kw">else</span> {
-        <span class="kw">let</span> <span class="ident">sub_object</span> <span class="op">=</span> <span class="ident">entry</span>.<span class="ident">or_insert_with</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Value::Object</span>(<span class="ident">Default::default</span>()));
-        <span class="ident">update_nested_value</span>(<span class="ident">sub_object</span>, <span class="ident">rest</span>, <span class="ident">value</span>);
+    <span class="kw">if </span>rest.is_empty() {
+        entry.or_insert_with(|| Value::String(value.into()));
+    } <span class="kw">else </span>{
+        <span class="kw">let </span>sub_object = entry.or_insert_with(|| Value::Object(Default::default()));
+        update_nested_value(sub_object, rest, value);
     }
 }
 
-<span class="doccomment">/// Merge two serde values.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Taken (with small changes) from stack overflow answer:</span>
-<span class="doccomment">/// &lt;https://stackoverflow.com/questions/47070876/how-can-i-merge-two-json-objects-with-rust&gt;.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">merge_values</span>(<span class="ident">a</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Value</span>, <span class="ident">b</span>: <span class="ident">Value</span>) {
-    <span class="kw">match</span> (<span class="ident">a</span>, <span class="ident">b</span>) {
-        <span class="comment">//recursively merge dicts</span>
-        (<span class="ident">a</span> @ <span class="kw-2">&amp;mut</span> <span class="ident">Value::Object</span>(<span class="kw">_</span>), <span class="ident">Value::Object</span>(<span class="ident">b</span>)) =&gt; {
-            <span class="kw">let</span> <span class="ident">a</span> <span class="op">=</span> <span class="ident">a</span>.<span class="ident">as_object_mut</span>().<span class="ident">unwrap</span>();
-            <span class="kw">for</span> (<span class="ident">k</span>, <span class="ident">v</span>) <span class="kw">in</span> <span class="ident">b</span> {
-                <span class="ident">merge_values</span>(<span class="ident">a</span>.<span class="ident">entry</span>(<span class="ident">k</span>).<span class="ident">or_insert</span>(<span class="ident">Value::Null</span>), <span class="ident">v</span>);
+<span class="doccomment">/// Merge two serde values.
+///
+/// Taken (with small changes) from stack overflow answer:
+/// &lt;https://stackoverflow.com/questions/47070876/how-can-i-merge-two-json-objects-with-rust&gt;.
+</span><span class="kw">pub fn </span>merge_values(a: <span class="kw-2">&amp;mut </span>Value, b: Value) {
+    <span class="kw">match </span>(a, b) {
+        <span class="comment">//recursively merge dicts
+        </span>(a @ <span class="kw-2">&amp;mut </span>Value::Object(<span class="kw">_</span>), Value::Object(b)) =&gt; {
+            <span class="kw">let </span>a = a.as_object_mut().unwrap();
+            <span class="kw">for </span>(k, v) <span class="kw">in </span>b {
+                merge_values(a.entry(k).or_insert(Value::Null), v);
             }
         }
-        <span class="comment">//fill in missing left values</span>
-        (<span class="ident">a</span> @ <span class="kw-2">&amp;mut</span> <span class="ident">Value::Null</span>, <span class="ident">b</span>) =&gt; <span class="kw-2">*</span><span class="ident">a</span> <span class="op">=</span> <span class="ident">b</span>,
-        <span class="comment">//do not override existing values that are not maps</span>
-        (<span class="ident">_a</span>, <span class="ident">_b</span>) =&gt; {}
+        <span class="comment">//fill in missing left values
+        </span>(a @ <span class="kw-2">&amp;mut </span>Value::Null, b) =&gt; <span class="kw-2">*</span>a = b,
+        <span class="comment">//do not override existing values that are not maps
+        </span>(_a, _b) =&gt; {}
     }
 }
 
-<span class="doccomment">/// Extracts indexes from a param string e.g. extracts `[String(abc),String(xyz)]` from `&quot;sentry[abc][xyz]&quot;`</span>
-<span class="kw">fn</span> <span class="ident">get_indexes</span>(<span class="ident">full_string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ret_vals</span> <span class="op">=</span> <span class="macro">vec!</span>[];
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">IndexingState::Starting</span>;
-    <span class="comment">//first iterate by byte (so we can get correct offsets)</span>
-    <span class="kw">for</span> (<span class="ident">idx</span>, <span class="ident">by</span>) <span class="kw">in</span> <span class="ident">full_string</span>.<span class="ident">as_bytes</span>().<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
-        <span class="kw">match</span> <span class="ident">state</span> {
-            <span class="ident">IndexingState::Starting</span> =&gt; {
-                <span class="kw">if</span> <span class="ident">by</span> <span class="op">==</span> <span class="kw-2">&amp;</span><span class="string">b&#39;[&#39;</span> {
-                    <span class="ident">state</span> <span class="op">=</span> <span class="ident">IndexingState::Accumulating</span>(<span class="ident">idx</span> <span class="op">+</span> <span class="number">1</span>)
+<span class="doccomment">/// Extracts indexes from a param string e.g. extracts `[String(abc),String(xyz)]` from `&quot;sentry[abc][xyz]&quot;`
+</span><span class="kw">fn </span>get_indexes(full_string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw-2">&amp;</span>str&gt;, ()&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>ret_vals = <span class="macro">vec!</span>[];
+    <span class="kw">let </span><span class="kw-2">mut </span>state = IndexingState::Starting;
+    <span class="comment">//first iterate by byte (so we can get correct offsets)
+    </span><span class="kw">for </span>(idx, by) <span class="kw">in </span>full_string.as_bytes().iter().enumerate() {
+        <span class="kw">match </span>state {
+            IndexingState::Starting =&gt; {
+                <span class="kw">if </span>by == <span class="kw-2">&amp;</span><span class="string">b&#39;[&#39; </span>{
+                    state = IndexingState::Accumulating(idx + <span class="number">1</span>)
                 }
             }
-            <span class="ident">IndexingState::LookingForLeftParenthesis</span> =&gt; {
-                <span class="kw">if</span> <span class="ident">by</span> <span class="op">==</span> <span class="kw-2">&amp;</span><span class="string">b&#39;[&#39;</span> {
-                    <span class="ident">state</span> <span class="op">=</span> <span class="ident">IndexingState::Accumulating</span>(<span class="ident">idx</span> <span class="op">+</span> <span class="number">1</span>);
-                } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">by</span> <span class="op">==</span> <span class="kw-2">&amp;</span><span class="string">b&#39;=&#39;</span> {
-                    <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">ret_vals</span>);
-                } <span class="kw">else</span> {
-                    <span class="kw">return</span> <span class="prelude-val">Err</span>(());
+            IndexingState::LookingForLeftParenthesis =&gt; {
+                <span class="kw">if </span>by == <span class="kw-2">&amp;</span><span class="string">b&#39;[&#39; </span>{
+                    state = IndexingState::Accumulating(idx + <span class="number">1</span>);
+                } <span class="kw">else if </span>by == <span class="kw-2">&amp;</span><span class="string">b&#39;=&#39; </span>{
+                    <span class="kw">return </span><span class="prelude-val">Ok</span>(ret_vals);
+                } <span class="kw">else </span>{
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(());
                 }
             }
-            <span class="ident">IndexingState::Accumulating</span>(<span class="ident">start_idx</span>) =&gt; {
-                <span class="kw">if</span> <span class="ident">by</span> <span class="op">==</span> <span class="kw-2">&amp;</span><span class="string">b&#39;]&#39;</span> {
-                    <span class="kw">let</span> <span class="ident">slice</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">full_string</span>[<span class="ident">start_idx</span>..<span class="ident">idx</span>];
-                    <span class="ident">ret_vals</span>.<span class="ident">push</span>(<span class="ident">slice</span>);
-                    <span class="ident">state</span> <span class="op">=</span> <span class="ident">IndexingState::LookingForLeftParenthesis</span>;
+            IndexingState::Accumulating(start_idx) =&gt; {
+                <span class="kw">if </span>by == <span class="kw-2">&amp;</span><span class="string">b&#39;]&#39; </span>{
+                    <span class="kw">let </span>slice = <span class="kw-2">&amp;</span>full_string[start_idx..idx];
+                    ret_vals.push(slice);
+                    state = IndexingState::LookingForLeftParenthesis;
                 }
             }
         }
     }
-    <span class="prelude-val">Ok</span>(<span class="ident">ret_vals</span>)
+    <span class="prelude-val">Ok</span>(ret_vals)
 }
 
-<span class="doccomment">/// Extracts indexes from a param of the form &#39;sentry[XXX][...]&#39;</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_sentry_entry_indexes</span>(<span class="ident">param_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span><span class="op">&gt;</span> {
-    <span class="kw">if</span> <span class="ident">param_name</span>.<span class="ident">starts_with</span>(<span class="string">&quot;sentry[&quot;</span>) {
-        <span class="ident">get_indexes</span>(<span class="ident">param_name</span>).<span class="ident">ok</span>()
-    } <span class="kw">else</span> {
-        <span class="prelude-val">None</span>
+<span class="doccomment">/// Extracts indexes from a param of the form &#39;sentry[XXX][...]&#39;
+</span><span class="kw">pub fn </span>get_sentry_entry_indexes(param_name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;Vec&lt;<span class="kw-2">&amp;</span>str&gt;&gt; {
+    <span class="kw">if </span>param_name.starts_with(<span class="string">&quot;sentry[&quot;</span>) {
+        get_indexes(param_name).ok()
+    } <span class="kw">else </span>{
+        <span class="prelude-val">None
+    </span>}
+}
+
+<span class="doccomment">/// Extracts the chunk index of a key with the given prefix.
+///
+/// Electron SDK splits up long payloads into chunks starting at sentry__1 with an
+/// incrementing counter. Assemble these chunks here and then decode them below.
+</span><span class="kw">pub fn </span>get_sentry_chunk_index(key: <span class="kw-2">&amp;</span>str, prefix: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;usize&gt; {
+    key.strip_prefix(prefix).and_then(|rest| rest.parse().ok())
+}
+
+<span class="doccomment">/// Aggregates slices of strings in random order.
+</span><span class="attribute">#[derive(Clone, Debug, Default)]
+</span><span class="kw">pub struct </span>ChunkedFormDataAggregator&lt;<span class="lifetime">&#39;a</span>&gt; {
+    parts: Vec&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;,
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; ChunkedFormDataAggregator&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="doccomment">/// Creates a new empty aggregator.
+    </span><span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::default()
     }
-}
 
-<span class="doccomment">/// Extracts the chunk index of a key with the given prefix.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Electron SDK splits up long payloads into chunks starting at sentry__1 with an</span>
-<span class="doccomment">/// incrementing counter. Assemble these chunks here and then decode them below.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_sentry_chunk_index</span>(<span class="ident">key</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">prefix</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
-    <span class="ident">key</span>.<span class="ident">strip_prefix</span>(<span class="ident">prefix</span>).<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">rest</span><span class="op">|</span> <span class="ident">rest</span>.<span class="ident">parse</span>().<span class="ident">ok</span>())
-}
-
-<span class="doccomment">/// Aggregates slices of strings in random order.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ChunkedFormDataAggregator</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="ident">parts</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span><span class="op">&gt;</span>,
-}
-
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">ChunkedFormDataAggregator</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="doccomment">/// Creates a new empty aggregator.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() -&gt; <span class="self">Self</span> {
-        <span class="ident"><span class="self">Self</span>::default</span>()
-    }
-
-    <span class="doccomment">/// Adds a part with the given index.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Fills up unpopulated indexes with empty strings, if there are holes between the last index</span>
-    <span class="doccomment">/// and this one. This effectively skips them when calling `join` in the end.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">insert</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">index</span>: <span class="ident">usize</span>, <span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>) {
-        <span class="kw">if</span> <span class="ident">index</span> <span class="op">&gt;</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">parts</span>.<span class="ident">len</span>() {
-            <span class="self">self</span>.<span class="ident">parts</span>.<span class="ident">resize</span>(<span class="ident">index</span> <span class="op">+</span> <span class="number">1</span>, <span class="string">&quot;&quot;</span>);
+    <span class="doccomment">/// Adds a part with the given index.
+    ///
+    /// Fills up unpopulated indexes with empty strings, if there are holes between the last index
+    /// and this one. This effectively skips them when calling `join` in the end.
+    </span><span class="kw">pub fn </span>insert(<span class="kw-2">&amp;mut </span><span class="self">self</span>, index: usize, value: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str) {
+        <span class="kw">if </span>index &gt;= <span class="self">self</span>.parts.len() {
+            <span class="self">self</span>.parts.resize(index + <span class="number">1</span>, <span class="string">&quot;&quot;</span>);
         }
 
-        <span class="self">self</span>.<span class="ident">parts</span>[<span class="ident">index</span>] <span class="op">=</span> <span class="ident">value</span>;
+        <span class="self">self</span>.parts[index] = value;
     }
 
-    <span class="doccomment">/// Returns `true` if no parts have been added.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">parts</span>.<span class="ident">is_empty</span>()
+    <span class="doccomment">/// Returns `true` if no parts have been added.
+    </span><span class="kw">pub fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.parts.is_empty()
     }
 
-    <span class="doccomment">/// Returns the string consisting of all parts.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">join</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">String</span> {
-        <span class="self">self</span>.<span class="ident">parts</span>.<span class="ident">join</span>(<span class="string">&quot;&quot;</span>)
+    <span class="doccomment">/// Returns the string consisting of all parts.
+    </span><span class="kw">pub fn </span>join(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; String {
+        <span class="self">self</span>.parts.join(<span class="string">&quot;&quot;</span>)
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_index_parser</span>() {
-        <span class="kw">let</span> <span class="ident">examples</span>: <span class="kw-2">&amp;</span>[(<span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="ident">str</span>]<span class="op">&gt;</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_index_parser() {
+        <span class="kw">let </span>examples: <span class="kw-2">&amp;</span>[(<span class="kw-2">&amp;</span>str, <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str]&gt;)] = <span class="kw-2">&amp;</span>[
             (<span class="string">&quot;fafdasd[a][b][33]&quot;</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;a&quot;</span>, <span class="string">&quot;b&quot;</span>, <span class="string">&quot;33&quot;</span>])),
             (<span class="string">&quot;fafdasd[a]b[33]&quot;</span>, <span class="prelude-val">None</span>),
             (<span class="string">&quot;fafdasd[a][b33]xx&quot;</span>, <span class="prelude-val">None</span>),
@@ -464,19 +464,19 @@
             (<span class="string">&quot;[ὈΔΥΣΣΕΎΣ][abc]&quot;</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;ὈΔΥΣΣΕΎΣ&quot;</span>, <span class="string">&quot;abc&quot;</span>])),
         ];
 
-        <span class="kw">for</span> <span class="kw-2">&amp;</span>(<span class="ident">example</span>, <span class="ident">expected_result</span>) <span class="kw">in</span> <span class="ident">examples</span> {
-            <span class="kw">let</span> <span class="ident">indexes</span> <span class="op">=</span> <span class="ident">get_indexes</span>(<span class="ident">example</span>).<span class="ident">ok</span>();
-            <span class="macro">assert_eq!</span>(<span class="ident">indexes</span>, <span class="ident">expected_result</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">vec</span><span class="op">|</span> <span class="ident">vec</span>.<span class="ident">into</span>()));
+        <span class="kw">for </span><span class="kw-2">&amp;</span>(example, expected_result) <span class="kw">in </span>examples {
+            <span class="kw">let </span>indexes = get_indexes(example).ok();
+            <span class="macro">assert_eq!</span>(indexes, expected_result.map(|vec| vec.into()));
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_update_value</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">val</span> <span class="op">=</span> <span class="ident">Value::Object</span>(<span class="ident">serde_json::Map::new</span>());
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_update_value() {
+        <span class="kw">let </span><span class="kw-2">mut </span>val = Value::Object(serde_json::Map::new());
 
-        <span class="ident">update_nested_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">val</span>, <span class="kw-2">&amp;</span>[<span class="string">&quot;x&quot;</span>, <span class="string">&quot;y&quot;</span>, <span class="string">&quot;z&quot;</span>], <span class="string">&quot;xx&quot;</span>);
+        update_nested_value(<span class="kw-2">&amp;mut </span>val, <span class="kw-2">&amp;</span>[<span class="string">&quot;x&quot;</span>, <span class="string">&quot;y&quot;</span>, <span class="string">&quot;z&quot;</span>], <span class="string">&quot;xx&quot;</span>);
 
-        <span class="macro">insta::assert_json_snapshot!</span>(<span class="ident">val</span>, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_json_snapshot!</span>(val, @<span class="string">r###&quot;
        ⋮{
        ⋮  &quot;x&quot;: {
        ⋮    &quot;y&quot;: {
@@ -486,10 +486,10 @@
        ⋮}
         &quot;###</span>);
 
-        <span class="ident">update_nested_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">val</span>, <span class="kw-2">&amp;</span>[<span class="string">&quot;x&quot;</span>, <span class="string">&quot;y&quot;</span>, <span class="string">&quot;k&quot;</span>], <span class="string">&quot;kk&quot;</span>);
-        <span class="ident">update_nested_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">val</span>, <span class="kw-2">&amp;</span>[<span class="string">&quot;w&quot;</span>, <span class="string">&quot;&quot;</span>], <span class="string">&quot;w&quot;</span>);
-        <span class="ident">update_nested_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">val</span>, <span class="kw-2">&amp;</span>[<span class="string">&quot;z1&quot;</span>], <span class="string">&quot;val1&quot;</span>);
-        <span class="macro">insta::assert_json_snapshot!</span>(<span class="ident">val</span>, @<span class="string">r###&quot;
+        update_nested_value(<span class="kw-2">&amp;mut </span>val, <span class="kw-2">&amp;</span>[<span class="string">&quot;x&quot;</span>, <span class="string">&quot;y&quot;</span>, <span class="string">&quot;k&quot;</span>], <span class="string">&quot;kk&quot;</span>);
+        update_nested_value(<span class="kw-2">&amp;mut </span>val, <span class="kw-2">&amp;</span>[<span class="string">&quot;w&quot;</span>, <span class="string">&quot;&quot;</span>], <span class="string">&quot;w&quot;</span>);
+        update_nested_value(<span class="kw-2">&amp;mut </span>val, <span class="kw-2">&amp;</span>[<span class="string">&quot;z1&quot;</span>], <span class="string">&quot;val1&quot;</span>);
+        <span class="macro">insta::assert_json_snapshot!</span>(val, @<span class="string">r###&quot;
        ⋮{
        ⋮  &quot;w&quot;: {
        ⋮    &quot;&quot;: &quot;w&quot;
@@ -505,28 +505,28 @@
         &quot;###</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_merge_vals</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">original</span> <span class="op">=</span> <span class="macro">serde_json::json!</span>({
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_merge_vals() {
+        <span class="kw">let </span><span class="kw-2">mut </span>original = <span class="macro">serde_json::json!</span>({
             <span class="string">&quot;k1&quot;</span>: <span class="string">&quot;v1&quot;</span>,
             <span class="string">&quot;k2&quot;</span>: {
                 <span class="string">&quot;k3&quot;</span>: <span class="string">&quot;v3&quot;</span>,
-                <span class="string">&quot;k4&quot;</span>: <span class="string">&quot;v4&quot;</span>
-            },
+                <span class="string">&quot;k4&quot;</span>: <span class="string">&quot;v4&quot;
+            </span>},
             <span class="string">&quot;k5&quot;</span>: [ <span class="number">1</span>,<span class="number">2</span>,<span class="number">3</span>]
         });
 
-        <span class="kw">let</span> <span class="ident">modified</span> <span class="op">=</span> <span class="macro">serde_json::json!</span>({
+        <span class="kw">let </span>modified = <span class="macro">serde_json::json!</span>({
             <span class="string">&quot;k1&quot;</span>: <span class="string">&quot;v1bis&quot;</span>,
             <span class="string">&quot;k2&quot;</span>: {
                 <span class="string">&quot;k4&quot;</span>: <span class="string">&quot;v4bis&quot;</span>,
-                <span class="string">&quot;k4-1&quot;</span>: <span class="string">&quot;v4-1&quot;</span>
-            },
-            <span class="string">&quot;k6&quot;</span>: <span class="string">&quot;v6&quot;</span>
-        });
+                <span class="string">&quot;k4-1&quot;</span>: <span class="string">&quot;v4-1&quot;
+            </span>},
+            <span class="string">&quot;k6&quot;</span>: <span class="string">&quot;v6&quot;
+        </span>});
 
-        <span class="ident">merge_values</span>(<span class="kw-2">&amp;mut</span> <span class="ident">original</span>, <span class="ident">modified</span>);
-        <span class="macro">insta::assert_json_snapshot!</span>(<span class="ident">original</span>, @<span class="string">r###&quot;
+        merge_values(<span class="kw-2">&amp;mut </span>original, modified);
+        <span class="macro">insta::assert_json_snapshot!</span>(original, @<span class="string">r###&quot;
        ⋮{
        ⋮  &quot;k1&quot;: &quot;v1&quot;,
        ⋮  &quot;k2&quot;: {
@@ -544,73 +544,73 @@
         &quot;###</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_chunk_index</span>() {
-        <span class="macro">assert_eq!</span>(<span class="ident">get_sentry_chunk_index</span>(<span class="string">&quot;sentry__0&quot;</span>, <span class="string">&quot;sentry__&quot;</span>), <span class="prelude-val">Some</span>(<span class="number">0</span>));
-        <span class="macro">assert_eq!</span>(<span class="ident">get_sentry_chunk_index</span>(<span class="string">&quot;sentry__1&quot;</span>, <span class="string">&quot;sentry__&quot;</span>), <span class="prelude-val">Some</span>(<span class="number">1</span>));
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_chunk_index() {
+        <span class="macro">assert_eq!</span>(get_sentry_chunk_index(<span class="string">&quot;sentry__0&quot;</span>, <span class="string">&quot;sentry__&quot;</span>), <span class="prelude-val">Some</span>(<span class="number">0</span>));
+        <span class="macro">assert_eq!</span>(get_sentry_chunk_index(<span class="string">&quot;sentry__1&quot;</span>, <span class="string">&quot;sentry__&quot;</span>), <span class="prelude-val">Some</span>(<span class="number">1</span>));
 
-        <span class="macro">assert_eq!</span>(<span class="ident">get_sentry_chunk_index</span>(<span class="string">&quot;foo__0&quot;</span>, <span class="string">&quot;sentry__&quot;</span>), <span class="prelude-val">None</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">get_sentry_chunk_index</span>(<span class="string">&quot;sentry__&quot;</span>, <span class="string">&quot;sentry__&quot;</span>), <span class="prelude-val">None</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">get_sentry_chunk_index</span>(<span class="string">&quot;sentry__-1&quot;</span>, <span class="string">&quot;sentry__&quot;</span>), <span class="prelude-val">None</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">get_sentry_chunk_index</span>(<span class="string">&quot;sentry__xx&quot;</span>, <span class="string">&quot;sentry__&quot;</span>), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(get_sentry_chunk_index(<span class="string">&quot;foo__0&quot;</span>, <span class="string">&quot;sentry__&quot;</span>), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(get_sentry_chunk_index(<span class="string">&quot;sentry__&quot;</span>, <span class="string">&quot;sentry__&quot;</span>), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(get_sentry_chunk_index(<span class="string">&quot;sentry__-1&quot;</span>, <span class="string">&quot;sentry__&quot;</span>), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(get_sentry_chunk_index(<span class="string">&quot;sentry__xx&quot;</span>, <span class="string">&quot;sentry__&quot;</span>), <span class="prelude-val">None</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_aggregator_empty</span>() {
-        <span class="kw">let</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">ChunkedFormDataAggregator::new</span>();
-        <span class="macro">assert!</span>(<span class="ident">aggregator</span>.<span class="ident">is_empty</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">aggregator</span>.<span class="ident">join</span>(), <span class="string">&quot;&quot;</span>);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_aggregator_empty() {
+        <span class="kw">let </span>aggregator = ChunkedFormDataAggregator::new();
+        <span class="macro">assert!</span>(aggregator.is_empty());
+        <span class="macro">assert_eq!</span>(aggregator.join(), <span class="string">&quot;&quot;</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_aggregator_base_0</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">ChunkedFormDataAggregator::new</span>();
-        <span class="ident">aggregator</span>.<span class="ident">insert</span>(<span class="number">0</span>, <span class="string">&quot;hello,&quot;</span>);
-        <span class="ident">aggregator</span>.<span class="ident">insert</span>(<span class="number">1</span>, <span class="string">&quot; world&quot;</span>);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_aggregator_base_0() {
+        <span class="kw">let </span><span class="kw-2">mut </span>aggregator = ChunkedFormDataAggregator::new();
+        aggregator.insert(<span class="number">0</span>, <span class="string">&quot;hello,&quot;</span>);
+        aggregator.insert(<span class="number">1</span>, <span class="string">&quot; world&quot;</span>);
 
-        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">aggregator</span>.<span class="ident">is_empty</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">aggregator</span>.<span class="ident">join</span>(), <span class="string">&quot;hello, world&quot;</span>);
+        <span class="macro">assert!</span>(!aggregator.is_empty());
+        <span class="macro">assert_eq!</span>(aggregator.join(), <span class="string">&quot;hello, world&quot;</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_aggregator_base_1</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">ChunkedFormDataAggregator::new</span>();
-        <span class="ident">aggregator</span>.<span class="ident">insert</span>(<span class="number">1</span>, <span class="string">&quot;hello,&quot;</span>);
-        <span class="ident">aggregator</span>.<span class="ident">insert</span>(<span class="number">2</span>, <span class="string">&quot; world&quot;</span>);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_aggregator_base_1() {
+        <span class="kw">let </span><span class="kw-2">mut </span>aggregator = ChunkedFormDataAggregator::new();
+        aggregator.insert(<span class="number">1</span>, <span class="string">&quot;hello,&quot;</span>);
+        aggregator.insert(<span class="number">2</span>, <span class="string">&quot; world&quot;</span>);
 
-        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">aggregator</span>.<span class="ident">is_empty</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">aggregator</span>.<span class="ident">join</span>(), <span class="string">&quot;hello, world&quot;</span>);
+        <span class="macro">assert!</span>(!aggregator.is_empty());
+        <span class="macro">assert_eq!</span>(aggregator.join(), <span class="string">&quot;hello, world&quot;</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_aggregator_holes</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">ChunkedFormDataAggregator::new</span>();
-        <span class="ident">aggregator</span>.<span class="ident">insert</span>(<span class="number">0</span>, <span class="string">&quot;hello,&quot;</span>);
-        <span class="ident">aggregator</span>.<span class="ident">insert</span>(<span class="number">3</span>, <span class="string">&quot; world&quot;</span>);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_aggregator_holes() {
+        <span class="kw">let </span><span class="kw-2">mut </span>aggregator = ChunkedFormDataAggregator::new();
+        aggregator.insert(<span class="number">0</span>, <span class="string">&quot;hello,&quot;</span>);
+        aggregator.insert(<span class="number">3</span>, <span class="string">&quot; world&quot;</span>);
 
-        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">aggregator</span>.<span class="ident">is_empty</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">aggregator</span>.<span class="ident">join</span>(), <span class="string">&quot;hello, world&quot;</span>);
+        <span class="macro">assert!</span>(!aggregator.is_empty());
+        <span class="macro">assert_eq!</span>(aggregator.join(), <span class="string">&quot;hello, world&quot;</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_aggregator_reversed</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">ChunkedFormDataAggregator::new</span>();
-        <span class="ident">aggregator</span>.<span class="ident">insert</span>(<span class="number">1</span>, <span class="string">&quot; world&quot;</span>);
-        <span class="ident">aggregator</span>.<span class="ident">insert</span>(<span class="number">0</span>, <span class="string">&quot;hello,&quot;</span>);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_aggregator_reversed() {
+        <span class="kw">let </span><span class="kw-2">mut </span>aggregator = ChunkedFormDataAggregator::new();
+        aggregator.insert(<span class="number">1</span>, <span class="string">&quot; world&quot;</span>);
+        aggregator.insert(<span class="number">0</span>, <span class="string">&quot;hello,&quot;</span>);
 
-        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">aggregator</span>.<span class="ident">is_empty</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">aggregator</span>.<span class="ident">join</span>(), <span class="string">&quot;hello, world&quot;</span>);
+        <span class="macro">assert!</span>(!aggregator.is_empty());
+        <span class="macro">assert_eq!</span>(aggregator.join(), <span class="string">&quot;hello, world&quot;</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_aggregator_override</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">ChunkedFormDataAggregator::new</span>();
-        <span class="ident">aggregator</span>.<span class="ident">insert</span>(<span class="number">0</span>, <span class="string">&quot;hello,&quot;</span>);
-        <span class="ident">aggregator</span>.<span class="ident">insert</span>(<span class="number">0</span>, <span class="string">&quot;bye&quot;</span>);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_aggregator_override() {
+        <span class="kw">let </span><span class="kw-2">mut </span>aggregator = ChunkedFormDataAggregator::new();
+        aggregator.insert(<span class="number">0</span>, <span class="string">&quot;hello,&quot;</span>);
+        aggregator.insert(<span class="number">0</span>, <span class="string">&quot;bye&quot;</span>);
 
-        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">aggregator</span>.<span class="ident">is_empty</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">aggregator</span>.<span class="ident">join</span>(), <span class="string">&quot;bye&quot;</span>);
+        <span class="macro">assert!</span>(!aggregator.is_empty());
+        <span class="macro">assert_eq!</span>(aggregator.join(), <span class="string">&quot;bye&quot;</span>);
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

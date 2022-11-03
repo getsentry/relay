@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/store/normalize/user_agent.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>user_agent.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../../storage.js"></script><script defer src="../../../../source-script.js"></script><script defer src="../../../../source-files.js"></script><script defer src="../../../../main.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/store/normalize/user_agent.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>user_agent.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../../normalize.css"><link rel="stylesheet" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../../ayu.css" disabled><link rel="stylesheet" href="../../../../dark.css" disabled><link rel="stylesheet" href="../../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../../storage.js"></script><script defer src="../../../../source-script.js"></script><script defer src="../../../../source-files.js"></script><script defer src="../../../../main.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../../relay_general/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -334,170 +334,170 @@
 <span id="332">332</span>
 <span id="333">333</span>
 <span id="334">334</span>
-</pre><pre class="rust"><code><span class="doccomment">//! Contains the user agent normalization code</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! This module is responsible for taking the user agent string parsing it and filling in</span>
-<span class="doccomment">//! the browser, os and device information in the event.</span>
-<span class="doccomment">//!</span>
+</pre><pre class="rust"><code><span class="doccomment">//! Contains the user agent normalization code
+//!
+//! This module is responsible for taking the user agent string parsing it and filling in
+//! the browser, os and device information in the event.
+//!
 
-<span class="kw">use</span> <span class="ident">std::fmt::Write</span>;
+</span><span class="kw">use </span>std::fmt::Write;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">BrowserContext</span>, <span class="ident">Context</span>, <span class="ident">Contexts</span>, <span class="ident">DeviceContext</span>, <span class="ident">Event</span>, <span class="ident">OsContext</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types::Annotated</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::user_agent</span>::{<span class="ident">get_user_agent</span>, <span class="ident">parse_device</span>, <span class="ident">parse_os</span>, <span class="ident">parse_user_agent</span>};
+<span class="kw">use </span><span class="kw">crate</span>::protocol::{BrowserContext, Context, Contexts, DeviceContext, Event, OsContext};
+<span class="kw">use </span><span class="kw">crate</span>::types::Annotated;
+<span class="kw">use </span><span class="kw">crate</span>::user_agent::{get_user_agent, parse_device, parse_os, parse_user_agent};
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">normalize_user_agent</span>(<span class="ident">event</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Event</span>) {
-    <span class="kw">let</span> <span class="ident">user_agent</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">get_user_agent</span>(<span class="ident">event</span>) {
-        <span class="prelude-val">Some</span>(<span class="ident">ua</span>) =&gt; <span class="ident">ua</span>,
-        <span class="prelude-val">None</span> =&gt; <span class="kw">return</span>,
+<span class="kw">pub fn </span>normalize_user_agent(event: <span class="kw-2">&amp;mut </span>Event) {
+    <span class="kw">let </span>user_agent = <span class="kw">match </span>get_user_agent(event) {
+        <span class="prelude-val">Some</span>(ua) =&gt; ua,
+        <span class="prelude-val">None </span>=&gt; <span class="kw">return</span>,
     };
 
-    <span class="kw">let</span> <span class="ident">device</span> <span class="op">=</span> <span class="ident">parse_device</span>(<span class="ident">user_agent</span>);
-    <span class="kw">let</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">parse_os</span>(<span class="ident">user_agent</span>);
-    <span class="kw">let</span> <span class="ident">ua</span> <span class="op">=</span> <span class="ident">parse_user_agent</span>(<span class="ident">user_agent</span>);
+    <span class="kw">let </span>device = parse_device(user_agent);
+    <span class="kw">let </span>os = parse_os(user_agent);
+    <span class="kw">let </span>ua = parse_user_agent(user_agent);
 
-    <span class="kw">if</span> <span class="op">!</span><span class="ident">is_known</span>(<span class="ident">ua</span>.<span class="ident">family</span>.<span class="ident">as_str</span>())
-        <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">is_known</span>(<span class="ident">device</span>.<span class="ident">family</span>.<span class="ident">as_str</span>())
-        <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">is_known</span>(<span class="ident">os</span>.<span class="ident">family</span>.<span class="ident">as_str</span>())
+    <span class="kw">if </span>!is_known(ua.family.as_str())
+        &amp;&amp; !is_known(device.family.as_str())
+        &amp;&amp; !is_known(os.family.as_str())
     {
-        <span class="kw">return</span>; <span class="comment">// no useful information in the user agent</span>
-    }
+        <span class="kw">return</span>; <span class="comment">// no useful information in the user agent
+    </span>}
 
-    <span class="kw">let</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">contexts</span>.<span class="ident">get_or_insert_with</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Contexts::new</span>());
+    <span class="kw">let </span>contexts = event.contexts.get_or_insert_with(|| Contexts::new());
 
-    <span class="kw">if</span> <span class="ident">is_known</span>(<span class="ident">ua</span>.<span class="ident">family</span>.<span class="ident">as_str</span>()) <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">contexts</span>.<span class="ident">contains_key</span>(<span class="ident">BrowserContext::default_key</span>()) {
-        <span class="kw">let</span> <span class="ident">version</span> <span class="op">=</span> <span class="ident">get_version</span>(<span class="kw-2">&amp;</span><span class="ident">ua</span>.<span class="ident">major</span>, <span class="kw-2">&amp;</span><span class="ident">ua</span>.<span class="ident">minor</span>, <span class="kw-2">&amp;</span><span class="ident">ua</span>.<span class="ident">patch</span>);
-        <span class="ident">contexts</span>.<span class="ident">add</span>(<span class="ident">Context::Browser</span>(<span class="ident">Box::new</span>(<span class="ident">BrowserContext</span> {
-            <span class="ident">name</span>: <span class="ident">Annotated::from</span>(<span class="ident">ua</span>.<span class="ident">family</span>),
-            <span class="ident">version</span>: <span class="ident">Annotated::from</span>(<span class="ident">version</span>),
-            ..<span class="ident">BrowserContext::default</span>()
+    <span class="kw">if </span>is_known(ua.family.as_str()) &amp;&amp; !contexts.contains_key(BrowserContext::default_key()) {
+        <span class="kw">let </span>version = get_version(<span class="kw-2">&amp;</span>ua.major, <span class="kw-2">&amp;</span>ua.minor, <span class="kw-2">&amp;</span>ua.patch);
+        contexts.add(Context::Browser(Box::new(BrowserContext {
+            name: Annotated::from(ua.family),
+            version: Annotated::from(version),
+            ..BrowserContext::default()
         })));
     }
 
-    <span class="kw">if</span> <span class="ident">is_known</span>(<span class="ident">device</span>.<span class="ident">family</span>.<span class="ident">as_str</span>()) <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">contexts</span>.<span class="ident">contains_key</span>(<span class="ident">DeviceContext::default_key</span>()) {
-        <span class="ident">contexts</span>.<span class="ident">add</span>(<span class="ident">Context::Device</span>(<span class="ident">Box::new</span>(<span class="ident">DeviceContext</span> {
-            <span class="ident">family</span>: <span class="ident">Annotated::from</span>(<span class="ident">device</span>.<span class="ident">family</span>),
-            <span class="ident">model</span>: <span class="ident">Annotated::from</span>(<span class="ident">device</span>.<span class="ident">model</span>),
-            <span class="ident">brand</span>: <span class="ident">Annotated::from</span>(<span class="ident">device</span>.<span class="ident">brand</span>),
-            ..<span class="ident">DeviceContext::default</span>()
+    <span class="kw">if </span>is_known(device.family.as_str()) &amp;&amp; !contexts.contains_key(DeviceContext::default_key()) {
+        contexts.add(Context::Device(Box::new(DeviceContext {
+            family: Annotated::from(device.family),
+            model: Annotated::from(device.model),
+            brand: Annotated::from(device.brand),
+            ..DeviceContext::default()
         })));
     }
 
-    <span class="comment">// avoid conflicts with OS-context sent by a serverside SDK by using `contexts.client_os`</span>
-    <span class="comment">// instead of `contexts.os`. This is then preferred by the UI to show alongside device and</span>
-    <span class="comment">// browser context.</span>
-    <span class="comment">//</span>
-    <span class="comment">// Why not move the existing `contexts.os` into a different key on conflicts? Because we still</span>
-    <span class="comment">// want to index (derive tags from) the SDK-sent context.</span>
-    <span class="kw">let</span> <span class="ident">os_context_key</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">event</span>.<span class="ident">platform</span>.<span class="ident">as_str</span>() {
-        <span class="prelude-val">Some</span>(<span class="string">&quot;javascript&quot;</span>) =&gt; <span class="ident">OsContext::default_key</span>(),
-        <span class="kw">_</span> =&gt; <span class="string">&quot;client_os&quot;</span>,
+    <span class="comment">// avoid conflicts with OS-context sent by a serverside SDK by using `contexts.client_os`
+    // instead of `contexts.os`. This is then preferred by the UI to show alongside device and
+    // browser context.
+    //
+    // Why not move the existing `contexts.os` into a different key on conflicts? Because we still
+    // want to index (derive tags from) the SDK-sent context.
+    </span><span class="kw">let </span>os_context_key = <span class="kw">match </span>event.platform.as_str() {
+        <span class="prelude-val">Some</span>(<span class="string">&quot;javascript&quot;</span>) =&gt; OsContext::default_key(),
+        <span class="kw">_ </span>=&gt; <span class="string">&quot;client_os&quot;</span>,
     };
 
-    <span class="kw">if</span> <span class="ident">is_known</span>(<span class="ident">os</span>.<span class="ident">family</span>.<span class="ident">as_str</span>()) <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">contexts</span>.<span class="ident">contains_key</span>(<span class="ident">os_context_key</span>) {
-        <span class="kw">let</span> <span class="ident">version</span> <span class="op">=</span> <span class="ident">get_version</span>(<span class="kw-2">&amp;</span><span class="ident">os</span>.<span class="ident">major</span>, <span class="kw-2">&amp;</span><span class="ident">os</span>.<span class="ident">minor</span>, <span class="kw-2">&amp;</span><span class="ident">os</span>.<span class="ident">patch</span>);
-        <span class="ident">contexts</span>.<span class="ident">insert</span>(
-            <span class="ident">os_context_key</span>.<span class="ident">to_owned</span>(),
-            <span class="ident">Annotated::new</span>(
-                <span class="ident">Context::Os</span>(<span class="ident">Box::new</span>(<span class="ident">OsContext</span> {
-                    <span class="ident">name</span>: <span class="ident">Annotated::from</span>(<span class="ident">os</span>.<span class="ident">family</span>),
-                    <span class="ident">version</span>: <span class="ident">Annotated::from</span>(<span class="ident">version</span>),
-                    ..<span class="ident">OsContext::default</span>()
+    <span class="kw">if </span>is_known(os.family.as_str()) &amp;&amp; !contexts.contains_key(os_context_key) {
+        <span class="kw">let </span>version = get_version(<span class="kw-2">&amp;</span>os.major, <span class="kw-2">&amp;</span>os.minor, <span class="kw-2">&amp;</span>os.patch);
+        contexts.insert(
+            os_context_key.to_owned(),
+            Annotated::new(
+                Context::Os(Box::new(OsContext {
+                    name: Annotated::from(os.family),
+                    version: Annotated::from(version),
+                    ..OsContext::default()
                 }))
-                .<span class="ident">into</span>(),
+                .into(),
             ),
         );
     }
 }
 
-<span class="kw">fn</span> <span class="ident">is_known</span>(<span class="ident">family</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">bool</span> {
-    <span class="ident">family</span> <span class="op">!</span><span class="op">=</span> <span class="string">&quot;Other&quot;</span>
-}
+<span class="kw">fn </span>is_known(family: <span class="kw-2">&amp;</span>str) -&gt; bool {
+    family != <span class="string">&quot;Other&quot;
+</span>}
 
-<span class="kw">fn</span> <span class="ident">get_version</span>(
-    <span class="ident">major</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="ident">minor</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="ident">patch</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">version</span> <span class="op">=</span> <span class="ident">major</span>.<span class="ident">clone</span>()<span class="question-mark">?</span>;
+<span class="kw">fn </span>get_version(
+    major: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;String&gt;,
+    minor: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;String&gt;,
+    patch: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;String&gt;,
+) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>version = major.clone()<span class="question-mark">?</span>;
 
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">minor</span>) <span class="op">=</span> <span class="ident">minor</span> {
-        <span class="macro">write!</span>(<span class="ident">version</span>, <span class="string">&quot;.{}&quot;</span>, <span class="ident">minor</span>).<span class="ident">ok</span>();
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">patch</span>) <span class="op">=</span> <span class="ident">patch</span> {
-            <span class="macro">write!</span>(<span class="ident">version</span>, <span class="string">&quot;.{}&quot;</span>, <span class="ident">patch</span>).<span class="ident">ok</span>();
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(minor) = minor {
+        <span class="macro">write!</span>(version, <span class="string">&quot;.{}&quot;</span>, minor).ok();
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(patch) = patch {
+            <span class="macro">write!</span>(version, <span class="string">&quot;.{}&quot;</span>, patch).ok();
         }
     }
 
-    <span class="prelude-val">Some</span>(<span class="ident">version</span>)
+    <span class="prelude-val">Some</span>(version)
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::testutils</span>::{<span class="self">self</span>, <span class="ident">assert_annotated_snapshot</span>};
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span><span class="kw">crate</span>::testutils::{<span class="self">self</span>, assert_annotated_snapshot};
 
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">const</span> <span class="ident">GOOD_UA</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span>
+    <span class="kw">const </span>GOOD_UA: <span class="kw-2">&amp;</span>str =
             <span class="string">&quot;Mozilla/5.0 (Linux; Android 4.0.4; Galaxy Nexus Build/IMM76B) AppleWebKit/535.19 (KHTML, like Gecko) Chrome/18.0.1025.133 Mobile Safari/535.19&quot;</span>;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_version_none</span>() {
-        <span class="macro">assert_eq!</span>(<span class="ident">get_version</span>(<span class="kw-2">&amp;</span><span class="prelude-val">None</span>, <span class="kw-2">&amp;</span><span class="prelude-val">None</span>, <span class="kw-2">&amp;</span><span class="prelude-val">None</span>), <span class="prelude-val">None</span>);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_version_none() {
+        <span class="macro">assert_eq!</span>(get_version(<span class="kw-2">&amp;</span><span class="prelude-val">None</span>, <span class="kw-2">&amp;</span><span class="prelude-val">None</span>, <span class="kw-2">&amp;</span><span class="prelude-val">None</span>), <span class="prelude-val">None</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_version_major</span>() {
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_version_major() {
         <span class="macro">assert_eq!</span>(
-            <span class="ident">get_version</span>(<span class="kw-2">&amp;</span><span class="prelude-val">Some</span>(<span class="string">&quot;X&quot;</span>.<span class="ident">into</span>()), <span class="kw-2">&amp;</span><span class="prelude-val">None</span>, <span class="kw-2">&amp;</span><span class="prelude-val">None</span>),
-            <span class="prelude-val">Some</span>(<span class="string">&quot;X&quot;</span>.<span class="ident">into</span>())
+            get_version(<span class="kw-2">&amp;</span><span class="prelude-val">Some</span>(<span class="string">&quot;X&quot;</span>.into()), <span class="kw-2">&amp;</span><span class="prelude-val">None</span>, <span class="kw-2">&amp;</span><span class="prelude-val">None</span>),
+            <span class="prelude-val">Some</span>(<span class="string">&quot;X&quot;</span>.into())
         )
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_version_major_minor</span>() {
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_version_major_minor() {
         <span class="macro">assert_eq!</span>(
-            <span class="ident">get_version</span>(<span class="kw-2">&amp;</span><span class="prelude-val">Some</span>(<span class="string">&quot;X&quot;</span>.<span class="ident">into</span>()), <span class="kw-2">&amp;</span><span class="prelude-val">Some</span>(<span class="string">&quot;Y&quot;</span>.<span class="ident">into</span>()), <span class="kw-2">&amp;</span><span class="prelude-val">None</span>),
-            <span class="prelude-val">Some</span>(<span class="string">&quot;X.Y&quot;</span>.<span class="ident">into</span>())
+            get_version(<span class="kw-2">&amp;</span><span class="prelude-val">Some</span>(<span class="string">&quot;X&quot;</span>.into()), <span class="kw-2">&amp;</span><span class="prelude-val">Some</span>(<span class="string">&quot;Y&quot;</span>.into()), <span class="kw-2">&amp;</span><span class="prelude-val">None</span>),
+            <span class="prelude-val">Some</span>(<span class="string">&quot;X.Y&quot;</span>.into())
         )
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_version_major_minor_patch</span>() {
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_version_major_minor_patch() {
         <span class="macro">assert_eq!</span>(
-            <span class="ident">get_version</span>(<span class="kw-2">&amp;</span><span class="prelude-val">Some</span>(<span class="string">&quot;X&quot;</span>.<span class="ident">into</span>()), <span class="kw-2">&amp;</span><span class="prelude-val">Some</span>(<span class="string">&quot;Y&quot;</span>.<span class="ident">into</span>()), <span class="kw-2">&amp;</span><span class="prelude-val">Some</span>(<span class="string">&quot;Z&quot;</span>.<span class="ident">into</span>())),
-            <span class="prelude-val">Some</span>(<span class="string">&quot;X.Y.Z&quot;</span>.<span class="ident">into</span>())
+            get_version(<span class="kw-2">&amp;</span><span class="prelude-val">Some</span>(<span class="string">&quot;X&quot;</span>.into()), <span class="kw-2">&amp;</span><span class="prelude-val">Some</span>(<span class="string">&quot;Y&quot;</span>.into()), <span class="kw-2">&amp;</span><span class="prelude-val">Some</span>(<span class="string">&quot;Z&quot;</span>.into())),
+            <span class="prelude-val">Some</span>(<span class="string">&quot;X.Y.Z&quot;</span>.into())
         )
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_verison_missing_minor</span>() {
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_verison_missing_minor() {
         <span class="macro">assert_eq!</span>(
-            <span class="ident">get_version</span>(<span class="kw-2">&amp;</span><span class="prelude-val">Some</span>(<span class="string">&quot;X&quot;</span>.<span class="ident">into</span>()), <span class="kw-2">&amp;</span><span class="prelude-val">None</span>, <span class="kw-2">&amp;</span><span class="prelude-val">Some</span>(<span class="string">&quot;Z&quot;</span>.<span class="ident">into</span>())),
-            <span class="prelude-val">Some</span>(<span class="string">&quot;X&quot;</span>.<span class="ident">into</span>())
+            get_version(<span class="kw-2">&amp;</span><span class="prelude-val">Some</span>(<span class="string">&quot;X&quot;</span>.into()), <span class="kw-2">&amp;</span><span class="prelude-val">None</span>, <span class="kw-2">&amp;</span><span class="prelude-val">Some</span>(<span class="string">&quot;Z&quot;</span>.into())),
+            <span class="prelude-val">Some</span>(<span class="string">&quot;X&quot;</span>.into())
         )
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_skip_no_user_agent</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Event::default</span>();
-        <span class="ident">normalize_user_agent</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">event</span>.<span class="ident">contexts</span>.<span class="ident">value</span>(), <span class="prelude-val">None</span>);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_skip_no_user_agent() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
+        normalize_user_agent(<span class="kw-2">&amp;mut </span>event);
+        <span class="macro">assert_eq!</span>(event.contexts.value(), <span class="prelude-val">None</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_skip_unrecognizable_user_agent</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">testutils::get_event_with_user_agent</span>(<span class="string">&quot;a dont no&quot;</span>);
-        <span class="ident">normalize_user_agent</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">event</span>.<span class="ident">contexts</span>.<span class="ident">value</span>(), <span class="prelude-val">None</span>);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_skip_unrecognizable_user_agent() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = testutils::get_event_with_user_agent(<span class="string">&quot;a dont no&quot;</span>);
+        normalize_user_agent(<span class="kw-2">&amp;mut </span>event);
+        <span class="macro">assert_eq!</span>(event.contexts.value(), <span class="prelude-val">None</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_browser_context</span>() {
-        <span class="kw">let</span> <span class="ident">ua</span> <span class="op">=</span> <span class="string">&quot;Mozilla/5.0 (-; -; -) - Chrome/18.0.1025.133 Mobile Safari/535.19&quot;</span>;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_browser_context() {
+        <span class="kw">let </span>ua = <span class="string">&quot;Mozilla/5.0 (-; -; -) - Chrome/18.0.1025.133 Mobile Safari/535.19&quot;</span>;
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">testutils::get_event_with_user_agent</span>(<span class="ident">ua</span>);
-        <span class="ident">normalize_user_agent</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>);
-        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>.<span class="ident">contexts</span>, @<span class="string">r###&quot;
+        <span class="kw">let </span><span class="kw-2">mut </span>event = testutils::get_event_with_user_agent(ua);
+        normalize_user_agent(<span class="kw-2">&amp;mut </span>event);
+        <span class="macro">assert_annotated_snapshot!</span>(event.contexts, @<span class="string">r###&quot;
         {
           &quot;browser&quot;: {
             &quot;name&quot;: &quot;Chrome Mobile&quot;,
@@ -508,13 +508,13 @@
         &quot;###</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_os_context</span>() {
-        <span class="kw">let</span> <span class="ident">ua</span> <span class="op">=</span> <span class="string">&quot;Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) - -&quot;</span>;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_os_context() {
+        <span class="kw">let </span>ua = <span class="string">&quot;Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) - -&quot;</span>;
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">testutils::get_event_with_user_agent</span>(<span class="ident">ua</span>);
-        <span class="ident">normalize_user_agent</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>);
-        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>.<span class="ident">contexts</span>, @<span class="string">r###&quot;
+        <span class="kw">let </span><span class="kw-2">mut </span>event = testutils::get_event_with_user_agent(ua);
+        normalize_user_agent(<span class="kw-2">&amp;mut </span>event);
+        <span class="macro">assert_annotated_snapshot!</span>(event.contexts, @<span class="string">r###&quot;
         {
           &quot;client_os&quot;: {
             &quot;name&quot;: &quot;Windows&quot;,
@@ -525,12 +525,12 @@
         &quot;###</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_os_context_short_version</span>() {
-        <span class="kw">let</span> <span class="ident">ua</span> <span class="op">=</span> <span class="string">&quot;Mozilla/5.0 (iPhone; CPU iPhone OS 12_1 like Mac OS X) - (-)&quot;</span>;
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">testutils::get_event_with_user_agent</span>(<span class="ident">ua</span>);
-        <span class="ident">normalize_user_agent</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>);
-        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>.<span class="ident">contexts</span>, @<span class="string">r###&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_os_context_short_version() {
+        <span class="kw">let </span>ua = <span class="string">&quot;Mozilla/5.0 (iPhone; CPU iPhone OS 12_1 like Mac OS X) - (-)&quot;</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>event = testutils::get_event_with_user_agent(ua);
+        normalize_user_agent(<span class="kw-2">&amp;mut </span>event);
+        <span class="macro">assert_annotated_snapshot!</span>(event.contexts, @<span class="string">r###&quot;
         {
           &quot;browser&quot;: {
             &quot;name&quot;: &quot;Mobile Safari UI/WKWebView&quot;,
@@ -551,12 +551,12 @@
         &quot;###</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_os_context_full_version</span>() {
-        <span class="kw">let</span> <span class="ident">ua</span> <span class="op">=</span> <span class="string">&quot;Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_4) - (-)&quot;</span>;
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">testutils::get_event_with_user_agent</span>(<span class="ident">ua</span>);
-        <span class="ident">normalize_user_agent</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>);
-        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>.<span class="ident">contexts</span>, @<span class="string">r###&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_os_context_full_version() {
+        <span class="kw">let </span>ua = <span class="string">&quot;Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_4) - (-)&quot;</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>event = testutils::get_event_with_user_agent(ua);
+        normalize_user_agent(<span class="kw-2">&amp;mut </span>event);
+        <span class="macro">assert_annotated_snapshot!</span>(event.contexts, @<span class="string">r###&quot;
         {
           &quot;client_os&quot;: {
             &quot;name&quot;: &quot;Mac OS X&quot;,
@@ -573,13 +573,13 @@
         &quot;###</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_device_context</span>() {
-        <span class="kw">let</span> <span class="ident">ua</span> <span class="op">=</span> <span class="string">&quot;- (-; -; Galaxy Nexus Build/IMM76B) - (-) &quot;</span>;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_device_context() {
+        <span class="kw">let </span>ua = <span class="string">&quot;- (-; -; Galaxy Nexus Build/IMM76B) - (-) &quot;</span>;
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">testutils::get_event_with_user_agent</span>(<span class="ident">ua</span>);
-        <span class="ident">normalize_user_agent</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>);
-        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>.<span class="ident">contexts</span>, @<span class="string">r###&quot;
+        <span class="kw">let </span><span class="kw-2">mut </span>event = testutils::get_event_with_user_agent(ua);
+        normalize_user_agent(<span class="kw-2">&amp;mut </span>event);
+        <span class="macro">assert_annotated_snapshot!</span>(event.contexts, @<span class="string">r###&quot;
         {
           &quot;device&quot;: {
             &quot;family&quot;: &quot;Samsung Galaxy Nexus&quot;,
@@ -591,11 +591,11 @@
         &quot;###</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_all_contexts</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">testutils::get_event_with_user_agent</span>(<span class="ident">GOOD_UA</span>);
-        <span class="ident">normalize_user_agent</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>);
-        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>.<span class="ident">contexts</span>, @<span class="string">r###&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_all_contexts() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = testutils::get_event_with_user_agent(GOOD_UA);
+        normalize_user_agent(<span class="kw-2">&amp;mut </span>event);
+        <span class="macro">assert_annotated_snapshot!</span>(event.contexts, @<span class="string">r###&quot;
         {
           &quot;browser&quot;: {
             &quot;name&quot;: &quot;Chrome Mobile&quot;,
@@ -617,31 +617,31 @@
         &quot;###</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_user_agent_does_not_override_prefilled</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">testutils::get_event_with_user_agent</span>(<span class="ident">GOOD_UA</span>);
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Contexts::new</span>();
-        <span class="ident">contexts</span>.<span class="ident">add</span>(<span class="ident">Context::Browser</span>(<span class="ident">Box::new</span>(<span class="ident">BrowserContext</span> {
-            <span class="ident">name</span>: <span class="ident">Annotated::from</span>(<span class="string">&quot;BR_FAMILY&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">version</span>: <span class="ident">Annotated::from</span>(<span class="string">&quot;BR_VERSION&quot;</span>.<span class="ident">to_string</span>()),
-            ..<span class="ident">BrowserContext::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_user_agent_does_not_override_prefilled() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = testutils::get_event_with_user_agent(GOOD_UA);
+        <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
+        contexts.add(Context::Browser(Box::new(BrowserContext {
+            name: Annotated::from(<span class="string">&quot;BR_FAMILY&quot;</span>.to_string()),
+            version: Annotated::from(<span class="string">&quot;BR_VERSION&quot;</span>.to_string()),
+            ..BrowserContext::default()
         })));
-        <span class="ident">contexts</span>.<span class="ident">add</span>(<span class="ident">Context::Device</span>(<span class="ident">Box::new</span>(<span class="ident">DeviceContext</span> {
-            <span class="ident">family</span>: <span class="ident">Annotated::from</span>(<span class="string">&quot;DEV_FAMILY&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">model</span>: <span class="ident">Annotated::from</span>(<span class="string">&quot;DEV_MODEL&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">brand</span>: <span class="ident">Annotated::from</span>(<span class="string">&quot;DEV_BRAND&quot;</span>.<span class="ident">to_string</span>()),
-            ..<span class="ident">DeviceContext::default</span>()
+        contexts.add(Context::Device(Box::new(DeviceContext {
+            family: Annotated::from(<span class="string">&quot;DEV_FAMILY&quot;</span>.to_string()),
+            model: Annotated::from(<span class="string">&quot;DEV_MODEL&quot;</span>.to_string()),
+            brand: Annotated::from(<span class="string">&quot;DEV_BRAND&quot;</span>.to_string()),
+            ..DeviceContext::default()
         })));
-        <span class="ident">contexts</span>.<span class="ident">add</span>(<span class="ident">Context::Os</span>(<span class="ident">Box::new</span>(<span class="ident">OsContext</span> {
-            <span class="ident">name</span>: <span class="ident">Annotated::from</span>(<span class="string">&quot;OS_FAMILY&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">version</span>: <span class="ident">Annotated::from</span>(<span class="string">&quot;OS_VERSION&quot;</span>.<span class="ident">to_string</span>()),
-            ..<span class="ident">OsContext::default</span>()
+        contexts.add(Context::Os(Box::new(OsContext {
+            name: Annotated::from(<span class="string">&quot;OS_FAMILY&quot;</span>.to_string()),
+            version: Annotated::from(<span class="string">&quot;OS_VERSION&quot;</span>.to_string()),
+            ..OsContext::default()
         })));
 
-        <span class="ident">event</span>.<span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">contexts</span>);
+        event.contexts = Annotated::new(contexts);
 
-        <span class="ident">normalize_user_agent</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>);
-        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>.<span class="ident">contexts</span>, @<span class="string">r###&quot;
+        normalize_user_agent(<span class="kw-2">&amp;mut </span>event);
+        <span class="macro">assert_annotated_snapshot!</span>(event.contexts, @<span class="string">r###&quot;
         {
           &quot;browser&quot;: {
             &quot;name&quot;: &quot;BR_FAMILY&quot;,
@@ -669,4 +669,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

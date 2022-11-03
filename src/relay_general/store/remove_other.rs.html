@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/store/remove_other.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>remove_other.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/store/remove_other.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>remove_other.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_general/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -235,240 +235,240 @@
 <span id="233">233</span>
 <span id="234">234</span>
 <span id="235">235</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor</span>::{<span class="ident">ProcessValue</span>, <span class="ident">ProcessingState</span>, <span class="ident">Processor</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">Breadcrumb</span>, <span class="ident">Event</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Annotated</span>, <span class="ident">ErrorKind</span>, <span class="ident">Meta</span>, <span class="ident">Object</span>, <span class="ident">ProcessingResult</span>, <span class="ident">Value</span>};
+</pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::processor::{ProcessValue, ProcessingState, Processor};
+<span class="kw">use </span><span class="kw">crate</span>::protocol::{Breadcrumb, Event};
+<span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, ErrorKind, Meta, Object, ProcessingResult, Value};
 
-<span class="doccomment">/// Replace remaining values and all existing meta with an errors.</span>
-<span class="kw">fn</span> <span class="ident">create_errors</span>(<span class="ident">other</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) {
-    <span class="kw">for</span> <span class="ident">value</span> <span class="kw">in</span> <span class="ident">other</span>.<span class="ident">values_mut</span>() {
-        <span class="kw-2">*</span><span class="ident">value</span> <span class="op">=</span> <span class="ident">Annotated::from_error</span>(<span class="ident">ErrorKind::InvalidAttribute</span>, <span class="prelude-val">None</span>);
+<span class="doccomment">/// Replace remaining values and all existing meta with an errors.
+</span><span class="kw">fn </span>create_errors(other: <span class="kw-2">&amp;mut </span>Object&lt;Value&gt;) {
+    <span class="kw">for </span>value <span class="kw">in </span>other.values_mut() {
+        <span class="kw-2">*</span>value = Annotated::from_error(ErrorKind::InvalidAttribute, <span class="prelude-val">None</span>);
     }
 }
 
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RemoveOtherProcessor</span>;
+<span class="kw">pub struct </span>RemoveOtherProcessor;
 
-<span class="kw">impl</span> <span class="ident">Processor</span> <span class="kw">for</span> <span class="ident">RemoveOtherProcessor</span> {
-    <span class="kw">fn</span> <span class="ident">process_other</span>(
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
-        <span class="ident">other</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
-        <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="ident">ProcessingResult</span> {
-        <span class="comment">// Drop unknown attributes at all levels without error messages, unless `retain = &quot;true&quot;`</span>
-        <span class="comment">// was specified explicitly on the field.</span>
-        <span class="kw">if</span> <span class="op">!</span><span class="ident">state</span>.<span class="ident">attrs</span>().<span class="ident">retain</span> {
-            <span class="ident">other</span>.<span class="ident">clear</span>();
+<span class="kw">impl </span>Processor <span class="kw">for </span>RemoveOtherProcessor {
+    <span class="kw">fn </span>process_other(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        other: <span class="kw-2">&amp;mut </span>Object&lt;Value&gt;,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+    ) -&gt; ProcessingResult {
+        <span class="comment">// Drop unknown attributes at all levels without error messages, unless `retain = &quot;true&quot;`
+        // was specified explicitly on the field.
+        </span><span class="kw">if </span>!state.attrs().retain {
+            other.clear();
         }
 
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">process_breadcrumb</span>(
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
-        <span class="ident">breadcrumb</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Breadcrumb</span>,
-        <span class="ident">_meta</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Meta</span>,
-        <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="ident">ProcessingResult</span> {
-        <span class="comment">// Move the current map out so we don&#39;t clear it in `process_other`</span>
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">other</span> <span class="op">=</span> <span class="ident">std::mem::take</span>(<span class="kw-2">&amp;mut</span> <span class="ident">breadcrumb</span>.<span class="ident">other</span>);
-        <span class="ident">create_errors</span>(<span class="kw-2">&amp;mut</span> <span class="ident">other</span>);
+    <span class="kw">fn </span>process_breadcrumb(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        breadcrumb: <span class="kw-2">&amp;mut </span>Breadcrumb,
+        _meta: <span class="kw-2">&amp;mut </span>Meta,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+    ) -&gt; ProcessingResult {
+        <span class="comment">// Move the current map out so we don&#39;t clear it in `process_other`
+        </span><span class="kw">let </span><span class="kw-2">mut </span>other = std::mem::take(<span class="kw-2">&amp;mut </span>breadcrumb.other);
+        create_errors(<span class="kw-2">&amp;mut </span>other);
 
-        <span class="comment">// Recursively clean all `other`s now. Note that this won&#39;t touch the event&#39;s other</span>
-        <span class="ident">breadcrumb</span>.<span class="ident">process_child_values</span>(<span class="self">self</span>, <span class="ident">state</span>)<span class="question-mark">?</span>;
-        <span class="ident">breadcrumb</span>.<span class="ident">other</span> <span class="op">=</span> <span class="ident">other</span>;
+        <span class="comment">// Recursively clean all `other`s now. Note that this won&#39;t touch the event&#39;s other
+        </span>breadcrumb.process_child_values(<span class="self">self</span>, state)<span class="question-mark">?</span>;
+        breadcrumb.other = other;
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">process_event</span>(
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
-        <span class="ident">event</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Event</span>,
-        <span class="ident">_meta</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Meta</span>,
-        <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="ident">ProcessingResult</span> {
-        <span class="comment">// Move the current map out so we don&#39;t clear it in `process_other`</span>
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">other</span> <span class="op">=</span> <span class="ident">std::mem::take</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>.<span class="ident">other</span>);
+    <span class="kw">fn </span>process_event(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        event: <span class="kw-2">&amp;mut </span>Event,
+        _meta: <span class="kw-2">&amp;mut </span>Meta,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+    ) -&gt; ProcessingResult {
+        <span class="comment">// Move the current map out so we don&#39;t clear it in `process_other`
+        </span><span class="kw">let </span><span class="kw-2">mut </span>other = std::mem::take(<span class="kw-2">&amp;mut </span>event.other);
 
-        <span class="comment">// Drop Sentry internal attributes</span>
-        <span class="ident">other</span>.<span class="ident">remove</span>(<span class="string">&quot;metadata&quot;</span>);
-        <span class="ident">other</span>.<span class="ident">remove</span>(<span class="string">&quot;hashes&quot;</span>);
+        <span class="comment">// Drop Sentry internal attributes
+        </span>other.remove(<span class="string">&quot;metadata&quot;</span>);
+        other.remove(<span class="string">&quot;hashes&quot;</span>);
 
-        <span class="comment">// Drop known legacy attributes at top-level without errors</span>
-        <span class="ident">other</span>.<span class="ident">remove</span>(<span class="string">&quot;applecrashreport&quot;</span>);
-        <span class="ident">other</span>.<span class="ident">remove</span>(<span class="string">&quot;device&quot;</span>);
-        <span class="ident">other</span>.<span class="ident">remove</span>(<span class="string">&quot;repos&quot;</span>);
-        <span class="ident">other</span>.<span class="ident">remove</span>(<span class="string">&quot;query&quot;</span>);
+        <span class="comment">// Drop known legacy attributes at top-level without errors
+        </span>other.remove(<span class="string">&quot;applecrashreport&quot;</span>);
+        other.remove(<span class="string">&quot;device&quot;</span>);
+        other.remove(<span class="string">&quot;repos&quot;</span>);
+        other.remove(<span class="string">&quot;query&quot;</span>);
 
-        <span class="comment">// Replace remaining values and all existing meta with an errors</span>
-        <span class="ident">create_errors</span>(<span class="kw-2">&amp;mut</span> <span class="ident">other</span>);
+        <span class="comment">// Replace remaining values and all existing meta with an errors
+        </span>create_errors(<span class="kw-2">&amp;mut </span>other);
 
-        <span class="comment">// Recursively clean all `other`s now. Note that this won&#39;t touch the event&#39;s other</span>
-        <span class="ident">event</span>.<span class="ident">process_child_values</span>(<span class="self">self</span>, <span class="ident">state</span>)<span class="question-mark">?</span>;
+        <span class="comment">// Recursively clean all `other`s now. Note that this won&#39;t touch the event&#39;s other
+        </span>event.process_child_values(<span class="self">self</span>, state)<span class="question-mark">?</span>;
 
-        <span class="ident">event</span>.<span class="ident">other</span> <span class="op">=</span> <span class="ident">other</span>;
+        event.other = other;
         <span class="prelude-val">Ok</span>(())
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">similar_asserts::assert_eq</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>similar_asserts::assert_eq;
 
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor::process_value</span>;
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">Context</span>, <span class="ident">ContextInner</span>, <span class="ident">Contexts</span>, <span class="ident">OsContext</span>, <span class="ident">User</span>, <span class="ident">Values</span>};
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::testutils::get_value</span>;
+    <span class="kw">use </span><span class="kw">crate</span>::processor::process_value;
+    <span class="kw">use </span><span class="kw">crate</span>::protocol::{Context, ContextInner, Contexts, OsContext, User, Values};
+    <span class="kw">use </span><span class="kw">crate</span>::testutils::get_value;
 
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_remove_legacy_attributes</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">other</span>: {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">other</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                <span class="ident">other</span>.<span class="ident">insert</span>(<span class="string">&quot;applecrashreport&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Value::U64</span>(<span class="number">42</span>).<span class="ident">into</span>());
-                <span class="ident">other</span>.<span class="ident">insert</span>(<span class="string">&quot;device&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Value::U64</span>(<span class="number">42</span>).<span class="ident">into</span>());
-                <span class="ident">other</span>.<span class="ident">insert</span>(<span class="string">&quot;repos&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Value::U64</span>(<span class="number">42</span>).<span class="ident">into</span>());
-                <span class="ident">other</span>.<span class="ident">insert</span>(<span class="string">&quot;query&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Value::U64</span>(<span class="number">42</span>).<span class="ident">into</span>());
-                <span class="ident">other</span>
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_remove_legacy_attributes() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
+            other: {
+                <span class="kw">let </span><span class="kw-2">mut </span>other = Object::new();
+                other.insert(<span class="string">&quot;applecrashreport&quot;</span>.to_string(), Value::U64(<span class="number">42</span>).into());
+                other.insert(<span class="string">&quot;device&quot;</span>.to_string(), Value::U64(<span class="number">42</span>).into());
+                other.insert(<span class="string">&quot;repos&quot;</span>.to_string(), Value::U64(<span class="number">42</span>).into());
+                other.insert(<span class="string">&quot;query&quot;</span>.to_string(), Value::U64(<span class="number">42</span>).into());
+                other
             },
-            ..<span class="ident">Default::default</span>()
+            ..Default::default()
         });
 
-        <span class="ident">process_value</span>(
-            <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-            <span class="kw-2">&amp;mut</span> <span class="ident">RemoveOtherProcessor</span>,
-            <span class="ident">ProcessingState::root</span>(),
+        process_value(
+            <span class="kw-2">&amp;mut </span>event,
+            <span class="kw-2">&amp;mut </span>RemoveOtherProcessor,
+            ProcessingState::root(),
         )
-        .<span class="ident">unwrap</span>();
+        .unwrap();
 
-        <span class="macro">assert!</span>(<span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">other</span>.<span class="ident">is_empty</span>());
+        <span class="macro">assert!</span>(event.value().unwrap().other.is_empty());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_remove_unknown_attributes</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">other</span>: {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">other</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                <span class="ident">other</span>.<span class="ident">insert</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Value::U64</span>(<span class="number">42</span>).<span class="ident">into</span>());
-                <span class="ident">other</span>.<span class="ident">insert</span>(<span class="string">&quot;bar&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Value::U64</span>(<span class="number">42</span>).<span class="ident">into</span>());
-                <span class="ident">other</span>
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_remove_unknown_attributes() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
+            other: {
+                <span class="kw">let </span><span class="kw-2">mut </span>other = Object::new();
+                other.insert(<span class="string">&quot;foo&quot;</span>.to_string(), Value::U64(<span class="number">42</span>).into());
+                other.insert(<span class="string">&quot;bar&quot;</span>.to_string(), Value::U64(<span class="number">42</span>).into());
+                other
             },
-            ..<span class="ident">Default::default</span>()
+            ..Default::default()
         });
 
-        <span class="ident">process_value</span>(
-            <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-            <span class="kw-2">&amp;mut</span> <span class="ident">RemoveOtherProcessor</span>,
-            <span class="ident">ProcessingState::root</span>(),
+        process_value(
+            <span class="kw-2">&amp;mut </span>event,
+            <span class="kw-2">&amp;mut </span>RemoveOtherProcessor,
+            ProcessingState::root(),
         )
-        .<span class="ident">unwrap</span>();
+        .unwrap();
 
-        <span class="kw">let</span> <span class="ident">other</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">other</span>;
+        <span class="kw">let </span>other = <span class="kw-2">&amp;</span>event.value().unwrap().other;
         <span class="macro">assert_eq!</span>(
-            <span class="kw-2">*</span><span class="ident">other</span>.<span class="ident">get</span>(<span class="string">&quot;foo&quot;</span>).<span class="ident">unwrap</span>(),
-            <span class="ident">Annotated::from_error</span>(<span class="ident">ErrorKind::InvalidAttribute</span>, <span class="prelude-val">None</span>)
+            <span class="kw-2">*</span>other.get(<span class="string">&quot;foo&quot;</span>).unwrap(),
+            Annotated::from_error(ErrorKind::InvalidAttribute, <span class="prelude-val">None</span>)
         );
         <span class="macro">assert_eq!</span>(
-            <span class="kw-2">*</span><span class="ident">other</span>.<span class="ident">get</span>(<span class="string">&quot;bar&quot;</span>).<span class="ident">unwrap</span>(),
-            <span class="ident">Annotated::from_error</span>(<span class="ident">ErrorKind::InvalidAttribute</span>, <span class="prelude-val">None</span>)
+            <span class="kw-2">*</span>other.get(<span class="string">&quot;bar&quot;</span>).unwrap(),
+            Annotated::from_error(ErrorKind::InvalidAttribute, <span class="prelude-val">None</span>)
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_remove_nested_other</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">user</span>: <span class="ident">Annotated::from</span>(<span class="ident">User</span> {
-                <span class="ident">other</span>: {
-                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">other</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                    <span class="ident">other</span>.<span class="ident">insert</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Value::U64</span>(<span class="number">42</span>).<span class="ident">into</span>());
-                    <span class="ident">other</span>.<span class="ident">insert</span>(<span class="string">&quot;bar&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Value::U64</span>(<span class="number">42</span>).<span class="ident">into</span>());
-                    <span class="ident">other</span>
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_remove_nested_other() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
+            user: Annotated::from(User {
+                other: {
+                    <span class="kw">let </span><span class="kw-2">mut </span>other = Object::new();
+                    other.insert(<span class="string">&quot;foo&quot;</span>.to_string(), Value::U64(<span class="number">42</span>).into());
+                    other.insert(<span class="string">&quot;bar&quot;</span>.to_string(), Value::U64(<span class="number">42</span>).into());
+                    other
                 },
-                ..<span class="ident">Default::default</span>()
+                ..Default::default()
             }),
-            ..<span class="ident">Default::default</span>()
+            ..Default::default()
         });
 
-        <span class="ident">process_value</span>(
-            <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-            <span class="kw-2">&amp;mut</span> <span class="ident">RemoveOtherProcessor</span>,
-            <span class="ident">ProcessingState::root</span>(),
+        process_value(
+            <span class="kw-2">&amp;mut </span>event,
+            <span class="kw-2">&amp;mut </span>RemoveOtherProcessor,
+            ProcessingState::root(),
         )
-        .<span class="ident">unwrap</span>();
+        .unwrap();
 
-        <span class="macro">assert!</span>(<span class="macro">get_value!</span>(<span class="ident">event</span>.<span class="macro">user!</span>).<span class="ident">other</span>.<span class="ident">is_empty</span>());
+        <span class="macro">assert!</span>(<span class="macro">get_value!</span>(event.<span class="macro">user!</span>).other.is_empty());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_retain_context_other</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext::default</span>();
-        <span class="ident">os</span>.<span class="ident">other</span>
-            .<span class="ident">insert</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Annotated::from</span>(<span class="ident">Value::U64</span>(<span class="number">42</span>)));
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_retain_context_other() {
+        <span class="kw">let </span><span class="kw-2">mut </span>os = OsContext::default();
+        os.other
+            .insert(<span class="string">&quot;foo&quot;</span>.to_string(), Annotated::from(Value::U64(<span class="number">42</span>)));
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-        <span class="ident">contexts</span>.<span class="ident">insert</span>(
-            <span class="string">&quot;renamed&quot;</span>.<span class="ident">to_string</span>(),
-            <span class="ident">Annotated::from</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Os</span>(<span class="ident">Box::new</span>(<span class="ident">os</span>)))),
+        <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
+        contexts.insert(
+            <span class="string">&quot;renamed&quot;</span>.to_string(),
+            Annotated::from(ContextInner(Context::Os(Box::new(os)))),
         );
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">contexts</span>: <span class="ident">Annotated::from</span>(<span class="ident">Contexts</span>(<span class="ident">contexts</span>.<span class="ident">clone</span>())),
-            ..<span class="ident">Default::default</span>()
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
+            contexts: Annotated::from(Contexts(contexts.clone())),
+            ..Default::default()
         });
 
-        <span class="ident">process_value</span>(
-            <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-            <span class="kw-2">&amp;mut</span> <span class="ident">RemoveOtherProcessor</span>,
-            <span class="ident">ProcessingState::root</span>(),
+        process_value(
+            <span class="kw-2">&amp;mut </span>event,
+            <span class="kw-2">&amp;mut </span>RemoveOtherProcessor,
+            ProcessingState::root(),
         )
-        .<span class="ident">unwrap</span>();
+        .unwrap();
 
-        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(<span class="ident">event</span>.<span class="macro">contexts!</span>).<span class="number">0</span>, <span class="ident">contexts</span>);
+        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.<span class="macro">contexts!</span>).<span class="number">0</span>, contexts);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_breadcrumb_errors</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">breadcrumbs</span>: <span class="ident">Annotated::new</span>(<span class="ident">Values::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">Breadcrumb</span> {
-                <span class="ident">other</span>: {
-                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">other</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                    <span class="ident">other</span>.<span class="ident">insert</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Value::U64</span>(<span class="number">42</span>).<span class="ident">into</span>());
-                    <span class="ident">other</span>.<span class="ident">insert</span>(<span class="string">&quot;bar&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Value::U64</span>(<span class="number">42</span>).<span class="ident">into</span>());
-                    <span class="ident">other</span>
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_breadcrumb_errors() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
+            breadcrumbs: Annotated::new(Values::new(<span class="macro">vec!</span>[Annotated::new(Breadcrumb {
+                other: {
+                    <span class="kw">let </span><span class="kw-2">mut </span>other = Object::new();
+                    other.insert(<span class="string">&quot;foo&quot;</span>.to_string(), Value::U64(<span class="number">42</span>).into());
+                    other.insert(<span class="string">&quot;bar&quot;</span>.to_string(), Value::U64(<span class="number">42</span>).into());
+                    other
                 },
-                ..<span class="ident">Breadcrumb::default</span>()
+                ..Breadcrumb::default()
             })])),
-            ..<span class="ident">Default::default</span>()
+            ..Default::default()
         });
 
-        <span class="ident">process_value</span>(
-            <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-            <span class="kw-2">&amp;mut</span> <span class="ident">RemoveOtherProcessor</span>,
-            <span class="ident">ProcessingState::root</span>(),
+        process_value(
+            <span class="kw-2">&amp;mut </span>event,
+            <span class="kw-2">&amp;mut </span>RemoveOtherProcessor,
+            ProcessingState::root(),
         )
-        .<span class="ident">unwrap</span>();
+        .unwrap();
 
-        <span class="kw">let</span> <span class="ident">other</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">event</span>
-            .<span class="ident">value</span>()
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">breadcrumbs</span>
-            .<span class="ident">value</span>()
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">values</span>
-            .<span class="ident">value</span>()
-            .<span class="ident">unwrap</span>()[<span class="number">0</span>]
-            .<span class="ident">value</span>()
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">other</span>;
+        <span class="kw">let </span>other = <span class="kw-2">&amp;</span>event
+            .value()
+            .unwrap()
+            .breadcrumbs
+            .value()
+            .unwrap()
+            .values
+            .value()
+            .unwrap()[<span class="number">0</span>]
+            .value()
+            .unwrap()
+            .other;
 
         <span class="macro">assert_eq!</span>(
-            <span class="kw-2">*</span><span class="ident">other</span>.<span class="ident">get</span>(<span class="string">&quot;foo&quot;</span>).<span class="ident">unwrap</span>(),
-            <span class="ident">Annotated::from_error</span>(<span class="ident">ErrorKind::InvalidAttribute</span>, <span class="prelude-val">None</span>)
+            <span class="kw-2">*</span>other.get(<span class="string">&quot;foo&quot;</span>).unwrap(),
+            Annotated::from_error(ErrorKind::InvalidAttribute, <span class="prelude-val">None</span>)
         );
         <span class="macro">assert_eq!</span>(
-            <span class="kw-2">*</span><span class="ident">other</span>.<span class="ident">get</span>(<span class="string">&quot;bar&quot;</span>).<span class="ident">unwrap</span>(),
-            <span class="ident">Annotated::from_error</span>(<span class="ident">ErrorKind::InvalidAttribute</span>, <span class="prelude-val">None</span>)
+            <span class="kw-2">*</span>other.get(<span class="string">&quot;bar&quot;</span>).unwrap(),
+            Annotated::from_error(ErrorKind::InvalidAttribute, <span class="prelude-val">None</span>)
         );
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay/src/cli.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>cli.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay/src/cli.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>cli.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -363,368 +363,368 @@
 <span id="361">361</span>
 <span id="362">362</span>
 <span id="363">363</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::env</span>;
-<span class="kw">use</span> <span class="ident">std::io</span>;
-<span class="kw">use</span> <span class="ident">std::path</span>::{<span class="ident">Path</span>, <span class="ident">PathBuf</span>};
+</pre><pre class="rust"><code><span class="kw">use </span>std::env;
+<span class="kw">use </span>std::io;
+<span class="kw">use </span>std::path::{Path, PathBuf};
 
-<span class="kw">use</span> <span class="ident">clap</span>::{<span class="ident">ArgMatches</span>, <span class="ident">Shell</span>};
-<span class="kw">use</span> <span class="ident">dialoguer</span>::{<span class="ident">Confirmation</span>, <span class="ident">Select</span>};
-<span class="kw">use</span> <span class="ident">failure</span>::{<span class="ident">err_msg</span>, <span class="ident">Error</span>};
+<span class="kw">use </span>clap::{ArgMatches, Shell};
+<span class="kw">use </span>dialoguer::{Confirmation, Select};
+<span class="kw">use </span>failure::{err_msg, Error};
 
-<span class="kw">use</span> <span class="ident">relay_common::Uuid</span>;
-<span class="kw">use</span> <span class="ident">relay_config</span>::{
-    <span class="ident">Config</span>, <span class="ident">ConfigErrorKind</span>, <span class="ident">Credentials</span>, <span class="ident">MinimalConfig</span>, <span class="ident">OverridableConfig</span>, <span class="ident">RelayMode</span>,
+<span class="kw">use </span>relay_common::Uuid;
+<span class="kw">use </span>relay_config::{
+    Config, ConfigErrorKind, Credentials, MinimalConfig, OverridableConfig, RelayMode,
 };
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::cliapp::make_app</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::setup</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils::get_theme</span>;
+<span class="kw">use </span><span class="kw">crate</span>::cliapp::make_app;
+<span class="kw">use </span><span class="kw">crate</span>::setup;
+<span class="kw">use </span><span class="kw">crate</span>::utils;
+<span class="kw">use </span><span class="kw">crate</span>::utils::get_theme;
 
-<span class="doccomment">/// Runs the command line application.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">execute</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">app</span> <span class="op">=</span> <span class="ident">make_app</span>();
-    <span class="kw">let</span> <span class="ident">matches</span> <span class="op">=</span> <span class="ident">app</span>.<span class="ident">get_matches</span>();
-    <span class="kw">let</span> <span class="ident">config_path</span> <span class="op">=</span> <span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;config&quot;</span>).<span class="ident">unwrap_or</span>(<span class="string">&quot;.relay&quot;</span>);
+<span class="doccomment">/// Runs the command line application.
+</span><span class="kw">pub fn </span>execute() -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
+    <span class="kw">let </span>app = make_app();
+    <span class="kw">let </span>matches = app.get_matches();
+    <span class="kw">let </span>config_path = matches.value_of(<span class="string">&quot;config&quot;</span>).unwrap_or(<span class="string">&quot;.relay&quot;</span>);
 
-    <span class="comment">// Commands that do not need to load the config:</span>
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">matches</span>) <span class="op">=</span> <span class="ident">matches</span>.<span class="ident">subcommand_matches</span>(<span class="string">&quot;config&quot;</span>) {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">matches</span>) <span class="op">=</span> <span class="ident">matches</span>.<span class="ident">subcommand_matches</span>(<span class="string">&quot;init&quot;</span>) {
-            <span class="kw">return</span> <span class="ident">init_config</span>(<span class="kw-2">&amp;</span><span class="ident">config_path</span>, <span class="ident">matches</span>);
+    <span class="comment">// Commands that do not need to load the config:
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(matches) = matches.subcommand_matches(<span class="string">&quot;config&quot;</span>) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(matches) = matches.subcommand_matches(<span class="string">&quot;init&quot;</span>) {
+            <span class="kw">return </span>init_config(config_path, matches);
         }
-    } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">matches</span>) <span class="op">=</span> <span class="ident">matches</span>.<span class="ident">subcommand_matches</span>(<span class="string">&quot;generate-completions&quot;</span>) {
-        <span class="kw">return</span> <span class="ident">generate_completions</span>(<span class="ident">matches</span>);
+    } <span class="kw">else if let </span><span class="prelude-val">Some</span>(matches) = matches.subcommand_matches(<span class="string">&quot;generate-completions&quot;</span>) {
+        <span class="kw">return </span>generate_completions(matches);
     }
 
-    <span class="comment">// Commands that need a loaded config:</span>
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">config</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">Config::from_path</span>(<span class="kw-2">&amp;</span><span class="ident">config_path</span>) {
-        <span class="prelude-val">Ok</span>(<span class="ident">config</span>) =&gt; <span class="ident">config</span>,
-        <span class="prelude-val">Err</span>(<span class="ident">e</span>)
-            <span class="kw">if</span> <span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;config&quot;</span>).<span class="ident">is_none</span>()
-                <span class="op">&amp;&amp;</span> <span class="ident">e</span>.<span class="ident">kind</span>() <span class="op">==</span> <span class="ident">ConfigErrorKind::CouldNotOpenFile</span> =&gt;
+    <span class="comment">// Commands that need a loaded config:
+    </span><span class="kw">let </span><span class="kw-2">mut </span>config = <span class="kw">match </span>Config::from_path(config_path) {
+        <span class="prelude-val">Ok</span>(config) =&gt; config,
+        <span class="prelude-val">Err</span>(e)
+            <span class="kw">if </span>matches.value_of(<span class="string">&quot;config&quot;</span>).is_none()
+                &amp;&amp; e.kind() == ConfigErrorKind::CouldNotOpenFile =&gt;
         {
-            <span class="ident">Config::default</span>()
+            Config::default()
         }
-        <span class="prelude-val">Err</span>(<span class="ident">e</span>) =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">e</span>.<span class="ident">into</span>()),
+        <span class="prelude-val">Err</span>(e) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(e.into()),
     };
-    <span class="comment">// override file config with environment variables</span>
-    <span class="kw">let</span> <span class="ident">env_config</span> <span class="op">=</span> <span class="ident">extract_config_env_vars</span>();
-    <span class="ident">config</span>.<span class="ident">apply_override</span>(<span class="ident">env_config</span>)<span class="question-mark">?</span>;
+    <span class="comment">// override file config with environment variables
+    </span><span class="kw">let </span>env_config = extract_config_env_vars();
+    config.apply_override(env_config)<span class="question-mark">?</span>;
 
-    <span class="ident">relay_log::init</span>(<span class="ident">config</span>.<span class="ident">logging</span>(), <span class="ident">config</span>.<span class="ident">sentry</span>());
+    relay_log::init(config.logging(), config.sentry());
 
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">matches</span>) <span class="op">=</span> <span class="ident">matches</span>.<span class="ident">subcommand_matches</span>(<span class="string">&quot;config&quot;</span>) {
-        <span class="ident">manage_config</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>, <span class="ident">matches</span>)
-    } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">matches</span>) <span class="op">=</span> <span class="ident">matches</span>.<span class="ident">subcommand_matches</span>(<span class="string">&quot;credentials&quot;</span>) {
-        <span class="ident">manage_credentials</span>(<span class="ident">config</span>, <span class="ident">matches</span>)
-    } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">matches</span>) <span class="op">=</span> <span class="ident">matches</span>.<span class="ident">subcommand_matches</span>(<span class="string">&quot;run&quot;</span>) {
-        <span class="comment">// override config with run command args</span>
-        <span class="kw">let</span> <span class="ident">arg_config</span> <span class="op">=</span> <span class="ident">extract_config_args</span>(<span class="ident">matches</span>);
-        <span class="ident">config</span>.<span class="ident">apply_override</span>(<span class="ident">arg_config</span>)<span class="question-mark">?</span>;
-        <span class="ident">run</span>(<span class="ident">config</span>, <span class="ident">matches</span>)
-    } <span class="kw">else</span> {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(matches) = matches.subcommand_matches(<span class="string">&quot;config&quot;</span>) {
+        manage_config(<span class="kw-2">&amp;</span>config, matches)
+    } <span class="kw">else if let </span><span class="prelude-val">Some</span>(matches) = matches.subcommand_matches(<span class="string">&quot;credentials&quot;</span>) {
+        manage_credentials(config, matches)
+    } <span class="kw">else if let </span><span class="prelude-val">Some</span>(matches) = matches.subcommand_matches(<span class="string">&quot;run&quot;</span>) {
+        <span class="comment">// override config with run command args
+        </span><span class="kw">let </span>arg_config = extract_config_args(matches);
+        config.apply_override(arg_config)<span class="question-mark">?</span>;
+        run(config, matches)
+    } <span class="kw">else </span>{
         <span class="macro">unreachable!</span>();
     }
 }
 
-<span class="doccomment">/// Extract config arguments from a parsed command line arguments object</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">extract_config_args</span>(<span class="ident">matches</span>: <span class="kw-2">&amp;</span><span class="ident">ArgMatches</span>) -&gt; <span class="ident">OverridableConfig</span> {
-    <span class="kw">let</span> <span class="ident">processing</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">matches</span>.<span class="ident">is_present</span>(<span class="string">&quot;processing&quot;</span>) {
-        <span class="prelude-val">Some</span>(<span class="string">&quot;true&quot;</span>.<span class="ident">to_owned</span>())
-    } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">matches</span>.<span class="ident">is_present</span>(<span class="string">&quot;no_processing&quot;</span>) {
-        <span class="prelude-val">Some</span>(<span class="string">&quot;false&quot;</span>.<span class="ident">to_owned</span>())
-    } <span class="kw">else</span> {
-        <span class="prelude-val">None</span>
-    };
+<span class="doccomment">/// Extract config arguments from a parsed command line arguments object
+</span><span class="kw">pub fn </span>extract_config_args(matches: <span class="kw-2">&amp;</span>ArgMatches) -&gt; OverridableConfig {
+    <span class="kw">let </span>processing = <span class="kw">if </span>matches.is_present(<span class="string">&quot;processing&quot;</span>) {
+        <span class="prelude-val">Some</span>(<span class="string">&quot;true&quot;</span>.to_owned())
+    } <span class="kw">else if </span>matches.is_present(<span class="string">&quot;no_processing&quot;</span>) {
+        <span class="prelude-val">Some</span>(<span class="string">&quot;false&quot;</span>.to_owned())
+    } <span class="kw">else </span>{
+        <span class="prelude-val">None
+    </span>};
 
-    <span class="ident">OverridableConfig</span> {
-        <span class="ident">mode</span>: <span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;mode&quot;</span>).<span class="ident">map</span>(<span class="ident">str::to_owned</span>),
-        <span class="ident">upstream</span>: <span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;upstream&quot;</span>).<span class="ident">map</span>(<span class="ident">str::to_owned</span>),
-        <span class="ident">upstream_dsn</span>: <span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;upstream_dsn&quot;</span>).<span class="ident">map</span>(<span class="ident">str::to_owned</span>),
-        <span class="ident">host</span>: <span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;host&quot;</span>).<span class="ident">map</span>(<span class="ident">str::to_owned</span>),
-        <span class="ident">port</span>: <span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;port&quot;</span>).<span class="ident">map</span>(<span class="ident">str::to_owned</span>),
-        <span class="ident">processing</span>,
-        <span class="ident">kafka_url</span>: <span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;kafka_broker_url&quot;</span>).<span class="ident">map</span>(<span class="ident">str::to_owned</span>),
-        <span class="ident">redis_url</span>: <span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;redis_url&quot;</span>).<span class="ident">map</span>(<span class="ident">str::to_owned</span>),
-        <span class="ident">id</span>: <span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;id&quot;</span>).<span class="ident">map</span>(<span class="ident">str::to_owned</span>),
-        <span class="ident">public_key</span>: <span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;public_key&quot;</span>).<span class="ident">map</span>(<span class="ident">str::to_owned</span>),
-        <span class="ident">secret_key</span>: <span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;secret_key&quot;</span>).<span class="ident">map</span>(<span class="ident">str::to_owned</span>),
-        <span class="ident">outcome_source</span>: <span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;source_id&quot;</span>).<span class="ident">map</span>(<span class="ident">str::to_owned</span>),
-        <span class="ident">shutdown_timeout</span>: <span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;shutdown_timeout&quot;</span>).<span class="ident">map</span>(<span class="ident">str::to_owned</span>),
-        <span class="ident">aws_runtime_api</span>: <span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;aws_runtime_api&quot;</span>).<span class="ident">map</span>(<span class="ident">str::to_owned</span>),
+    OverridableConfig {
+        mode: matches.value_of(<span class="string">&quot;mode&quot;</span>).map(str::to_owned),
+        upstream: matches.value_of(<span class="string">&quot;upstream&quot;</span>).map(str::to_owned),
+        upstream_dsn: matches.value_of(<span class="string">&quot;upstream_dsn&quot;</span>).map(str::to_owned),
+        host: matches.value_of(<span class="string">&quot;host&quot;</span>).map(str::to_owned),
+        port: matches.value_of(<span class="string">&quot;port&quot;</span>).map(str::to_owned),
+        processing,
+        kafka_url: matches.value_of(<span class="string">&quot;kafka_broker_url&quot;</span>).map(str::to_owned),
+        redis_url: matches.value_of(<span class="string">&quot;redis_url&quot;</span>).map(str::to_owned),
+        id: matches.value_of(<span class="string">&quot;id&quot;</span>).map(str::to_owned),
+        public_key: matches.value_of(<span class="string">&quot;public_key&quot;</span>).map(str::to_owned),
+        secret_key: matches.value_of(<span class="string">&quot;secret_key&quot;</span>).map(str::to_owned),
+        outcome_source: matches.value_of(<span class="string">&quot;source_id&quot;</span>).map(str::to_owned),
+        shutdown_timeout: matches.value_of(<span class="string">&quot;shutdown_timeout&quot;</span>).map(str::to_owned),
+        aws_runtime_api: matches.value_of(<span class="string">&quot;aws_runtime_api&quot;</span>).map(str::to_owned),
     }
 }
 
-<span class="doccomment">/// Extract config arguments from environment variables</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">extract_config_env_vars</span>() -&gt; <span class="ident">OverridableConfig</span> {
-    <span class="ident">OverridableConfig</span> {
-        <span class="ident">mode</span>: <span class="ident">env::var</span>(<span class="string">&quot;RELAY_MODE&quot;</span>).<span class="ident">ok</span>(),
-        <span class="ident">upstream</span>: <span class="ident">env::var</span>(<span class="string">&quot;RELAY_UPSTREAM_URL&quot;</span>).<span class="ident">ok</span>(),
-        <span class="ident">upstream_dsn</span>: <span class="ident">env::var</span>(<span class="string">&quot;RELAY_UPSTREAM_DSN&quot;</span>).<span class="ident">ok</span>(),
-        <span class="ident">host</span>: <span class="ident">env::var</span>(<span class="string">&quot;RELAY_HOST&quot;</span>).<span class="ident">ok</span>(),
-        <span class="ident">port</span>: <span class="ident">env::var</span>(<span class="string">&quot;RELAY_PORT&quot;</span>).<span class="ident">ok</span>(),
-        <span class="ident">processing</span>: <span class="ident">env::var</span>(<span class="string">&quot;RELAY_PROCESSING_ENABLED&quot;</span>).<span class="ident">ok</span>(),
-        <span class="ident">kafka_url</span>: <span class="ident">env::var</span>(<span class="string">&quot;RELAY_KAFKA_BROKER_URL&quot;</span>).<span class="ident">ok</span>(),
-        <span class="ident">redis_url</span>: <span class="ident">env::var</span>(<span class="string">&quot;RELAY_REDIS_URL&quot;</span>).<span class="ident">ok</span>(),
-        <span class="ident">id</span>: <span class="ident">env::var</span>(<span class="string">&quot;RELAY_ID&quot;</span>).<span class="ident">ok</span>(),
-        <span class="ident">public_key</span>: <span class="ident">env::var</span>(<span class="string">&quot;RELAY_PUBLIC_KEY&quot;</span>).<span class="ident">ok</span>(),
-        <span class="ident">secret_key</span>: <span class="ident">env::var</span>(<span class="string">&quot;RELAY_SECRET_KEY&quot;</span>).<span class="ident">ok</span>(),
-        <span class="ident">outcome_source</span>: <span class="prelude-val">None</span>, <span class="comment">//already extracted in params</span>
-        <span class="ident">shutdown_timeout</span>: <span class="ident">env::var</span>(<span class="string">&quot;SHUTDOWN_TIMEOUT&quot;</span>).<span class="ident">ok</span>(),
-        <span class="ident">aws_runtime_api</span>: <span class="prelude-val">None</span>,
+<span class="doccomment">/// Extract config arguments from environment variables
+</span><span class="kw">pub fn </span>extract_config_env_vars() -&gt; OverridableConfig {
+    OverridableConfig {
+        mode: env::var(<span class="string">&quot;RELAY_MODE&quot;</span>).ok(),
+        upstream: env::var(<span class="string">&quot;RELAY_UPSTREAM_URL&quot;</span>).ok(),
+        upstream_dsn: env::var(<span class="string">&quot;RELAY_UPSTREAM_DSN&quot;</span>).ok(),
+        host: env::var(<span class="string">&quot;RELAY_HOST&quot;</span>).ok(),
+        port: env::var(<span class="string">&quot;RELAY_PORT&quot;</span>).ok(),
+        processing: env::var(<span class="string">&quot;RELAY_PROCESSING_ENABLED&quot;</span>).ok(),
+        kafka_url: env::var(<span class="string">&quot;RELAY_KAFKA_BROKER_URL&quot;</span>).ok(),
+        redis_url: env::var(<span class="string">&quot;RELAY_REDIS_URL&quot;</span>).ok(),
+        id: env::var(<span class="string">&quot;RELAY_ID&quot;</span>).ok(),
+        public_key: env::var(<span class="string">&quot;RELAY_PUBLIC_KEY&quot;</span>).ok(),
+        secret_key: env::var(<span class="string">&quot;RELAY_SECRET_KEY&quot;</span>).ok(),
+        outcome_source: <span class="prelude-val">None</span>, <span class="comment">//already extracted in params
+        </span>shutdown_timeout: env::var(<span class="string">&quot;SHUTDOWN_TIMEOUT&quot;</span>).ok(),
+        aws_runtime_api: <span class="prelude-val">None</span>,
     }
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">manage_credentials</span>(<span class="kw-2">mut</span> <span class="ident">config</span>: <span class="ident">Config</span>, <span class="ident">matches</span>: <span class="kw-2">&amp;</span><span class="ident">ArgMatches</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
-    <span class="comment">// generate completely new credentials</span>
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">matches</span>) <span class="op">=</span> <span class="ident">matches</span>.<span class="ident">subcommand_matches</span>(<span class="string">&quot;generate&quot;</span>) {
-        <span class="kw">if</span> <span class="ident">config</span>.<span class="ident">has_credentials</span>() <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">matches</span>.<span class="ident">is_present</span>(<span class="string">&quot;overwrite&quot;</span>) {
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">err_msg</span>(
+<span class="kw">pub fn </span>manage_credentials(<span class="kw-2">mut </span>config: Config, matches: <span class="kw-2">&amp;</span>ArgMatches) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
+    <span class="comment">// generate completely new credentials
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(matches) = matches.subcommand_matches(<span class="string">&quot;generate&quot;</span>) {
+        <span class="kw">if </span>config.has_credentials() &amp;&amp; !matches.is_present(<span class="string">&quot;overwrite&quot;</span>) {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(err_msg(
                 <span class="string">&quot;aborting because credentials already exist. Pass --overwrite to force.&quot;</span>,
             ));
         }
-        <span class="kw">let</span> <span class="ident">credentials</span> <span class="op">=</span> <span class="ident">Credentials::generate</span>();
-        <span class="kw">if</span> <span class="ident">matches</span>.<span class="ident">is_present</span>(<span class="string">&quot;stdout&quot;</span>) {
-            <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">credentials</span>.<span class="ident">to_json_string</span>()<span class="question-mark">?</span>);
-        } <span class="kw">else</span> {
-            <span class="ident">config</span>.<span class="ident">replace_credentials</span>(<span class="prelude-val">Some</span>(<span class="ident">credentials</span>))<span class="question-mark">?</span>;
+        <span class="kw">let </span>credentials = Credentials::generate();
+        <span class="kw">if </span>matches.is_present(<span class="string">&quot;stdout&quot;</span>) {
+            <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, credentials.to_json_string()<span class="question-mark">?</span>);
+        } <span class="kw">else </span>{
+            config.replace_credentials(<span class="prelude-val">Some</span>(credentials))<span class="question-mark">?</span>;
             <span class="macro">println!</span>(<span class="string">&quot;Generated new credentials&quot;</span>);
-            <span class="ident">setup::dump_credentials</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>);
+            setup::dump_credentials(<span class="kw-2">&amp;</span>config);
         }
-    } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">matches</span>) <span class="op">=</span> <span class="ident">matches</span>.<span class="ident">subcommand_matches</span>(<span class="string">&quot;set&quot;</span>) {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">prompted</span> <span class="op">=</span> <span class="bool-val">false</span>;
-        <span class="kw">let</span> <span class="ident">secret_key</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;secret_key&quot;</span>) {
-            <span class="prelude-val">Some</span>(<span class="ident">value</span>) =&gt; <span class="prelude-val">Some</span>(
-                <span class="ident">value</span>
-                    .<span class="ident">parse</span>()
-                    .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">err_msg</span>(<span class="string">&quot;invalid secret key supplied&quot;</span>))<span class="question-mark">?</span>,
+    } <span class="kw">else if let </span><span class="prelude-val">Some</span>(matches) = matches.subcommand_matches(<span class="string">&quot;set&quot;</span>) {
+        <span class="kw">let </span><span class="kw-2">mut </span>prompted = <span class="bool-val">false</span>;
+        <span class="kw">let </span>secret_key = <span class="kw">match </span>matches.value_of(<span class="string">&quot;secret_key&quot;</span>) {
+            <span class="prelude-val">Some</span>(value) =&gt; <span class="prelude-val">Some</span>(
+                value
+                    .parse()
+                    .map_err(|<span class="kw">_</span>| err_msg(<span class="string">&quot;invalid secret key supplied&quot;</span>))<span class="question-mark">?</span>,
             ),
-            <span class="prelude-val">None</span> =&gt; <span class="ident">config</span>.<span class="ident">credentials</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">secret_key</span>.<span class="ident">clone</span>()),
+            <span class="prelude-val">None </span>=&gt; config.credentials().map(|x| x.secret_key.clone()),
         };
-        <span class="kw">let</span> <span class="ident">public_key</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;secret_key&quot;</span>) {
-            <span class="prelude-val">Some</span>(<span class="ident">value</span>) =&gt; <span class="prelude-val">Some</span>(
-                <span class="ident">value</span>
-                    .<span class="ident">parse</span>()
-                    .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">err_msg</span>(<span class="string">&quot;invalid public key supplied&quot;</span>))<span class="question-mark">?</span>,
+        <span class="kw">let </span>public_key = <span class="kw">match </span>matches.value_of(<span class="string">&quot;secret_key&quot;</span>) {
+            <span class="prelude-val">Some</span>(value) =&gt; <span class="prelude-val">Some</span>(
+                value
+                    .parse()
+                    .map_err(|<span class="kw">_</span>| err_msg(<span class="string">&quot;invalid public key supplied&quot;</span>))<span class="question-mark">?</span>,
             ),
-            <span class="prelude-val">None</span> =&gt; <span class="ident">config</span>.<span class="ident">credentials</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">public_key</span>.<span class="ident">clone</span>()),
+            <span class="prelude-val">None </span>=&gt; config.credentials().map(|x| x.public_key.clone()),
         };
-        <span class="kw">let</span> <span class="ident">id</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;id&quot;</span>) {
-            <span class="prelude-val">Some</span>(<span class="string">&quot;random&quot;</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">Uuid::new_v4</span>()),
-            <span class="prelude-val">Some</span>(<span class="ident">value</span>) =&gt; <span class="prelude-val">Some</span>(
-                <span class="ident">value</span>
-                    .<span class="ident">parse</span>()
-                    .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">err_msg</span>(<span class="string">&quot;invalid relay id supplied&quot;</span>))<span class="question-mark">?</span>,
+        <span class="kw">let </span>id = <span class="kw">match </span>matches.value_of(<span class="string">&quot;id&quot;</span>) {
+            <span class="prelude-val">Some</span>(<span class="string">&quot;random&quot;</span>) =&gt; <span class="prelude-val">Some</span>(Uuid::new_v4()),
+            <span class="prelude-val">Some</span>(value) =&gt; <span class="prelude-val">Some</span>(
+                value
+                    .parse()
+                    .map_err(|<span class="kw">_</span>| err_msg(<span class="string">&quot;invalid relay id supplied&quot;</span>))<span class="question-mark">?</span>,
             ),
-            <span class="prelude-val">None</span> =&gt; <span class="ident">config</span>.<span class="ident">credentials</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">id</span>),
+            <span class="prelude-val">None </span>=&gt; config.credentials().map(|x| x.id),
         };
-        <span class="kw">let</span> <span class="ident">changed</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">replace_credentials</span>(<span class="prelude-val">Some</span>(<span class="ident">Credentials</span> {
-            <span class="ident">secret_key</span>: <span class="kw">match</span> <span class="ident">secret_key</span> {
-                <span class="prelude-val">Some</span>(<span class="ident">value</span>) =&gt; <span class="ident">value</span>,
-                <span class="prelude-val">None</span> =&gt; {
-                    <span class="ident">prompted</span> <span class="op">=</span> <span class="bool-val">true</span>;
-                    <span class="ident">utils::prompt_value_no_default</span>(<span class="string">&quot;secret key&quot;</span>)<span class="question-mark">?</span>
-                }
+        <span class="kw">let </span>changed = config.replace_credentials(<span class="prelude-val">Some</span>(Credentials {
+            secret_key: <span class="kw">match </span>secret_key {
+                <span class="prelude-val">Some</span>(value) =&gt; value,
+                <span class="prelude-val">None </span>=&gt; {
+                    prompted = <span class="bool-val">true</span>;
+                    utils::prompt_value_no_default(<span class="string">&quot;secret key&quot;</span>)<span class="question-mark">?
+                </span>}
             },
-            <span class="ident">public_key</span>: <span class="kw">match</span> <span class="ident">public_key</span> {
-                <span class="prelude-val">Some</span>(<span class="ident">value</span>) =&gt; <span class="ident">value</span>,
-                <span class="prelude-val">None</span> =&gt; {
-                    <span class="ident">prompted</span> <span class="op">=</span> <span class="bool-val">true</span>;
-                    <span class="ident">utils::prompt_value_no_default</span>(<span class="string">&quot;public key&quot;</span>)<span class="question-mark">?</span>
-                }
+            public_key: <span class="kw">match </span>public_key {
+                <span class="prelude-val">Some</span>(value) =&gt; value,
+                <span class="prelude-val">None </span>=&gt; {
+                    prompted = <span class="bool-val">true</span>;
+                    utils::prompt_value_no_default(<span class="string">&quot;public key&quot;</span>)<span class="question-mark">?
+                </span>}
             },
-            <span class="ident">id</span>: <span class="kw">match</span> <span class="ident">id</span> {
-                <span class="prelude-val">Some</span>(<span class="ident">value</span>) =&gt; <span class="ident">value</span>,
-                <span class="prelude-val">None</span> =&gt; {
-                    <span class="ident">prompted</span> <span class="op">=</span> <span class="bool-val">true</span>;
-                    <span class="kw">if</span> <span class="ident">Confirmation::with_theme</span>(<span class="ident">get_theme</span>())
-                        .<span class="ident">with_text</span>(<span class="string">&quot;do you want to generate a random relay id&quot;</span>)
-                        .<span class="ident">interact</span>()<span class="question-mark">?</span>
-                    {
-                        <span class="ident">Uuid::new_v4</span>()
-                    } <span class="kw">else</span> {
-                        <span class="ident">utils::prompt_value_no_default</span>(<span class="string">&quot;relay id&quot;</span>)<span class="question-mark">?</span>
-                    }
+            id: <span class="kw">match </span>id {
+                <span class="prelude-val">Some</span>(value) =&gt; value,
+                <span class="prelude-val">None </span>=&gt; {
+                    prompted = <span class="bool-val">true</span>;
+                    <span class="kw">if </span>Confirmation::with_theme(get_theme())
+                        .with_text(<span class="string">&quot;do you want to generate a random relay id&quot;</span>)
+                        .interact()<span class="question-mark">?
+                    </span>{
+                        Uuid::new_v4()
+                    } <span class="kw">else </span>{
+                        utils::prompt_value_no_default(<span class="string">&quot;relay id&quot;</span>)<span class="question-mark">?
+                    </span>}
                 }
             },
         }))<span class="question-mark">?</span>;
-        <span class="kw">if</span> <span class="op">!</span><span class="ident">changed</span> {
+        <span class="kw">if </span>!changed {
             <span class="macro">println!</span>(<span class="string">&quot;Nothing was changed&quot;</span>);
-            <span class="kw">if</span> <span class="op">!</span><span class="ident">prompted</span> {
+            <span class="kw">if </span>!prompted {
                 <span class="macro">println!</span>(<span class="string">&quot;Run `relay credentials remove` first to remove all stored credentials.&quot;</span>);
             }
-        } <span class="kw">else</span> {
+        } <span class="kw">else </span>{
             <span class="macro">println!</span>(<span class="string">&quot;Stored updated credentials:&quot;</span>);
-            <span class="ident">setup::dump_credentials</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>);
+            setup::dump_credentials(<span class="kw-2">&amp;</span>config);
         }
-    } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">matches</span>) <span class="op">=</span> <span class="ident">matches</span>.<span class="ident">subcommand_matches</span>(<span class="string">&quot;remove&quot;</span>) {
-        <span class="kw">if</span> <span class="ident">config</span>.<span class="ident">has_credentials</span>() {
-            <span class="kw">if</span> <span class="ident">matches</span>.<span class="ident">is_present</span>(<span class="string">&quot;yes&quot;</span>)
-                <span class="op">|</span><span class="op">|</span> <span class="ident">Confirmation::with_theme</span>(<span class="ident">get_theme</span>())
-                    .<span class="ident">with_text</span>(<span class="string">&quot;Remove stored credentials?&quot;</span>)
-                    .<span class="ident">interact</span>()<span class="question-mark">?</span>
-            {
-                <span class="ident">config</span>.<span class="ident">replace_credentials</span>(<span class="prelude-val">None</span>)<span class="question-mark">?</span>;
+    } <span class="kw">else if let </span><span class="prelude-val">Some</span>(matches) = matches.subcommand_matches(<span class="string">&quot;remove&quot;</span>) {
+        <span class="kw">if </span>config.has_credentials() {
+            <span class="kw">if </span>matches.is_present(<span class="string">&quot;yes&quot;</span>)
+                || Confirmation::with_theme(get_theme())
+                    .with_text(<span class="string">&quot;Remove stored credentials?&quot;</span>)
+                    .interact()<span class="question-mark">?
+            </span>{
+                config.replace_credentials(<span class="prelude-val">None</span>)<span class="question-mark">?</span>;
                 <span class="macro">println!</span>(<span class="string">&quot;Credentials removed&quot;</span>);
             }
-        } <span class="kw">else</span> {
+        } <span class="kw">else </span>{
             <span class="macro">println!</span>(<span class="string">&quot;No credentials&quot;</span>);
         }
-    } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(..) <span class="op">=</span> <span class="ident">matches</span>.<span class="ident">subcommand_matches</span>(<span class="string">&quot;show&quot;</span>) {
-        <span class="kw">if</span> <span class="op">!</span><span class="ident">config</span>.<span class="ident">has_credentials</span>() {
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">err_msg</span>(<span class="string">&quot;no stored credentials&quot;</span>));
-        } <span class="kw">else</span> {
+    } <span class="kw">else if let </span><span class="prelude-val">Some</span>(..) = matches.subcommand_matches(<span class="string">&quot;show&quot;</span>) {
+        <span class="kw">if </span>!config.has_credentials() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(err_msg(<span class="string">&quot;no stored credentials&quot;</span>));
+        } <span class="kw">else </span>{
             <span class="macro">println!</span>(<span class="string">&quot;Credentials:&quot;</span>);
-            <span class="ident">setup::dump_credentials</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>);
+            setup::dump_credentials(<span class="kw-2">&amp;</span>config);
         }
-    } <span class="kw">else</span> {
+    } <span class="kw">else </span>{
         <span class="macro">unreachable!</span>();
     }
 
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">manage_config</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>, <span class="ident">matches</span>: <span class="kw-2">&amp;</span><span class="ident">ArgMatches</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">matches</span>) <span class="op">=</span> <span class="ident">matches</span>.<span class="ident">subcommand_matches</span>(<span class="string">&quot;init&quot;</span>) {
-        <span class="ident">init_config</span>(<span class="ident">config</span>.<span class="ident">path</span>(), <span class="ident">matches</span>)
-    } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">matches</span>) <span class="op">=</span> <span class="ident">matches</span>.<span class="ident">subcommand_matches</span>(<span class="string">&quot;show&quot;</span>) {
-        <span class="kw">match</span> <span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;format&quot;</span>).<span class="ident">unwrap</span>() {
-            <span class="string">&quot;debug&quot;</span> =&gt; <span class="macro">println!</span>(<span class="string">&quot;{:#?}&quot;</span>, <span class="kw-2">&amp;</span><span class="ident">config</span>),
-            <span class="string">&quot;yaml&quot;</span> =&gt; <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">config</span>.<span class="ident">to_yaml_string</span>()<span class="question-mark">?</span>),
-            <span class="kw">_</span> =&gt; <span class="macro">unreachable!</span>(),
+<span class="kw">pub fn </span>manage_config&lt;<span class="lifetime">&#39;a</span>&gt;(config: <span class="kw-2">&amp;</span>Config, matches: <span class="kw-2">&amp;</span>ArgMatches&lt;<span class="lifetime">&#39;a</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(matches) = matches.subcommand_matches(<span class="string">&quot;init&quot;</span>) {
+        init_config(config.path(), matches)
+    } <span class="kw">else if let </span><span class="prelude-val">Some</span>(matches) = matches.subcommand_matches(<span class="string">&quot;show&quot;</span>) {
+        <span class="kw">match </span>matches.value_of(<span class="string">&quot;format&quot;</span>).unwrap() {
+            <span class="string">&quot;debug&quot; </span>=&gt; <span class="macro">println!</span>(<span class="string">&quot;{:#?}&quot;</span>, <span class="kw-2">&amp;</span>config),
+            <span class="string">&quot;yaml&quot; </span>=&gt; <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, config.to_yaml_string()<span class="question-mark">?</span>),
+            <span class="kw">_ </span>=&gt; <span class="macro">unreachable!</span>(),
         }
         <span class="prelude-val">Ok</span>(())
-    } <span class="kw">else</span> {
+    } <span class="kw">else </span>{
         <span class="macro">unreachable!</span>();
     }
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">init_config</span><span class="op">&lt;</span><span class="ident">P</span>: <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">Path</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="ident">config_path</span>: <span class="ident">P</span>, <span class="ident">_matches</span>: <span class="kw-2">&amp;</span><span class="ident">ArgMatches</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">done_something</span> <span class="op">=</span> <span class="bool-val">false</span>;
-    <span class="kw">let</span> <span class="ident">config_path</span> <span class="op">=</span> <span class="ident">env::current_dir</span>()<span class="question-mark">?</span>.<span class="ident">join</span>(<span class="ident">config_path</span>.<span class="ident">as_ref</span>());
-    <span class="macro">println!</span>(<span class="string">&quot;Initializing relay in {}&quot;</span>, <span class="ident">config_path</span>.<span class="ident">display</span>());
+<span class="kw">pub fn </span>init_config&lt;P: AsRef&lt;Path&gt;&gt;(config_path: P, _matches: <span class="kw-2">&amp;</span>ArgMatches) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>done_something = <span class="bool-val">false</span>;
+    <span class="kw">let </span>config_path = env::current_dir()<span class="question-mark">?</span>.join(config_path.as_ref());
+    <span class="macro">println!</span>(<span class="string">&quot;Initializing relay in {}&quot;</span>, config_path.display());
 
-    <span class="kw">if</span> <span class="op">!</span><span class="ident">Config::config_exists</span>(<span class="kw-2">&amp;</span><span class="ident">config_path</span>) {
-        <span class="kw">let</span> <span class="ident">item</span> <span class="op">=</span> <span class="ident">Select::with_theme</span>(<span class="ident">get_theme</span>())
-            .<span class="ident">with_prompt</span>(<span class="string">&quot;Do you want to create a new config?&quot;</span>)
-            .<span class="ident">default</span>(<span class="number">0</span>)
-            .<span class="ident">item</span>(<span class="string">&quot;Yes, create default config&quot;</span>)
-            .<span class="ident">item</span>(<span class="string">&quot;Yes, create custom config&quot;</span>)
-            .<span class="ident">item</span>(<span class="string">&quot;No, abort&quot;</span>)
-            .<span class="ident">interact</span>()<span class="question-mark">?</span>;
+    <span class="kw">if </span>!Config::config_exists(<span class="kw-2">&amp;</span>config_path) {
+        <span class="kw">let </span>item = Select::with_theme(get_theme())
+            .with_prompt(<span class="string">&quot;Do you want to create a new config?&quot;</span>)
+            .default(<span class="number">0</span>)
+            .item(<span class="string">&quot;Yes, create default config&quot;</span>)
+            .item(<span class="string">&quot;Yes, create custom config&quot;</span>)
+            .item(<span class="string">&quot;No, abort&quot;</span>)
+            .interact()<span class="question-mark">?</span>;
 
-        <span class="kw">let</span> <span class="ident">with_prompts</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">item</span> {
-            <span class="number">0</span> =&gt; <span class="bool-val">false</span>,
-            <span class="number">1</span> =&gt; <span class="bool-val">true</span>,
-            <span class="number">2</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Ok</span>(()),
-            <span class="kw">_</span> =&gt; <span class="macro">unreachable!</span>(),
+        <span class="kw">let </span>with_prompts = <span class="kw">match </span>item {
+            <span class="number">0 </span>=&gt; <span class="bool-val">false</span>,
+            <span class="number">1 </span>=&gt; <span class="bool-val">true</span>,
+            <span class="number">2 </span>=&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(()),
+            <span class="kw">_ </span>=&gt; <span class="macro">unreachable!</span>(),
         };
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mincfg</span> <span class="op">=</span> <span class="ident">MinimalConfig::default</span>();
-        <span class="kw">if</span> <span class="ident">with_prompts</span> {
-            <span class="kw">let</span> <span class="ident">mode</span> <span class="op">=</span> <span class="ident">Select::with_theme</span>(<span class="ident">get_theme</span>())
-                .<span class="ident">with_prompt</span>(<span class="string">&quot;How should this relay operate?&quot;</span>)
-                .<span class="ident">default</span>(<span class="number">0</span>)
-                .<span class="ident">item</span>(<span class="string">&quot;Managed through upstream&quot;</span>)
-                .<span class="ident">item</span>(<span class="string">&quot;Statically configured&quot;</span>)
-                .<span class="ident">item</span>(<span class="string">&quot;Proxy for all events&quot;</span>)
-                .<span class="ident">interact</span>()<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>mincfg = MinimalConfig::default();
+        <span class="kw">if </span>with_prompts {
+            <span class="kw">let </span>mode = Select::with_theme(get_theme())
+                .with_prompt(<span class="string">&quot;How should this relay operate?&quot;</span>)
+                .default(<span class="number">0</span>)
+                .item(<span class="string">&quot;Managed through upstream&quot;</span>)
+                .item(<span class="string">&quot;Statically configured&quot;</span>)
+                .item(<span class="string">&quot;Proxy for all events&quot;</span>)
+                .interact()<span class="question-mark">?</span>;
 
-            <span class="ident">mincfg</span>.<span class="ident">relay</span>.<span class="ident">mode</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">mode</span> {
-                <span class="number">0</span> =&gt; <span class="ident">RelayMode::Managed</span>,
-                <span class="number">1</span> =&gt; <span class="ident">RelayMode::Static</span>,
-                <span class="number">2</span> =&gt; <span class="ident">RelayMode::Proxy</span>,
-                <span class="kw">_</span> =&gt; <span class="macro">unreachable!</span>(),
+            mincfg.relay.mode = <span class="kw">match </span>mode {
+                <span class="number">0 </span>=&gt; RelayMode::Managed,
+                <span class="number">1 </span>=&gt; RelayMode::Static,
+                <span class="number">2 </span>=&gt; RelayMode::Proxy,
+                <span class="kw">_ </span>=&gt; <span class="macro">unreachable!</span>(),
             };
 
-            <span class="ident">utils::prompt_value</span>(<span class="string">&quot;upstream&quot;</span>, <span class="kw-2">&amp;mut</span> <span class="ident">mincfg</span>.<span class="ident">relay</span>.<span class="ident">upstream</span>)<span class="question-mark">?</span>;
-            <span class="ident">utils::prompt_value</span>(<span class="string">&quot;listen interface&quot;</span>, <span class="kw-2">&amp;mut</span> <span class="ident">mincfg</span>.<span class="ident">relay</span>.<span class="ident">host</span>)<span class="question-mark">?</span>;
-            <span class="ident">utils::prompt_value</span>(<span class="string">&quot;listen port&quot;</span>, <span class="kw-2">&amp;mut</span> <span class="ident">mincfg</span>.<span class="ident">relay</span>.<span class="ident">port</span>)<span class="question-mark">?</span>;
+            utils::prompt_value(<span class="string">&quot;upstream&quot;</span>, <span class="kw-2">&amp;mut </span>mincfg.relay.upstream)<span class="question-mark">?</span>;
+            utils::prompt_value(<span class="string">&quot;listen interface&quot;</span>, <span class="kw-2">&amp;mut </span>mincfg.relay.host)<span class="question-mark">?</span>;
+            utils::prompt_value(<span class="string">&quot;listen port&quot;</span>, <span class="kw-2">&amp;mut </span>mincfg.relay.port)<span class="question-mark">?</span>;
 
-            <span class="kw">if</span> <span class="ident">Confirmation::with_theme</span>(<span class="ident">get_theme</span>())
-                .<span class="ident">with_text</span>(<span class="string">&quot;do you want listen to TLS&quot;</span>)
-                .<span class="ident">interact</span>()<span class="question-mark">?</span>
-            {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">port</span> <span class="op">=</span> <span class="ident">mincfg</span>.<span class="ident">relay</span>.<span class="ident">port</span>.<span class="ident">saturating_add</span>(<span class="number">443</span>);
-                <span class="ident">utils::prompt_value</span>(<span class="string">&quot;tls port&quot;</span>, <span class="kw-2">&amp;mut</span> <span class="ident">port</span>)<span class="question-mark">?</span>;
-                <span class="ident">mincfg</span>.<span class="ident">relay</span>.<span class="ident">tls_port</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">port</span>);
-                <span class="ident">mincfg</span>.<span class="ident">relay</span>.<span class="ident">tls_identity_path</span> <span class="op">=</span>
-                    <span class="prelude-val">Some</span>(<span class="ident">PathBuf::from</span>(<span class="ident">utils::prompt_value_no_default</span>::<span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>(
+            <span class="kw">if </span>Confirmation::with_theme(get_theme())
+                .with_text(<span class="string">&quot;do you want listen to TLS&quot;</span>)
+                .interact()<span class="question-mark">?
+            </span>{
+                <span class="kw">let </span><span class="kw-2">mut </span>port = mincfg.relay.port.saturating_add(<span class="number">443</span>);
+                utils::prompt_value(<span class="string">&quot;tls port&quot;</span>, <span class="kw-2">&amp;mut </span>port)<span class="question-mark">?</span>;
+                mincfg.relay.tls_port = <span class="prelude-val">Some</span>(port);
+                mincfg.relay.tls_identity_path =
+                    <span class="prelude-val">Some</span>(PathBuf::from(utils::prompt_value_no_default::&lt;String&gt;(
                         <span class="string">&quot;path to your DER-encoded PKCS #12 archive&quot;</span>,
                     )<span class="question-mark">?</span>));
-                <span class="ident">mincfg</span>.<span class="ident">relay</span>.<span class="ident">tls_identity_password</span> <span class="op">=</span> <span class="prelude-val">Some</span>(
-                    <span class="ident">utils::prompt_value_no_default</span>::<span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>(<span class="string">&quot;password for your PKCS #12 archive&quot;</span>)<span class="question-mark">?</span>,
+                mincfg.relay.tls_identity_password = <span class="prelude-val">Some</span>(
+                    utils::prompt_value_no_default::&lt;String&gt;(<span class="string">&quot;password for your PKCS #12 archive&quot;</span>)<span class="question-mark">?</span>,
                 );
             }
         }
 
-        <span class="comment">// TODO: Enable this once logging to Sentry is more useful.</span>
-        <span class="comment">// mincfg.sentry.enabled = Select::with_theme(get_theme())</span>
-        <span class="comment">//     .with_prompt(&quot;Do you want to enable internal crash reporting?&quot;)</span>
-        <span class="comment">//     .default(0)</span>
-        <span class="comment">//     .item(&quot;Yes, share relay internal crash reports with sentry.io&quot;)</span>
-        <span class="comment">//     .item(&quot;No, do not share crash reports&quot;)</span>
-        <span class="comment">//     .interact()?</span>
-        <span class="comment">//     == 0;</span>
+        <span class="comment">// TODO: Enable this once logging to Sentry is more useful.
+        // mincfg.sentry.enabled = Select::with_theme(get_theme())
+        //     .with_prompt(&quot;Do you want to enable internal crash reporting?&quot;)
+        //     .default(0)
+        //     .item(&quot;Yes, share relay internal crash reports with sentry.io&quot;)
+        //     .item(&quot;No, do not share crash reports&quot;)
+        //     .interact()?
+        //     == 0;
 
-        <span class="ident">mincfg</span>.<span class="ident">save_in_folder</span>(<span class="kw-2">&amp;</span><span class="ident">config_path</span>)<span class="question-mark">?</span>;
-        <span class="ident">done_something</span> <span class="op">=</span> <span class="bool-val">true</span>;
+        </span>mincfg.save_in_folder(<span class="kw-2">&amp;</span>config_path)<span class="question-mark">?</span>;
+        done_something = <span class="bool-val">true</span>;
     }
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">Config::from_path</span>(<span class="kw-2">&amp;</span><span class="ident">config_path</span>)<span class="question-mark">?</span>;
-    <span class="kw">if</span> <span class="ident">config</span>.<span class="ident">relay_mode</span>() <span class="op">==</span> <span class="ident">RelayMode::Managed</span> <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">config</span>.<span class="ident">has_credentials</span>() {
-        <span class="kw">let</span> <span class="ident">credentials</span> <span class="op">=</span> <span class="ident">Credentials::generate</span>();
-        <span class="ident">config</span>.<span class="ident">replace_credentials</span>(<span class="prelude-val">Some</span>(<span class="ident">credentials</span>))<span class="question-mark">?</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>config = Config::from_path(<span class="kw-2">&amp;</span>config_path)<span class="question-mark">?</span>;
+    <span class="kw">if </span>config.relay_mode() == RelayMode::Managed &amp;&amp; !config.has_credentials() {
+        <span class="kw">let </span>credentials = Credentials::generate();
+        config.replace_credentials(<span class="prelude-val">Some</span>(credentials))<span class="question-mark">?</span>;
         <span class="macro">println!</span>(<span class="string">&quot;Generated new credentials&quot;</span>);
-        <span class="ident">setup::dump_credentials</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>);
-        <span class="ident">done_something</span> <span class="op">=</span> <span class="bool-val">true</span>;
+        setup::dump_credentials(<span class="kw-2">&amp;</span>config);
+        done_something = <span class="bool-val">true</span>;
     }
 
-    <span class="kw">if</span> <span class="ident">done_something</span> {
+    <span class="kw">if </span>done_something {
         <span class="macro">println!</span>(<span class="string">&quot;All done!&quot;</span>);
-    } <span class="kw">else</span> {
+    } <span class="kw">else </span>{
         <span class="macro">println!</span>(<span class="string">&quot;Nothing to do.&quot;</span>);
     }
 
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">generate_completions</span>(<span class="ident">matches</span>: <span class="kw-2">&amp;</span><span class="ident">ArgMatches</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">shell</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">matches</span>
-        .<span class="ident">value_of</span>(<span class="string">&quot;format&quot;</span>)
-        .<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">Shell</span><span class="op">&gt;</span>().<span class="ident">unwrap</span>())
+<span class="kw">pub fn </span>generate_completions(matches: <span class="kw-2">&amp;</span>ArgMatches) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
+    <span class="kw">let </span>shell = <span class="kw">match </span>matches
+        .value_of(<span class="string">&quot;format&quot;</span>)
+        .map(|x| x.parse::&lt;Shell&gt;().unwrap())
     {
-        <span class="prelude-val">None</span> =&gt; <span class="kw">match</span> <span class="ident">env::var</span>(<span class="string">&quot;SHELL&quot;</span>)
-            .<span class="ident">ok</span>()
-            .<span class="ident">as_ref</span>()
-            .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">rsplit</span>(<span class="string">&#39;/&#39;</span>).<span class="ident">next</span>())
+        <span class="prelude-val">None </span>=&gt; <span class="kw">match </span>env::var(<span class="string">&quot;SHELL&quot;</span>)
+            .ok()
+            .as_ref()
+            .and_then(|x| x.rsplit(<span class="string">&#39;/&#39;</span>).next())
         {
-            <span class="prelude-val">Some</span>(<span class="string">&quot;bash&quot;</span>) =&gt; <span class="ident">Shell::Bash</span>,
-            <span class="prelude-val">Some</span>(<span class="string">&quot;zsh&quot;</span>) =&gt; <span class="ident">Shell::Zsh</span>,
-            <span class="prelude-val">Some</span>(<span class="string">&quot;fish&quot;</span>) =&gt; <span class="ident">Shell::Fish</span>,
-            <span class="kw">_</span> =&gt; {
-                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">windows</span>)]</span>
-                {
-                    <span class="ident">Shell::PowerShell</span>
+            <span class="prelude-val">Some</span>(<span class="string">&quot;bash&quot;</span>) =&gt; Shell::Bash,
+            <span class="prelude-val">Some</span>(<span class="string">&quot;zsh&quot;</span>) =&gt; Shell::Zsh,
+            <span class="prelude-val">Some</span>(<span class="string">&quot;fish&quot;</span>) =&gt; Shell::Fish,
+            <span class="kw">_ </span>=&gt; {
+                <span class="attribute">#[cfg(windows)]
+                </span>{
+                    Shell::PowerShell
                 }
-                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">windows</span>))]</span>
-                {
-                    <span class="ident">Shell::Bash</span>
+                <span class="attribute">#[cfg(not(windows))]
+                </span>{
+                    Shell::Bash
                 }
             }
         },
-        <span class="prelude-val">Some</span>(<span class="ident">shell</span>) =&gt; <span class="ident">shell</span>,
+        <span class="prelude-val">Some</span>(shell) =&gt; shell,
     };
-    <span class="ident">make_app</span>().<span class="ident">gen_completions_to</span>(<span class="string">&quot;relay&quot;</span>, <span class="ident">shell</span>, <span class="kw-2">&amp;mut</span> <span class="ident">io::stdout</span>());
+    make_app().gen_completions_to(<span class="string">&quot;relay&quot;</span>, shell, <span class="kw-2">&amp;mut </span>io::stdout());
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">run</span>(<span class="ident">config</span>: <span class="ident">Config</span>, <span class="ident">_matches</span>: <span class="kw-2">&amp;</span><span class="ident">ArgMatches</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
-    <span class="ident">setup::dump_spawn_infos</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>);
-    <span class="ident">setup::check_config</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>)<span class="question-mark">?</span>;
-    <span class="ident">setup::init_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>)<span class="question-mark">?</span>;
-    <span class="ident">relay_server::run</span>(<span class="ident">config</span>)<span class="question-mark">?</span>;
+<span class="kw">pub fn </span>run(config: Config, _matches: <span class="kw-2">&amp;</span>ArgMatches) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
+    setup::dump_spawn_infos(<span class="kw-2">&amp;</span>config);
+    setup::check_config(<span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
+    setup::init_metrics(<span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
+    relay_server::run(config)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(())
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

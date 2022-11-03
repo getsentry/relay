@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-quotas/src/redis.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>redis.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_quotas/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_quotas/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-quotas/src/redis.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>redis.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_quotas/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_quotas/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_quotas/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -770,775 +770,775 @@
 <span id="768">768</span>
 <span id="769">769</span>
 <span id="770">770</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
-<span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::sync::Arc;
 
-<span class="kw">use</span> <span class="ident">failure::Fail</span>;
+<span class="kw">use </span>failure::Fail;
 
-<span class="kw">use</span> <span class="ident">relay_common::UnixTimestamp</span>;
-<span class="kw">use</span> <span class="ident">relay_log::protocol::value</span>;
-<span class="kw">use</span> <span class="ident">relay_redis</span>::{<span class="ident">redis::Script</span>, <span class="ident">RedisError</span>, <span class="ident">RedisPool</span>};
+<span class="kw">use </span>relay_common::UnixTimestamp;
+<span class="kw">use </span>relay_log::protocol::value;
+<span class="kw">use </span>relay_redis::{redis::Script, RedisError, RedisPool};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::quota</span>::{<span class="ident">ItemScoping</span>, <span class="ident">Quota</span>, <span class="ident">QuotaScope</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::rate_limit</span>::{<span class="ident">RateLimit</span>, <span class="ident">RateLimits</span>, <span class="ident">RetryAfter</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::REJECT_ALL_SECS</span>;
+<span class="kw">use </span><span class="kw">crate</span>::quota::{ItemScoping, Quota, QuotaScope};
+<span class="kw">use </span><span class="kw">crate</span>::rate_limit::{RateLimit, RateLimits, RetryAfter};
+<span class="kw">use </span><span class="kw">crate</span>::REJECT_ALL_SECS;
 
-<span class="doccomment">/// The `grace` period allows accomodating for clock drift in TTL</span>
-<span class="doccomment">/// calculation since the clock on the Redis instance used to store quota</span>
-<span class="doccomment">/// metrics may not be in sync with the computer running this code.</span>
-<span class="kw">const</span> <span class="ident">GRACE</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="number">60</span>;
+<span class="doccomment">/// The `grace` period allows accomodating for clock drift in TTL
+/// calculation since the clock on the Redis instance used to store quota
+/// metrics may not be in sync with the computer running this code.
+</span><span class="kw">const </span>GRACE: u64 = <span class="number">60</span>;
 
-<span class="doccomment">/// An error returned by `RedisRateLimiter`.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Fail</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">RateLimitingError</span> {
-    <span class="doccomment">/// Failed to communicate with Redis.</span>
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;failed to communicate with redis&quot;</span>)]</span>
-    <span class="ident">Redis</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">RedisError</span>),
+<span class="doccomment">/// An error returned by `RedisRateLimiter`.
+</span><span class="attribute">#[derive(Debug, Fail)]
+</span><span class="kw">pub enum </span>RateLimitingError {
+    <span class="doccomment">/// Failed to communicate with Redis.
+    </span><span class="attribute">#[fail(display = <span class="string">&quot;failed to communicate with redis&quot;</span>)]
+    </span>Redis(<span class="attribute">#[cause] </span>RedisError),
 }
 
-<span class="kw">fn</span> <span class="ident">load_lua_script</span>() -&gt; <span class="ident">Script</span> {
-    <span class="ident">Script::new</span>(<span class="macro">include_str!</span>(<span class="string">&quot;is_rate_limited.lua&quot;</span>))
+<span class="kw">fn </span>load_lua_script() -&gt; Script {
+    Script::new(<span class="macro">include_str!</span>(<span class="string">&quot;is_rate_limited.lua&quot;</span>))
 }
 
-<span class="kw">fn</span> <span class="ident">get_refunded_quota_key</span>(<span class="ident">counter_key</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">String</span> {
-    <span class="macro">format!</span>(<span class="string">&quot;r:{}&quot;</span>, <span class="ident">counter_key</span>)
+<span class="kw">fn </span>get_refunded_quota_key(counter_key: <span class="kw-2">&amp;</span>str) -&gt; String {
+    <span class="macro">format!</span>(<span class="string">&quot;r:{}&quot;</span>, counter_key)
 }
 
-<span class="doccomment">/// A transparent wrapper around an Option that only displays `Some`.</span>
-<span class="kw">struct</span> <span class="ident">OptionalDisplay</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>);
+<span class="doccomment">/// A transparent wrapper around an Option that only displays `Some`.
+</span><span class="kw">struct </span>OptionalDisplay&lt;T&gt;(<span class="prelude-ty">Option</span>&lt;T&gt;);
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">OptionalDisplay</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">T</span>: <span class="ident">fmt::Display</span>,
+<span class="kw">impl</span>&lt;T&gt; fmt::Display <span class="kw">for </span>OptionalDisplay&lt;T&gt;
+<span class="kw">where
+    </span>T: fmt::Display,
 {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="kw">match</span> <span class="self">self</span>.<span class="number">0</span> {
-            <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">value</span>) =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="ident">value</span>),
-            <span class="prelude-val">None</span> =&gt; <span class="prelude-val">Ok</span>(()),
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">match </span><span class="self">self</span>.<span class="number">0 </span>{
+            <span class="prelude-val">Some</span>(<span class="kw-2">ref </span>value) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, value),
+            <span class="prelude-val">None </span>=&gt; <span class="prelude-val">Ok</span>(()),
         }
     }
 }
 
-<span class="doccomment">/// Reference to information required for tracking quotas in Redis.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">struct</span> <span class="ident">RedisQuota</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="doccomment">/// The original quota.</span>
-    <span class="ident">quota</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Quota</span>,
-    <span class="doccomment">/// Scopes of the item being tracked.</span>
-    <span class="ident">scoping</span>: <span class="ident">ItemScoping</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// The Redis key prefix mapped from the quota id.</span>
-    <span class="ident">prefix</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>,
-    <span class="doccomment">/// The redis window in seconds mapped from the quota.</span>
-    <span class="ident">window</span>: <span class="ident">u64</span>,
-    <span class="doccomment">/// The ingestion timestamp determining the rate limiting bucket.</span>
-    <span class="ident">timestamp</span>: <span class="ident">UnixTimestamp</span>,
+<span class="doccomment">/// Reference to information required for tracking quotas in Redis.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">struct </span>RedisQuota&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="doccomment">/// The original quota.
+    </span>quota: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Quota,
+    <span class="doccomment">/// Scopes of the item being tracked.
+    </span>scoping: ItemScoping&lt;<span class="lifetime">&#39;a</span>&gt;,
+    <span class="doccomment">/// The Redis key prefix mapped from the quota id.
+    </span>prefix: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str,
+    <span class="doccomment">/// The redis window in seconds mapped from the quota.
+    </span>window: u64,
+    <span class="doccomment">/// The ingestion timestamp determining the rate limiting bucket.
+    </span>timestamp: UnixTimestamp,
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">RedisQuota</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">quota</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Quota</span>, <span class="ident">scoping</span>: <span class="ident">ItemScoping</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>, <span class="ident">timestamp</span>: <span class="ident">UnixTimestamp</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="comment">// These fields indicate that we *can* track this quota.</span>
-        <span class="kw">let</span> <span class="ident">prefix</span> <span class="op">=</span> <span class="ident">quota</span>.<span class="ident">id</span>.<span class="ident">as_deref</span>()<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">window</span> <span class="op">=</span> <span class="ident">quota</span>.<span class="ident">window</span><span class="question-mark">?</span>;
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; RedisQuota&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="kw">fn </span>new(quota: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Quota, scoping: ItemScoping&lt;<span class="lifetime">&#39;a</span>&gt;, timestamp: UnixTimestamp) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
+        <span class="comment">// These fields indicate that we *can* track this quota.
+        </span><span class="kw">let </span>prefix = quota.id.as_deref()<span class="question-mark">?</span>;
+        <span class="kw">let </span>window = quota.window<span class="question-mark">?</span>;
 
-        <span class="prelude-val">Some</span>(<span class="self">Self</span> {
-            <span class="ident">quota</span>,
-            <span class="ident">scoping</span>,
-            <span class="ident">prefix</span>,
-            <span class="ident">window</span>,
-            <span class="ident">timestamp</span>,
+        <span class="prelude-val">Some</span>(<span class="self">Self </span>{
+            quota,
+            scoping,
+            prefix,
+            window,
+            timestamp,
         })
     }
 
-    <span class="doccomment">/// Returns the limit value for Redis (`-1` for unlimited, otherwise the limit value).</span>
-    <span class="kw">fn</span> <span class="ident">limit</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">i64</span> {
-        <span class="self">self</span>.<span class="ident">limit</span>.<span class="ident">map</span>(<span class="ident">i64::from</span>).<span class="ident">unwrap_or</span>(<span class="op">-</span><span class="number">1</span>)
+    <span class="doccomment">/// Returns the limit value for Redis (`-1` for unlimited, otherwise the limit value).
+    </span><span class="kw">fn </span>limit(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; i64 {
+        <span class="self">self</span>.limit.map(i64::from).unwrap_or(-<span class="number">1</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">shift</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">u64</span> {
-        <span class="self">self</span>.<span class="ident">scoping</span>.<span class="ident">organization_id</span> <span class="op">%</span> <span class="self">self</span>.<span class="ident">window</span>
+    <span class="kw">fn </span>shift(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
+        <span class="self">self</span>.scoping.organization_id % <span class="self">self</span>.window
     }
 
-    <span class="kw">fn</span> <span class="ident">slot</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">u64</span> {
-        (<span class="self">self</span>.<span class="ident">timestamp</span>.<span class="ident">as_secs</span>() <span class="op">-</span> <span class="self">self</span>.<span class="ident">shift</span>()) <span class="op">/</span> <span class="self">self</span>.<span class="ident">window</span>
+    <span class="kw">fn </span>slot(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
+        (<span class="self">self</span>.timestamp.as_secs() - <span class="self">self</span>.shift()) / <span class="self">self</span>.window
     }
 
-    <span class="kw">fn</span> <span class="ident">expiry</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">UnixTimestamp</span> {
-        <span class="kw">let</span> <span class="ident">next_slot</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">slot</span>() <span class="op">+</span> <span class="number">1</span>;
-        <span class="kw">let</span> <span class="ident">next_start</span> <span class="op">=</span> <span class="ident">next_slot</span> <span class="op">*</span> <span class="self">self</span>.<span class="ident">window</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">shift</span>();
-        <span class="ident">UnixTimestamp::from_secs</span>(<span class="ident">next_start</span>)
+    <span class="kw">fn </span>expiry(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; UnixTimestamp {
+        <span class="kw">let </span>next_slot = <span class="self">self</span>.slot() + <span class="number">1</span>;
+        <span class="kw">let </span>next_start = next_slot * <span class="self">self</span>.window + <span class="self">self</span>.shift();
+        UnixTimestamp::from_secs(next_start)
     }
 
-    <span class="kw">fn</span> <span class="ident">key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">String</span> {
-        <span class="comment">// The subscope id is only formatted into the key if the quota is not organization-scoped.</span>
-        <span class="comment">// The organization id is always included.</span>
-        <span class="kw">let</span> <span class="ident">subscope</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">quota</span>.<span class="ident">scope</span> {
-            <span class="ident">QuotaScope::Organization</span> =&gt; <span class="prelude-val">None</span>,
-            <span class="ident">scope</span> =&gt; <span class="self">self</span>.<span class="ident">scoping</span>.<span class="ident">scope_id</span>(<span class="ident">scope</span>),
+    <span class="kw">fn </span>key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; String {
+        <span class="comment">// The subscope id is only formatted into the key if the quota is not organization-scoped.
+        // The organization id is always included.
+        </span><span class="kw">let </span>subscope = <span class="kw">match </span><span class="self">self</span>.quota.scope {
+            QuotaScope::Organization =&gt; <span class="prelude-val">None</span>,
+            scope =&gt; <span class="self">self</span>.scoping.scope_id(scope),
         };
 
         <span class="macro">format!</span>(
             <span class="string">&quot;quota:{id}{{{org}}}{subscope}:{slot}&quot;</span>,
-            <span class="ident">id</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">prefix</span>,
-            <span class="ident">org</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">scoping</span>.<span class="ident">organization_id</span>,
-            <span class="ident">subscope</span> <span class="op">=</span> <span class="ident">OptionalDisplay</span>(<span class="ident">subscope</span>),
-            <span class="ident">slot</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">slot</span>(),
+            id = <span class="self">self</span>.prefix,
+            org = <span class="self">self</span>.scoping.organization_id,
+            subscope = OptionalDisplay(subscope),
+            slot = <span class="self">self</span>.slot(),
         )
     }
 }
 
-<span class="kw">impl</span> <span class="ident">std::ops::Deref</span> <span class="kw">for</span> <span class="ident">RedisQuota</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span> {
-    <span class="kw">type</span> <span class="ident">Target</span> <span class="op">=</span> <span class="ident">Quota</span>;
+<span class="kw">impl </span>std::ops::Deref <span class="kw">for </span>RedisQuota&lt;<span class="lifetime">&#39;_</span>&gt; {
+    <span class="kw">type </span>Target = Quota;
 
-    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident"><span class="self">Self</span>::Target</span> {
-        <span class="self">self</span>.<span class="ident">quota</span>
+    <span class="kw">fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Target {
+        <span class="self">self</span>.quota
     }
 }
 
-<span class="doccomment">/// A service that executes quotas and checks for rate limits in a shared cache.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Quotas handle tracking a project&#39;s usage and respond whether or not a project has been</span>
-<span class="doccomment">/// configured to throttle incoming data if they go beyond the specified quota.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Quotas can specify a window to be tracked in, such as per minute or per hour. Additionally,</span>
-<span class="doccomment">/// quotas allow to specify the data categories they apply to, for example error events or</span>
-<span class="doccomment">/// attachments. For more information on quota parameters, see `QuotaConfig`.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Requires the `redis` feature.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RedisRateLimiter</span> {
-    <span class="ident">pool</span>: <span class="ident">RedisPool</span>,
-    <span class="ident">script</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Script</span><span class="op">&gt;</span>,
-    <span class="ident">max_limit</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+<span class="doccomment">/// A service that executes quotas and checks for rate limits in a shared cache.
+///
+/// Quotas handle tracking a project&#39;s usage and respond whether or not a project has been
+/// configured to throttle incoming data if they go beyond the specified quota.
+///
+/// Quotas can specify a window to be tracked in, such as per minute or per hour. Additionally,
+/// quotas allow to specify the data categories they apply to, for example error events or
+/// attachments. For more information on quota parameters, see `QuotaConfig`.
+///
+/// Requires the `redis` feature.
+</span><span class="attribute">#[derive(Clone)]
+</span><span class="kw">pub struct </span>RedisRateLimiter {
+    pool: RedisPool,
+    script: Arc&lt;Script&gt;,
+    max_limit: <span class="prelude-ty">Option</span>&lt;u64&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">RedisRateLimiter</span> {
-    <span class="doccomment">/// Creates a new `RedisRateLimiter` instance.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">pool</span>: <span class="ident">RedisPool</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">RedisRateLimiter</span> {
-            <span class="ident">pool</span>,
-            <span class="ident">script</span>: <span class="ident">Arc::new</span>(<span class="ident">load_lua_script</span>()),
-            <span class="ident">max_limit</span>: <span class="prelude-val">None</span>,
+<span class="kw">impl </span>RedisRateLimiter {
+    <span class="doccomment">/// Creates a new `RedisRateLimiter` instance.
+    </span><span class="kw">pub fn </span>new(pool: RedisPool) -&gt; <span class="self">Self </span>{
+        RedisRateLimiter {
+            pool,
+            script: Arc::new(load_lua_script()),
+            max_limit: <span class="prelude-val">None</span>,
         }
     }
 
-    <span class="doccomment">/// Sets the maximum rate limit in seconds.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// By default, this rate limiter will return rate limits based on the quotas&#39; `window` fields.</span>
-    <span class="doccomment">/// If a maximum rate limit is set, this limit is bounded.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_limit</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">max_limit</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">self</span>.<span class="ident">max_limit</span> <span class="op">=</span> <span class="ident">max_limit</span>;
-        <span class="self">self</span>
-    }
+    <span class="doccomment">/// Sets the maximum rate limit in seconds.
+    ///
+    /// By default, this rate limiter will return rate limits based on the quotas&#39; `window` fields.
+    /// If a maximum rate limit is set, this limit is bounded.
+    </span><span class="kw">pub fn </span>max_limit(<span class="kw-2">mut </span><span class="self">self</span>, max_limit: <span class="prelude-ty">Option</span>&lt;u64&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">self</span>.max_limit = max_limit;
+        <span class="self">self
+    </span>}
 
-    <span class="doccomment">/// Checks whether any of the quotas in effect for the given project and project key has been</span>
-    <span class="doccomment">/// exceeded and records consumption of the quota.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// By invoking this method, the caller signals that data is being ingested and needs to be</span>
-    <span class="doccomment">/// counted against the quota. This increment happens atomically if none of the quotas have been</span>
-    <span class="doccomment">/// exceeded. Otherwise, a rate limit is returned and data is not counted against the quotas.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// If no key is specified, then only organization-wide and project-wide quotas are checked. If</span>
-    <span class="doccomment">/// a key is specified, then key-quotas are also checked.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// If the current consumed quotas are still under the limit and the current quantity would put</span>
-    <span class="doccomment">/// it over the limit, which normaly would return the _rejection_, setting `over_accept_once`</span>
-    <span class="doccomment">/// to `true` will allow accept the incoming data even if the limit is exceeded once.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The passed `quantity` may be `0`. In this case, the rate limiter will check if the quota</span>
-    <span class="doccomment">/// limit has been reached or exceeded without incrementing it in the success case. This can be</span>
-    <span class="doccomment">/// useful to check for required quotas in a different data category.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_rate_limited</span>(
+    <span class="doccomment">/// Checks whether any of the quotas in effect for the given project and project key has been
+    /// exceeded and records consumption of the quota.
+    ///
+    /// By invoking this method, the caller signals that data is being ingested and needs to be
+    /// counted against the quota. This increment happens atomically if none of the quotas have been
+    /// exceeded. Otherwise, a rate limit is returned and data is not counted against the quotas.
+    ///
+    /// If no key is specified, then only organization-wide and project-wide quotas are checked. If
+    /// a key is specified, then key-quotas are also checked.
+    ///
+    /// If the current consumed quotas are still under the limit and the current quantity would put
+    /// it over the limit, which normaly would return the _rejection_, setting `over_accept_once`
+    /// to `true` will allow accept the incoming data even if the limit is exceeded once.
+    ///
+    /// The passed `quantity` may be `0`. In this case, the rate limiter will check if the quota
+    /// limit has been reached or exceeded without incrementing it in the success case. This can be
+    /// useful to check for required quotas in a different data category.
+    </span><span class="kw">pub fn </span>is_rate_limited(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">quotas</span>: <span class="kw-2">&amp;</span>[<span class="ident">Quota</span>],
-        <span class="ident">item_scoping</span>: <span class="ident">ItemScoping</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-        <span class="ident">quantity</span>: <span class="ident">usize</span>,
-        <span class="ident">over_accept_once</span>: <span class="ident">bool</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">RateLimits</span>, <span class="ident">RateLimitingError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::now</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">invocation</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">script</span>.<span class="ident">prepare_invoke</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">tracked_quotas</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rate_limits</span> <span class="op">=</span> <span class="ident">RateLimits::new</span>();
+        quotas: <span class="kw-2">&amp;</span>[Quota],
+        item_scoping: ItemScoping&lt;<span class="lifetime">&#39;_</span>&gt;,
+        quantity: usize,
+        over_accept_once: bool,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;RateLimits, RateLimitingError&gt; {
+        <span class="kw">let </span>timestamp = UnixTimestamp::now();
+        <span class="kw">let </span><span class="kw-2">mut </span>invocation = <span class="self">self</span>.script.prepare_invoke();
+        <span class="kw">let </span><span class="kw-2">mut </span>tracked_quotas = Vec::new();
+        <span class="kw">let </span><span class="kw-2">mut </span>rate_limits = RateLimits::new();
 
-        <span class="kw">for</span> <span class="ident">quota</span> <span class="kw">in</span> <span class="ident">quotas</span> {
-            <span class="kw">if</span> <span class="op">!</span><span class="ident">quota</span>.<span class="ident">matches</span>(<span class="ident">item_scoping</span>) {
-                <span class="comment">// Silently skip all quotas that do not apply to this item.</span>
-            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">quota</span>.<span class="ident">limit</span> <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="number">0</span>) {
-                <span class="comment">// A zero-sized quota is strongest. Do not call into Redis at all, and do not</span>
-                <span class="comment">// increment any keys, as one quota has reached capacity (this is how regular quotas</span>
-                <span class="comment">// behave as well).</span>
-                <span class="kw">let</span> <span class="ident">retry_after</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">retry_after</span>(<span class="ident">REJECT_ALL_SECS</span>);
-                <span class="ident">rate_limits</span>.<span class="ident">add</span>(<span class="ident">RateLimit::from_quota</span>(<span class="ident">quota</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">item_scoping</span>, <span class="ident">retry_after</span>));
-            } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">quota</span>) <span class="op">=</span> <span class="ident">RedisQuota::new</span>(<span class="ident">quota</span>, <span class="ident">item_scoping</span>, <span class="ident">timestamp</span>) {
-                <span class="comment">// Remaining quotas are expected to be trackable in Redis.</span>
-                <span class="kw">let</span> <span class="ident">key</span> <span class="op">=</span> <span class="ident">quota</span>.<span class="ident">key</span>();
-                <span class="kw">let</span> <span class="ident">refund_key</span> <span class="op">=</span> <span class="ident">get_refunded_quota_key</span>(<span class="kw-2">&amp;</span><span class="ident">key</span>);
+        <span class="kw">for </span>quota <span class="kw">in </span>quotas {
+            <span class="kw">if </span>!quota.matches(item_scoping) {
+                <span class="comment">// Silently skip all quotas that do not apply to this item.
+            </span>} <span class="kw">else if </span>quota.limit == <span class="prelude-val">Some</span>(<span class="number">0</span>) {
+                <span class="comment">// A zero-sized quota is strongest. Do not call into Redis at all, and do not
+                // increment any keys, as one quota has reached capacity (this is how regular quotas
+                // behave as well).
+                </span><span class="kw">let </span>retry_after = <span class="self">self</span>.retry_after(REJECT_ALL_SECS);
+                rate_limits.add(RateLimit::from_quota(quota, <span class="kw-2">&amp;</span>item_scoping, retry_after));
+            } <span class="kw">else if let </span><span class="prelude-val">Some</span>(quota) = RedisQuota::new(quota, item_scoping, timestamp) {
+                <span class="comment">// Remaining quotas are expected to be trackable in Redis.
+                </span><span class="kw">let </span>key = quota.key();
+                <span class="kw">let </span>refund_key = get_refunded_quota_key(<span class="kw-2">&amp;</span>key);
 
-                <span class="ident">invocation</span>.<span class="ident">key</span>(<span class="ident">key</span>);
-                <span class="ident">invocation</span>.<span class="ident">key</span>(<span class="ident">refund_key</span>);
+                invocation.key(key);
+                invocation.key(refund_key);
 
-                <span class="ident">invocation</span>.<span class="ident">arg</span>(<span class="ident">quota</span>.<span class="ident">limit</span>());
-                <span class="ident">invocation</span>.<span class="ident">arg</span>(<span class="ident">quota</span>.<span class="ident">expiry</span>().<span class="ident">as_secs</span>() <span class="op">+</span> <span class="ident">GRACE</span>);
-                <span class="ident">invocation</span>.<span class="ident">arg</span>(<span class="ident">quantity</span>);
-                <span class="ident">invocation</span>.<span class="ident">arg</span>(<span class="ident">over_accept_once</span>);
+                invocation.arg(quota.limit());
+                invocation.arg(quota.expiry().as_secs() + GRACE);
+                invocation.arg(quantity);
+                invocation.arg(over_accept_once);
 
-                <span class="ident">tracked_quotas</span>.<span class="ident">push</span>(<span class="ident">quota</span>);
-            } <span class="kw">else</span> {
-                <span class="comment">// This quota is neither a static reject-all, nor can it be tracked in Redis due to</span>
-                <span class="comment">// missing fields. We&#39;re skipping this for forward-compatibility.</span>
-                <span class="ident">relay_log::with_scope</span>(
-                    <span class="op">|</span><span class="ident">scope</span><span class="op">|</span> <span class="ident">scope</span>.<span class="ident">set_extra</span>(<span class="string">&quot;quota&quot;</span>, <span class="ident">value::to_value</span>(<span class="ident">quota</span>).<span class="ident">unwrap</span>()),
-                    <span class="op">|</span><span class="op">|</span> <span class="macro">relay_log::warn!</span>(<span class="string">&quot;skipping unsupported quota&quot;</span>),
+                tracked_quotas.push(quota);
+            } <span class="kw">else </span>{
+                <span class="comment">// This quota is neither a static reject-all, nor can it be tracked in Redis due to
+                // missing fields. We&#39;re skipping this for forward-compatibility.
+                </span>relay_log::with_scope(
+                    |scope| scope.set_extra(<span class="string">&quot;quota&quot;</span>, value::to_value(quota).unwrap()),
+                    || <span class="macro">relay_log::warn!</span>(<span class="string">&quot;skipping unsupported quota&quot;</span>),
                 )
             }
         }
 
-        <span class="comment">// Either there are no quotas to run against Redis, or we already have a rate limit from a</span>
-        <span class="comment">// zero-sized quota. In either cases, skip invoking the script and return early.</span>
-        <span class="kw">if</span> <span class="ident">tracked_quotas</span>.<span class="ident">is_empty</span>() <span class="op">|</span><span class="op">|</span> <span class="ident">rate_limits</span>.<span class="ident">is_limited</span>() {
-            <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">rate_limits</span>);
+        <span class="comment">// Either there are no quotas to run against Redis, or we already have a rate limit from a
+        // zero-sized quota. In either cases, skip invoking the script and return early.
+        </span><span class="kw">if </span>tracked_quotas.is_empty() || rate_limits.is_limited() {
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(rate_limits);
         }
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">client</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">pool</span>.<span class="ident">client</span>().<span class="ident">map_err</span>(<span class="ident">RateLimitingError::Redis</span>)<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">rejections</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">invocation</span>
-            .<span class="ident">invoke</span>(<span class="kw-2">&amp;mut</span> <span class="ident">client</span>.<span class="ident">connection</span>())
-            .<span class="ident">map_err</span>(<span class="ident">RedisError::Redis</span>)
-            .<span class="ident">map_err</span>(<span class="ident">RateLimitingError::Redis</span>)<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>client = <span class="self">self</span>.pool.client().map_err(RateLimitingError::Redis)<span class="question-mark">?</span>;
+        <span class="kw">let </span>rejections: Vec&lt;bool&gt; = invocation
+            .invoke(<span class="kw-2">&amp;mut </span>client.connection())
+            .map_err(RedisError::Redis)
+            .map_err(RateLimitingError::Redis)<span class="question-mark">?</span>;
 
-        <span class="kw">for</span> (<span class="ident">quota</span>, <span class="ident">is_rejected</span>) <span class="kw">in</span> <span class="ident">tracked_quotas</span>.<span class="ident">iter</span>().<span class="ident">zip</span>(<span class="ident">rejections</span>) {
-            <span class="kw">if</span> <span class="ident">is_rejected</span> {
-                <span class="kw">let</span> <span class="ident">retry_after</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">retry_after</span>((<span class="ident">quota</span>.<span class="ident">expiry</span>() <span class="op">-</span> <span class="ident">timestamp</span>).<span class="ident">as_secs</span>());
-                <span class="ident">rate_limits</span>.<span class="ident">add</span>(<span class="ident">RateLimit::from_quota</span>(<span class="ident">quota</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">item_scoping</span>, <span class="ident">retry_after</span>));
+        <span class="kw">for </span>(quota, is_rejected) <span class="kw">in </span>tracked_quotas.iter().zip(rejections) {
+            <span class="kw">if </span>is_rejected {
+                <span class="kw">let </span>retry_after = <span class="self">self</span>.retry_after((quota.expiry() - timestamp).as_secs());
+                rate_limits.add(RateLimit::from_quota(quota, <span class="kw-2">&amp;</span>item_scoping, retry_after));
             }
         }
 
-        <span class="prelude-val">Ok</span>(<span class="ident">rate_limits</span>)
+        <span class="prelude-val">Ok</span>(rate_limits)
     }
 
-    <span class="doccomment">/// Creates a rate limit bounded by `max_limit`.</span>
-    <span class="kw">fn</span> <span class="ident">retry_after</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">seconds</span>: <span class="ident">u64</span>) -&gt; <span class="ident">RetryAfter</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">max_limit</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">max_limit</span> {
-            <span class="ident">seconds</span> <span class="op">=</span> <span class="ident">std::cmp::min</span>(<span class="ident">seconds</span>, <span class="ident">max_limit</span>);
+    <span class="doccomment">/// Creates a rate limit bounded by `max_limit`.
+    </span><span class="kw">fn </span>retry_after(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>seconds: u64) -&gt; RetryAfter {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(max_limit) = <span class="self">self</span>.max_limit {
+            seconds = std::cmp::min(seconds, max_limit);
         }
 
-        <span class="ident">RetryAfter::from_secs</span>(<span class="ident">seconds</span>)
+        RetryAfter::from_secs(seconds)
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
-    <span class="kw">use</span> <span class="ident">std::time</span>::{<span class="ident">SystemTime</span>, <span class="ident">UNIX_EPOCH</span>};
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>std::sync::Arc;
+    <span class="kw">use </span>std::time::{SystemTime, UNIX_EPOCH};
 
-    <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">ProjectId</span>, <span class="ident">ProjectKey</span>};
-    <span class="kw">use</span> <span class="ident">relay_redis</span>::{<span class="ident">redis::Commands</span>, <span class="ident">RedisConfigOptions</span>};
+    <span class="kw">use </span>relay_common::{ProjectId, ProjectKey};
+    <span class="kw">use </span>relay_redis::{redis::Commands, RedisConfigOptions};
 
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::quota</span>::{<span class="ident">DataCategories</span>, <span class="ident">DataCategory</span>, <span class="ident">ReasonCode</span>, <span class="ident">Scoping</span>};
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::rate_limit::RateLimitScope</span>;
+    <span class="kw">use </span><span class="kw">crate</span>::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
+    <span class="kw">use </span><span class="kw">crate</span>::rate_limit::RateLimitScope;
 
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">fn</span> <span class="ident">build_rate_limiter</span>() -&gt; <span class="ident">RedisRateLimiter</span> {
-        <span class="kw">let</span> <span class="ident">url</span> <span class="op">=</span> <span class="ident">std::env::var</span>(<span class="string">&quot;RELAY_REDIS_URL&quot;</span>)
-            .<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="string">&quot;redis://127.0.0.1:6379&quot;</span>.<span class="ident">to_owned</span>());
+    <span class="kw">fn </span>build_rate_limiter() -&gt; RedisRateLimiter {
+        <span class="kw">let </span>url = std::env::var(<span class="string">&quot;RELAY_REDIS_URL&quot;</span>)
+            .unwrap_or_else(|<span class="kw">_</span>| <span class="string">&quot;redis://127.0.0.1:6379&quot;</span>.to_owned());
 
-        <span class="ident">RedisRateLimiter</span> {
-            <span class="ident">pool</span>: <span class="ident">RedisPool::single</span>(<span class="kw-2">&amp;</span><span class="ident">url</span>, <span class="kw-2">&amp;</span><span class="ident">RedisConfigOptions::default</span>()).<span class="ident">unwrap</span>(),
-            <span class="ident">script</span>: <span class="ident">Arc::new</span>(<span class="ident">load_lua_script</span>()),
-            <span class="ident">max_limit</span>: <span class="prelude-val">None</span>,
+        RedisRateLimiter {
+            pool: RedisPool::single(<span class="kw-2">&amp;</span>url, <span class="kw-2">&amp;</span>RedisConfigOptions::default()).unwrap(),
+            script: Arc::new(load_lua_script()),
+            max_limit: <span class="prelude-val">None</span>,
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_zero_size_quotas</span>() {
-        <span class="kw">let</span> <span class="ident">quotas</span> <span class="op">=</span> <span class="kw-2">&amp;</span>[
-            <span class="ident">Quota</span> {
-                <span class="ident">id</span>: <span class="prelude-val">None</span>,
-                <span class="ident">categories</span>: <span class="ident">DataCategories::new</span>(),
-                <span class="ident">scope</span>: <span class="ident">QuotaScope::Organization</span>,
-                <span class="ident">scope_id</span>: <span class="prelude-val">None</span>,
-                <span class="ident">limit</span>: <span class="prelude-val">Some</span>(<span class="number">0</span>),
-                <span class="ident">window</span>: <span class="prelude-val">None</span>,
-                <span class="ident">reason_code</span>: <span class="prelude-val">Some</span>(<span class="ident">ReasonCode::new</span>(<span class="string">&quot;get_lost&quot;</span>)),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_zero_size_quotas() {
+        <span class="kw">let </span>quotas = <span class="kw-2">&amp;</span>[
+            Quota {
+                id: <span class="prelude-val">None</span>,
+                categories: DataCategories::new(),
+                scope: QuotaScope::Organization,
+                scope_id: <span class="prelude-val">None</span>,
+                limit: <span class="prelude-val">Some</span>(<span class="number">0</span>),
+                window: <span class="prelude-val">None</span>,
+                reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">&quot;get_lost&quot;</span>)),
             },
-            <span class="ident">Quota</span> {
-                <span class="ident">id</span>: <span class="prelude-val">Some</span>(<span class="string">&quot;42&quot;</span>.<span class="ident">to_owned</span>()),
-                <span class="ident">categories</span>: <span class="ident">DataCategories::new</span>(),
-                <span class="ident">scope</span>: <span class="ident">QuotaScope::Organization</span>,
-                <span class="ident">scope_id</span>: <span class="prelude-val">None</span>,
-                <span class="ident">limit</span>: <span class="prelude-val">None</span>,
-                <span class="ident">window</span>: <span class="prelude-val">Some</span>(<span class="number">42</span>),
-                <span class="ident">reason_code</span>: <span class="prelude-val">Some</span>(<span class="ident">ReasonCode::new</span>(<span class="string">&quot;unlimited&quot;</span>)),
+            Quota {
+                id: <span class="prelude-val">Some</span>(<span class="string">&quot;42&quot;</span>.to_owned()),
+                categories: DataCategories::new(),
+                scope: QuotaScope::Organization,
+                scope_id: <span class="prelude-val">None</span>,
+                limit: <span class="prelude-val">None</span>,
+                window: <span class="prelude-val">Some</span>(<span class="number">42</span>),
+                reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">&quot;unlimited&quot;</span>)),
             },
         ];
 
-        <span class="kw">let</span> <span class="ident">scoping</span> <span class="op">=</span> <span class="ident">ItemScoping</span> {
-            <span class="ident">category</span>: <span class="ident">DataCategory::Error</span>,
-            <span class="ident">scoping</span>: <span class="kw-2">&amp;</span><span class="ident">Scoping</span> {
-                <span class="ident">organization_id</span>: <span class="number">42</span>,
-                <span class="ident">project_id</span>: <span class="ident">ProjectId::new</span>(<span class="number">43</span>),
-                <span class="ident">project_key</span>: <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).<span class="ident">unwrap</span>(),
-                <span class="ident">key_id</span>: <span class="prelude-val">Some</span>(<span class="number">44</span>),
+        <span class="kw">let </span>scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: <span class="kw-2">&amp;</span>Scoping {
+                organization_id: <span class="number">42</span>,
+                project_id: ProjectId::new(<span class="number">43</span>),
+                project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
+                key_id: <span class="prelude-val">Some</span>(<span class="number">44</span>),
             },
         };
 
-        <span class="kw">let</span> <span class="ident">rate_limits</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">RateLimit</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">build_rate_limiter</span>()
-            .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">1</span>, <span class="bool-val">false</span>)
-            .<span class="ident">expect</span>(<span class="string">&quot;rate limiting failed&quot;</span>)
-            .<span class="ident">into_iter</span>()
-            .<span class="ident">collect</span>();
+        <span class="kw">let </span>rate_limits: Vec&lt;RateLimit&gt; = build_rate_limiter()
+            .is_rate_limited(quotas, scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
+            .expect(<span class="string">&quot;rate limiting failed&quot;</span>)
+            .into_iter()
+            .collect();
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">rate_limits</span>,
-            <span class="macro">vec!</span>[<span class="ident">RateLimit</span> {
-                <span class="ident">categories</span>: <span class="ident">DataCategories::new</span>(),
-                <span class="ident">scope</span>: <span class="ident">RateLimitScope::Organization</span>(<span class="number">42</span>),
-                <span class="ident">reason_code</span>: <span class="prelude-val">Some</span>(<span class="ident">ReasonCode::new</span>(<span class="string">&quot;get_lost&quot;</span>)),
-                <span class="ident">retry_after</span>: <span class="ident">rate_limits</span>[<span class="number">0</span>].<span class="ident">retry_after</span>,
+            rate_limits,
+            <span class="macro">vec!</span>[RateLimit {
+                categories: DataCategories::new(),
+                scope: RateLimitScope::Organization(<span class="number">42</span>),
+                reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">&quot;get_lost&quot;</span>)),
+                retry_after: rate_limits[<span class="number">0</span>].retry_after,
             }]
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_simple_quota</span>() {
-        <span class="kw">let</span> <span class="ident">quotas</span> <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="ident">Quota</span> {
-            <span class="ident">id</span>: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;test_simple_quota_{:?}&quot;</span>, <span class="ident">SystemTime::now</span>())),
-            <span class="ident">categories</span>: <span class="ident">DataCategories::new</span>(),
-            <span class="ident">scope</span>: <span class="ident">QuotaScope::Organization</span>,
-            <span class="ident">scope_id</span>: <span class="prelude-val">None</span>,
-            <span class="ident">limit</span>: <span class="prelude-val">Some</span>(<span class="number">5</span>),
-            <span class="ident">window</span>: <span class="prelude-val">Some</span>(<span class="number">60</span>),
-            <span class="ident">reason_code</span>: <span class="prelude-val">Some</span>(<span class="ident">ReasonCode::new</span>(<span class="string">&quot;get_lost&quot;</span>)),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_simple_quota() {
+        <span class="kw">let </span>quotas = <span class="kw-2">&amp;</span>[Quota {
+            id: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;test_simple_quota_{:?}&quot;</span>, SystemTime::now())),
+            categories: DataCategories::new(),
+            scope: QuotaScope::Organization,
+            scope_id: <span class="prelude-val">None</span>,
+            limit: <span class="prelude-val">Some</span>(<span class="number">5</span>),
+            window: <span class="prelude-val">Some</span>(<span class="number">60</span>),
+            reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">&quot;get_lost&quot;</span>)),
         }];
 
-        <span class="kw">let</span> <span class="ident">scoping</span> <span class="op">=</span> <span class="ident">ItemScoping</span> {
-            <span class="ident">category</span>: <span class="ident">DataCategory::Error</span>,
-            <span class="ident">scoping</span>: <span class="kw-2">&amp;</span><span class="ident">Scoping</span> {
-                <span class="ident">organization_id</span>: <span class="number">42</span>,
-                <span class="ident">project_id</span>: <span class="ident">ProjectId::new</span>(<span class="number">43</span>),
-                <span class="ident">project_key</span>: <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).<span class="ident">unwrap</span>(),
-                <span class="ident">key_id</span>: <span class="prelude-val">Some</span>(<span class="number">44</span>),
+        <span class="kw">let </span>scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: <span class="kw-2">&amp;</span>Scoping {
+                organization_id: <span class="number">42</span>,
+                project_id: ProjectId::new(<span class="number">43</span>),
+                project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
+                key_id: <span class="prelude-val">Some</span>(<span class="number">44</span>),
             },
         };
 
-        <span class="kw">let</span> <span class="ident">rate_limiter</span> <span class="op">=</span> <span class="ident">build_rate_limiter</span>();
+        <span class="kw">let </span>rate_limiter = build_rate_limiter();
 
-        <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">10</span> {
-            <span class="kw">let</span> <span class="ident">rate_limits</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">RateLimit</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">rate_limiter</span>
-                .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">1</span>, <span class="bool-val">false</span>)
-                .<span class="ident">expect</span>(<span class="string">&quot;rate limiting failed&quot;</span>)
-                .<span class="ident">into_iter</span>()
-                .<span class="ident">collect</span>();
+        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">10 </span>{
+            <span class="kw">let </span>rate_limits: Vec&lt;RateLimit&gt; = rate_limiter
+                .is_rate_limited(quotas, scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
+                .expect(<span class="string">&quot;rate limiting failed&quot;</span>)
+                .into_iter()
+                .collect();
 
-            <span class="kw">if</span> <span class="ident">i</span> <span class="op">&gt;</span><span class="op">=</span> <span class="number">5</span> {
+            <span class="kw">if </span>i &gt;= <span class="number">5 </span>{
                 <span class="macro">assert_eq!</span>(
-                    <span class="ident">rate_limits</span>,
-                    <span class="macro">vec!</span>[<span class="ident">RateLimit</span> {
-                        <span class="ident">categories</span>: <span class="ident">DataCategories::new</span>(),
-                        <span class="ident">scope</span>: <span class="ident">RateLimitScope::Organization</span>(<span class="number">42</span>),
-                        <span class="ident">reason_code</span>: <span class="prelude-val">Some</span>(<span class="ident">ReasonCode::new</span>(<span class="string">&quot;get_lost&quot;</span>)),
-                        <span class="ident">retry_after</span>: <span class="ident">rate_limits</span>[<span class="number">0</span>].<span class="ident">retry_after</span>,
+                    rate_limits,
+                    <span class="macro">vec!</span>[RateLimit {
+                        categories: DataCategories::new(),
+                        scope: RateLimitScope::Organization(<span class="number">42</span>),
+                        reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">&quot;get_lost&quot;</span>)),
+                        retry_after: rate_limits[<span class="number">0</span>].retry_after,
                     }]
                 );
-            } <span class="kw">else</span> {
-                <span class="macro">assert_eq!</span>(<span class="ident">rate_limits</span>, <span class="macro">vec!</span>[]);
+            } <span class="kw">else </span>{
+                <span class="macro">assert_eq!</span>(rate_limits, <span class="macro">vec!</span>[]);
             }
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_quantity_0</span>() {
-        <span class="kw">let</span> <span class="ident">quotas</span> <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="ident">Quota</span> {
-            <span class="ident">id</span>: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;test_quantity_0_{:?}&quot;</span>, <span class="ident">SystemTime::now</span>())),
-            <span class="ident">categories</span>: <span class="ident">DataCategories::new</span>(),
-            <span class="ident">scope</span>: <span class="ident">QuotaScope::Organization</span>,
-            <span class="ident">scope_id</span>: <span class="prelude-val">None</span>,
-            <span class="ident">limit</span>: <span class="prelude-val">Some</span>(<span class="number">1</span>),
-            <span class="ident">window</span>: <span class="prelude-val">Some</span>(<span class="number">60</span>),
-            <span class="ident">reason_code</span>: <span class="prelude-val">Some</span>(<span class="ident">ReasonCode::new</span>(<span class="string">&quot;get_lost&quot;</span>)),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_quantity_0() {
+        <span class="kw">let </span>quotas = <span class="kw-2">&amp;</span>[Quota {
+            id: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;test_quantity_0_{:?}&quot;</span>, SystemTime::now())),
+            categories: DataCategories::new(),
+            scope: QuotaScope::Organization,
+            scope_id: <span class="prelude-val">None</span>,
+            limit: <span class="prelude-val">Some</span>(<span class="number">1</span>),
+            window: <span class="prelude-val">Some</span>(<span class="number">60</span>),
+            reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">&quot;get_lost&quot;</span>)),
         }];
 
-        <span class="kw">let</span> <span class="ident">scoping</span> <span class="op">=</span> <span class="ident">ItemScoping</span> {
-            <span class="ident">category</span>: <span class="ident">DataCategory::Error</span>,
-            <span class="ident">scoping</span>: <span class="kw-2">&amp;</span><span class="ident">Scoping</span> {
-                <span class="ident">organization_id</span>: <span class="number">42</span>,
-                <span class="ident">project_id</span>: <span class="ident">ProjectId::new</span>(<span class="number">43</span>),
-                <span class="ident">project_key</span>: <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).<span class="ident">unwrap</span>(),
-                <span class="ident">key_id</span>: <span class="prelude-val">Some</span>(<span class="number">44</span>),
+        <span class="kw">let </span>scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: <span class="kw-2">&amp;</span>Scoping {
+                organization_id: <span class="number">42</span>,
+                project_id: ProjectId::new(<span class="number">43</span>),
+                project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
+                key_id: <span class="prelude-val">Some</span>(<span class="number">44</span>),
             },
         };
 
-        <span class="kw">let</span> <span class="ident">rate_limiter</span> <span class="op">=</span> <span class="ident">build_rate_limiter</span>();
+        <span class="kw">let </span>rate_limiter = build_rate_limiter();
 
-        <span class="comment">// limit is 1, so first call not rate limited</span>
-        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">rate_limiter</span>
-            .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">1</span>, <span class="bool-val">false</span>)
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">is_limited</span>());
+        <span class="comment">// limit is 1, so first call not rate limited
+        </span><span class="macro">assert!</span>(!rate_limiter
+            .is_rate_limited(quotas, scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
+            .unwrap()
+            .is_limited());
 
-        <span class="comment">// quota is now exhausted</span>
-        <span class="macro">assert!</span>(<span class="ident">rate_limiter</span>
-            .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">1</span>, <span class="bool-val">false</span>)
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">is_limited</span>());
+        <span class="comment">// quota is now exhausted
+        </span><span class="macro">assert!</span>(rate_limiter
+            .is_rate_limited(quotas, scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
+            .unwrap()
+            .is_limited());
 
-        <span class="comment">// quota is exhausted, regardless of the quantity</span>
-        <span class="macro">assert!</span>(<span class="ident">rate_limiter</span>
-            .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">0</span>, <span class="bool-val">false</span>)
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">is_limited</span>());
+        <span class="comment">// quota is exhausted, regardless of the quantity
+        </span><span class="macro">assert!</span>(rate_limiter
+            .is_rate_limited(quotas, scoping, <span class="number">0</span>, <span class="bool-val">false</span>)
+            .unwrap()
+            .is_limited());
 
-        <span class="comment">// quota is exhausted, regardless of the quantity</span>
-        <span class="macro">assert!</span>(<span class="ident">rate_limiter</span>
-            .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">1</span>, <span class="bool-val">false</span>)
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">is_limited</span>());
+        <span class="comment">// quota is exhausted, regardless of the quantity
+        </span><span class="macro">assert!</span>(rate_limiter
+            .is_rate_limited(quotas, scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
+            .unwrap()
+            .is_limited());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_quota_go_over</span>() {
-        <span class="kw">let</span> <span class="ident">quotas</span> <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="ident">Quota</span> {
-            <span class="ident">id</span>: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;test_quota_go_over{:?}&quot;</span>, <span class="ident">SystemTime::now</span>())),
-            <span class="ident">categories</span>: <span class="ident">DataCategories::new</span>(),
-            <span class="ident">scope</span>: <span class="ident">QuotaScope::Organization</span>,
-            <span class="ident">scope_id</span>: <span class="prelude-val">None</span>,
-            <span class="ident">limit</span>: <span class="prelude-val">Some</span>(<span class="number">2</span>),
-            <span class="ident">window</span>: <span class="prelude-val">Some</span>(<span class="number">60</span>),
-            <span class="ident">reason_code</span>: <span class="prelude-val">Some</span>(<span class="ident">ReasonCode::new</span>(<span class="string">&quot;get_lost&quot;</span>)),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_quota_go_over() {
+        <span class="kw">let </span>quotas = <span class="kw-2">&amp;</span>[Quota {
+            id: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;test_quota_go_over{:?}&quot;</span>, SystemTime::now())),
+            categories: DataCategories::new(),
+            scope: QuotaScope::Organization,
+            scope_id: <span class="prelude-val">None</span>,
+            limit: <span class="prelude-val">Some</span>(<span class="number">2</span>),
+            window: <span class="prelude-val">Some</span>(<span class="number">60</span>),
+            reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">&quot;get_lost&quot;</span>)),
         }];
 
-        <span class="kw">let</span> <span class="ident">scoping</span> <span class="op">=</span> <span class="ident">ItemScoping</span> {
-            <span class="ident">category</span>: <span class="ident">DataCategory::Error</span>,
-            <span class="ident">scoping</span>: <span class="kw-2">&amp;</span><span class="ident">Scoping</span> {
-                <span class="ident">organization_id</span>: <span class="number">42</span>,
-                <span class="ident">project_id</span>: <span class="ident">ProjectId::new</span>(<span class="number">43</span>),
-                <span class="ident">project_key</span>: <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).<span class="ident">unwrap</span>(),
-                <span class="ident">key_id</span>: <span class="prelude-val">Some</span>(<span class="number">44</span>),
+        <span class="kw">let </span>scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: <span class="kw-2">&amp;</span>Scoping {
+                organization_id: <span class="number">42</span>,
+                project_id: ProjectId::new(<span class="number">43</span>),
+                project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
+                key_id: <span class="prelude-val">Some</span>(<span class="number">44</span>),
             },
         };
 
-        <span class="kw">let</span> <span class="ident">rate_limiter</span> <span class="op">=</span> <span class="ident">build_rate_limiter</span>();
+        <span class="kw">let </span>rate_limiter = build_rate_limiter();
 
-        <span class="comment">// limit is 2, so first call not rate limited</span>
-        <span class="kw">let</span> <span class="ident">is_limited</span> <span class="op">=</span> <span class="ident">rate_limiter</span>
-            .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">1</span>, <span class="bool-val">true</span>)
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">is_limited</span>();
-        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">is_limited</span>);
+        <span class="comment">// limit is 2, so first call not rate limited
+        </span><span class="kw">let </span>is_limited = rate_limiter
+            .is_rate_limited(quotas, scoping, <span class="number">1</span>, <span class="bool-val">true</span>)
+            .unwrap()
+            .is_limited();
+        <span class="macro">assert!</span>(!is_limited);
 
-        <span class="comment">// go over limit, but first call is over-accepted</span>
-        <span class="kw">let</span> <span class="ident">is_limited</span> <span class="op">=</span> <span class="ident">rate_limiter</span>
-            .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">2</span>, <span class="bool-val">true</span>)
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">is_limited</span>();
-        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">is_limited</span>);
+        <span class="comment">// go over limit, but first call is over-accepted
+        </span><span class="kw">let </span>is_limited = rate_limiter
+            .is_rate_limited(quotas, scoping, <span class="number">2</span>, <span class="bool-val">true</span>)
+            .unwrap()
+            .is_limited();
+        <span class="macro">assert!</span>(!is_limited);
 
-        <span class="comment">// quota is exhausted, regardless of the quantity</span>
-        <span class="kw">let</span> <span class="ident">is_limited</span> <span class="op">=</span> <span class="ident">rate_limiter</span>
-            .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">0</span>, <span class="bool-val">true</span>)
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">is_limited</span>();
-        <span class="macro">assert!</span>(<span class="ident">is_limited</span>);
+        <span class="comment">// quota is exhausted, regardless of the quantity
+        </span><span class="kw">let </span>is_limited = rate_limiter
+            .is_rate_limited(quotas, scoping, <span class="number">0</span>, <span class="bool-val">true</span>)
+            .unwrap()
+            .is_limited();
+        <span class="macro">assert!</span>(is_limited);
 
-        <span class="comment">// quota is exhausted, regardless of the quantity</span>
-        <span class="kw">let</span> <span class="ident">is_limited</span> <span class="op">=</span> <span class="ident">rate_limiter</span>
-            .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">1</span>, <span class="bool-val">true</span>)
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">is_limited</span>();
-        <span class="macro">assert!</span>(<span class="ident">is_limited</span>);
+        <span class="comment">// quota is exhausted, regardless of the quantity
+        </span><span class="kw">let </span>is_limited = rate_limiter
+            .is_rate_limited(quotas, scoping, <span class="number">1</span>, <span class="bool-val">true</span>)
+            .unwrap()
+            .is_limited();
+        <span class="macro">assert!</span>(is_limited);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_bails_immediately_without_any_quota</span>() {
-        <span class="kw">let</span> <span class="ident">scoping</span> <span class="op">=</span> <span class="ident">ItemScoping</span> {
-            <span class="ident">category</span>: <span class="ident">DataCategory::Error</span>,
-            <span class="ident">scoping</span>: <span class="kw-2">&amp;</span><span class="ident">Scoping</span> {
-                <span class="ident">organization_id</span>: <span class="number">42</span>,
-                <span class="ident">project_id</span>: <span class="ident">ProjectId::new</span>(<span class="number">43</span>),
-                <span class="ident">project_key</span>: <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).<span class="ident">unwrap</span>(),
-                <span class="ident">key_id</span>: <span class="prelude-val">Some</span>(<span class="number">44</span>),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_bails_immediately_without_any_quota() {
+        <span class="kw">let </span>scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: <span class="kw-2">&amp;</span>Scoping {
+                organization_id: <span class="number">42</span>,
+                project_id: ProjectId::new(<span class="number">43</span>),
+                project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
+                key_id: <span class="prelude-val">Some</span>(<span class="number">44</span>),
             },
         };
 
-        <span class="kw">let</span> <span class="ident">rate_limits</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">RateLimit</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">build_rate_limiter</span>()
-            .<span class="ident">is_rate_limited</span>(<span class="kw-2">&amp;</span>[], <span class="ident">scoping</span>, <span class="number">1</span>, <span class="bool-val">false</span>)
-            .<span class="ident">expect</span>(<span class="string">&quot;rate limiting failed&quot;</span>)
-            .<span class="ident">into_iter</span>()
-            .<span class="ident">collect</span>();
+        <span class="kw">let </span>rate_limits: Vec&lt;RateLimit&gt; = build_rate_limiter()
+            .is_rate_limited(<span class="kw-2">&amp;</span>[], scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
+            .expect(<span class="string">&quot;rate limiting failed&quot;</span>)
+            .into_iter()
+            .collect();
 
-        <span class="macro">assert_eq!</span>(<span class="ident">rate_limits</span>, <span class="macro">vec!</span>[]);
+        <span class="macro">assert_eq!</span>(rate_limits, <span class="macro">vec!</span>[]);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_limited_with_unlimited_quota</span>() {
-        <span class="kw">let</span> <span class="ident">quotas</span> <span class="op">=</span> <span class="kw-2">&amp;</span>[
-            <span class="ident">Quota</span> {
-                <span class="ident">id</span>: <span class="prelude-val">Some</span>(<span class="string">&quot;q0&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">categories</span>: <span class="ident">DataCategories::new</span>(),
-                <span class="ident">scope</span>: <span class="ident">QuotaScope::Organization</span>,
-                <span class="ident">scope_id</span>: <span class="prelude-val">None</span>,
-                <span class="ident">limit</span>: <span class="prelude-val">None</span>,
-                <span class="ident">window</span>: <span class="prelude-val">Some</span>(<span class="number">1</span>),
-                <span class="ident">reason_code</span>: <span class="prelude-val">Some</span>(<span class="ident">ReasonCode::new</span>(<span class="string">&quot;project_quota0&quot;</span>)),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_limited_with_unlimited_quota() {
+        <span class="kw">let </span>quotas = <span class="kw-2">&amp;</span>[
+            Quota {
+                id: <span class="prelude-val">Some</span>(<span class="string">&quot;q0&quot;</span>.to_string()),
+                categories: DataCategories::new(),
+                scope: QuotaScope::Organization,
+                scope_id: <span class="prelude-val">None</span>,
+                limit: <span class="prelude-val">None</span>,
+                window: <span class="prelude-val">Some</span>(<span class="number">1</span>),
+                reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">&quot;project_quota0&quot;</span>)),
             },
-            <span class="ident">Quota</span> {
-                <span class="ident">id</span>: <span class="prelude-val">Some</span>(<span class="string">&quot;q1&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">categories</span>: <span class="ident">DataCategories::new</span>(),
-                <span class="ident">scope</span>: <span class="ident">QuotaScope::Organization</span>,
-                <span class="ident">scope_id</span>: <span class="prelude-val">None</span>,
-                <span class="ident">limit</span>: <span class="prelude-val">Some</span>(<span class="number">1</span>),
-                <span class="ident">window</span>: <span class="prelude-val">Some</span>(<span class="number">1</span>),
-                <span class="ident">reason_code</span>: <span class="prelude-val">Some</span>(<span class="ident">ReasonCode::new</span>(<span class="string">&quot;project_quota1&quot;</span>)),
+            Quota {
+                id: <span class="prelude-val">Some</span>(<span class="string">&quot;q1&quot;</span>.to_string()),
+                categories: DataCategories::new(),
+                scope: QuotaScope::Organization,
+                scope_id: <span class="prelude-val">None</span>,
+                limit: <span class="prelude-val">Some</span>(<span class="number">1</span>),
+                window: <span class="prelude-val">Some</span>(<span class="number">1</span>),
+                reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">&quot;project_quota1&quot;</span>)),
             },
         ];
 
-        <span class="kw">let</span> <span class="ident">scoping</span> <span class="op">=</span> <span class="ident">ItemScoping</span> {
-            <span class="ident">category</span>: <span class="ident">DataCategory::Error</span>,
-            <span class="ident">scoping</span>: <span class="kw-2">&amp;</span><span class="ident">Scoping</span> {
-                <span class="ident">organization_id</span>: <span class="number">42</span>,
-                <span class="ident">project_id</span>: <span class="ident">ProjectId::new</span>(<span class="number">43</span>),
-                <span class="ident">project_key</span>: <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).<span class="ident">unwrap</span>(),
-                <span class="ident">key_id</span>: <span class="prelude-val">Some</span>(<span class="number">44</span>),
+        <span class="kw">let </span>scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: <span class="kw-2">&amp;</span>Scoping {
+                organization_id: <span class="number">42</span>,
+                project_id: ProjectId::new(<span class="number">43</span>),
+                project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
+                key_id: <span class="prelude-val">Some</span>(<span class="number">44</span>),
             },
         };
 
-        <span class="kw">let</span> <span class="ident">rate_limiter</span> <span class="op">=</span> <span class="ident">build_rate_limiter</span>();
+        <span class="kw">let </span>rate_limiter = build_rate_limiter();
 
-        <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">1</span> {
-            <span class="kw">let</span> <span class="ident">rate_limits</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">RateLimit</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">rate_limiter</span>
-                .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">1</span>, <span class="bool-val">false</span>)
-                .<span class="ident">expect</span>(<span class="string">&quot;rate limiting failed&quot;</span>)
-                .<span class="ident">into_iter</span>()
-                .<span class="ident">collect</span>();
+        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">1 </span>{
+            <span class="kw">let </span>rate_limits: Vec&lt;RateLimit&gt; = rate_limiter
+                .is_rate_limited(quotas, scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
+                .expect(<span class="string">&quot;rate limiting failed&quot;</span>)
+                .into_iter()
+                .collect();
 
-            <span class="kw">if</span> <span class="ident">i</span> <span class="op">==</span> <span class="number">0</span> {
-                <span class="macro">assert_eq!</span>(<span class="ident">rate_limits</span>, <span class="kw-2">&amp;</span>[]);
-            } <span class="kw">else</span> {
+            <span class="kw">if </span>i == <span class="number">0 </span>{
+                <span class="macro">assert_eq!</span>(rate_limits, <span class="kw-2">&amp;</span>[]);
+            } <span class="kw">else </span>{
                 <span class="macro">assert_eq!</span>(
-                    <span class="ident">rate_limits</span>,
-                    <span class="macro">vec!</span>[<span class="ident">RateLimit</span> {
-                        <span class="ident">categories</span>: <span class="ident">DataCategories::new</span>(),
-                        <span class="ident">scope</span>: <span class="ident">RateLimitScope::Organization</span>(<span class="number">42</span>),
-                        <span class="ident">reason_code</span>: <span class="prelude-val">Some</span>(<span class="ident">ReasonCode::new</span>(<span class="string">&quot;project_quota1&quot;</span>)),
-                        <span class="ident">retry_after</span>: <span class="ident">rate_limits</span>[<span class="number">0</span>].<span class="ident">retry_after</span>,
+                    rate_limits,
+                    <span class="macro">vec!</span>[RateLimit {
+                        categories: DataCategories::new(),
+                        scope: RateLimitScope::Organization(<span class="number">42</span>),
+                        reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">&quot;project_quota1&quot;</span>)),
+                        retry_after: rate_limits[<span class="number">0</span>].retry_after,
                     }]
                 );
             }
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_quota_with_quantity</span>() {
-        <span class="kw">let</span> <span class="ident">quotas</span> <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="ident">Quota</span> {
-            <span class="ident">id</span>: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;test_quantity_quota_{:?}&quot;</span>, <span class="ident">SystemTime::now</span>())),
-            <span class="ident">categories</span>: <span class="ident">DataCategories::new</span>(),
-            <span class="ident">scope</span>: <span class="ident">QuotaScope::Organization</span>,
-            <span class="ident">scope_id</span>: <span class="prelude-val">None</span>,
-            <span class="ident">limit</span>: <span class="prelude-val">Some</span>(<span class="number">500</span>),
-            <span class="ident">window</span>: <span class="prelude-val">Some</span>(<span class="number">60</span>),
-            <span class="ident">reason_code</span>: <span class="prelude-val">Some</span>(<span class="ident">ReasonCode::new</span>(<span class="string">&quot;get_lost&quot;</span>)),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_quota_with_quantity() {
+        <span class="kw">let </span>quotas = <span class="kw-2">&amp;</span>[Quota {
+            id: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;test_quantity_quota_{:?}&quot;</span>, SystemTime::now())),
+            categories: DataCategories::new(),
+            scope: QuotaScope::Organization,
+            scope_id: <span class="prelude-val">None</span>,
+            limit: <span class="prelude-val">Some</span>(<span class="number">500</span>),
+            window: <span class="prelude-val">Some</span>(<span class="number">60</span>),
+            reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">&quot;get_lost&quot;</span>)),
         }];
 
-        <span class="kw">let</span> <span class="ident">scoping</span> <span class="op">=</span> <span class="ident">ItemScoping</span> {
-            <span class="ident">category</span>: <span class="ident">DataCategory::Error</span>,
-            <span class="ident">scoping</span>: <span class="kw-2">&amp;</span><span class="ident">Scoping</span> {
-                <span class="ident">organization_id</span>: <span class="number">42</span>,
-                <span class="ident">project_id</span>: <span class="ident">ProjectId::new</span>(<span class="number">43</span>),
-                <span class="ident">project_key</span>: <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).<span class="ident">unwrap</span>(),
-                <span class="ident">key_id</span>: <span class="prelude-val">Some</span>(<span class="number">44</span>),
+        <span class="kw">let </span>scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: <span class="kw-2">&amp;</span>Scoping {
+                organization_id: <span class="number">42</span>,
+                project_id: ProjectId::new(<span class="number">43</span>),
+                project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
+                key_id: <span class="prelude-val">Some</span>(<span class="number">44</span>),
             },
         };
 
-        <span class="kw">let</span> <span class="ident">rate_limiter</span> <span class="op">=</span> <span class="ident">build_rate_limiter</span>();
+        <span class="kw">let </span>rate_limiter = build_rate_limiter();
 
-        <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">10</span> {
-            <span class="kw">let</span> <span class="ident">rate_limits</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">RateLimit</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">rate_limiter</span>
-                .<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">scoping</span>, <span class="number">100</span>, <span class="bool-val">false</span>)
-                .<span class="ident">expect</span>(<span class="string">&quot;rate limiting failed&quot;</span>)
-                .<span class="ident">into_iter</span>()
-                .<span class="ident">collect</span>();
+        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">10 </span>{
+            <span class="kw">let </span>rate_limits: Vec&lt;RateLimit&gt; = rate_limiter
+                .is_rate_limited(quotas, scoping, <span class="number">100</span>, <span class="bool-val">false</span>)
+                .expect(<span class="string">&quot;rate limiting failed&quot;</span>)
+                .into_iter()
+                .collect();
 
-            <span class="kw">if</span> <span class="ident">i</span> <span class="op">&gt;</span><span class="op">=</span> <span class="number">5</span> {
+            <span class="kw">if </span>i &gt;= <span class="number">5 </span>{
                 <span class="macro">assert_eq!</span>(
-                    <span class="ident">rate_limits</span>,
-                    <span class="macro">vec!</span>[<span class="ident">RateLimit</span> {
-                        <span class="ident">categories</span>: <span class="ident">DataCategories::new</span>(),
-                        <span class="ident">scope</span>: <span class="ident">RateLimitScope::Organization</span>(<span class="number">42</span>),
-                        <span class="ident">reason_code</span>: <span class="prelude-val">Some</span>(<span class="ident">ReasonCode::new</span>(<span class="string">&quot;get_lost&quot;</span>)),
-                        <span class="ident">retry_after</span>: <span class="ident">rate_limits</span>[<span class="number">0</span>].<span class="ident">retry_after</span>,
+                    rate_limits,
+                    <span class="macro">vec!</span>[RateLimit {
+                        categories: DataCategories::new(),
+                        scope: RateLimitScope::Organization(<span class="number">42</span>),
+                        reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">&quot;get_lost&quot;</span>)),
+                        retry_after: rate_limits[<span class="number">0</span>].retry_after,
                     }]
                 );
-            } <span class="kw">else</span> {
-                <span class="macro">assert_eq!</span>(<span class="ident">rate_limits</span>, <span class="macro">vec!</span>[]);
+            } <span class="kw">else </span>{
+                <span class="macro">assert_eq!</span>(rate_limits, <span class="macro">vec!</span>[]);
             }
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_get_redis_key_scoped</span>() {
-        <span class="kw">let</span> <span class="ident">quota</span> <span class="op">=</span> <span class="ident">Quota</span> {
-            <span class="ident">id</span>: <span class="prelude-val">Some</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_owned</span>()),
-            <span class="ident">categories</span>: <span class="ident">DataCategories::new</span>(),
-            <span class="ident">scope</span>: <span class="ident">QuotaScope::Project</span>,
-            <span class="ident">scope_id</span>: <span class="prelude-val">Some</span>(<span class="string">&quot;42&quot;</span>.<span class="ident">to_owned</span>()),
-            <span class="ident">window</span>: <span class="prelude-val">Some</span>(<span class="number">2</span>),
-            <span class="ident">limit</span>: <span class="prelude-val">Some</span>(<span class="number">0</span>),
-            <span class="ident">reason_code</span>: <span class="prelude-val">None</span>,
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_get_redis_key_scoped() {
+        <span class="kw">let </span>quota = Quota {
+            id: <span class="prelude-val">Some</span>(<span class="string">&quot;foo&quot;</span>.to_owned()),
+            categories: DataCategories::new(),
+            scope: QuotaScope::Project,
+            scope_id: <span class="prelude-val">Some</span>(<span class="string">&quot;42&quot;</span>.to_owned()),
+            window: <span class="prelude-val">Some</span>(<span class="number">2</span>),
+            limit: <span class="prelude-val">Some</span>(<span class="number">0</span>),
+            reason_code: <span class="prelude-val">None</span>,
         };
 
-        <span class="kw">let</span> <span class="ident">scoping</span> <span class="op">=</span> <span class="ident">ItemScoping</span> {
-            <span class="ident">category</span>: <span class="ident">DataCategory::Error</span>,
-            <span class="ident">scoping</span>: <span class="kw-2">&amp;</span><span class="ident">Scoping</span> {
-                <span class="ident">organization_id</span>: <span class="number">69420</span>,
-                <span class="ident">project_id</span>: <span class="ident">ProjectId::new</span>(<span class="number">42</span>),
-                <span class="ident">project_key</span>: <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).<span class="ident">unwrap</span>(),
-                <span class="ident">key_id</span>: <span class="prelude-val">Some</span>(<span class="number">4711</span>),
+        <span class="kw">let </span>scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: <span class="kw-2">&amp;</span>Scoping {
+                organization_id: <span class="number">69420</span>,
+                project_id: ProjectId::new(<span class="number">42</span>),
+                project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
+                key_id: <span class="prelude-val">Some</span>(<span class="number">4711</span>),
             },
         };
 
-        <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">123_123_123</span>);
-        <span class="kw">let</span> <span class="ident">redis_quota</span> <span class="op">=</span> <span class="ident">RedisQuota::new</span>(<span class="kw-2">&amp;</span><span class="ident">quota</span>, <span class="ident">scoping</span>, <span class="ident">timestamp</span>).<span class="ident">unwrap</span>();
-        <span class="macro">assert_eq!</span>(<span class="ident">redis_quota</span>.<span class="ident">key</span>(), <span class="string">&quot;quota:foo{69420}42:61561561&quot;</span>);
+        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">123_123_123</span>);
+        <span class="kw">let </span>redis_quota = RedisQuota::new(<span class="kw-2">&amp;</span>quota, scoping, timestamp).unwrap();
+        <span class="macro">assert_eq!</span>(redis_quota.key(), <span class="string">&quot;quota:foo{69420}42:61561561&quot;</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_get_redis_key_unscoped</span>() {
-        <span class="kw">let</span> <span class="ident">quota</span> <span class="op">=</span> <span class="ident">Quota</span> {
-            <span class="ident">id</span>: <span class="prelude-val">Some</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_owned</span>()),
-            <span class="ident">categories</span>: <span class="ident">DataCategories::new</span>(),
-            <span class="ident">scope</span>: <span class="ident">QuotaScope::Organization</span>,
-            <span class="ident">scope_id</span>: <span class="prelude-val">None</span>,
-            <span class="ident">window</span>: <span class="prelude-val">Some</span>(<span class="number">10</span>),
-            <span class="ident">limit</span>: <span class="prelude-val">Some</span>(<span class="number">0</span>),
-            <span class="ident">reason_code</span>: <span class="prelude-val">None</span>,
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_get_redis_key_unscoped() {
+        <span class="kw">let </span>quota = Quota {
+            id: <span class="prelude-val">Some</span>(<span class="string">&quot;foo&quot;</span>.to_owned()),
+            categories: DataCategories::new(),
+            scope: QuotaScope::Organization,
+            scope_id: <span class="prelude-val">None</span>,
+            window: <span class="prelude-val">Some</span>(<span class="number">10</span>),
+            limit: <span class="prelude-val">Some</span>(<span class="number">0</span>),
+            reason_code: <span class="prelude-val">None</span>,
         };
 
-        <span class="kw">let</span> <span class="ident">scoping</span> <span class="op">=</span> <span class="ident">ItemScoping</span> {
-            <span class="ident">category</span>: <span class="ident">DataCategory::Error</span>,
-            <span class="ident">scoping</span>: <span class="kw-2">&amp;</span><span class="ident">Scoping</span> {
-                <span class="ident">organization_id</span>: <span class="number">69420</span>,
-                <span class="ident">project_id</span>: <span class="ident">ProjectId::new</span>(<span class="number">42</span>),
-                <span class="ident">project_key</span>: <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).<span class="ident">unwrap</span>(),
-                <span class="ident">key_id</span>: <span class="prelude-val">Some</span>(<span class="number">4711</span>),
+        <span class="kw">let </span>scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: <span class="kw-2">&amp;</span>Scoping {
+                organization_id: <span class="number">69420</span>,
+                project_id: ProjectId::new(<span class="number">42</span>),
+                project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
+                key_id: <span class="prelude-val">Some</span>(<span class="number">4711</span>),
             },
         };
 
-        <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">234_531</span>);
-        <span class="kw">let</span> <span class="ident">redis_quota</span> <span class="op">=</span> <span class="ident">RedisQuota::new</span>(<span class="kw-2">&amp;</span><span class="ident">quota</span>, <span class="ident">scoping</span>, <span class="ident">timestamp</span>).<span class="ident">unwrap</span>();
-        <span class="macro">assert_eq!</span>(<span class="ident">redis_quota</span>.<span class="ident">key</span>(), <span class="string">&quot;quota:foo{69420}:23453&quot;</span>);
+        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">234_531</span>);
+        <span class="kw">let </span>redis_quota = RedisQuota::new(<span class="kw-2">&amp;</span>quota, scoping, timestamp).unwrap();
+        <span class="macro">assert_eq!</span>(redis_quota.key(), <span class="string">&quot;quota:foo{69420}:23453&quot;</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::blacklisted_name</span>, <span class="ident">clippy::let_unit_value</span>)]</span>
-    <span class="kw">fn</span> <span class="ident">test_is_rate_limited_script</span>() {
-        <span class="kw">let</span> <span class="ident">now</span> <span class="op">=</span> <span class="ident">SystemTime::now</span>()
-            .<span class="ident">duration_since</span>(<span class="ident">UNIX_EPOCH</span>)
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">duration</span><span class="op">|</span> <span class="ident">duration</span>.<span class="ident">as_secs</span>())
-            .<span class="ident">unwrap</span>();
+    <span class="attribute">#[test]
+    #[allow(clippy::disallowed_names, clippy::let_unit_value)]
+    </span><span class="kw">fn </span>test_is_rate_limited_script() {
+        <span class="kw">let </span>now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_secs())
+            .unwrap();
 
-        <span class="kw">let</span> <span class="ident">rate_limiter</span> <span class="op">=</span> <span class="ident">build_rate_limiter</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">client</span> <span class="op">=</span> <span class="ident">rate_limiter</span>.<span class="ident">pool</span>.<span class="ident">client</span>().<span class="ident">expect</span>(<span class="string">&quot;get client&quot;</span>);
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">conn</span> <span class="op">=</span> <span class="ident">client</span>.<span class="ident">connection</span>();
+        <span class="kw">let </span>rate_limiter = build_rate_limiter();
+        <span class="kw">let </span><span class="kw-2">mut </span>client = rate_limiter.pool.client().expect(<span class="string">&quot;get client&quot;</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>conn = client.connection();
 
-        <span class="comment">// define a few keys with random seed such that they do not collide with repeated test runs</span>
-        <span class="kw">let</span> <span class="ident">foo</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;foo___{}&quot;</span>, <span class="ident">now</span>);
-        <span class="kw">let</span> <span class="ident">r_foo</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;r:foo___{}&quot;</span>, <span class="ident">now</span>);
-        <span class="kw">let</span> <span class="ident">bar</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;bar___{}&quot;</span>, <span class="ident">now</span>);
-        <span class="kw">let</span> <span class="ident">r_bar</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;r:bar___{}&quot;</span>, <span class="ident">now</span>);
-        <span class="kw">let</span> <span class="ident">apple</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;apple___{}&quot;</span>, <span class="ident">now</span>);
-        <span class="kw">let</span> <span class="ident">orange</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;orange___{}&quot;</span>, <span class="ident">now</span>);
-        <span class="kw">let</span> <span class="ident">baz</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;baz___{}&quot;</span>, <span class="ident">now</span>);
+        <span class="comment">// define a few keys with random seed such that they do not collide with repeated test runs
+        </span><span class="kw">let </span>foo = <span class="macro">format!</span>(<span class="string">&quot;foo___{}&quot;</span>, now);
+        <span class="kw">let </span>r_foo = <span class="macro">format!</span>(<span class="string">&quot;r:foo___{}&quot;</span>, now);
+        <span class="kw">let </span>bar = <span class="macro">format!</span>(<span class="string">&quot;bar___{}&quot;</span>, now);
+        <span class="kw">let </span>r_bar = <span class="macro">format!</span>(<span class="string">&quot;r:bar___{}&quot;</span>, now);
+        <span class="kw">let </span>apple = <span class="macro">format!</span>(<span class="string">&quot;apple___{}&quot;</span>, now);
+        <span class="kw">let </span>orange = <span class="macro">format!</span>(<span class="string">&quot;orange___{}&quot;</span>, now);
+        <span class="kw">let </span>baz = <span class="macro">format!</span>(<span class="string">&quot;baz___{}&quot;</span>, now);
 
-        <span class="kw">let</span> <span class="ident">script</span> <span class="op">=</span> <span class="ident">load_lua_script</span>();
+        <span class="kw">let </span>script = load_lua_script();
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">invocation</span> <span class="op">=</span> <span class="ident">script</span>.<span class="ident">prepare_invoke</span>();
-        <span class="ident">invocation</span>
-            .<span class="ident">key</span>(<span class="kw-2">&amp;</span><span class="ident">foo</span>) <span class="comment">// key</span>
-            .<span class="ident">key</span>(<span class="kw-2">&amp;</span><span class="ident">r_foo</span>) <span class="comment">// refund key</span>
-            .<span class="ident">key</span>(<span class="kw-2">&amp;</span><span class="ident">bar</span>) <span class="comment">// key</span>
-            .<span class="ident">key</span>(<span class="kw-2">&amp;</span><span class="ident">r_bar</span>) <span class="comment">// refund key</span>
-            .<span class="ident">arg</span>(<span class="number">1</span>) <span class="comment">// limit</span>
-            .<span class="ident">arg</span>(<span class="ident">now</span> <span class="op">+</span> <span class="number">60</span>) <span class="comment">// expiry</span>
-            .<span class="ident">arg</span>(<span class="number">1</span>) <span class="comment">// quantity</span>
-            .<span class="ident">arg</span>(<span class="bool-val">false</span>) <span class="comment">// over accept once</span>
-            .<span class="ident">arg</span>(<span class="number">2</span>) <span class="comment">// limit</span>
-            .<span class="ident">arg</span>(<span class="ident">now</span> <span class="op">+</span> <span class="number">120</span>) <span class="comment">// expiry</span>
-            .<span class="ident">arg</span>(<span class="number">1</span>) <span class="comment">// quantity</span>
-            .<span class="ident">arg</span>(<span class="bool-val">false</span>); <span class="comment">// over accept once</span>
+        <span class="kw">let </span><span class="kw-2">mut </span>invocation = script.prepare_invoke();
+        invocation
+            .key(<span class="kw-2">&amp;</span>foo) <span class="comment">// key
+            </span>.key(<span class="kw-2">&amp;</span>r_foo) <span class="comment">// refund key
+            </span>.key(<span class="kw-2">&amp;</span>bar) <span class="comment">// key
+            </span>.key(<span class="kw-2">&amp;</span>r_bar) <span class="comment">// refund key
+            </span>.arg(<span class="number">1</span>) <span class="comment">// limit
+            </span>.arg(now + <span class="number">60</span>) <span class="comment">// expiry
+            </span>.arg(<span class="number">1</span>) <span class="comment">// quantity
+            </span>.arg(<span class="bool-val">false</span>) <span class="comment">// over accept once
+            </span>.arg(<span class="number">2</span>) <span class="comment">// limit
+            </span>.arg(now + <span class="number">120</span>) <span class="comment">// expiry
+            </span>.arg(<span class="number">1</span>) <span class="comment">// quantity
+            </span>.arg(<span class="bool-val">false</span>); <span class="comment">// over accept once
 
-        <span class="comment">// The item should not be rate limited by either key.</span>
-        <span class="macro">assert_eq!</span>(
-            <span class="ident">invocation</span>.<span class="ident">invoke</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="kw-2">&amp;mut</span> <span class="ident">conn</span>).<span class="ident">unwrap</span>(),
+        // The item should not be rate limited by either key.
+        </span><span class="macro">assert_eq!</span>(
+            invocation.invoke::&lt;Vec&lt;bool&gt;&gt;(<span class="kw-2">&amp;mut </span>conn).unwrap(),
             <span class="macro">vec!</span>[<span class="bool-val">false</span>, <span class="bool-val">false</span>]
         );
 
-        <span class="comment">// The item should be rate limited by the first key (1).</span>
-        <span class="macro">assert_eq!</span>(
-            <span class="ident">invocation</span>.<span class="ident">invoke</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="kw-2">&amp;mut</span> <span class="ident">conn</span>).<span class="ident">unwrap</span>(),
+        <span class="comment">// The item should be rate limited by the first key (1).
+        </span><span class="macro">assert_eq!</span>(
+            invocation.invoke::&lt;Vec&lt;bool&gt;&gt;(<span class="kw-2">&amp;mut </span>conn).unwrap(),
             <span class="macro">vec!</span>[<span class="bool-val">true</span>, <span class="bool-val">false</span>]
         );
 
-        <span class="comment">// The item should still be rate limited by the first key (1), but *not*</span>
-        <span class="comment">// rate limited by the second key (2) even though this is the third time</span>
-        <span class="comment">// we&#39;ve checked the quotas. This ensures items that are rejected by a lower</span>
-        <span class="comment">// quota don&#39;t affect unrelated items that share a parent quota.</span>
-        <span class="macro">assert_eq!</span>(
-            <span class="ident">invocation</span>.<span class="ident">invoke</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="kw-2">&amp;mut</span> <span class="ident">conn</span>).<span class="ident">unwrap</span>(),
+        <span class="comment">// The item should still be rate limited by the first key (1), but *not*
+        // rate limited by the second key (2) even though this is the third time
+        // we&#39;ve checked the quotas. This ensures items that are rejected by a lower
+        // quota don&#39;t affect unrelated items that share a parent quota.
+        </span><span class="macro">assert_eq!</span>(
+            invocation.invoke::&lt;Vec&lt;bool&gt;&gt;(<span class="kw-2">&amp;mut </span>conn).unwrap(),
             <span class="macro">vec!</span>[<span class="bool-val">true</span>, <span class="bool-val">false</span>]
         );
 
-        <span class="macro">assert_eq!</span>(<span class="ident">conn</span>.<span class="ident">get</span>::<span class="op">&lt;</span><span class="kw">_</span>, <span class="ident">String</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="ident">foo</span>).<span class="ident">unwrap</span>(), <span class="string">&quot;1&quot;</span>);
-        <span class="kw">let</span> <span class="ident">ttl</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="ident">conn</span>.<span class="ident">ttl</span>(<span class="kw-2">&amp;</span><span class="ident">foo</span>).<span class="ident">unwrap</span>();
-        <span class="macro">assert!</span>(<span class="ident">ttl</span> <span class="op">&gt;</span><span class="op">=</span> <span class="number">59</span>);
-        <span class="macro">assert!</span>(<span class="ident">ttl</span> <span class="op">&lt;</span><span class="op">=</span> <span class="number">60</span>);
+        <span class="macro">assert_eq!</span>(conn.get::&lt;<span class="kw">_</span>, String&gt;(<span class="kw-2">&amp;</span>foo).unwrap(), <span class="string">&quot;1&quot;</span>);
+        <span class="kw">let </span>ttl: u64 = conn.ttl(<span class="kw-2">&amp;</span>foo).unwrap();
+        <span class="macro">assert!</span>(ttl &gt;= <span class="number">59</span>);
+        <span class="macro">assert!</span>(ttl &lt;= <span class="number">60</span>);
 
-        <span class="macro">assert_eq!</span>(<span class="ident">conn</span>.<span class="ident">get</span>::<span class="op">&lt;</span><span class="kw">_</span>, <span class="ident">String</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="ident">bar</span>).<span class="ident">unwrap</span>(), <span class="string">&quot;1&quot;</span>);
-        <span class="kw">let</span> <span class="ident">ttl</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="ident">conn</span>.<span class="ident">ttl</span>(<span class="kw-2">&amp;</span><span class="ident">bar</span>).<span class="ident">unwrap</span>();
-        <span class="macro">assert!</span>(<span class="ident">ttl</span> <span class="op">&gt;</span><span class="op">=</span> <span class="number">119</span>);
-        <span class="macro">assert!</span>(<span class="ident">ttl</span> <span class="op">&lt;</span><span class="op">=</span> <span class="number">120</span>);
+        <span class="macro">assert_eq!</span>(conn.get::&lt;<span class="kw">_</span>, String&gt;(<span class="kw-2">&amp;</span>bar).unwrap(), <span class="string">&quot;1&quot;</span>);
+        <span class="kw">let </span>ttl: u64 = conn.ttl(<span class="kw-2">&amp;</span>bar).unwrap();
+        <span class="macro">assert!</span>(ttl &gt;= <span class="number">119</span>);
+        <span class="macro">assert!</span>(ttl &lt;= <span class="number">120</span>);
 
-        <span class="comment">// make sure &quot;refund/negative&quot; keys haven&#39;t been incremented</span>
-        <span class="kw">let</span> () <span class="op">=</span> <span class="ident">conn</span>.<span class="ident">get</span>(<span class="ident">r_foo</span>).<span class="ident">unwrap</span>();
-        <span class="kw">let</span> () <span class="op">=</span> <span class="ident">conn</span>.<span class="ident">get</span>(<span class="ident">r_bar</span>).<span class="ident">unwrap</span>();
+        <span class="comment">// make sure &quot;refund/negative&quot; keys haven&#39;t been incremented
+        </span><span class="kw">let </span>() = conn.get(r_foo).unwrap();
+        <span class="kw">let </span>() = conn.get(r_bar).unwrap();
 
-        <span class="comment">// Test that refunded quotas work</span>
-        <span class="kw">let</span> () <span class="op">=</span> <span class="ident">conn</span>.<span class="ident">set</span>(<span class="kw-2">&amp;</span><span class="ident">apple</span>, <span class="number">5</span>).<span class="ident">unwrap</span>();
+        <span class="comment">// Test that refunded quotas work
+        </span><span class="kw">let </span>() = conn.set(<span class="kw-2">&amp;</span>apple, <span class="number">5</span>).unwrap();
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">invocation</span> <span class="op">=</span> <span class="ident">script</span>.<span class="ident">prepare_invoke</span>();
-        <span class="ident">invocation</span>
-            .<span class="ident">key</span>(<span class="kw-2">&amp;</span><span class="ident">orange</span>) <span class="comment">// key</span>
-            .<span class="ident">key</span>(<span class="kw-2">&amp;</span><span class="ident">baz</span>) <span class="comment">// refund key</span>
-            .<span class="ident">arg</span>(<span class="number">1</span>) <span class="comment">// limit</span>
-            .<span class="ident">arg</span>(<span class="ident">now</span> <span class="op">+</span> <span class="number">60</span>) <span class="comment">// expiry</span>
-            .<span class="ident">arg</span>(<span class="number">1</span>) <span class="comment">// quantity</span>
-            .<span class="ident">arg</span>(<span class="bool-val">false</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>invocation = script.prepare_invoke();
+        invocation
+            .key(<span class="kw-2">&amp;</span>orange) <span class="comment">// key
+            </span>.key(<span class="kw-2">&amp;</span>baz) <span class="comment">// refund key
+            </span>.arg(<span class="number">1</span>) <span class="comment">// limit
+            </span>.arg(now + <span class="number">60</span>) <span class="comment">// expiry
+            </span>.arg(<span class="number">1</span>) <span class="comment">// quantity
+            </span>.arg(<span class="bool-val">false</span>);
 
-        <span class="comment">// increment</span>
-        <span class="macro">assert_eq!</span>(
-            <span class="ident">invocation</span>.<span class="ident">invoke</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="kw-2">&amp;mut</span> <span class="ident">conn</span>).<span class="ident">unwrap</span>(),
+        <span class="comment">// increment
+        </span><span class="macro">assert_eq!</span>(
+            invocation.invoke::&lt;Vec&lt;bool&gt;&gt;(<span class="kw-2">&amp;mut </span>conn).unwrap(),
             <span class="macro">vec!</span>[<span class="bool-val">false</span>]
         );
 
-        <span class="comment">// test that it&#39;s rate limited without refund</span>
-        <span class="macro">assert_eq!</span>(
-            <span class="ident">invocation</span>.<span class="ident">invoke</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="kw-2">&amp;mut</span> <span class="ident">conn</span>).<span class="ident">unwrap</span>(),
+        <span class="comment">// test that it&#39;s rate limited without refund
+        </span><span class="macro">assert_eq!</span>(
+            invocation.invoke::&lt;Vec&lt;bool&gt;&gt;(<span class="kw-2">&amp;mut </span>conn).unwrap(),
             <span class="macro">vec!</span>[<span class="bool-val">true</span>]
         );
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">invocation</span> <span class="op">=</span> <span class="ident">script</span>.<span class="ident">prepare_invoke</span>();
-        <span class="ident">invocation</span>
-            .<span class="ident">key</span>(<span class="kw-2">&amp;</span><span class="ident">orange</span>) <span class="comment">// key</span>
-            .<span class="ident">key</span>(<span class="kw-2">&amp;</span><span class="ident">apple</span>) <span class="comment">// refund key</span>
-            .<span class="ident">arg</span>(<span class="number">1</span>) <span class="comment">// limit</span>
-            .<span class="ident">arg</span>(<span class="ident">now</span> <span class="op">+</span> <span class="number">60</span>) <span class="comment">// expiry</span>
-            .<span class="ident">arg</span>(<span class="number">1</span>) <span class="comment">// quantity</span>
-            .<span class="ident">arg</span>(<span class="bool-val">false</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>invocation = script.prepare_invoke();
+        invocation
+            .key(<span class="kw-2">&amp;</span>orange) <span class="comment">// key
+            </span>.key(<span class="kw-2">&amp;</span>apple) <span class="comment">// refund key
+            </span>.arg(<span class="number">1</span>) <span class="comment">// limit
+            </span>.arg(now + <span class="number">60</span>) <span class="comment">// expiry
+            </span>.arg(<span class="number">1</span>) <span class="comment">// quantity
+            </span>.arg(<span class="bool-val">false</span>);
 
-        <span class="comment">// test that refund key is used</span>
-        <span class="macro">assert_eq!</span>(
-            <span class="ident">invocation</span>.<span class="ident">invoke</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="kw-2">&amp;mut</span> <span class="ident">conn</span>).<span class="ident">unwrap</span>(),
+        <span class="comment">// test that refund key is used
+        </span><span class="macro">assert_eq!</span>(
+            invocation.invoke::&lt;Vec&lt;bool&gt;&gt;(<span class="kw-2">&amp;mut </span>conn).unwrap(),
             <span class="macro">vec!</span>[<span class="bool-val">false</span>]
         );
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_quotas" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_quotas" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

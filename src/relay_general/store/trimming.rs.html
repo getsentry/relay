@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/store/trimming.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>trimming.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/store/trimming.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>trimming.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_general/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -884,262 +884,262 @@
 <span id="882">882</span>
 <span id="883">883</span>
 <span id="884">884</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor</span>::{<span class="ident">estimate_size_flat</span>, <span class="ident">process_chunked_value</span>, <span class="ident">BagSize</span>, <span class="ident">Chunk</span>, <span class="ident">MaxChars</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor</span>::{<span class="ident">process_value</span>, <span class="ident">ProcessValue</span>, <span class="ident">ProcessingState</span>, <span class="ident">Processor</span>, <span class="ident">ValueType</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">Frame</span>, <span class="ident">RawStacktrace</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{
-    <span class="ident">Annotated</span>, <span class="ident">Array</span>, <span class="ident">Empty</span>, <span class="ident">Meta</span>, <span class="ident">Object</span>, <span class="ident">ProcessingAction</span>, <span class="ident">ProcessingResult</span>, <span class="ident">RemarkType</span>, <span class="ident">Value</span>,
+<span class="kw">use </span><span class="kw">crate</span>::processor::{estimate_size_flat, process_chunked_value, BagSize, Chunk, MaxChars};
+<span class="kw">use </span><span class="kw">crate</span>::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
+<span class="kw">use </span><span class="kw">crate</span>::protocol::{Frame, RawStacktrace};
+<span class="kw">use </span><span class="kw">crate</span>::types::{
+    Annotated, Array, Empty, Meta, Object, ProcessingAction, ProcessingResult, RemarkType, Value,
 };
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
-<span class="kw">struct</span> <span class="ident">BagSizeState</span> {
-    <span class="ident">bag_size</span>: <span class="ident">BagSize</span>,
-    <span class="ident">encountered_at_depth</span>: <span class="ident">usize</span>,
-    <span class="ident">size_remaining</span>: <span class="ident">usize</span>,
+<span class="attribute">#[derive(Clone, Debug)]
+</span><span class="kw">struct </span>BagSizeState {
+    bag_size: BagSize,
+    encountered_at_depth: usize,
+    size_remaining: usize,
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Default</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TrimmingProcessor</span> {
-    <span class="ident">bag_size_state</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">BagSizeState</span><span class="op">&gt;</span>,
+<span class="attribute">#[derive(Default)]
+</span><span class="kw">pub struct </span>TrimmingProcessor {
+    bag_size_state: Vec&lt;BagSizeState&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">TrimmingProcessor</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() -&gt; <span class="self">Self</span> {
-        <span class="ident"><span class="self">Self</span>::default</span>()
+<span class="kw">impl </span>TrimmingProcessor {
+    <span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::default()
     }
 
-    <span class="kw">fn</span> <span class="ident">should_remove_container</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Empty</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
-        <span class="comment">// Heuristic to avoid trimming a value like `[1, 1, 1, 1, ...]` into `[null, null, null,</span>
-        <span class="comment">// null, ...]`, making it take up more space.</span>
-        <span class="self">self</span>.<span class="ident">remaining_bag_depth</span>(<span class="ident">state</span>) <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="number">1</span>) <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">value</span>.<span class="ident">is_empty</span>()
+    <span class="kw">fn </span>should_remove_container&lt;T: Empty&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, value: <span class="kw-2">&amp;</span>T, state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; bool {
+        <span class="comment">// Heuristic to avoid trimming a value like `[1, 1, 1, 1, ...]` into `[null, null, null,
+        // null, ...]`, making it take up more space.
+        </span><span class="self">self</span>.remaining_bag_depth(state) == <span class="prelude-val">Some</span>(<span class="number">1</span>) &amp;&amp; !value.is_empty()
     }
 
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">remaining_bag_depth</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">bag_size_state</span>
-            .<span class="ident">iter</span>()
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">bag_size_state</span><span class="op">|</span> {
-                <span class="comment">// The current depth in the entire event payload minus the depth at which we found the</span>
-                <span class="comment">// bag_size attribute is the depth where we are at in the databag.</span>
-                <span class="kw">let</span> <span class="ident">databag_depth</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">depth</span>() <span class="op">-</span> <span class="ident">bag_size_state</span>.<span class="ident">encountered_at_depth</span>;
-                <span class="ident">bag_size_state</span>
-                    .<span class="ident">bag_size</span>
-                    .<span class="ident">max_depth</span>()
-                    .<span class="ident">saturating_sub</span>(<span class="ident">databag_depth</span>)
+    <span class="attribute">#[inline]
+    </span><span class="kw">fn </span>remaining_bag_depth(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;usize&gt; {
+        <span class="self">self</span>.bag_size_state
+            .iter()
+            .map(|bag_size_state| {
+                <span class="comment">// The current depth in the entire event payload minus the depth at which we found the
+                // bag_size attribute is the depth where we are at in the databag.
+                </span><span class="kw">let </span>databag_depth = state.depth() - bag_size_state.encountered_at_depth;
+                bag_size_state
+                    .bag_size
+                    .max_depth()
+                    .saturating_sub(databag_depth)
             })
-            .<span class="ident">min</span>()
+            .min()
     }
 
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">remaining_bag_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">bag_size_state</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">size_remaining</span>).<span class="ident">min</span>()
+    <span class="attribute">#[inline]
+    </span><span class="kw">fn </span>remaining_bag_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;usize&gt; {
+        <span class="self">self</span>.bag_size_state.iter().map(|x| x.size_remaining).min()
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Processor</span> <span class="kw">for</span> <span class="ident">TrimmingProcessor</span> {
-    <span class="kw">fn</span> <span class="ident">before_process</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">ProcessValue</span><span class="op">&gt;</span>(
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
-        <span class="kw">_</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">T</span><span class="op">&gt;</span>,
-        <span class="kw">_</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Meta</span>,
-        <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="ident">ProcessingResult</span> {
-        <span class="comment">// If we encounter a bag size attribute it resets the depth and size</span>
-        <span class="comment">// that is permitted below it.</span>
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">bag_size</span>) <span class="op">=</span> <span class="ident">state</span>.<span class="ident">attrs</span>().<span class="ident">bag_size</span> {
-            <span class="self">self</span>.<span class="ident">bag_size_state</span>.<span class="ident">push</span>(<span class="ident">BagSizeState</span> {
-                <span class="ident">size_remaining</span>: <span class="ident">bag_size</span>.<span class="ident">max_size</span>(),
-                <span class="ident">encountered_at_depth</span>: <span class="ident">state</span>.<span class="ident">depth</span>(),
-                <span class="ident">bag_size</span>,
+<span class="kw">impl </span>Processor <span class="kw">for </span>TrimmingProcessor {
+    <span class="kw">fn </span>before_process&lt;T: ProcessValue&gt;(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        <span class="kw">_</span>: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>T&gt;,
+        <span class="kw">_</span>: <span class="kw-2">&amp;mut </span>Meta,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+    ) -&gt; ProcessingResult {
+        <span class="comment">// If we encounter a bag size attribute it resets the depth and size
+        // that is permitted below it.
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(bag_size) = state.attrs().bag_size {
+            <span class="self">self</span>.bag_size_state.push(BagSizeState {
+                size_remaining: bag_size.max_size(),
+                encountered_at_depth: state.depth(),
+                bag_size,
             });
         }
 
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">remaining_bag_size</span>() <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="number">0</span>) {
-            <span class="comment">// TODO: Create remarks (ensure they do not bloat event)</span>
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::DeleteValueHard</span>);
+        <span class="kw">if </span><span class="self">self</span>.remaining_bag_size() == <span class="prelude-val">Some</span>(<span class="number">0</span>) {
+            <span class="comment">// TODO: Create remarks (ensure they do not bloat event)
+            </span><span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::DeleteValueHard);
         }
 
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">remaining_bag_depth</span>(<span class="ident">state</span>) <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="number">0</span>) {
-            <span class="comment">// TODO: Create remarks (ensure they do not bloat event)</span>
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::DeleteValueHard</span>);
+        <span class="kw">if </span><span class="self">self</span>.remaining_bag_depth(state) == <span class="prelude-val">Some</span>(<span class="number">0</span>) {
+            <span class="comment">// TODO: Create remarks (ensure they do not bloat event)
+            </span><span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::DeleteValueHard);
         }
 
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">after_process</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">ProcessValue</span><span class="op">&gt;</span>(
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
-        <span class="ident">value</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">T</span><span class="op">&gt;</span>,
-        <span class="kw">_</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Meta</span>,
-        <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="ident">ProcessingResult</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">bag_size_state</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">bag_size_state</span>.<span class="ident">last_mut</span>() {
-            <span class="comment">// If our current depth is the one where we found a bag_size attribute, this means we</span>
-            <span class="comment">// are done processing a databag. Pop the bag size state.</span>
-            <span class="kw">if</span> <span class="ident">state</span>.<span class="ident">depth</span>() <span class="op">==</span> <span class="ident">bag_size_state</span>.<span class="ident">encountered_at_depth</span> {
-                <span class="self">self</span>.<span class="ident">bag_size_state</span>.<span class="ident">pop</span>().<span class="ident">unwrap</span>();
+    <span class="kw">fn </span>after_process&lt;T: ProcessValue&gt;(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        value: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>T&gt;,
+        <span class="kw">_</span>: <span class="kw-2">&amp;mut </span>Meta,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+    ) -&gt; ProcessingResult {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>bag_size_state) = <span class="self">self</span>.bag_size_state.last_mut() {
+            <span class="comment">// If our current depth is the one where we found a bag_size attribute, this means we
+            // are done processing a databag. Pop the bag size state.
+            </span><span class="kw">if </span>state.depth() == bag_size_state.encountered_at_depth {
+                <span class="self">self</span>.bag_size_state.pop().unwrap();
             }
         }
 
-        <span class="kw">for</span> <span class="ident">bag_size_state</span> <span class="kw">in</span> <span class="self">self</span>.<span class="ident">bag_size_state</span>.<span class="ident">iter_mut</span>() {
-            <span class="comment">// After processing a value, update the remaining bag sizes. We have a separate if-let</span>
-            <span class="comment">// here in case somebody defines nested databags (a struct with bag_size that contains</span>
-            <span class="comment">// another struct with a different bag_size), in case we just exited a databag we want</span>
-            <span class="comment">// to update the bag_size_state of the outer databag with the remaining size.</span>
-            <span class="comment">//</span>
-            <span class="comment">// This also has to happen after string trimming, which is why it&#39;s running in</span>
-            <span class="comment">// after_process.</span>
+        <span class="kw">for </span>bag_size_state <span class="kw">in </span><span class="self">self</span>.bag_size_state.iter_mut() {
+            <span class="comment">// After processing a value, update the remaining bag sizes. We have a separate if-let
+            // here in case somebody defines nested databags (a struct with bag_size that contains
+            // another struct with a different bag_size), in case we just exited a databag we want
+            // to update the bag_size_state of the outer databag with the remaining size.
+            //
+            // This also has to happen after string trimming, which is why it&#39;s running in
+            // after_process.
 
-            <span class="kw">if</span> <span class="ident">state</span>.<span class="ident">entered_anything</span>() {
-                <span class="comment">// Do not subtract if state is from newtype struct.</span>
-                <span class="kw">let</span> <span class="ident">item_length</span> <span class="op">=</span> <span class="ident">estimate_size_flat</span>(<span class="ident">value</span>) <span class="op">+</span> <span class="number">1</span>;
-                <span class="ident">bag_size_state</span>.<span class="ident">size_remaining</span> <span class="op">=</span>
-                    <span class="ident">bag_size_state</span>.<span class="ident">size_remaining</span>.<span class="ident">saturating_sub</span>(<span class="ident">item_length</span>);
+            </span><span class="kw">if </span>state.entered_anything() {
+                <span class="comment">// Do not subtract if state is from newtype struct.
+                </span><span class="kw">let </span>item_length = estimate_size_flat(value) + <span class="number">1</span>;
+                bag_size_state.size_remaining =
+                    bag_size_state.size_remaining.saturating_sub(item_length);
             }
         }
 
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">process_string</span>(
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
-        <span class="ident">value</span>: <span class="kw-2">&amp;mut</span> <span class="ident">String</span>,
-        <span class="ident">meta</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Meta</span>,
-        <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="ident">ProcessingResult</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">max_chars</span>) <span class="op">=</span> <span class="ident">state</span>.<span class="ident">attrs</span>().<span class="ident">max_chars</span> {
-            <span class="ident">trim_string</span>(<span class="ident">value</span>, <span class="ident">meta</span>, <span class="ident">max_chars</span>);
+    <span class="kw">fn </span>process_string(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        value: <span class="kw-2">&amp;mut </span>String,
+        meta: <span class="kw-2">&amp;mut </span>Meta,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+    ) -&gt; ProcessingResult {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(max_chars) = state.attrs().max_chars {
+            trim_string(value, meta, max_chars);
         }
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">bag_size_state</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">bag_size_state</span>.<span class="ident">last_mut</span>() {
-            <span class="ident">trim_string</span>(<span class="ident">value</span>, <span class="ident">meta</span>, <span class="ident">MaxChars::Hard</span>(<span class="ident">bag_size_state</span>.<span class="ident">size_remaining</span>));
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>bag_size_state) = <span class="self">self</span>.bag_size_state.last_mut() {
+            trim_string(value, meta, MaxChars::Hard(bag_size_state.size_remaining));
         }
 
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">process_array</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
-        <span class="ident">value</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Array</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
-        <span class="ident">meta</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Meta</span>,
-        <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="ident">ProcessingResult</span>
-    <span class="kw">where</span>
-        <span class="ident">T</span>: <span class="ident">ProcessValue</span>,
+    <span class="kw">fn </span>process_array&lt;T&gt;(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        value: <span class="kw-2">&amp;mut </span>Array&lt;T&gt;,
+        meta: <span class="kw-2">&amp;mut </span>Meta,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+    ) -&gt; ProcessingResult
+    <span class="kw">where
+        </span>T: ProcessValue,
     {
-        <span class="comment">// If we need to check the bag size, then we go down a different path</span>
-        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">bag_size_state</span>.<span class="ident">is_empty</span>() {
-            <span class="kw">let</span> <span class="ident">original_length</span> <span class="op">=</span> <span class="ident">value</span>.<span class="ident">len</span>();
+        <span class="comment">// If we need to check the bag size, then we go down a different path
+        </span><span class="kw">if </span>!<span class="self">self</span>.bag_size_state.is_empty() {
+            <span class="kw">let </span>original_length = value.len();
 
-            <span class="kw">if</span> <span class="self">self</span>.<span class="ident">should_remove_container</span>(<span class="ident">value</span>, <span class="ident">state</span>) {
-                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::DeleteValueHard</span>);
+            <span class="kw">if </span><span class="self">self</span>.should_remove_container(value, state) {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::DeleteValueHard);
             }
 
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">split_index</span> <span class="op">=</span> <span class="prelude-val">None</span>;
-            <span class="kw">for</span> (<span class="ident">index</span>, <span class="ident">item</span>) <span class="kw">in</span> <span class="ident">value</span>.<span class="ident">iter_mut</span>().<span class="ident">enumerate</span>() {
-                <span class="kw">if</span> <span class="self">self</span>.<span class="ident">remaining_bag_size</span>().<span class="ident">unwrap</span>() <span class="op">==</span> <span class="number">0</span> {
-                    <span class="ident">split_index</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">index</span>);
+            <span class="kw">let </span><span class="kw-2">mut </span>split_index = <span class="prelude-val">None</span>;
+            <span class="kw">for </span>(index, item) <span class="kw">in </span>value.iter_mut().enumerate() {
+                <span class="kw">if </span><span class="self">self</span>.remaining_bag_size().unwrap() == <span class="number">0 </span>{
+                    split_index = <span class="prelude-val">Some</span>(index);
                     <span class="kw">break</span>;
                 }
 
-                <span class="kw">let</span> <span class="ident">item_state</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">enter_index</span>(<span class="ident">index</span>, <span class="prelude-val">None</span>, <span class="ident">ValueType::for_field</span>(<span class="ident">item</span>));
-                <span class="ident">process_value</span>(<span class="ident">item</span>, <span class="self">self</span>, <span class="kw-2">&amp;</span><span class="ident">item_state</span>)<span class="question-mark">?</span>;
+                <span class="kw">let </span>item_state = state.enter_index(index, <span class="prelude-val">None</span>, ValueType::for_field(item));
+                process_value(item, <span class="self">self</span>, <span class="kw-2">&amp;</span>item_state)<span class="question-mark">?</span>;
             }
 
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">split_index</span>) <span class="op">=</span> <span class="ident">split_index</span> {
-                <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">value</span>.<span class="ident">split_off</span>(<span class="ident">split_index</span>);
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(split_index) = split_index {
+                <span class="kw">let _ </span>= value.split_off(split_index);
             }
 
-            <span class="kw">if</span> <span class="ident">value</span>.<span class="ident">len</span>() <span class="op">!</span><span class="op">=</span> <span class="ident">original_length</span> {
-                <span class="ident">meta</span>.<span class="ident">set_original_length</span>(<span class="prelude-val">Some</span>(<span class="ident">original_length</span>));
+            <span class="kw">if </span>value.len() != original_length {
+                meta.set_original_length(<span class="prelude-val">Some</span>(original_length));
             }
-        } <span class="kw">else</span> {
-            <span class="ident">value</span>.<span class="ident">process_child_values</span>(<span class="self">self</span>, <span class="ident">state</span>)<span class="question-mark">?</span>;
+        } <span class="kw">else </span>{
+            value.process_child_values(<span class="self">self</span>, state)<span class="question-mark">?</span>;
         }
 
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">process_object</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
-        <span class="ident">value</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
-        <span class="ident">meta</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Meta</span>,
-        <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="ident">ProcessingResult</span>
-    <span class="kw">where</span>
-        <span class="ident">T</span>: <span class="ident">ProcessValue</span>,
+    <span class="kw">fn </span>process_object&lt;T&gt;(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        value: <span class="kw-2">&amp;mut </span>Object&lt;T&gt;,
+        meta: <span class="kw-2">&amp;mut </span>Meta,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+    ) -&gt; ProcessingResult
+    <span class="kw">where
+        </span>T: ProcessValue,
     {
-        <span class="comment">// If we need to check the bag size, then we go down a different path</span>
-        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">bag_size_state</span>.<span class="ident">is_empty</span>() {
-            <span class="kw">let</span> <span class="ident">original_length</span> <span class="op">=</span> <span class="ident">value</span>.<span class="ident">len</span>();
+        <span class="comment">// If we need to check the bag size, then we go down a different path
+        </span><span class="kw">if </span>!<span class="self">self</span>.bag_size_state.is_empty() {
+            <span class="kw">let </span>original_length = value.len();
 
-            <span class="kw">if</span> <span class="self">self</span>.<span class="ident">should_remove_container</span>(<span class="ident">value</span>, <span class="ident">state</span>) {
-                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::DeleteValueHard</span>);
+            <span class="kw">if </span><span class="self">self</span>.should_remove_container(value, state) {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::DeleteValueHard);
             }
 
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">split_key</span> <span class="op">=</span> <span class="prelude-val">None</span>;
-            <span class="kw">for</span> (<span class="ident">key</span>, <span class="ident">item</span>) <span class="kw">in</span> <span class="ident">value</span>.<span class="ident">iter_mut</span>() {
-                <span class="kw">if</span> <span class="self">self</span>.<span class="ident">remaining_bag_size</span>().<span class="ident">unwrap</span>() <span class="op">==</span> <span class="number">0</span> {
-                    <span class="ident">split_key</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">key</span>.<span class="ident">to_owned</span>());
+            <span class="kw">let </span><span class="kw-2">mut </span>split_key = <span class="prelude-val">None</span>;
+            <span class="kw">for </span>(key, item) <span class="kw">in </span>value.iter_mut() {
+                <span class="kw">if </span><span class="self">self</span>.remaining_bag_size().unwrap() == <span class="number">0 </span>{
+                    split_key = <span class="prelude-val">Some</span>(key.to_owned());
                     <span class="kw">break</span>;
                 }
 
-                <span class="kw">let</span> <span class="ident">item_state</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">enter_borrowed</span>(<span class="ident">key</span>, <span class="prelude-val">None</span>, <span class="ident">ValueType::for_field</span>(<span class="ident">item</span>));
-                <span class="ident">process_value</span>(<span class="ident">item</span>, <span class="self">self</span>, <span class="kw-2">&amp;</span><span class="ident">item_state</span>)<span class="question-mark">?</span>;
+                <span class="kw">let </span>item_state = state.enter_borrowed(key, <span class="prelude-val">None</span>, ValueType::for_field(item));
+                process_value(item, <span class="self">self</span>, <span class="kw-2">&amp;</span>item_state)<span class="question-mark">?</span>;
             }
 
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">split_key</span>) <span class="op">=</span> <span class="ident">split_key</span> {
-                <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">value</span>.<span class="ident">split_off</span>(<span class="kw-2">&amp;</span><span class="ident">split_key</span>);
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(split_key) = split_key {
+                <span class="kw">let _ </span>= value.split_off(<span class="kw-2">&amp;</span>split_key);
             }
 
-            <span class="kw">if</span> <span class="ident">value</span>.<span class="ident">len</span>() <span class="op">!</span><span class="op">=</span> <span class="ident">original_length</span> {
-                <span class="ident">meta</span>.<span class="ident">set_original_length</span>(<span class="prelude-val">Some</span>(<span class="ident">original_length</span>));
+            <span class="kw">if </span>value.len() != original_length {
+                meta.set_original_length(<span class="prelude-val">Some</span>(original_length));
             }
-        } <span class="kw">else</span> {
-            <span class="ident">value</span>.<span class="ident">process_child_values</span>(<span class="self">self</span>, <span class="ident">state</span>)<span class="question-mark">?</span>;
+        } <span class="kw">else </span>{
+            value.process_child_values(<span class="self">self</span>, state)<span class="question-mark">?</span>;
         }
 
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">process_value</span>(
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
-        <span class="ident">value</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Value</span>,
-        <span class="ident">_meta</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Meta</span>,
-        <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="ident">ProcessingResult</span> {
-        <span class="kw">match</span> <span class="ident">value</span> {
-            <span class="ident">Value::Array</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">Value::Object</span>(<span class="kw">_</span>) =&gt; {
-                <span class="kw">if</span> <span class="self">self</span>.<span class="ident">remaining_bag_depth</span>(<span class="ident">state</span>) <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="number">1</span>) {
-                    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">x</span>) <span class="op">=</span> <span class="ident">serde_json::to_string</span>(<span class="kw-2">&amp;</span><span class="ident">value</span>) {
-                        <span class="comment">// Error case should not be possible</span>
-                        <span class="kw-2">*</span><span class="ident">value</span> <span class="op">=</span> <span class="ident">Value::String</span>(<span class="ident">x</span>);
+    <span class="kw">fn </span>process_value(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        value: <span class="kw-2">&amp;mut </span>Value,
+        _meta: <span class="kw-2">&amp;mut </span>Meta,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+    ) -&gt; ProcessingResult {
+        <span class="kw">match </span>value {
+            Value::Array(<span class="kw">_</span>) | Value::Object(<span class="kw">_</span>) =&gt; {
+                <span class="kw">if </span><span class="self">self</span>.remaining_bag_depth(state) == <span class="prelude-val">Some</span>(<span class="number">1</span>) {
+                    <span class="kw">if let </span><span class="prelude-val">Ok</span>(x) = serde_json::to_string(<span class="kw-2">&amp;</span>value) {
+                        <span class="comment">// Error case should not be possible
+                        </span><span class="kw-2">*</span>value = Value::String(x);
                     }
                 }
             }
-            <span class="kw">_</span> =&gt; (),
+            <span class="kw">_ </span>=&gt; (),
         }
 
-        <span class="ident">value</span>.<span class="ident">process_child_values</span>(<span class="self">self</span>, <span class="ident">state</span>)<span class="question-mark">?</span>;
+        value.process_child_values(<span class="self">self</span>, state)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">process_raw_stacktrace</span>(
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
-        <span class="ident">stacktrace</span>: <span class="kw-2">&amp;mut</span> <span class="ident">RawStacktrace</span>,
-        <span class="ident">_meta</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Meta</span>,
-        <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="ident">ProcessingResult</span> {
-        <span class="ident">stacktrace</span>.<span class="ident">frames</span>.<span class="ident">apply</span>(<span class="op">|</span><span class="ident">frames</span>, <span class="ident">meta</span><span class="op">|</span> {
-            <span class="ident">enforce_frame_hard_limit</span>(<span class="ident">frames</span>, <span class="ident">meta</span>, <span class="number">250</span>);
+    <span class="kw">fn </span>process_raw_stacktrace(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        stacktrace: <span class="kw-2">&amp;mut </span>RawStacktrace,
+        _meta: <span class="kw-2">&amp;mut </span>Meta,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+    ) -&gt; ProcessingResult {
+        stacktrace.frames.apply(|frames, meta| {
+            enforce_frame_hard_limit(frames, meta, <span class="number">250</span>);
             <span class="prelude-val">Ok</span>(())
         })<span class="question-mark">?</span>;
 
-        <span class="ident">stacktrace</span>.<span class="ident">process_child_values</span>(<span class="self">self</span>, <span class="ident">state</span>)<span class="question-mark">?</span>;
+        stacktrace.process_child_values(<span class="self">self</span>, state)<span class="question-mark">?</span>;
 
-        <span class="ident">stacktrace</span>.<span class="ident">frames</span>.<span class="ident">apply</span>(<span class="op">|</span><span class="ident">frames</span>, <span class="ident">_meta</span><span class="op">|</span> {
-            <span class="ident">slim_frame_data</span>(<span class="ident">frames</span>, <span class="number">50</span>);
+        stacktrace.frames.apply(|frames, _meta| {
+            slim_frame_data(frames, <span class="number">50</span>);
             <span class="prelude-val">Ok</span>(())
         })<span class="question-mark">?</span>;
 
@@ -1147,238 +1147,238 @@
     }
 }
 
-<span class="doccomment">/// Trims the string to the given maximum length and updates meta data.</span>
-<span class="kw">fn</span> <span class="ident">trim_string</span>(<span class="ident">value</span>: <span class="kw-2">&amp;mut</span> <span class="ident">String</span>, <span class="ident">meta</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Meta</span>, <span class="ident">max_chars</span>: <span class="ident">MaxChars</span>) {
-    <span class="kw">let</span> <span class="ident">soft_limit</span> <span class="op">=</span> <span class="ident">max_chars</span>.<span class="ident">limit</span>();
-    <span class="kw">let</span> <span class="ident">hard_limit</span> <span class="op">=</span> <span class="ident">soft_limit</span> <span class="op">+</span> <span class="ident">max_chars</span>.<span class="ident">allowance</span>();
+<span class="doccomment">/// Trims the string to the given maximum length and updates meta data.
+</span><span class="kw">fn </span>trim_string(value: <span class="kw-2">&amp;mut </span>String, meta: <span class="kw-2">&amp;mut </span>Meta, max_chars: MaxChars) {
+    <span class="kw">let </span>soft_limit = max_chars.limit();
+    <span class="kw">let </span>hard_limit = soft_limit + max_chars.allowance();
 
-    <span class="kw">if</span> <span class="ident">bytecount::num_chars</span>(<span class="ident">value</span>.<span class="ident">as_bytes</span>()) <span class="op">&lt;</span><span class="op">=</span> <span class="ident">hard_limit</span> {
+    <span class="kw">if </span>bytecount::num_chars(value.as_bytes()) &lt;= hard_limit {
         <span class="kw">return</span>;
     }
 
-    <span class="ident">process_chunked_value</span>(<span class="ident">value</span>, <span class="ident">meta</span>, <span class="op">|</span><span class="ident">chunks</span><span class="op">|</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">length</span> <span class="op">=</span> <span class="number">0</span>;
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">new_chunks</span> <span class="op">=</span> <span class="macro">vec!</span>[];
+    process_chunked_value(value, meta, |chunks| {
+        <span class="kw">let </span><span class="kw-2">mut </span>length = <span class="number">0</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>new_chunks = <span class="macro">vec!</span>[];
 
-        <span class="kw">for</span> <span class="ident">chunk</span> <span class="kw">in</span> <span class="ident">chunks</span> {
-            <span class="kw">let</span> <span class="ident">chunk_chars</span> <span class="op">=</span> <span class="ident">chunk</span>.<span class="ident">count</span>();
+        <span class="kw">for </span>chunk <span class="kw">in </span>chunks {
+            <span class="kw">let </span>chunk_chars = chunk.count();
 
-            <span class="comment">// if the entire chunk fits, just put it in</span>
-            <span class="kw">if</span> <span class="ident">length</span> <span class="op">+</span> <span class="ident">chunk_chars</span> <span class="op">&lt;</span> <span class="ident">soft_limit</span> {
-                <span class="ident">new_chunks</span>.<span class="ident">push</span>(<span class="ident">chunk</span>);
-                <span class="ident">length</span> <span class="op">+</span><span class="op">=</span> <span class="ident">chunk_chars</span>;
+            <span class="comment">// if the entire chunk fits, just put it in
+            </span><span class="kw">if </span>length + chunk_chars &lt; soft_limit {
+                new_chunks.push(chunk);
+                length += chunk_chars;
                 <span class="kw">continue</span>;
             }
 
-            <span class="kw">match</span> <span class="ident">chunk</span> {
-                <span class="comment">// if there is enough space for this chunk and the 3 character</span>
-                <span class="comment">// ellipsis marker we can push the remaining chunk</span>
-                <span class="ident">Chunk::Redaction</span> { .. } =&gt; {
-                    <span class="kw">if</span> <span class="ident">length</span> <span class="op">+</span> <span class="ident">chunk_chars</span> <span class="op">+</span> <span class="number">3</span> <span class="op">&lt;</span> <span class="ident">hard_limit</span> {
-                        <span class="ident">new_chunks</span>.<span class="ident">push</span>(<span class="ident">chunk</span>);
+            <span class="kw">match </span>chunk {
+                <span class="comment">// if there is enough space for this chunk and the 3 character
+                // ellipsis marker we can push the remaining chunk
+                </span>Chunk::Redaction { .. } =&gt; {
+                    <span class="kw">if </span>length + chunk_chars + <span class="number">3 </span>&lt; hard_limit {
+                        new_chunks.push(chunk);
                     }
                 }
 
-                <span class="comment">// if this is a text chunk, we can put the remaining characters in.</span>
-                <span class="ident">Chunk::Text</span> { <span class="ident">text</span> } =&gt; {
-                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">remaining</span> <span class="op">=</span> <span class="ident">String::new</span>();
-                    <span class="kw">for</span> <span class="ident">c</span> <span class="kw">in</span> <span class="ident">text</span>.<span class="ident">chars</span>() {
-                        <span class="kw">if</span> <span class="ident">length</span> <span class="op">+</span> <span class="number">3</span> <span class="op">&lt;</span> <span class="ident">soft_limit</span> {
-                            <span class="ident">remaining</span>.<span class="ident">push</span>(<span class="ident">c</span>);
-                        } <span class="kw">else</span> {
+                <span class="comment">// if this is a text chunk, we can put the remaining characters in.
+                </span>Chunk::Text { text } =&gt; {
+                    <span class="kw">let </span><span class="kw-2">mut </span>remaining = String::new();
+                    <span class="kw">for </span>c <span class="kw">in </span>text.chars() {
+                        <span class="kw">if </span>length + <span class="number">3 </span>&lt; soft_limit {
+                            remaining.push(c);
+                        } <span class="kw">else </span>{
                             <span class="kw">break</span>;
                         }
-                        <span class="ident">length</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
+                        length += <span class="number">1</span>;
                     }
 
-                    <span class="ident">new_chunks</span>.<span class="ident">push</span>(<span class="ident">Chunk::Text</span> {
-                        <span class="ident">text</span>: <span class="ident">Cow::Owned</span>(<span class="ident">remaining</span>),
+                    new_chunks.push(Chunk::Text {
+                        text: Cow::Owned(remaining),
                     });
                 }
             }
 
-            <span class="ident">new_chunks</span>.<span class="ident">push</span>(<span class="ident">Chunk::Redaction</span> {
-                <span class="ident">text</span>: <span class="ident">Cow::Borrowed</span>(<span class="string">&quot;...&quot;</span>),
-                <span class="ident">rule_id</span>: <span class="ident">Cow::Borrowed</span>(<span class="string">&quot;!limit&quot;</span>),
-                <span class="ident">ty</span>: <span class="ident">RemarkType::Substituted</span>,
+            new_chunks.push(Chunk::Redaction {
+                text: Cow::Borrowed(<span class="string">&quot;...&quot;</span>),
+                rule_id: Cow::Borrowed(<span class="string">&quot;!limit&quot;</span>),
+                ty: RemarkType::Substituted,
             });
             <span class="kw">break</span>;
         }
 
-        <span class="ident">new_chunks</span>
+        new_chunks
     });
 }
 
-<span class="kw">fn</span> <span class="ident">enforce_frame_hard_limit</span>(<span class="ident">frames</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Array</span><span class="op">&lt;</span><span class="ident">Frame</span><span class="op">&gt;</span>, <span class="ident">meta</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Meta</span>, <span class="ident">limit</span>: <span class="ident">usize</span>) {
-    <span class="comment">// Trim down the frame list to a hard limit. Leave the last frame in place in case</span>
-    <span class="comment">// it&#39;s useful for debugging.</span>
-    <span class="kw">let</span> <span class="ident">original_length</span> <span class="op">=</span> <span class="ident">frames</span>.<span class="ident">len</span>();
-    <span class="kw">if</span> <span class="ident">original_length</span> <span class="op">&gt;</span><span class="op">=</span> <span class="ident">limit</span> {
-        <span class="ident">meta</span>.<span class="ident">set_original_length</span>(<span class="prelude-val">Some</span>(<span class="ident">original_length</span>));
+<span class="kw">fn </span>enforce_frame_hard_limit(frames: <span class="kw-2">&amp;mut </span>Array&lt;Frame&gt;, meta: <span class="kw-2">&amp;mut </span>Meta, limit: usize) {
+    <span class="comment">// Trim down the frame list to a hard limit. Leave the last frame in place in case
+    // it&#39;s useful for debugging.
+    </span><span class="kw">let </span>original_length = frames.len();
+    <span class="kw">if </span>original_length &gt;= limit {
+        meta.set_original_length(<span class="prelude-val">Some</span>(original_length));
 
-        <span class="kw">let</span> <span class="ident">last_frame</span> <span class="op">=</span> <span class="ident">frames</span>.<span class="ident">pop</span>();
-        <span class="ident">frames</span>.<span class="ident">truncate</span>(<span class="ident">limit</span> <span class="op">-</span> <span class="number">1</span>);
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">last_frame</span>) <span class="op">=</span> <span class="ident">last_frame</span> {
-            <span class="ident">frames</span>.<span class="ident">push</span>(<span class="ident">last_frame</span>);
+        <span class="kw">let </span>last_frame = frames.pop();
+        frames.truncate(limit - <span class="number">1</span>);
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(last_frame) = last_frame {
+            frames.push(last_frame);
         }
     }
 }
 
-<span class="doccomment">/// Remove excess metadata for middle frames which go beyond `frame_allowance`.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This is supposed to be equivalent to `slim_frame_data` in Sentry.</span>
-<span class="kw">fn</span> <span class="ident">slim_frame_data</span>(<span class="ident">frames</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Array</span><span class="op">&lt;</span><span class="ident">Frame</span><span class="op">&gt;</span>, <span class="ident">frame_allowance</span>: <span class="ident">usize</span>) {
-    <span class="kw">let</span> <span class="ident">frames_len</span> <span class="op">=</span> <span class="ident">frames</span>.<span class="ident">len</span>();
+<span class="doccomment">/// Remove excess metadata for middle frames which go beyond `frame_allowance`.
+///
+/// This is supposed to be equivalent to `slim_frame_data` in Sentry.
+</span><span class="kw">fn </span>slim_frame_data(frames: <span class="kw-2">&amp;mut </span>Array&lt;Frame&gt;, frame_allowance: usize) {
+    <span class="kw">let </span>frames_len = frames.len();
 
-    <span class="kw">if</span> <span class="ident">frames_len</span> <span class="op">&lt;</span><span class="op">=</span> <span class="ident">frame_allowance</span> {
+    <span class="kw">if </span>frames_len &lt;= frame_allowance {
         <span class="kw">return</span>;
     }
 
-    <span class="comment">// Avoid ownership issues by only storing indices</span>
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">app_frame_indices</span> <span class="op">=</span> <span class="ident">Vec::with_capacity</span>(<span class="ident">frames_len</span>);
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">system_frame_indices</span> <span class="op">=</span> <span class="ident">Vec::with_capacity</span>(<span class="ident">frames_len</span>);
+    <span class="comment">// Avoid ownership issues by only storing indices
+    </span><span class="kw">let </span><span class="kw-2">mut </span>app_frame_indices = Vec::with_capacity(frames_len);
+    <span class="kw">let </span><span class="kw-2">mut </span>system_frame_indices = Vec::with_capacity(frames_len);
 
-    <span class="kw">for</span> (<span class="ident">i</span>, <span class="ident">frame</span>) <span class="kw">in</span> <span class="ident">frames</span>.<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">frame</span>) <span class="op">=</span> <span class="ident">frame</span>.<span class="ident">value</span>() {
-            <span class="kw">match</span> <span class="ident">frame</span>.<span class="ident">in_app</span>.<span class="ident">value</span>() {
-                <span class="prelude-val">Some</span>(<span class="bool-val">true</span>) =&gt; <span class="ident">app_frame_indices</span>.<span class="ident">push</span>(<span class="ident">i</span>),
-                <span class="kw">_</span> =&gt; <span class="ident">system_frame_indices</span>.<span class="ident">push</span>(<span class="ident">i</span>),
+    <span class="kw">for </span>(i, frame) <span class="kw">in </span>frames.iter().enumerate() {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(frame) = frame.value() {
+            <span class="kw">match </span>frame.in_app.value() {
+                <span class="prelude-val">Some</span>(<span class="bool-val">true</span>) =&gt; app_frame_indices.push(i),
+                <span class="kw">_ </span>=&gt; system_frame_indices.push(i),
             }
         }
     }
 
-    <span class="kw">let</span> <span class="ident">app_count</span> <span class="op">=</span> <span class="ident">app_frame_indices</span>.<span class="ident">len</span>();
-    <span class="kw">let</span> <span class="ident">system_allowance_half</span> <span class="op">=</span> <span class="ident">frame_allowance</span>.<span class="ident">saturating_sub</span>(<span class="ident">app_count</span>) <span class="op">/</span> <span class="number">2</span>;
-    <span class="kw">let</span> <span class="ident">system_frames_to_remove</span> <span class="op">=</span> <span class="ident">system_frame_indices</span>
-        .<span class="ident">get</span>(<span class="ident">system_allowance_half</span>..<span class="ident">system_frame_indices</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="ident">system_allowance_half</span>)
-        .<span class="ident">unwrap_or</span>(<span class="kw-2">&amp;</span>[]);
+    <span class="kw">let </span>app_count = app_frame_indices.len();
+    <span class="kw">let </span>system_allowance_half = frame_allowance.saturating_sub(app_count) / <span class="number">2</span>;
+    <span class="kw">let </span>system_frames_to_remove = system_frame_indices
+        .get(system_allowance_half..system_frame_indices.len() - system_allowance_half)
+        .unwrap_or(<span class="kw-2">&amp;</span>[]);
 
-    <span class="kw">let</span> <span class="ident">remaining</span> <span class="op">=</span> <span class="ident">frames_len</span>
-        .<span class="ident">saturating_sub</span>(<span class="ident">frame_allowance</span>)
-        .<span class="ident">saturating_sub</span>(<span class="ident">system_frames_to_remove</span>.<span class="ident">len</span>());
-    <span class="kw">let</span> <span class="ident">app_allowance_half</span> <span class="op">=</span> <span class="ident">app_count</span>.<span class="ident">saturating_sub</span>(<span class="ident">remaining</span>) <span class="op">/</span> <span class="number">2</span>;
-    <span class="kw">let</span> <span class="ident">app_frames_to_remove</span> <span class="op">=</span> <span class="ident">app_frame_indices</span>
-        .<span class="ident">get</span>(<span class="ident">app_allowance_half</span>..<span class="ident">app_frame_indices</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="ident">app_allowance_half</span>)
-        .<span class="ident">unwrap_or</span>(<span class="kw-2">&amp;</span>[]);
+    <span class="kw">let </span>remaining = frames_len
+        .saturating_sub(frame_allowance)
+        .saturating_sub(system_frames_to_remove.len());
+    <span class="kw">let </span>app_allowance_half = app_count.saturating_sub(remaining) / <span class="number">2</span>;
+    <span class="kw">let </span>app_frames_to_remove = app_frame_indices
+        .get(app_allowance_half..app_frame_indices.len() - app_allowance_half)
+        .unwrap_or(<span class="kw-2">&amp;</span>[]);
 
-    <span class="comment">// TODO: Which annotation to set?</span>
+    <span class="comment">// TODO: Which annotation to set?
 
-    <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="ident">system_frames_to_remove</span>.<span class="ident">iter</span>().<span class="ident">chain</span>(<span class="ident">app_frames_to_remove</span>) {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">frame</span>) <span class="op">=</span> <span class="ident">frames</span>.<span class="ident">get_mut</span>(<span class="kw-2">*</span><span class="ident">i</span>) {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">frame</span>) <span class="op">=</span> <span class="ident">frame</span>.<span class="ident">value_mut</span>().<span class="ident">as_mut</span>() {
-                <span class="ident">frame</span>.<span class="ident">vars</span> <span class="op">=</span> <span class="ident">Annotated::empty</span>();
-                <span class="ident">frame</span>.<span class="ident">pre_context</span> <span class="op">=</span> <span class="ident">Annotated::empty</span>();
-                <span class="ident">frame</span>.<span class="ident">post_context</span> <span class="op">=</span> <span class="ident">Annotated::empty</span>();
+    </span><span class="kw">for </span>i <span class="kw">in </span>system_frames_to_remove.iter().chain(app_frames_to_remove) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(frame) = frames.get_mut(<span class="kw-2">*</span>i) {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>frame) = frame.value_mut().as_mut() {
+                frame.vars = Annotated::empty();
+                frame.pre_context = Annotated::empty();
+                frame.post_context = Annotated::empty();
             }
         }
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">similar_asserts::assert_eq</span>;
-    <span class="kw">use</span> <span class="ident">std::iter::repeat</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>similar_asserts::assert_eq;
+    <span class="kw">use </span>std::iter::repeat;
 
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor::MaxChars</span>;
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{
-        <span class="ident">Breadcrumb</span>, <span class="ident">Context</span>, <span class="ident">ContextInner</span>, <span class="ident">Contexts</span>, <span class="ident">Event</span>, <span class="ident">Exception</span>, <span class="ident">ExtraValue</span>, <span class="ident">Frame</span>,
-        <span class="ident">RawStacktrace</span>, <span class="ident">TagEntry</span>, <span class="ident">Tags</span>, <span class="ident">Values</span>,
+    <span class="kw">use </span><span class="kw">crate</span>::processor::MaxChars;
+    <span class="kw">use </span><span class="kw">crate</span>::protocol::{
+        Breadcrumb, Context, ContextInner, Contexts, Event, Exception, ExtraValue, Frame,
+        RawStacktrace, TagEntry, Tags, Values,
     };
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{
-        <span class="ident">Annotated</span>, <span class="ident">Map</span>, <span class="ident">Meta</span>, <span class="ident">Object</span>, <span class="ident">Remark</span>, <span class="ident">RemarkType</span>, <span class="ident">SerializableAnnotated</span>, <span class="ident">Value</span>,
+    <span class="kw">use </span><span class="kw">crate</span>::types::{
+        Annotated, Map, Meta, Object, Remark, RemarkType, SerializableAnnotated, Value,
     };
 
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_string_trimming</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">value</span> <span class="op">=</span>
-            <span class="ident">Annotated::new</span>(<span class="string">&quot;This is my long string I want to have trimmed!&quot;</span>.<span class="ident">to_string</span>());
-        <span class="ident">value</span>
-            .<span class="ident">apply</span>(<span class="op">|</span><span class="ident">v</span>, <span class="ident">m</span><span class="op">|</span> {
-                <span class="ident">trim_string</span>(<span class="ident">v</span>, <span class="ident">m</span>, <span class="ident">MaxChars::Hard</span>(<span class="number">20</span>));
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_string_trimming() {
+        <span class="kw">let </span><span class="kw-2">mut </span>value =
+            Annotated::new(<span class="string">&quot;This is my long string I want to have trimmed!&quot;</span>.to_string());
+        value
+            .apply(|v, m| {
+                trim_string(v, m, MaxChars::Hard(<span class="number">20</span>));
                 <span class="prelude-val">Ok</span>(())
             })
-            .<span class="ident">unwrap</span>();
+            .unwrap();
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">value</span>,
-            <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;This is my long s...&quot;</span>.<span class="ident">into</span>()), {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident">Meta::default</span>();
-                <span class="ident">meta</span>.<span class="ident">add_remark</span>(<span class="ident">Remark</span> {
-                    <span class="ident">ty</span>: <span class="ident">RemarkType::Substituted</span>,
-                    <span class="ident">rule_id</span>: <span class="string">&quot;!limit&quot;</span>.<span class="ident">to_string</span>(),
-                    <span class="ident">range</span>: <span class="prelude-val">Some</span>((<span class="number">17</span>, <span class="number">20</span>)),
+            value,
+            Annotated(<span class="prelude-val">Some</span>(<span class="string">&quot;This is my long s...&quot;</span>.into()), {
+                <span class="kw">let </span><span class="kw-2">mut </span>meta = Meta::default();
+                meta.add_remark(Remark {
+                    ty: RemarkType::Substituted,
+                    rule_id: <span class="string">&quot;!limit&quot;</span>.to_string(),
+                    range: <span class="prelude-val">Some</span>((<span class="number">17</span>, <span class="number">20</span>)),
                 });
-                <span class="ident">meta</span>.<span class="ident">set_original_length</span>(<span class="prelude-val">Some</span>(<span class="number">46</span>));
-                <span class="ident">meta</span>
+                meta.set_original_length(<span class="prelude-val">Some</span>(<span class="number">46</span>));
+                meta
             })
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_basic_trimming</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">TrimmingProcessor::new</span>();
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_basic_trimming() {
+        <span class="kw">let </span><span class="kw-2">mut </span>processor = TrimmingProcessor::new();
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">culprit</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;x&quot;</span>.<span class="ident">repeat</span>(<span class="number">300</span>)),
-            ..<span class="ident">Default::default</span>()
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
+            culprit: Annotated::new(<span class="string">&quot;x&quot;</span>.repeat(<span class="number">300</span>)),
+            ..Default::default()
         });
 
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">expected</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="string">&quot;x&quot;</span>.<span class="ident">repeat</span>(<span class="number">300</span>));
-        <span class="ident">expected</span>
-            .<span class="ident">apply</span>(<span class="op">|</span><span class="ident">v</span>, <span class="ident">m</span><span class="op">|</span> {
-                <span class="ident">trim_string</span>(<span class="ident">v</span>, <span class="ident">m</span>, <span class="ident">MaxChars::Culprit</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>expected = Annotated::new(<span class="string">&quot;x&quot;</span>.repeat(<span class="number">300</span>));
+        expected
+            .apply(|v, m| {
+                trim_string(v, m, MaxChars::Culprit);
                 <span class="prelude-val">Ok</span>(())
             })
-            .<span class="ident">unwrap</span>();
+            .unwrap();
 
-        <span class="macro">assert_eq!</span>(<span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">culprit</span>, <span class="ident">expected</span>);
+        <span class="macro">assert_eq!</span>(event.value().unwrap().culprit, expected);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_databag_stripping</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">TrimmingProcessor::new</span>();
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_databag_stripping() {
+        <span class="kw">let </span><span class="kw-2">mut </span>processor = TrimmingProcessor::new();
 
-        <span class="kw">fn</span> <span class="ident">make_nested_object</span>(<span class="ident">depth</span>: <span class="ident">usize</span>) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span> {
-            <span class="kw">if</span> <span class="ident">depth</span> <span class="op">==</span> <span class="number">0</span> {
-                <span class="kw">return</span> <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;max depth&quot;</span>.<span class="ident">to_string</span>()));
+        <span class="kw">fn </span>make_nested_object(depth: usize) -&gt; Annotated&lt;Value&gt; {
+            <span class="kw">if </span>depth == <span class="number">0 </span>{
+                <span class="kw">return </span>Annotated::new(Value::String(<span class="string">&quot;max depth&quot;</span>.to_string()));
             }
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rv</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-            <span class="ident">rv</span>.<span class="ident">insert</span>(<span class="macro">format!</span>(<span class="string">&quot;key{}&quot;</span>, <span class="ident">depth</span>), <span class="ident">make_nested_object</span>(<span class="ident">depth</span> <span class="op">-</span> <span class="number">1</span>));
-            <span class="ident">Annotated::new</span>(<span class="ident">Value::Object</span>(<span class="ident">rv</span>))
+            <span class="kw">let </span><span class="kw-2">mut </span>rv = Object::new();
+            rv.insert(<span class="macro">format!</span>(<span class="string">&quot;key{}&quot;</span>, depth), make_nested_object(depth - <span class="number">1</span>));
+            Annotated::new(Value::Object(rv))
         }
 
-        <span class="kw">let</span> <span class="ident">databag</span> <span class="op">=</span> <span class="ident">Annotated::new</span>({
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-            <span class="ident">map</span>.<span class="ident">insert</span>(
-                <span class="string">&quot;key_1&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated::new</span>(<span class="ident">ExtraValue</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value 1&quot;</span>.<span class="ident">to_string</span>()))),
+        <span class="kw">let </span>databag = Annotated::new({
+            <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
+            map.insert(
+                <span class="string">&quot;key_1&quot;</span>.to_string(),
+                Annotated::new(ExtraValue(Value::String(<span class="string">&quot;value 1&quot;</span>.to_string()))),
             );
-            <span class="ident">map</span>.<span class="ident">insert</span>(
-                <span class="string">&quot;key_2&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">make_nested_object</span>(<span class="number">8</span>).<span class="ident">map_value</span>(<span class="ident">ExtraValue</span>),
+            map.insert(
+                <span class="string">&quot;key_2&quot;</span>.to_string(),
+                make_nested_object(<span class="number">8</span>).map_value(ExtraValue),
             );
-            <span class="ident">map</span>.<span class="ident">insert</span>(
-                <span class="string">&quot;key_3&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="comment">// innermost key (string) is entering json stringify codepath</span>
-                <span class="ident">make_nested_object</span>(<span class="number">5</span>).<span class="ident">map_value</span>(<span class="ident">ExtraValue</span>),
+            map.insert(
+                <span class="string">&quot;key_3&quot;</span>.to_string(),
+                <span class="comment">// innermost key (string) is entering json stringify codepath
+                </span>make_nested_object(<span class="number">5</span>).map_value(ExtraValue),
             );
-            <span class="ident">map</span>
+            map
         });
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">extra</span>: <span class="ident">databag</span>,
-            ..<span class="ident">Default::default</span>()
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
+            extra: databag,
+            ..Default::default()
         });
 
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="ident">stripped_extra</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">extra</span>;
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="ident">stripped_extra</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>();
+        process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
+        <span class="kw">let </span>stripped_extra = <span class="kw-2">&amp;</span>event.value().unwrap().extra;
+        <span class="kw">let </span>json = stripped_extra.to_json_pretty().unwrap();
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">json</span>,
+            json,
             <span class="string">r#&quot;{
   &quot;key_1&quot;: &quot;value 1&quot;,
   &quot;key_2&quot;: {
@@ -1403,370 +1403,370 @@
       }
     }
   }
-}&quot;#</span>
-        );
+}&quot;#
+        </span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_databag_array_stripping</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">TrimmingProcessor::new</span>();
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_databag_array_stripping() {
+        <span class="kw">let </span><span class="kw-2">mut </span>processor = TrimmingProcessor::new();
 
-        <span class="kw">let</span> <span class="ident">databag</span> <span class="op">=</span> <span class="ident">Annotated::new</span>({
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-            <span class="kw">for</span> <span class="ident">idx</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">100</span> {
-                <span class="ident">map</span>.<span class="ident">insert</span>(
-                    <span class="macro">format!</span>(<span class="string">&quot;key_{}&quot;</span>, <span class="ident">idx</span>),
-                    <span class="ident">Annotated::new</span>(<span class="ident">ExtraValue</span>(<span class="ident">Value::String</span>(<span class="string">&quot;x&quot;</span>.<span class="ident">repeat</span>(<span class="number">50000</span>)))),
+        <span class="kw">let </span>databag = Annotated::new({
+            <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
+            <span class="kw">for </span>idx <span class="kw">in </span><span class="number">0</span>..<span class="number">100 </span>{
+                map.insert(
+                    <span class="macro">format!</span>(<span class="string">&quot;key_{}&quot;</span>, idx),
+                    Annotated::new(ExtraValue(Value::String(<span class="string">&quot;x&quot;</span>.repeat(<span class="number">50000</span>)))),
                 );
             }
-            <span class="ident">map</span>
+            map
         });
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">extra</span>: <span class="ident">databag</span>,
-            ..<span class="ident">Default::default</span>()
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
+            extra: databag,
+            ..Default::default()
         });
 
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="ident">stripped_extra</span> <span class="op">=</span> <span class="ident">SerializableAnnotated</span>(<span class="kw-2">&amp;</span><span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">extra</span>);
+        process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
+        <span class="kw">let </span>stripped_extra = SerializableAnnotated(<span class="kw-2">&amp;</span>event.value().unwrap().extra);
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(<span class="ident">stripped_extra</span>);
+        <span class="macro">insta::assert_ron_snapshot!</span>(stripped_extra);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_tags_stripping</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">TrimmingProcessor::new</span>();
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_tags_stripping() {
+        <span class="kw">let </span><span class="kw-2">mut </span>processor = TrimmingProcessor::new();
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">tags</span>: <span class="ident">Annotated::new</span>(<span class="ident">Tags</span>(
-                <span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">TagEntry</span>(
-                    <span class="ident">Annotated::new</span>(<span class="string">&quot;x&quot;</span>.<span class="ident">repeat</span>(<span class="number">200</span>)),
-                    <span class="ident">Annotated::new</span>(<span class="string">&quot;x&quot;</span>.<span class="ident">repeat</span>(<span class="number">300</span>)),
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
+            tags: Annotated::new(Tags(
+                <span class="macro">vec!</span>[Annotated::new(TagEntry(
+                    Annotated::new(<span class="string">&quot;x&quot;</span>.repeat(<span class="number">200</span>)),
+                    Annotated::new(<span class="string">&quot;x&quot;</span>.repeat(<span class="number">300</span>)),
                 ))]
-                .<span class="ident">into</span>(),
+                .into(),
             )),
-            ..<span class="ident">Default::default</span>()
+            ..Default::default()
         });
 
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="ident">event</span>
-            .<span class="ident">value</span>()
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">tags</span>
-            .<span class="ident">payload_to_json_pretty</span>()
-            .<span class="ident">unwrap</span>();
+        process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
+        <span class="kw">let </span>json = event
+            .value()
+            .unwrap()
+            .tags
+            .payload_to_json_pretty()
+            .unwrap();
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">json</span>,
+            json,
             <span class="string">r#&quot;[
   [
     &quot;xxxxxxxxxxxxxxxxxxxxxxxxxxxxx...&quot;,
     &quot;xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...&quot;
   ]
-]&quot;#</span>
-        );
+]&quot;#
+        </span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_databag_state_leak</span>() {
-        <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">breadcrumbs</span>: <span class="ident">Annotated::new</span>(<span class="ident">Values::new</span>(
-                <span class="ident">repeat</span>(<span class="ident">Annotated::new</span>(<span class="ident">Breadcrumb</span> {
-                    <span class="ident">data</span>: {
-                        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Map::new</span>();
-                        <span class="ident">map</span>.<span class="ident">insert</span>(
-                            <span class="string">&quot;spamspamspam&quot;</span>.<span class="ident">to_string</span>(),
-                            <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;blablabla&quot;</span>.<span class="ident">to_string</span>())),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_databag_state_leak() {
+        <span class="kw">let </span>event = Annotated::new(Event {
+            breadcrumbs: Annotated::new(Values::new(
+                repeat(Annotated::new(Breadcrumb {
+                    data: {
+                        <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
+                        map.insert(
+                            <span class="string">&quot;spamspamspam&quot;</span>.to_string(),
+                            Annotated::new(Value::String(<span class="string">&quot;blablabla&quot;</span>.to_string())),
                         );
-                        <span class="ident">Annotated::new</span>(<span class="ident">map</span>)
+                        Annotated::new(map)
                     },
-                    ..<span class="ident">Default::default</span>()
+                    ..Default::default()
                 }))
-                .<span class="ident">take</span>(<span class="number">200</span>)
-                .<span class="ident">collect</span>(),
+                .take(<span class="number">200</span>)
+                .collect(),
             )),
-            <span class="ident">exceptions</span>: <span class="ident">Annotated::new</span>(<span class="ident">Values::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">Exception</span> {
-                <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;TypeError&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">value</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;important error message&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-                <span class="ident">stacktrace</span>: <span class="ident">Annotated::new</span>(
-                    <span class="ident">RawStacktrace</span> {
-                        <span class="ident">frames</span>: <span class="ident">Annotated::new</span>(
-                            <span class="ident">repeat</span>(<span class="ident">Annotated::new</span>(<span class="ident">Frame</span> {
-                                <span class="ident">function</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;importantFunctionName&quot;</span>.<span class="ident">to_string</span>()),
-                                <span class="ident">symbol</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;important_symbol&quot;</span>.<span class="ident">to_string</span>()),
-                                ..<span class="ident">Default::default</span>()
+            exceptions: Annotated::new(Values::new(<span class="macro">vec!</span>[Annotated::new(Exception {
+                ty: Annotated::new(<span class="string">&quot;TypeError&quot;</span>.to_string()),
+                value: Annotated::new(<span class="string">&quot;important error message&quot;</span>.to_string().into()),
+                stacktrace: Annotated::new(
+                    RawStacktrace {
+                        frames: Annotated::new(
+                            repeat(Annotated::new(Frame {
+                                function: Annotated::new(<span class="string">&quot;importantFunctionName&quot;</span>.to_string()),
+                                symbol: Annotated::new(<span class="string">&quot;important_symbol&quot;</span>.to_string()),
+                                ..Default::default()
                             }))
-                            .<span class="ident">take</span>(<span class="number">200</span>)
-                            .<span class="ident">collect</span>(),
+                            .take(<span class="number">200</span>)
+                            .collect(),
                         ),
-                        ..<span class="ident">Default::default</span>()
+                        ..Default::default()
                     }
-                    .<span class="ident">into</span>(),
+                    .into(),
                 ),
-                ..<span class="ident">Default::default</span>()
+                ..Default::default()
             })])),
-            ..<span class="ident">Default::default</span>()
+            ..Default::default()
         });
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">TrimmingProcessor::new</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stripped_event</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">clone</span>();
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">stripped_event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="kw">let </span><span class="kw-2">mut </span>processor = TrimmingProcessor::new();
+        <span class="kw">let </span><span class="kw-2">mut </span>stripped_event = event.clone();
+        process_value(<span class="kw-2">&amp;mut </span>stripped_event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">event</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>(),
-            <span class="ident">stripped_event</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>()
+            event.to_json_pretty().unwrap(),
+            stripped_event.to_json_pretty().unwrap()
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_custom_context_trimming</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-        <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">1</span>..<span class="number">2</span> {
-            <span class="ident">contexts</span>.<span class="ident">insert</span>(<span class="macro">format!</span>(<span class="string">&quot;despacito{}&quot;</span>, <span class="ident">i</span>), {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                <span class="ident">context</span>.<span class="ident">insert</span>(
-                    <span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>(),
-                    <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;a&quot;</span>.<span class="ident">repeat</span>(<span class="number">4000</span>))),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_custom_context_trimming() {
+        <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
+        <span class="kw">for </span>i <span class="kw">in </span><span class="number">1</span>..<span class="number">2 </span>{
+            contexts.insert(<span class="macro">format!</span>(<span class="string">&quot;despacito{}&quot;</span>, i), {
+                <span class="kw">let </span><span class="kw-2">mut </span>context = Object::new();
+                context.insert(
+                    <span class="string">&quot;foo&quot;</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">&quot;a&quot;</span>.repeat(<span class="number">4000</span>))),
                 );
-                <span class="ident">context</span>.<span class="ident">insert</span>(
-                    <span class="string">&quot;bar&quot;</span>.<span class="ident">to_string</span>(),
-                    <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;a&quot;</span>.<span class="ident">repeat</span>(<span class="number">5000</span>))),
+                context.insert(
+                    <span class="string">&quot;bar&quot;</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">&quot;a&quot;</span>.repeat(<span class="number">5000</span>))),
                 );
-                <span class="ident">Annotated::new</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Other</span>(<span class="ident">context</span>)))
+                Annotated::new(ContextInner(Context::Other(context)))
             });
         }
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Contexts</span>(<span class="ident">contexts</span>));
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">TrimmingProcessor::new</span>();
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">contexts</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="kw">let </span><span class="kw-2">mut </span>contexts = Annotated::new(Contexts(contexts));
+        <span class="kw">let </span><span class="kw-2">mut </span>processor = TrimmingProcessor::new();
+        process_value(<span class="kw-2">&amp;mut </span>contexts, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
-        <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">1</span>..<span class="number">2</span> {
-            <span class="kw">let</span> <span class="ident">other</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">contexts</span>
-                .<span class="ident">value</span>()
-                .<span class="ident">unwrap</span>()
-                .<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;despacito{}&quot;</span>, <span class="ident">i</span>))
-                .<span class="ident">unwrap</span>()
-                .<span class="ident">value</span>()
-                .<span class="ident">unwrap</span>()
-                .<span class="number">0</span>
-            {
-                <span class="ident">Context::Other</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) =&gt; <span class="ident">x</span>,
-                <span class="kw">_</span> =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Context has changed type!&quot;</span>),
+        <span class="kw">for </span>i <span class="kw">in </span><span class="number">1</span>..<span class="number">2 </span>{
+            <span class="kw">let </span>other = <span class="kw">match </span>contexts
+                .value()
+                .unwrap()
+                .get(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;despacito{}&quot;</span>, i))
+                .unwrap()
+                .value()
+                .unwrap()
+                .<span class="number">0
+            </span>{
+                Context::Other(<span class="kw-2">ref </span>x) =&gt; x,
+                <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">&quot;Context has changed type!&quot;</span>),
             };
 
             <span class="macro">assert_eq!</span>(
-                <span class="ident">other</span>
-                    .<span class="ident">get</span>(<span class="string">&quot;bar&quot;</span>)
-                    .<span class="ident">unwrap</span>()
-                    .<span class="ident">value</span>()
-                    .<span class="ident">unwrap</span>()
-                    .<span class="ident">as_str</span>()
-                    .<span class="ident">unwrap</span>()
-                    .<span class="ident">len</span>(),
-                <span class="number">5000</span>
-            );
+                other
+                    .get(<span class="string">&quot;bar&quot;</span>)
+                    .unwrap()
+                    .value()
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+                    .len(),
+                <span class="number">5000
+            </span>);
             <span class="macro">assert_eq!</span>(
-                <span class="ident">other</span>
-                    .<span class="ident">get</span>(<span class="string">&quot;foo&quot;</span>)
-                    .<span class="ident">unwrap</span>()
-                    .<span class="ident">value</span>()
-                    .<span class="ident">unwrap</span>()
-                    .<span class="ident">as_str</span>()
-                    .<span class="ident">unwrap</span>()
-                    .<span class="ident">len</span>(),
-                <span class="number">3189</span>
-            );
+                other
+                    .get(<span class="string">&quot;foo&quot;</span>)
+                    .unwrap()
+                    .value()
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+                    .len(),
+                <span class="number">3189
+            </span>);
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_extra_trimming_long_arrays</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">extra</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-        <span class="ident">extra</span>.<span class="ident">insert</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>(), {
-            <span class="ident">Annotated::new</span>(<span class="ident">ExtraValue</span>(<span class="ident">Value::Array</span>(
-                <span class="ident">repeat</span>(<span class="ident">Annotated::new</span>(<span class="ident">Value::U64</span>(<span class="number">1</span>)))
-                    .<span class="ident">take</span>(<span class="number">200_000</span>)
-                    .<span class="ident">collect</span>(),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_extra_trimming_long_arrays() {
+        <span class="kw">let </span><span class="kw-2">mut </span>extra = Object::new();
+        extra.insert(<span class="string">&quot;foo&quot;</span>.to_string(), {
+            Annotated::new(ExtraValue(Value::Array(
+                repeat(Annotated::new(Value::U64(<span class="number">1</span>)))
+                    .take(<span class="number">200_000</span>)
+                    .collect(),
             )))
         });
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">extra</span>: <span class="ident">Annotated::new</span>(<span class="ident">extra</span>),
-            ..<span class="ident">Default::default</span>()
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
+            extra: Annotated::new(extra),
+            ..Default::default()
         });
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">TrimmingProcessor::new</span>();
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="kw">let </span><span class="kw-2">mut </span>processor = TrimmingProcessor::new();
+        process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
-        <span class="kw">let</span> <span class="ident">arr</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">event</span>
-            .<span class="ident">value</span>()
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">extra</span>
-            .<span class="ident">value</span>()
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">get</span>(<span class="string">&quot;foo&quot;</span>)
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">value</span>()
-            .<span class="ident">unwrap</span>()
+        <span class="kw">let </span>arr = <span class="kw">match </span>event
+            .value()
+            .unwrap()
+            .extra
+            .value()
+            .unwrap()
+            .get(<span class="string">&quot;foo&quot;</span>)
+            .unwrap()
+            .value()
+            .unwrap()
         {
-            <span class="ident">ExtraValue</span>(<span class="ident">Value::Array</span>(<span class="ident">x</span>)) =&gt; <span class="ident">x</span>,
-            <span class="ident">x</span> =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Wrong type: {:?}&quot;</span>, <span class="ident">x</span>),
+            ExtraValue(Value::Array(x)) =&gt; x,
+            x =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Wrong type: {:?}&quot;</span>, x),
         };
 
-        <span class="comment">// this is larger / 2 for the extra value</span>
-        <span class="macro">assert_eq!</span>(<span class="ident">arr</span>.<span class="ident">len</span>(), <span class="number">8192</span>);
+        <span class="comment">// this is larger / 2 for the extra value
+        </span><span class="macro">assert_eq!</span>(arr.len(), <span class="number">8192</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_newtypes_do_not_add_to_depth</span>() {
-        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>, <span class="ident">Empty</span>)]</span>
-        <span class="kw">struct</span> <span class="ident">WrappedString</span>(<span class="ident">String</span>);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_newtypes_do_not_add_to_depth() {
+        <span class="attribute">#[derive(Debug, Clone, FromValue, IntoValue, ProcessValue, Empty)]
+        </span><span class="kw">struct </span>WrappedString(String);
 
-        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>, <span class="ident">Empty</span>)]</span>
-        <span class="kw">struct</span> <span class="ident">StructChild2</span> {
-            <span class="ident">inner</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">WrappedString</span><span class="op">&gt;</span>,
+        <span class="attribute">#[derive(Debug, Clone, FromValue, IntoValue, ProcessValue, Empty)]
+        </span><span class="kw">struct </span>StructChild2 {
+            inner: Annotated&lt;WrappedString&gt;,
         }
 
-        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>, <span class="ident">Empty</span>)]</span>
-        <span class="kw">struct</span> <span class="ident">StructChild</span> {
-            <span class="ident">inner</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">StructChild2</span><span class="op">&gt;</span>,
+        <span class="attribute">#[derive(Debug, Clone, FromValue, IntoValue, ProcessValue, Empty)]
+        </span><span class="kw">struct </span>StructChild {
+            inner: Annotated&lt;StructChild2&gt;,
         }
 
-        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>, <span class="ident">Empty</span>)]</span>
-        <span class="kw">struct</span> <span class="ident">Struct</span> {
-            <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">bag_size</span> <span class="op">=</span> <span class="string">&quot;small&quot;</span>)]</span>
-            <span class="ident">inner</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">StructChild</span><span class="op">&gt;</span>,
+        <span class="attribute">#[derive(Debug, Clone, FromValue, IntoValue, ProcessValue, Empty)]
+        </span><span class="kw">struct </span>Struct {
+            <span class="attribute">#[metastructure(bag_size = <span class="string">&quot;small&quot;</span>)]
+            </span>inner: Annotated&lt;StructChild&gt;,
         }
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Struct</span> {
-            <span class="ident">inner</span>: <span class="ident">Annotated::new</span>(<span class="ident">StructChild</span> {
-                <span class="ident">inner</span>: <span class="ident">Annotated::new</span>(<span class="ident">StructChild2</span> {
-                    <span class="ident">inner</span>: <span class="ident">Annotated::new</span>(<span class="ident">WrappedString</span>(<span class="string">&quot;hi&quot;</span>.<span class="ident">to_string</span>())),
+        <span class="kw">let </span><span class="kw-2">mut </span>value = Annotated::new(Struct {
+            inner: Annotated::new(StructChild {
+                inner: Annotated::new(StructChild2 {
+                    inner: Annotated::new(WrappedString(<span class="string">&quot;hi&quot;</span>.to_string())),
                 }),
             }),
         });
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">TrimmingProcessor::new</span>();
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">value</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="kw">let </span><span class="kw-2">mut </span>processor = TrimmingProcessor::new();
+        process_value(<span class="kw-2">&amp;mut </span>value, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
-        <span class="comment">// Ensure stack does not leak with newtypes</span>
-        <span class="macro">assert!</span>(<span class="ident">processor</span>.<span class="ident">bag_size_state</span>.<span class="ident">is_empty</span>());
+        <span class="comment">// Ensure stack does not leak with newtypes
+        </span><span class="macro">assert!</span>(processor.bag_size_state.is_empty());
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">value</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>(),
-            <span class="string">r#&quot;{&quot;inner&quot;:{&quot;inner&quot;:{&quot;inner&quot;:&quot;hi&quot;}}}&quot;#</span>
-        );
+            value.to_json().unwrap(),
+            <span class="string">r#&quot;{&quot;inner&quot;:{&quot;inner&quot;:{&quot;inner&quot;:&quot;hi&quot;}}}&quot;#
+        </span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_frame_hard_limit</span>() {
-        <span class="kw">fn</span> <span class="ident">create_frame</span>(<span class="ident">filename</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Frame</span><span class="op">&gt;</span> {
-            <span class="ident">Annotated::new</span>(<span class="ident">Frame</span> {
-                <span class="ident">filename</span>: <span class="ident">Annotated::new</span>(<span class="ident">filename</span>.<span class="ident">into</span>()),
-                ..<span class="ident">Default::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_frame_hard_limit() {
+        <span class="kw">fn </span>create_frame(filename: <span class="kw-2">&amp;</span>str) -&gt; Annotated&lt;Frame&gt; {
+            Annotated::new(Frame {
+                filename: Annotated::new(filename.into()),
+                ..Default::default()
             })
         }
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">frames</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[
-            <span class="ident">create_frame</span>(<span class="string">&quot;foo1.py&quot;</span>),
-            <span class="ident">create_frame</span>(<span class="string">&quot;foo2.py&quot;</span>),
-            <span class="ident">create_frame</span>(<span class="string">&quot;foo3.py&quot;</span>),
-            <span class="ident">create_frame</span>(<span class="string">&quot;foo4.py&quot;</span>),
-            <span class="ident">create_frame</span>(<span class="string">&quot;foo5.py&quot;</span>),
+        <span class="kw">let </span><span class="kw-2">mut </span>frames = Annotated::new(<span class="macro">vec!</span>[
+            create_frame(<span class="string">&quot;foo1.py&quot;</span>),
+            create_frame(<span class="string">&quot;foo2.py&quot;</span>),
+            create_frame(<span class="string">&quot;foo3.py&quot;</span>),
+            create_frame(<span class="string">&quot;foo4.py&quot;</span>),
+            create_frame(<span class="string">&quot;foo5.py&quot;</span>),
         ]);
 
-        <span class="ident">frames</span>
-            .<span class="ident">apply</span>(<span class="op">|</span><span class="ident">f</span>, <span class="ident">m</span><span class="op">|</span> {
-                <span class="ident">enforce_frame_hard_limit</span>(<span class="ident">f</span>, <span class="ident">m</span>, <span class="number">3</span>);
+        frames
+            .apply(|f, m| {
+                enforce_frame_hard_limit(f, m, <span class="number">3</span>);
                 <span class="prelude-val">Ok</span>(())
             })
-            .<span class="ident">unwrap</span>();
+            .unwrap();
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">expected_meta</span> <span class="op">=</span> <span class="ident">Meta::default</span>();
-        <span class="ident">expected_meta</span>.<span class="ident">set_original_length</span>(<span class="prelude-val">Some</span>(<span class="number">5</span>));
+        <span class="kw">let </span><span class="kw-2">mut </span>expected_meta = Meta::default();
+        expected_meta.set_original_length(<span class="prelude-val">Some</span>(<span class="number">5</span>));
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">frames</span>,
-            <span class="ident">Annotated</span>(
+            frames,
+            Annotated(
                 <span class="prelude-val">Some</span>(<span class="macro">vec!</span>[
-                    <span class="ident">create_frame</span>(<span class="string">&quot;foo1.py&quot;</span>),
-                    <span class="ident">create_frame</span>(<span class="string">&quot;foo2.py&quot;</span>),
-                    <span class="ident">create_frame</span>(<span class="string">&quot;foo5.py&quot;</span>),
+                    create_frame(<span class="string">&quot;foo1.py&quot;</span>),
+                    create_frame(<span class="string">&quot;foo2.py&quot;</span>),
+                    create_frame(<span class="string">&quot;foo5.py&quot;</span>),
                 ]),
-                <span class="ident">expected_meta</span>
+                expected_meta
             )
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_slim_frame_data_under_max</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">frames</span> <span class="op">=</span> <span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">Frame</span> {
-            <span class="ident">filename</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">into</span>()),
-            <span class="ident">pre_context</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>())]),
-            <span class="ident">context_line</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;b&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">post_context</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="string">&quot;c&quot;</span>.<span class="ident">to_string</span>())]),
-            ..<span class="ident">Default::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_slim_frame_data_under_max() {
+        <span class="kw">let </span><span class="kw-2">mut </span>frames = <span class="macro">vec!</span>[Annotated::new(Frame {
+            filename: Annotated::new(<span class="string">&quot;foo&quot;</span>.into()),
+            pre_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">&quot;a&quot;</span>.to_string())]),
+            context_line: Annotated::new(<span class="string">&quot;b&quot;</span>.to_string()),
+            post_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">&quot;c&quot;</span>.to_string())]),
+            ..Default::default()
         })];
 
-        <span class="kw">let</span> <span class="ident">old_frames</span> <span class="op">=</span> <span class="ident">frames</span>.<span class="ident">clone</span>();
-        <span class="ident">slim_frame_data</span>(<span class="kw-2">&amp;mut</span> <span class="ident">frames</span>, <span class="number">4</span>);
+        <span class="kw">let </span>old_frames = frames.clone();
+        slim_frame_data(<span class="kw-2">&amp;mut </span>frames, <span class="number">4</span>);
 
-        <span class="macro">assert_eq!</span>(<span class="ident">frames</span>, <span class="ident">old_frames</span>);
+        <span class="macro">assert_eq!</span>(frames, old_frames);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_slim_frame_data_over_max</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">frames</span> <span class="op">=</span> <span class="macro">vec!</span>[];
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_slim_frame_data_over_max() {
+        <span class="kw">let </span><span class="kw-2">mut </span>frames = <span class="macro">vec!</span>[];
 
-        <span class="kw">for</span> <span class="ident">n</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">5</span> {
-            <span class="ident">frames</span>.<span class="ident">push</span>(<span class="ident">Annotated::new</span>(<span class="ident">Frame</span> {
-                <span class="ident">filename</span>: <span class="ident">Annotated::new</span>(<span class="macro">format!</span>(<span class="string">&quot;foo {}&quot;</span>, <span class="ident">n</span>).<span class="ident">into</span>()),
-                <span class="ident">pre_context</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>())]),
-                <span class="ident">context_line</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;b&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">post_context</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="string">&quot;c&quot;</span>.<span class="ident">to_string</span>())]),
-                ..<span class="ident">Default::default</span>()
+        <span class="kw">for </span>n <span class="kw">in </span><span class="number">0</span>..<span class="number">5 </span>{
+            frames.push(Annotated::new(Frame {
+                filename: Annotated::new(<span class="macro">format!</span>(<span class="string">&quot;foo {}&quot;</span>, n).into()),
+                pre_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">&quot;a&quot;</span>.to_string())]),
+                context_line: Annotated::new(<span class="string">&quot;b&quot;</span>.to_string()),
+                post_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">&quot;c&quot;</span>.to_string())]),
+                ..Default::default()
             }));
         }
 
-        <span class="ident">slim_frame_data</span>(<span class="kw-2">&amp;mut</span> <span class="ident">frames</span>, <span class="number">4</span>);
+        slim_frame_data(<span class="kw-2">&amp;mut </span>frames, <span class="number">4</span>);
 
-        <span class="kw">let</span> <span class="ident">expected</span> <span class="op">=</span> <span class="macro">vec!</span>[
-            <span class="ident">Annotated::new</span>(<span class="ident">Frame</span> {
-                <span class="ident">filename</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;foo 0&quot;</span>.<span class="ident">into</span>()),
-                <span class="ident">pre_context</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>())]),
-                <span class="ident">context_line</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;b&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">post_context</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="string">&quot;c&quot;</span>.<span class="ident">to_string</span>())]),
-                ..<span class="ident">Default::default</span>()
+        <span class="kw">let </span>expected = <span class="macro">vec!</span>[
+            Annotated::new(Frame {
+                filename: Annotated::new(<span class="string">&quot;foo 0&quot;</span>.into()),
+                pre_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">&quot;a&quot;</span>.to_string())]),
+                context_line: Annotated::new(<span class="string">&quot;b&quot;</span>.to_string()),
+                post_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">&quot;c&quot;</span>.to_string())]),
+                ..Default::default()
             }),
-            <span class="ident">Annotated::new</span>(<span class="ident">Frame</span> {
-                <span class="ident">filename</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;foo 1&quot;</span>.<span class="ident">into</span>()),
-                <span class="ident">pre_context</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>())]),
-                <span class="ident">context_line</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;b&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">post_context</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="string">&quot;c&quot;</span>.<span class="ident">to_string</span>())]),
-                ..<span class="ident">Default::default</span>()
+            Annotated::new(Frame {
+                filename: Annotated::new(<span class="string">&quot;foo 1&quot;</span>.into()),
+                pre_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">&quot;a&quot;</span>.to_string())]),
+                context_line: Annotated::new(<span class="string">&quot;b&quot;</span>.to_string()),
+                post_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">&quot;c&quot;</span>.to_string())]),
+                ..Default::default()
             }),
-            <span class="ident">Annotated::new</span>(<span class="ident">Frame</span> {
-                <span class="ident">filename</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;foo 2&quot;</span>.<span class="ident">into</span>()),
-                <span class="ident">context_line</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;b&quot;</span>.<span class="ident">to_string</span>()),
-                ..<span class="ident">Default::default</span>()
+            Annotated::new(Frame {
+                filename: Annotated::new(<span class="string">&quot;foo 2&quot;</span>.into()),
+                context_line: Annotated::new(<span class="string">&quot;b&quot;</span>.to_string()),
+                ..Default::default()
             }),
-            <span class="ident">Annotated::new</span>(<span class="ident">Frame</span> {
-                <span class="ident">filename</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;foo 3&quot;</span>.<span class="ident">into</span>()),
-                <span class="ident">pre_context</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>())]),
-                <span class="ident">context_line</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;b&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">post_context</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="string">&quot;c&quot;</span>.<span class="ident">to_string</span>())]),
-                ..<span class="ident">Default::default</span>()
+            Annotated::new(Frame {
+                filename: Annotated::new(<span class="string">&quot;foo 3&quot;</span>.into()),
+                pre_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">&quot;a&quot;</span>.to_string())]),
+                context_line: Annotated::new(<span class="string">&quot;b&quot;</span>.to_string()),
+                post_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">&quot;c&quot;</span>.to_string())]),
+                ..Default::default()
             }),
-            <span class="ident">Annotated::new</span>(<span class="ident">Frame</span> {
-                <span class="ident">filename</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;foo 4&quot;</span>.<span class="ident">into</span>()),
-                <span class="ident">pre_context</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>())]),
-                <span class="ident">context_line</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;b&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">post_context</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="string">&quot;c&quot;</span>.<span class="ident">to_string</span>())]),
-                ..<span class="ident">Default::default</span>()
+            Annotated::new(Frame {
+                filename: Annotated::new(<span class="string">&quot;foo 4&quot;</span>.into()),
+                pre_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">&quot;a&quot;</span>.to_string())]),
+                context_line: Annotated::new(<span class="string">&quot;b&quot;</span>.to_string()),
+                post_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">&quot;c&quot;</span>.to_string())]),
+                ..Default::default()
             }),
         ];
 
-        <span class="macro">assert_eq!</span>(<span class="ident">frames</span>, <span class="ident">expected</span>);
+        <span class="macro">assert_eq!</span>(frames, expected);
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

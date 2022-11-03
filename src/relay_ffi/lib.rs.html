@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-ffi/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_ffi/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_ffi/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-ffi/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_ffi/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_ffi/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_ffi/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -293,298 +293,298 @@
 <span id="291">291</span>
 <span id="292">292</span>
 <span id="293">293</span>
-</pre><pre class="rust"><code><span class="doccomment">//! Utilities for error handling in FFI bindings.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! This crate facilitates an [`errno`]-like error handling pattern: On success, the result of a</span>
-<span class="doccomment">//! function call is returned. On error, a thread-local marker is set that allows to retrieve the</span>
-<span class="doccomment">//! error, message, and a backtrace if available.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! # Catch Errors and Panics</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! The [`catch_unwind`] attribute annotates functions that can internally throw errors. It allows</span>
-<span class="doccomment">//! the use of the questionmark operator `?` in a function that does not return `Result`. The error</span>
-<span class="doccomment">//! is then available using [`with_last_error`]:</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//! use relay_ffi::catch_unwind;</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! #[catch_unwind]</span>
-<span class="doccomment">//! unsafe fn parse_number() -&gt; i32 {</span>
-<span class="doccomment">//!     // use the questionmark operator for errors:</span>
-<span class="doccomment">//!     let number: i32 = &quot;42&quot;.parse()?;</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//!     // return the value directly, not `Ok`:</span>
-<span class="doccomment">//!     number * 2</span>
-<span class="doccomment">//! }</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! # Safety</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Since function calls always need to return a value, this crate has to return</span>
-<span class="doccomment">//! `std::mem::zeroed()` as a placeholder in case of an error. This is unsafe for reference types</span>
-<span class="doccomment">//! and function pointers. Because of this, functions must be marked `unsafe`.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! In most cases, FFI functions should return either `repr(C)` structs or pointers, in which case</span>
-<span class="doccomment">//! this is safe in principle. The author of the API is responsible for defining the contract,</span>
-<span class="doccomment">//! however, and document the behavior of custom structures in case of an error.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! # Examples</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Annotate FFI functions with [`catch_unwind`] to capture errors. The error can be inspected via</span>
-<span class="doccomment">//! [`with_last_error`]:</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//! use relay_ffi::{catch_unwind, with_last_error};</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! #[catch_unwind]</span>
-<span class="doccomment">//! unsafe fn parse_number() -&gt; i32 {</span>
-<span class="doccomment">//!     &quot;42&quot;.parse()?</span>
-<span class="doccomment">//! }</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! let parsed = unsafe { parse_number() };</span>
-<span class="doccomment">//! match with_last_error(|e| e.to_string()) {</span>
-<span class="doccomment">//!     Some(error) =&gt; println!(&quot;errored with: {}&quot;, error),</span>
-<span class="doccomment">//!     None =&gt; println!(&quot;result: {}&quot;, parsed),</span>
-<span class="doccomment">//! }</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! To capture panics, register the panic hook early during library initialization:</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//! use relay_ffi::{catch_unwind, with_last_error};</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! relay_ffi::set_panic_hook();</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! #[catch_unwind]</span>
-<span class="doccomment">//! unsafe fn fail() {</span>
-<span class="doccomment">//!     panic!(&quot;expected panic&quot;);</span>
-<span class="doccomment">//! }</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! unsafe { fail() };</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! if let Some(description) = with_last_error(|e| e.to_string()) {</span>
-<span class="doccomment">//!     println!(&quot;{}&quot;, description);</span>
-<span class="doccomment">//! }</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! # Creating C-APIs</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! This is an example for exposing an API to C:</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//! use std::ffi::CString;</span>
-<span class="doccomment">//! use std::os::raw::c_char;</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! #[no_mangle]</span>
-<span class="doccomment">//! pub unsafe extern &quot;C&quot; fn init_ffi() {</span>
-<span class="doccomment">//!     relay_ffi::set_panic_hook();</span>
-<span class="doccomment">//! }</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! #[no_mangle]</span>
-<span class="doccomment">//! pub unsafe extern &quot;C&quot; fn last_strerror() -&gt; *mut c_char {</span>
-<span class="doccomment">//!     let ptr_opt = relay_ffi::with_last_error(|err| {</span>
-<span class="doccomment">//!         CString::new(err.to_string())</span>
-<span class="doccomment">//!             .unwrap_or_default()</span>
-<span class="doccomment">//!             .into_raw()</span>
-<span class="doccomment">//!     });</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//!     ptr_opt.unwrap_or(std::ptr::null_mut())</span>
-<span class="doccomment">//! }</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! [`errno`]: https://man7.org/linux/man-pages/man3/errno.3.html</span>
+</pre><pre class="rust"><code><span class="doccomment">//! Utilities for error handling in FFI bindings.
+//!
+//! This crate facilitates an [`errno`]-like error handling pattern: On success, the result of a
+//! function call is returned. On error, a thread-local marker is set that allows to retrieve the
+//! error, message, and a backtrace if available.
+//!
+//! # Catch Errors and Panics
+//!
+//! The [`catch_unwind`] attribute annotates functions that can internally throw errors. It allows
+//! the use of the questionmark operator `?` in a function that does not return `Result`. The error
+//! is then available using [`with_last_error`]:
+//!
+//! ```
+//! use relay_ffi::catch_unwind;
+//!
+//! #[catch_unwind]
+//! unsafe fn parse_number() -&gt; i32 {
+//!     // use the questionmark operator for errors:
+//!     let number: i32 = &quot;42&quot;.parse()?;
+//!
+//!     // return the value directly, not `Ok`:
+//!     number * 2
+//! }
+//! ```
+//!
+//! # Safety
+//!
+//! Since function calls always need to return a value, this crate has to return
+//! `std::mem::zeroed()` as a placeholder in case of an error. This is unsafe for reference types
+//! and function pointers. Because of this, functions must be marked `unsafe`.
+//!
+//! In most cases, FFI functions should return either `repr(C)` structs or pointers, in which case
+//! this is safe in principle. The author of the API is responsible for defining the contract,
+//! however, and document the behavior of custom structures in case of an error.
+//!
+//! # Examples
+//!
+//! Annotate FFI functions with [`catch_unwind`] to capture errors. The error can be inspected via
+//! [`with_last_error`]:
+//!
+//! ```
+//! use relay_ffi::{catch_unwind, with_last_error};
+//!
+//! #[catch_unwind]
+//! unsafe fn parse_number() -&gt; i32 {
+//!     &quot;42&quot;.parse()?
+//! }
+//!
+//! let parsed = unsafe { parse_number() };
+//! match with_last_error(|e| e.to_string()) {
+//!     Some(error) =&gt; println!(&quot;errored with: {}&quot;, error),
+//!     None =&gt; println!(&quot;result: {}&quot;, parsed),
+//! }
+//! ```
+//!
+//! To capture panics, register the panic hook early during library initialization:
+//!
+//! ```
+//! use relay_ffi::{catch_unwind, with_last_error};
+//!
+//! relay_ffi::set_panic_hook();
+//!
+//! #[catch_unwind]
+//! unsafe fn fail() {
+//!     panic!(&quot;expected panic&quot;);
+//! }
+//!
+//! unsafe { fail() };
+//!
+//! if let Some(description) = with_last_error(|e| e.to_string()) {
+//!     println!(&quot;{}&quot;, description);
+//! }
+//! ```
+//!
+//! # Creating C-APIs
+//!
+//! This is an example for exposing an API to C:
+//!
+//! ```
+//! use std::ffi::CString;
+//! use std::os::raw::c_char;
+//!
+//! #[no_mangle]
+//! pub unsafe extern &quot;C&quot; fn init_ffi() {
+//!     relay_ffi::set_panic_hook();
+//! }
+//!
+//! #[no_mangle]
+//! pub unsafe extern &quot;C&quot; fn last_strerror() -&gt; *mut c_char {
+//!     let ptr_opt = relay_ffi::with_last_error(|err| {
+//!         CString::new(err.to_string())
+//!             .unwrap_or_default()
+//!             .into_raw()
+//!     });
+//!
+//!     ptr_opt.unwrap_or(std::ptr::null_mut())
+//! }
+//! ```
+//!
+//! [`errno`]: https://man7.org/linux/man-pages/man3/errno.3.html
 
-<span class="attribute">#![<span class="ident">warn</span>(<span class="ident">missing_docs</span>)]</span>
-<span class="attribute">#![<span class="ident">doc</span>(
-    <span class="ident">html_logo_url</span> <span class="op">=</span> <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
-    <span class="ident">html_favicon_url</span> <span class="op">=</span> <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>
-)]</span>
-<span class="attribute">#![<span class="ident">allow</span>(<span class="ident">clippy::derive_partial_eq_without_eq</span>)]</span>
+</span><span class="attribute">#![warn(missing_docs)]
+#![doc(
+    html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
+    html_favicon_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;
+</span>)]
+#![allow(clippy::derive_partial_eq_without_eq)]
 
-<span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
-<span class="kw">use</span> <span class="ident">std::error::Error</span>;
-<span class="kw">use</span> <span class="ident">std::fmt</span>;
-<span class="kw">use</span> <span class="ident">std::panic</span>;
-<span class="kw">use</span> <span class="ident">std::thread</span>;
+</span><span class="kw">use </span>std::cell::RefCell;
+<span class="kw">use </span>std::error::Error;
+<span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::panic;
+<span class="kw">use </span>std::thread;
 
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">relay_ffi_macros::catch_unwind</span>;
+<span class="kw">pub use </span>relay_ffi_macros::catch_unwind;
 
-<span class="macro">thread_local!</span> {
-    <span class="kw">static</span> <span class="ident">LAST_ERROR</span>: <span class="ident">RefCell</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">failure::Error</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">RefCell::new</span>(<span class="prelude-val">None</span>);
+<span class="macro">thread_local! </span>{
+    <span class="kw">static </span>LAST_ERROR: RefCell&lt;<span class="prelude-ty">Option</span>&lt;failure::Error&gt;&gt; = RefCell::new(<span class="prelude-val">None</span>);
 }
 
-<span class="kw">fn</span> <span class="ident">set_last_error</span>(<span class="ident">err</span>: <span class="ident">failure::Error</span>) {
-    <span class="ident">LAST_ERROR</span>.<span class="ident">with</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> {
-        <span class="kw-2">*</span><span class="ident">e</span>.<span class="ident">borrow_mut</span>() <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">err</span>);
+<span class="kw">fn </span>set_last_error(err: failure::Error) {
+    LAST_ERROR.with(|e| {
+        <span class="kw-2">*</span>e.borrow_mut() = <span class="prelude-val">Some</span>(err);
     });
 }
 
-<span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">__internal</span> {
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+<span class="attribute">#[doc(hidden)]
+</span><span class="kw">pub mod </span>__internal {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="doccomment">/// Catches down panics and errors from the given closure.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Returns the result of the passed function on success. On error or panic, returns</span>
-    <span class="doccomment">/// zero-initialized memory and sets the thread-local error.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// # Safety</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Returns `std::mem::zeroed` on error, which is unsafe for reference types and function</span>
-    <span class="doccomment">/// pointers.</span>
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">catch_errors</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">f</span>: <span class="ident">F</span>) -&gt; <span class="ident">T</span>
-    <span class="kw">where</span>
-        <span class="ident">F</span>: <span class="ident">FnOnce</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">failure::Error</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">panic::UnwindSafe</span>,
+    <span class="doccomment">/// Catches down panics and errors from the given closure.
+    ///
+    /// Returns the result of the passed function on success. On error or panic, returns
+    /// zero-initialized memory and sets the thread-local error.
+    ///
+    /// # Safety
+    ///
+    /// Returns `std::mem::zeroed` on error, which is unsafe for reference types and function
+    /// pointers.
+    </span><span class="attribute">#[inline]
+    </span><span class="kw">pub unsafe fn </span>catch_errors&lt;F, T&gt;(f: F) -&gt; T
+    <span class="kw">where
+        </span>F: FnOnce() -&gt; <span class="prelude-ty">Result</span>&lt;T, failure::Error&gt; + panic::UnwindSafe,
     {
-        <span class="kw">match</span> <span class="ident">panic::catch_unwind</span>(<span class="ident">f</span>) {
-            <span class="prelude-val">Ok</span>(<span class="prelude-val">Ok</span>(<span class="ident">result</span>)) =&gt; <span class="ident">result</span>,
-            <span class="prelude-val">Ok</span>(<span class="prelude-val">Err</span>(<span class="ident">err</span>)) =&gt; {
-                <span class="ident">set_last_error</span>(<span class="ident">err</span>);
-                <span class="ident">std::mem::zeroed</span>()
+        <span class="kw">match </span>panic::catch_unwind(f) {
+            <span class="prelude-val">Ok</span>(<span class="prelude-val">Ok</span>(result)) =&gt; result,
+            <span class="prelude-val">Ok</span>(<span class="prelude-val">Err</span>(err)) =&gt; {
+                set_last_error(err);
+                std::mem::zeroed()
             }
-            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="ident">std::mem::zeroed</span>(),
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; std::mem::zeroed(),
         }
     }
 }
 
-<span class="doccomment">/// Acquires a reference to the last error and passes it to the callback, if any.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Returns `Some(R)` if there was an error, otherwise `None`. The error resets when it is taken</span>
-<span class="doccomment">/// with [`take_last_error`].</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// # Example</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">/// use relay_ffi::{catch_unwind, with_last_error};</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// #[catch_unwind]</span>
-<span class="doccomment">/// unsafe fn run_ffi() -&gt; i32 {</span>
-<span class="doccomment">///     &quot;invalid&quot;.parse()?</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// let parsed = unsafe { run_ffi() };</span>
-<span class="doccomment">/// match with_last_error(|e| e.to_string()) {</span>
-<span class="doccomment">///     Some(error) =&gt; println!(&quot;errored with: {}&quot;, error),</span>
-<span class="doccomment">///     None =&gt; println!(&quot;result: {}&quot;, parsed),</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">/// ```</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_last_error</span><span class="op">&lt;</span><span class="ident">R</span>, <span class="ident">F</span><span class="op">&gt;</span>(<span class="ident">f</span>: <span class="ident">F</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">R</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">F</span>: <span class="ident">FnOnce</span>(<span class="kw-2">&amp;</span><span class="ident">failure::Error</span>) -&gt; <span class="ident">R</span>,
+<span class="doccomment">/// Acquires a reference to the last error and passes it to the callback, if any.
+///
+/// Returns `Some(R)` if there was an error, otherwise `None`. The error resets when it is taken
+/// with [`take_last_error`].
+///
+/// # Example
+///
+/// ```
+/// use relay_ffi::{catch_unwind, with_last_error};
+///
+/// #[catch_unwind]
+/// unsafe fn run_ffi() -&gt; i32 {
+///     &quot;invalid&quot;.parse()?
+/// }
+///
+/// let parsed = unsafe { run_ffi() };
+/// match with_last_error(|e| e.to_string()) {
+///     Some(error) =&gt; println!(&quot;errored with: {}&quot;, error),
+///     None =&gt; println!(&quot;result: {}&quot;, parsed),
+/// }
+/// ```
+</span><span class="kw">pub fn </span>with_last_error&lt;R, F&gt;(f: F) -&gt; <span class="prelude-ty">Option</span>&lt;R&gt;
+<span class="kw">where
+    </span>F: FnOnce(<span class="kw-2">&amp;</span>failure::Error) -&gt; R,
 {
-    <span class="ident">LAST_ERROR</span>.<span class="ident">with</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">e</span>.<span class="ident">borrow</span>().<span class="ident">as_ref</span>().<span class="ident">map</span>(<span class="ident">f</span>))
+    LAST_ERROR.with(|e| e.borrow().as_ref().map(f))
 }
 
-<span class="doccomment">/// Takes the last error, leaving `None` in its place.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// To inspect the error without removing it, use [`with_last_error`].</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// # Example</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">/// use relay_ffi::{catch_unwind, take_last_error};</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// #[catch_unwind]</span>
-<span class="doccomment">/// unsafe fn run_ffi() -&gt; i32 {</span>
-<span class="doccomment">///     &quot;invalid&quot;.parse()?</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// let parsed = unsafe { run_ffi() };</span>
-<span class="doccomment">/// match take_last_error() {</span>
-<span class="doccomment">///     Some(error) =&gt; println!(&quot;errored with: {}&quot;, error),</span>
-<span class="doccomment">///     None =&gt; println!(&quot;result: {}&quot;, parsed),</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">/// ```</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">take_last_error</span>() -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">failure::Error</span><span class="op">&gt;</span> {
-    <span class="ident">LAST_ERROR</span>.<span class="ident">with</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">e</span>.<span class="ident">borrow_mut</span>().<span class="ident">take</span>())
+<span class="doccomment">/// Takes the last error, leaving `None` in its place.
+///
+/// To inspect the error without removing it, use [`with_last_error`].
+///
+/// # Example
+///
+/// ```
+/// use relay_ffi::{catch_unwind, take_last_error};
+///
+/// #[catch_unwind]
+/// unsafe fn run_ffi() -&gt; i32 {
+///     &quot;invalid&quot;.parse()?
+/// }
+///
+/// let parsed = unsafe { run_ffi() };
+/// match take_last_error() {
+///     Some(error) =&gt; println!(&quot;errored with: {}&quot;, error),
+///     None =&gt; println!(&quot;result: {}&quot;, parsed),
+/// }
+/// ```
+</span><span class="kw">pub fn </span>take_last_error() -&gt; <span class="prelude-ty">Option</span>&lt;failure::Error&gt; {
+    LAST_ERROR.with(|e| e.borrow_mut().take())
 }
 
-<span class="doccomment">/// An error representing a panic carrying the message as payload.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// To capture panics, register the hook using [`set_panic_hook`].</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// # Example</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">/// use relay_ffi::{catch_unwind, with_last_error, Panic};</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// #[catch_unwind]</span>
-<span class="doccomment">/// unsafe fn panics() {</span>
-<span class="doccomment">///     panic!(&quot;this is fine&quot;);</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// relay_ffi::set_panic_hook();</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// unsafe { panics() };</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// with_last_error(|error| {</span>
-<span class="doccomment">///     if let Some(panic) = error.downcast_ref::&lt;Panic&gt;() {</span>
-<span class="doccomment">///         println!(&quot;{}&quot;, panic.description());</span>
-<span class="doccomment">///     }</span>
-<span class="doccomment">/// });</span>
-<span class="doccomment">/// ```</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Panic</span>(<span class="ident">String</span>);
+<span class="doccomment">/// An error representing a panic carrying the message as payload.
+///
+/// To capture panics, register the hook using [`set_panic_hook`].
+///
+/// # Example
+///
+/// ```
+/// use relay_ffi::{catch_unwind, with_last_error, Panic};
+///
+/// #[catch_unwind]
+/// unsafe fn panics() {
+///     panic!(&quot;this is fine&quot;);
+/// }
+///
+/// relay_ffi::set_panic_hook();
+///
+/// unsafe { panics() };
+///
+/// with_last_error(|error| {
+///     if let Some(panic) = error.downcast_ref::&lt;Panic&gt;() {
+///         println!(&quot;{}&quot;, panic.description());
+///     }
+/// });
+/// ```
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>Panic(String);
 
-<span class="kw">impl</span> <span class="ident">Panic</span> {
-    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">info</span>: <span class="kw-2">&amp;</span><span class="ident">panic::PanicInfo</span>) -&gt; <span class="self">Self</span> {
-        <span class="kw">let</span> <span class="ident">thread</span> <span class="op">=</span> <span class="ident">thread::current</span>();
-        <span class="kw">let</span> <span class="ident">thread</span> <span class="op">=</span> <span class="ident">thread</span>.<span class="ident">name</span>().<span class="ident">unwrap_or</span>(<span class="string">&quot;unnamed&quot;</span>);
+<span class="kw">impl </span>Panic {
+    <span class="kw">fn </span>new(info: <span class="kw-2">&amp;</span>panic::PanicInfo) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>thread = thread::current();
+        <span class="kw">let </span>thread = thread.name().unwrap_or(<span class="string">&quot;unnamed&quot;</span>);
 
-        <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">info</span>.<span class="ident">payload</span>().<span class="ident">downcast_ref</span>::<span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">s</span>) =&gt; <span class="kw-2">*</span><span class="ident">s</span>,
-            <span class="prelude-val">None</span> =&gt; <span class="kw">match</span> <span class="ident">info</span>.<span class="ident">payload</span>().<span class="ident">downcast_ref</span>::<span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>() {
-                <span class="prelude-val">Some</span>(<span class="ident">s</span>) =&gt; <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">s</span>,
-                <span class="prelude-val">None</span> =&gt; <span class="string">&quot;Box&lt;Any&gt;&quot;</span>,
+        <span class="kw">let </span>message = <span class="kw">match </span>info.payload().downcast_ref::&lt;<span class="kw-2">&amp;</span>str&gt;() {
+            <span class="prelude-val">Some</span>(s) =&gt; <span class="kw-2">*</span>s,
+            <span class="prelude-val">None </span>=&gt; <span class="kw">match </span>info.payload().downcast_ref::&lt;String&gt;() {
+                <span class="prelude-val">Some</span>(s) =&gt; <span class="kw-2">&amp;**</span>s,
+                <span class="prelude-val">None </span>=&gt; <span class="string">&quot;Box&lt;Any&gt;&quot;</span>,
             },
         };
 
-        <span class="kw">let</span> <span class="ident">description</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">info</span>.<span class="ident">location</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">location</span>) =&gt; <span class="macro">format!</span>(
+        <span class="kw">let </span>description = <span class="kw">match </span>info.location() {
+            <span class="prelude-val">Some</span>(location) =&gt; <span class="macro">format!</span>(
                 <span class="string">&quot;thread &#39;{}&#39; panicked with &#39;{}&#39; at {}:{}&quot;</span>,
-                <span class="ident">thread</span>,
-                <span class="ident">message</span>,
-                <span class="ident">location</span>.<span class="ident">file</span>(),
-                <span class="ident">location</span>.<span class="ident">line</span>()
+                thread,
+                message,
+                location.file(),
+                location.line()
             ),
-            <span class="prelude-val">None</span> =&gt; <span class="macro">format!</span>(<span class="string">&quot;thread &#39;{}&#39; panicked with &#39;{}&#39;&quot;</span>, <span class="ident">thread</span>, <span class="ident">message</span>),
+            <span class="prelude-val">None </span>=&gt; <span class="macro">format!</span>(<span class="string">&quot;thread &#39;{}&#39; panicked with &#39;{}&#39;&quot;</span>, thread, message),
         };
 
-        <span class="self">Self</span>(<span class="ident">description</span>)
+        <span class="self">Self</span>(description)
     }
 
-    <span class="doccomment">/// Returns a description containing the location and message of the panic.</span>
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">description</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">str</span> {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>
+    <span class="doccomment">/// Returns a description containing the location and message of the panic.
+    </span><span class="attribute">#[inline]
+    </span><span class="kw">pub fn </span>description(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0
+    </span>}
+}
+
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>Panic {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;panic: {}&quot;</span>, <span class="self">self</span>.description())
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">Panic</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;panic: {}&quot;</span>, <span class="self">self</span>.<span class="ident">description</span>())
-    }
-}
+<span class="kw">impl </span>Error <span class="kw">for </span>Panic {}
 
-<span class="kw">impl</span> <span class="ident">Error</span> <span class="kw">for</span> <span class="ident">Panic</span> {}
-
-<span class="doccomment">/// Registers a hook for capturing panics with backtraces.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This function must be registered early when the FFI is initialized before any other calls are</span>
-<span class="doccomment">/// made. Usually, this would be exported from an initialization function.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// See the [`Panic`] documentation for more information.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// # Example</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">/// pub unsafe extern &quot;C&quot; fn init_ffi() {</span>
-<span class="doccomment">///     relay_ffi::set_panic_hook();</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">/// ```</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_panic_hook</span>() {
-    <span class="ident">panic::set_hook</span>(<span class="ident">Box::new</span>(<span class="op">|</span><span class="ident">info</span><span class="op">|</span> <span class="ident">set_last_error</span>(<span class="ident">Panic::new</span>(<span class="ident">info</span>).<span class="ident">into</span>())));
+<span class="doccomment">/// Registers a hook for capturing panics with backtraces.
+///
+/// This function must be registered early when the FFI is initialized before any other calls are
+/// made. Usually, this would be exported from an initialization function.
+///
+/// See the [`Panic`] documentation for more information.
+///
+/// # Example
+///
+/// ```
+/// pub unsafe extern &quot;C&quot; fn init_ffi() {
+///     relay_ffi::set_panic_hook();
+/// }
+/// ```
+</span><span class="kw">pub fn </span>set_panic_hook() {
+    panic::set_hook(Box::new(|info| set_last_error(Panic::new(info).into())));
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_ffi" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_ffi" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

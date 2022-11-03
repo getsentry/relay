@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/endpoints/store.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>store.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/endpoints/store.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>store.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_server/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -152,157 +152,157 @@
 <span id="150">150</span>
 <span id="151">151</span>
 <span id="152">152</span>
-</pre><pre class="rust"><code><span class="doccomment">//! Handles event store requests.</span>
+</pre><pre class="rust"><code><span class="doccomment">//! Handles event store requests.
 
-<span class="kw">use</span> <span class="ident">actix::prelude</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">actix_web</span>::{<span class="ident">HttpMessage</span>, <span class="ident">HttpRequest</span>, <span class="ident">HttpResponse</span>};
-<span class="kw">use</span> <span class="ident">bytes</span>::{<span class="ident">Bytes</span>, <span class="ident">BytesMut</span>};
-<span class="kw">use</span> <span class="ident">futures01::Future</span>;
-<span class="kw">use</span> <span class="ident">serde::Serialize</span>;
+</span><span class="kw">use </span>actix::prelude::<span class="kw-2">*</span>;
+<span class="kw">use </span>actix_web::{HttpMessage, HttpRequest, HttpResponse};
+<span class="kw">use </span>bytes::{Bytes, BytesMut};
+<span class="kw">use </span>futures01::Future;
+<span class="kw">use </span>serde::Serialize;
 
-<span class="kw">use</span> <span class="ident">relay_general::protocol::EventId</span>;
+<span class="kw">use </span>relay_general::protocol::EventId;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::body::StoreBody</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::endpoints::common</span>::{<span class="self">self</span>, <span class="ident">BadStoreRequest</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope</span>::{<span class="ident">ContentType</span>, <span class="ident">Envelope</span>, <span class="ident">Item</span>, <span class="ident">ItemType</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::extractors::RequestMeta</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service</span>::{<span class="ident">ServiceApp</span>, <span class="ident">ServiceState</span>};
+<span class="kw">use </span><span class="kw">crate</span>::body::StoreBody;
+<span class="kw">use </span><span class="kw">crate</span>::endpoints::common::{<span class="self">self</span>, BadStoreRequest};
+<span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Envelope, Item, ItemType};
+<span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
+<span class="kw">use </span><span class="kw">crate</span>::service::{ServiceApp, ServiceState};
 
-<span class="comment">// Transparent 1x1 gif</span>
-<span class="comment">// See http://probablyprogramming.com/2009/03/15/the-tiniest-gif-ever</span>
-<span class="kw">static</span> <span class="ident">PIXEL</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] <span class="op">=</span>
+<span class="comment">// Transparent 1x1 gif
+// See http://probablyprogramming.com/2009/03/15/the-tiniest-gif-ever
+</span><span class="kw">static </span>PIXEL: <span class="kw-2">&amp;</span>[u8] =
     <span class="string">b&quot;GIF89a\x01\x00\x01\x00\x00\xff\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x00;&quot;</span>;
 
-<span class="doccomment">/// Parses a full `Envelope` request body.</span>
-<span class="kw">fn</span> <span class="ident">parse_envelope</span>(<span class="ident">meta</span>: <span class="ident">RequestMeta</span>, <span class="ident">data</span>: <span class="ident">Bytes</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Envelope</span>, <span class="ident">BadStoreRequest</span><span class="op">&gt;</span> {
-    <span class="comment">// Use `parse_request` here to ensure that we&#39;re merging available request headers into the</span>
-    <span class="comment">// envelope&#39;s headers.</span>
-    <span class="ident">Envelope::parse_request</span>(<span class="ident">data</span>, <span class="ident">meta</span>).<span class="ident">map_err</span>(<span class="ident">BadStoreRequest::InvalidEnvelope</span>)
+<span class="doccomment">/// Parses a full `Envelope` request body.
+</span><span class="kw">fn </span>parse_envelope(meta: RequestMeta, data: Bytes) -&gt; <span class="prelude-ty">Result</span>&lt;Envelope, BadStoreRequest&gt; {
+    <span class="comment">// Use `parse_request` here to ensure that we&#39;re merging available request headers into the
+    // envelope&#39;s headers.
+    </span>Envelope::parse_request(data, meta).map_err(BadStoreRequest::InvalidEnvelope)
 }
 
-<span class="doccomment">/// Parses a JSON event body into an `Envelope`.</span>
-<span class="kw">fn</span> <span class="ident">parse_event</span>(
-    <span class="ident">meta</span>: <span class="ident">RequestMeta</span>,
-    <span class="ident">content_type</span>: <span class="ident">ContentType</span>,
-    <span class="kw-2">mut</span> <span class="ident">data</span>: <span class="ident">Bytes</span>,
-) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Envelope</span>, <span class="ident">BadStoreRequest</span><span class="op">&gt;</span> {
-    <span class="comment">// Python clients are well known to send crappy JSON in the Sentry world.  The reason</span>
-    <span class="comment">// for this is that they send NaN and Infinity as invalid JSON tokens.  The code sentry</span>
-    <span class="comment">// server could deal with this but we cannot.  To work around this issue, we run a basic</span>
-    <span class="comment">// character substitution on the input stream but only if we detect a Python agent.</span>
-    <span class="comment">//</span>
-    <span class="comment">// This is done here so that the rest of the code can assume valid JSON.</span>
-    <span class="kw">let</span> <span class="ident">is_legacy_python_json</span> <span class="op">=</span> <span class="ident">meta</span>.<span class="ident">client</span>().<span class="ident">map_or</span>(<span class="bool-val">false</span>, <span class="op">|</span><span class="ident">agent</span><span class="op">|</span> {
-        <span class="ident">agent</span>.<span class="ident">starts_with</span>(<span class="string">&quot;raven-python/&quot;</span>) <span class="op">|</span><span class="op">|</span> <span class="ident">agent</span>.<span class="ident">starts_with</span>(<span class="string">&quot;sentry-python/&quot;</span>)
+<span class="doccomment">/// Parses a JSON event body into an `Envelope`.
+</span><span class="kw">fn </span>parse_event(
+    meta: RequestMeta,
+    content_type: ContentType,
+    <span class="kw-2">mut </span>data: Bytes,
+) -&gt; <span class="prelude-ty">Result</span>&lt;Envelope, BadStoreRequest&gt; {
+    <span class="comment">// Python clients are well known to send crappy JSON in the Sentry world.  The reason
+    // for this is that they send NaN and Infinity as invalid JSON tokens.  The code sentry
+    // server could deal with this but we cannot.  To work around this issue, we run a basic
+    // character substitution on the input stream but only if we detect a Python agent.
+    //
+    // This is done here so that the rest of the code can assume valid JSON.
+    </span><span class="kw">let </span>is_legacy_python_json = meta.client().map_or(<span class="bool-val">false</span>, |agent| {
+        agent.starts_with(<span class="string">&quot;raven-python/&quot;</span>) || agent.starts_with(<span class="string">&quot;sentry-python/&quot;</span>)
     });
 
-    <span class="kw">if</span> <span class="ident">is_legacy_python_json</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data_mut</span> <span class="op">=</span> <span class="ident">BytesMut::from</span>(<span class="ident">data</span>);
-        <span class="ident">json_forensics::translate_slice</span>(<span class="kw-2">&amp;mut</span> <span class="ident">data_mut</span>[..]);
-        <span class="ident">data</span> <span class="op">=</span> <span class="ident">data_mut</span>.<span class="ident">freeze</span>();
+    <span class="kw">if </span>is_legacy_python_json {
+        <span class="kw">let </span><span class="kw-2">mut </span>data_mut = BytesMut::from(data);
+        json_forensics::translate_slice(<span class="kw-2">&amp;mut </span>data_mut[..]);
+        data = data_mut.freeze();
     }
 
-    <span class="comment">// Ensure that the event has a UUID. It will be returned from this message and from the</span>
-    <span class="comment">// incoming store request. To uncouple it from the workload on the processing workers, this</span>
-    <span class="comment">// requires to synchronously parse a minimal part of the JSON payload. If the JSON payload</span>
-    <span class="comment">// is invalid, processing can be skipped altogether.</span>
-    <span class="kw">let</span> <span class="ident">minimal</span> <span class="op">=</span> <span class="ident">common::minimal_event_from_json</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>)<span class="question-mark">?</span>;
+    <span class="comment">// Ensure that the event has a UUID. It will be returned from this message and from the
+    // incoming store request. To uncouple it from the workload on the processing workers, this
+    // requires to synchronously parse a minimal part of the JSON payload. If the JSON payload
+    // is invalid, processing can be skipped altogether.
+    </span><span class="kw">let </span>minimal = common::minimal_event_from_json(<span class="kw-2">&amp;</span>data)<span class="question-mark">?</span>;
 
-    <span class="comment">// Old SDKs used to send transactions to the store endpoint with an explicit `Transaction` event</span>
-    <span class="comment">// type. The processing queue expects those in an explicit item.</span>
-    <span class="kw">let</span> <span class="ident">item_type</span> <span class="op">=</span> <span class="ident">ItemType::from_event_type</span>(<span class="ident">minimal</span>.<span class="ident">ty</span>);
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event_item</span> <span class="op">=</span> <span class="ident">Item::new</span>(<span class="ident">item_type</span>);
-    <span class="ident">event_item</span>.<span class="ident">set_payload</span>(<span class="ident">content_type</span>, <span class="ident">data</span>);
+    <span class="comment">// Old SDKs used to send transactions to the store endpoint with an explicit `Transaction` event
+    // type. The processing queue expects those in an explicit item.
+    </span><span class="kw">let </span>item_type = ItemType::from_event_type(minimal.ty);
+    <span class="kw">let </span><span class="kw-2">mut </span>event_item = Item::new(item_type);
+    event_item.set_payload(content_type, data);
 
-    <span class="kw">let</span> <span class="ident">event_id</span> <span class="op">=</span> <span class="ident">minimal</span>.<span class="ident">id</span>.<span class="ident">unwrap_or_else</span>(<span class="ident">EventId::new</span>);
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="ident">Envelope::from_request</span>(<span class="prelude-val">Some</span>(<span class="ident">event_id</span>), <span class="ident">meta</span>);
-    <span class="ident">envelope</span>.<span class="ident">add_item</span>(<span class="ident">event_item</span>);
+    <span class="kw">let </span>event_id = minimal.id.unwrap_or_else(EventId::new);
+    <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(event_id), meta);
+    envelope.add_item(event_item);
 
-    <span class="prelude-val">Ok</span>(<span class="ident">envelope</span>)
+    <span class="prelude-val">Ok</span>(envelope)
 }
 
-<span class="kw">fn</span> <span class="ident">extract_envelope</span>(
-    <span class="ident">request</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">ServiceState</span><span class="op">&gt;</span>,
-    <span class="ident">meta</span>: <span class="ident">RequestMeta</span>,
-) -&gt; <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">Envelope</span>, <span class="ident">BadStoreRequest</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">max_payload_size</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">state</span>().<span class="ident">config</span>().<span class="ident">max_event_size</span>();
+<span class="kw">fn </span>extract_envelope(
+    request: <span class="kw-2">&amp;</span>HttpRequest&lt;ServiceState&gt;,
+    meta: RequestMeta,
+) -&gt; ResponseFuture&lt;Envelope, BadStoreRequest&gt; {
+    <span class="kw">let </span>max_payload_size = request.state().config().max_event_size();
 
-    <span class="comment">// If the content type is missing, assume &quot;application/json&quot;.</span>
-    <span class="kw">let</span> <span class="ident">content_type</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">request</span>.<span class="ident">content_type</span>() {
-        <span class="ident">content_type</span> <span class="kw">if</span> <span class="ident">content_type</span>.<span class="ident">is_empty</span>() =&gt; <span class="ident">ContentType::Json</span>,
-        <span class="ident">content_type</span> =&gt; <span class="ident">ContentType::from</span>(<span class="ident">content_type</span>),
+    <span class="comment">// If the content type is missing, assume &quot;application/json&quot;.
+    </span><span class="kw">let </span>content_type = <span class="kw">match </span>request.content_type() {
+        content_type <span class="kw">if </span>content_type.is_empty() =&gt; ContentType::Json,
+        content_type =&gt; ContentType::from(content_type),
     };
 
-    <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">StoreBody::new</span>(<span class="ident">request</span>, <span class="ident">max_payload_size</span>)
-        .<span class="ident">map_err</span>(<span class="ident">BadStoreRequest::PayloadError</span>)
-        .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">data</span><span class="op">|</span> {
-            <span class="kw">if</span> <span class="ident">data</span>.<span class="ident">is_empty</span>() {
-                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">BadStoreRequest::EmptyBody</span>);
+    <span class="kw">let </span>future = StoreBody::new(request, max_payload_size)
+        .map_err(BadStoreRequest::PayloadError)
+        .and_then(<span class="kw">move </span>|data| {
+            <span class="kw">if </span>data.is_empty() {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::EmptyBody);
             }
 
-            <span class="kw">match</span> <span class="ident">content_type</span> {
-                <span class="ident">ContentType::Envelope</span> =&gt; <span class="ident">parse_envelope</span>(<span class="ident">meta</span>, <span class="ident">data</span>),
-                <span class="kw">_</span> =&gt; <span class="ident">parse_event</span>(<span class="ident">meta</span>, <span class="ident">content_type</span>, <span class="ident">data</span>),
+            <span class="kw">match </span>content_type {
+                ContentType::Envelope =&gt; parse_envelope(meta, data),
+                <span class="kw">_ </span>=&gt; parse_event(meta, content_type, data),
             }
         });
 
-    <span class="ident">Box::new</span>(<span class="ident">future</span>)
+    Box::new(future)
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>)]</span>
-<span class="kw">struct</span> <span class="ident">StoreResponse</span> {
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
-    <span class="ident">id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">EventId</span><span class="op">&gt;</span>,
+<span class="attribute">#[derive(Serialize)]
+</span><span class="kw">struct </span>StoreResponse {
+    <span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>id: <span class="prelude-ty">Option</span>&lt;EventId&gt;,
 }
 
-<span class="kw">fn</span> <span class="ident">create_response</span>(<span class="ident">id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">EventId</span><span class="op">&gt;</span>, <span class="ident">is_get_request</span>: <span class="ident">bool</span>) -&gt; <span class="ident">HttpResponse</span> {
-    <span class="kw">if</span> <span class="ident">is_get_request</span> {
-        <span class="ident">HttpResponse::Ok</span>().<span class="ident">content_type</span>(<span class="string">&quot;image/gif&quot;</span>).<span class="ident">body</span>(<span class="ident">PIXEL</span>)
-    } <span class="kw">else</span> {
-        <span class="ident">HttpResponse::Ok</span>().<span class="ident">json</span>(<span class="ident">StoreResponse</span> { <span class="ident">id</span> })
+<span class="kw">fn </span>create_response(id: <span class="prelude-ty">Option</span>&lt;EventId&gt;, is_get_request: bool) -&gt; HttpResponse {
+    <span class="kw">if </span>is_get_request {
+        HttpResponse::Ok().content_type(<span class="string">&quot;image/gif&quot;</span>).body(PIXEL)
+    } <span class="kw">else </span>{
+        HttpResponse::Ok().json(StoreResponse { id })
     }
 }
 
-<span class="doccomment">/// Handler for the JSON event store endpoint.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This simply delegates to `store_event` which does all the work.</span>
-<span class="doccomment">/// `handle_store_event` is an adaptor for `store_event` which cannot</span>
-<span class="doccomment">/// be used directly as a request handler since not all of its arguments</span>
-<span class="doccomment">/// implement the FromRequest trait.</span>
-<span class="kw">fn</span> <span class="ident">store_event</span>(
-    <span class="ident">meta</span>: <span class="ident">RequestMeta</span>,
-    <span class="ident">request</span>: <span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">ServiceState</span><span class="op">&gt;</span>,
-) -&gt; <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">HttpResponse</span>, <span class="ident">BadStoreRequest</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">is_get_request</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">method</span>() <span class="op">==</span> <span class="string">&quot;GET&quot;</span>;
+<span class="doccomment">/// Handler for the JSON event store endpoint.
+///
+/// This simply delegates to `store_event` which does all the work.
+/// `handle_store_event` is an adaptor for `store_event` which cannot
+/// be used directly as a request handler since not all of its arguments
+/// implement the FromRequest trait.
+</span><span class="kw">fn </span>store_event(
+    meta: RequestMeta,
+    request: HttpRequest&lt;ServiceState&gt;,
+) -&gt; ResponseFuture&lt;HttpResponse, BadStoreRequest&gt; {
+    <span class="kw">let </span>is_get_request = request.method() == <span class="string">&quot;GET&quot;</span>;
 
-    <span class="ident">common::handle_store_like_request</span>(
-        <span class="ident">meta</span>,
-        <span class="ident">request</span>,
-        <span class="ident">extract_envelope</span>,
-        <span class="kw">move</span> <span class="op">|</span><span class="ident">id</span><span class="op">|</span> <span class="ident">create_response</span>(<span class="ident">id</span>, <span class="ident">is_get_request</span>),
+    common::handle_store_like_request(
+        meta,
+        request,
+        extract_envelope,
+        <span class="kw">move </span>|id| create_response(id, is_get_request),
         <span class="bool-val">true</span>,
     )
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">configure_app</span>(<span class="ident">app</span>: <span class="ident">ServiceApp</span>) -&gt; <span class="ident">ServiceApp</span> {
-    <span class="ident">common::cors</span>(<span class="ident">app</span>)
-        <span class="comment">// Standard store endpoint. Some SDKs send multiple leading or trailing slashes due to bugs</span>
-        <span class="comment">// in their URL handling. Since actix does not normalize such paths, allow any number of</span>
-        <span class="comment">// slashes. The trailing slash can also be omitted, optionally.</span>
-        .<span class="ident">resource</span>(<span class="kw-2">&amp;</span><span class="ident">common::normpath</span>(<span class="string">r&quot;/api/{project:\d+}/store/&quot;</span>), <span class="op">|</span><span class="ident">r</span><span class="op">|</span> {
-            <span class="ident">r</span>.<span class="ident">name</span>(<span class="string">&quot;store-default&quot;</span>);
-            <span class="ident">r</span>.<span class="ident">post</span>().<span class="ident">with</span>(<span class="ident">store_event</span>);
-            <span class="ident">r</span>.<span class="ident">get</span>().<span class="ident">with</span>(<span class="ident">store_event</span>);
+<span class="kw">pub fn </span>configure_app(app: ServiceApp) -&gt; ServiceApp {
+    common::cors(app)
+        <span class="comment">// Standard store endpoint. Some SDKs send multiple leading or trailing slashes due to bugs
+        // in their URL handling. Since actix does not normalize such paths, allow any number of
+        // slashes. The trailing slash can also be omitted, optionally.
+        </span>.resource(<span class="kw-2">&amp;</span>common::normpath(<span class="string">r&quot;/api/{project:\d+}/store/&quot;</span>), |r| {
+            r.name(<span class="string">&quot;store-default&quot;</span>);
+            r.post().with(store_event);
+            r.get().with(store_event);
         })
-        <span class="comment">// Legacy store path. Since it is missing the project parameter, the `RequestMeta` extractor</span>
-        <span class="comment">// will use `ProjectKeyLookup` to map the public key to a project id before handling the</span>
-        <span class="comment">// request.</span>
-        .<span class="ident">resource</span>(<span class="kw-2">&amp;</span><span class="ident">common::normpath</span>(<span class="string">r&quot;/api/store/&quot;</span>), <span class="op">|</span><span class="ident">r</span><span class="op">|</span> {
-            <span class="ident">r</span>.<span class="ident">name</span>(<span class="string">&quot;store-legacy&quot;</span>);
-            <span class="ident">r</span>.<span class="ident">post</span>().<span class="ident">with</span>(<span class="ident">store_event</span>);
-            <span class="ident">r</span>.<span class="ident">get</span>().<span class="ident">with</span>(<span class="ident">store_event</span>);
+        <span class="comment">// Legacy store path. Since it is missing the project parameter, the `RequestMeta` extractor
+        // will use `ProjectKeyLookup` to map the public key to a project id before handling the
+        // request.
+        </span>.resource(<span class="kw-2">&amp;</span>common::normpath(<span class="string">r&quot;/api/store/&quot;</span>), |r| {
+            r.name(<span class="string">&quot;store-legacy&quot;</span>);
+            r.post().with(store_event);
+            r.get().with(store_event);
         })
-        .<span class="ident">register</span>()
+        .register()
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

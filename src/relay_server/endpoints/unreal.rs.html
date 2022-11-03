@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/endpoints/unreal.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>unreal.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/endpoints/unreal.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>unreal.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_server/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -68,73 +68,73 @@
 <span id="66">66</span>
 <span id="67">67</span>
 <span id="68">68</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">actix_web</span>::{<span class="ident">actix::ResponseFuture</span>, <span class="ident">HttpRequest</span>, <span class="ident">HttpResponse</span>};
-<span class="kw">use</span> <span class="ident">futures01::Future</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>actix_web::{actix::ResponseFuture, HttpRequest, HttpResponse};
+<span class="kw">use </span>futures01::Future;
 
-<span class="kw">use</span> <span class="ident">relay_general::protocol::EventId</span>;
+<span class="kw">use </span>relay_general::protocol::EventId;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::body::RequestBody</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::constants::UNREAL_USER_HEADER</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::endpoints::common</span>::{<span class="self">self</span>, <span class="ident">BadStoreRequest</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope</span>::{<span class="ident">ContentType</span>, <span class="ident">Envelope</span>, <span class="ident">Item</span>, <span class="ident">ItemType</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::extractors::RequestMeta</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service</span>::{<span class="ident">ServiceApp</span>, <span class="ident">ServiceState</span>};
+<span class="kw">use </span><span class="kw">crate</span>::body::RequestBody;
+<span class="kw">use </span><span class="kw">crate</span>::constants::UNREAL_USER_HEADER;
+<span class="kw">use </span><span class="kw">crate</span>::endpoints::common::{<span class="self">self</span>, BadStoreRequest};
+<span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Envelope, Item, ItemType};
+<span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
+<span class="kw">use </span><span class="kw">crate</span>::service::{ServiceApp, ServiceState};
 
-<span class="kw">fn</span> <span class="ident">extract_envelope</span>(
-    <span class="ident">request</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">ServiceState</span><span class="op">&gt;</span>,
-    <span class="ident">meta</span>: <span class="ident">RequestMeta</span>,
-) -&gt; <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">Envelope</span>, <span class="ident">BadStoreRequest</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">user_id</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">query</span>().<span class="ident">get</span>(<span class="string">&quot;UserID&quot;</span>).<span class="ident">cloned</span>();
-    <span class="kw">let</span> <span class="ident">max_payload_size</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">state</span>().<span class="ident">config</span>().<span class="ident">max_attachments_size</span>();
+<span class="kw">fn </span>extract_envelope(
+    request: <span class="kw-2">&amp;</span>HttpRequest&lt;ServiceState&gt;,
+    meta: RequestMeta,
+) -&gt; ResponseFuture&lt;Envelope, BadStoreRequest&gt; {
+    <span class="kw">let </span>user_id = request.query().get(<span class="string">&quot;UserID&quot;</span>).cloned();
+    <span class="kw">let </span>max_payload_size = request.state().config().max_attachments_size();
 
-    <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">RequestBody::new</span>(<span class="ident">request</span>, <span class="ident">max_payload_size</span>)
-        .<span class="ident">map_err</span>(<span class="ident">BadStoreRequest::PayloadError</span>)
-        .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">data</span><span class="op">|</span> {
-            <span class="kw">if</span> <span class="ident">data</span>.<span class="ident">is_empty</span>() {
-                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">BadStoreRequest::EmptyBody</span>);
+    <span class="kw">let </span>future = RequestBody::new(request, max_payload_size)
+        .map_err(BadStoreRequest::PayloadError)
+        .and_then(<span class="kw">move </span>|data| {
+            <span class="kw">if </span>data.is_empty() {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::EmptyBody);
             }
 
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="ident">Envelope::from_request</span>(<span class="prelude-val">Some</span>(<span class="ident">EventId::new</span>()), <span class="ident">meta</span>);
+            <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(EventId::new()), meta);
 
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">item</span> <span class="op">=</span> <span class="ident">Item::new</span>(<span class="ident">ItemType::UnrealReport</span>);
-            <span class="ident">item</span>.<span class="ident">set_payload</span>(<span class="ident">ContentType::OctetStream</span>, <span class="ident">data</span>);
-            <span class="ident">envelope</span>.<span class="ident">add_item</span>(<span class="ident">item</span>);
+            <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::UnrealReport);
+            item.set_payload(ContentType::OctetStream, data);
+            envelope.add_item(item);
 
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">user_id</span>) <span class="op">=</span> <span class="ident">user_id</span> {
-                <span class="ident">envelope</span>.<span class="ident">set_header</span>(<span class="ident">UNREAL_USER_HEADER</span>, <span class="ident">user_id</span>);
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(user_id) = user_id {
+                envelope.set_header(UNREAL_USER_HEADER, user_id);
             }
 
-            <span class="prelude-val">Ok</span>(<span class="ident">envelope</span>)
+            <span class="prelude-val">Ok</span>(envelope)
         });
 
-    <span class="ident">Box::new</span>(<span class="ident">future</span>)
+    Box::new(future)
 }
 
-<span class="kw">fn</span> <span class="ident">store_unreal</span>(
-    <span class="ident">meta</span>: <span class="ident">RequestMeta</span>,
-    <span class="ident">request</span>: <span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">ServiceState</span><span class="op">&gt;</span>,
-) -&gt; <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">HttpResponse</span>, <span class="ident">BadStoreRequest</span><span class="op">&gt;</span> {
-    <span class="ident">common::handle_store_like_request</span>(
-        <span class="ident">meta</span>,
-        <span class="ident">request</span>,
-        <span class="ident">extract_envelope</span>,
-        <span class="comment">// The return here is only useful for consistency because the UE4 crash reporter doesn&#39;t</span>
-        <span class="comment">// care about it.</span>
-        <span class="ident">common::create_text_event_id_response</span>,
+<span class="kw">fn </span>store_unreal(
+    meta: RequestMeta,
+    request: HttpRequest&lt;ServiceState&gt;,
+) -&gt; ResponseFuture&lt;HttpResponse, BadStoreRequest&gt; {
+    common::handle_store_like_request(
+        meta,
+        request,
+        extract_envelope,
+        <span class="comment">// The return here is only useful for consistency because the UE4 crash reporter doesn&#39;t
+        // care about it.
+        </span>common::create_text_event_id_response,
         <span class="bool-val">false</span>,
     )
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">configure_app</span>(<span class="ident">app</span>: <span class="ident">ServiceApp</span>) -&gt; <span class="ident">ServiceApp</span> {
-    <span class="ident">common::cors</span>(<span class="ident">app</span>)
-        .<span class="ident">resource</span>(
-            <span class="kw-2">&amp;</span><span class="ident">common::normpath</span>(<span class="string">r&quot;/api/{project:\d+}/unreal/{sentry_key:\w+}/&quot;</span>),
-            <span class="op">|</span><span class="ident">r</span><span class="op">|</span> {
-                <span class="ident">r</span>.<span class="ident">name</span>(<span class="string">&quot;store-unreal&quot;</span>);
-                <span class="ident">r</span>.<span class="ident">post</span>().<span class="ident">with</span>(<span class="ident">store_unreal</span>);
+<span class="kw">pub fn </span>configure_app(app: ServiceApp) -&gt; ServiceApp {
+    common::cors(app)
+        .resource(
+            <span class="kw-2">&amp;</span>common::normpath(<span class="string">r&quot;/api/{project:\d+}/unreal/{sentry_key:\w+}/&quot;</span>),
+            |r| {
+                r.name(<span class="string">&quot;store-unreal&quot;</span>);
+                r.post().with(store_unreal);
             },
         )
-        .<span class="ident">register</span>()
+        .register()
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

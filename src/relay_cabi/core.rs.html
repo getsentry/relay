@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-cabi/src/core.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>core.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_cabi/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_cabi/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-cabi/src/core.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>core.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_cabi/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_cabi/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_cabi/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -211,216 +211,216 @@
 <span id="209">209</span>
 <span id="210">210</span>
 <span id="211">211</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::ffi::CStr</span>;
-<span class="kw">use</span> <span class="ident">std::mem</span>;
-<span class="kw">use</span> <span class="ident">std::os::raw::c_char</span>;
-<span class="kw">use</span> <span class="ident">std::ptr</span>;
-<span class="kw">use</span> <span class="ident">std::slice</span>;
-<span class="kw">use</span> <span class="ident">std::str</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>std::ffi::CStr;
+<span class="kw">use </span>std::mem;
+<span class="kw">use </span>std::os::raw::c_char;
+<span class="kw">use </span>std::ptr;
+<span class="kw">use </span>std::slice;
+<span class="kw">use </span>std::str;
 
-<span class="kw">use</span> <span class="ident">relay_common::Uuid</span>;
+<span class="kw">use </span>relay_common::Uuid;
 
-<span class="doccomment">/// A length-prefixed UTF-8 string.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// As opposed to C strings, this string is not null-terminated. If the string is owned, indicated</span>
-<span class="doccomment">/// by the `owned` flag, the owner must call the `free` function on this string. The convention is:</span>
-<span class="doccomment">///</span>
-<span class="doccomment">///  - When obtained as instance through return values, always free the string.</span>
-<span class="doccomment">///  - When obtained as pointer through field access, never free the string.</span>
-<span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RelayStr</span> {
-    <span class="doccomment">/// Pointer to the UTF-8 encoded string data.</span>
-    <span class="kw">pub</span> <span class="ident">data</span>: <span class="kw-2">*mut</span> <span class="ident">c_char</span>,
-    <span class="doccomment">/// The length of the string pointed to by `data`.</span>
-    <span class="kw">pub</span> <span class="ident">len</span>: <span class="ident">usize</span>,
-    <span class="doccomment">/// Indicates that the string is owned and must be freed.</span>
-    <span class="kw">pub</span> <span class="ident">owned</span>: <span class="ident">bool</span>,
+<span class="doccomment">/// A length-prefixed UTF-8 string.
+///
+/// As opposed to C strings, this string is not null-terminated. If the string is owned, indicated
+/// by the `owned` flag, the owner must call the `free` function on this string. The convention is:
+///
+///  - When obtained as instance through return values, always free the string.
+///  - When obtained as pointer through field access, never free the string.
+</span><span class="attribute">#[repr(C)]
+</span><span class="kw">pub struct </span>RelayStr {
+    <span class="doccomment">/// Pointer to the UTF-8 encoded string data.
+    </span><span class="kw">pub </span>data: <span class="kw-2">*mut </span>c_char,
+    <span class="doccomment">/// The length of the string pointed to by `data`.
+    </span><span class="kw">pub </span>len: usize,
+    <span class="doccomment">/// Indicates that the string is owned and must be freed.
+    </span><span class="kw">pub </span>owned: bool,
 }
 
-<span class="kw">impl</span> <span class="ident">RelayStr</span> {
-    <span class="doccomment">/// Creates a new `RelayStr` by borrowing the given `&amp;str`.</span>
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">RelayStr</span> {
-        <span class="ident">RelayStr</span> {
-            <span class="ident">data</span>: <span class="ident">s</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*mut</span> <span class="ident">c_char</span>,
-            <span class="ident">len</span>: <span class="ident">s</span>.<span class="ident">len</span>(),
-            <span class="ident">owned</span>: <span class="bool-val">false</span>,
+<span class="kw">impl </span>RelayStr {
+    <span class="doccomment">/// Creates a new `RelayStr` by borrowing the given `&amp;str`.
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(s: <span class="kw-2">&amp;</span>str) -&gt; RelayStr {
+        RelayStr {
+            data: s.as_ptr() <span class="kw">as </span><span class="kw-2">*mut </span>c_char,
+            len: s.len(),
+            owned: <span class="bool-val">false</span>,
         }
     }
 
-    <span class="doccomment">/// Creates a new `RelayStr` by assuming ownership over the given `String`.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// When dropping this `RelayStr` instance, the buffer is freed.</span>
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">from_string</span>(<span class="kw-2">mut</span> <span class="ident">s</span>: <span class="ident">String</span>) -&gt; <span class="ident">RelayStr</span> {
-        <span class="ident">s</span>.<span class="ident">shrink_to_fit</span>();
-        <span class="kw">let</span> <span class="ident">rv</span> <span class="op">=</span> <span class="ident">RelayStr</span> {
-            <span class="ident">data</span>: <span class="ident">s</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*mut</span> <span class="ident">c_char</span>,
-            <span class="ident">len</span>: <span class="ident">s</span>.<span class="ident">len</span>(),
-            <span class="ident">owned</span>: <span class="bool-val">true</span>,
+    <span class="doccomment">/// Creates a new `RelayStr` by assuming ownership over the given `String`.
+    ///
+    /// When dropping this `RelayStr` instance, the buffer is freed.
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>from_string(<span class="kw-2">mut </span>s: String) -&gt; RelayStr {
+        s.shrink_to_fit();
+        <span class="kw">let </span>rv = RelayStr {
+            data: s.as_ptr() <span class="kw">as </span><span class="kw-2">*mut </span>c_char,
+            len: s.len(),
+            owned: <span class="bool-val">true</span>,
         };
-        <span class="ident">mem::forget</span>(<span class="ident">s</span>);
-        <span class="ident">rv</span>
+        mem::forget(s);
+        rv
     }
 
-    <span class="doccomment">/// Frees the string buffer if it is owned.</span>
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">free</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">owned</span> {
-            <span class="ident">String::from_raw_parts</span>(<span class="self">self</span>.<span class="ident">data</span> <span class="kw">as</span> <span class="kw-2">*mut</span> <span class="kw">_</span>, <span class="self">self</span>.<span class="ident">len</span>, <span class="self">self</span>.<span class="ident">len</span>);
-            <span class="self">self</span>.<span class="ident">data</span> <span class="op">=</span> <span class="ident">ptr::null_mut</span>();
-            <span class="self">self</span>.<span class="ident">len</span> <span class="op">=</span> <span class="number">0</span>;
-            <span class="self">self</span>.<span class="ident">owned</span> <span class="op">=</span> <span class="bool-val">false</span>;
+    <span class="doccomment">/// Frees the string buffer if it is owned.
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">unsafe fn </span>free(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="kw">if </span><span class="self">self</span>.owned {
+            String::from_raw_parts(<span class="self">self</span>.data <span class="kw">as </span><span class="kw-2">*mut </span><span class="kw">_</span>, <span class="self">self</span>.len, <span class="self">self</span>.len);
+            <span class="self">self</span>.data = ptr::null_mut();
+            <span class="self">self</span>.len = <span class="number">0</span>;
+            <span class="self">self</span>.owned = <span class="bool-val">false</span>;
         }
     }
 
-    <span class="doccomment">/// Returns a borrowed string.</span>
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">as_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">str</span> {
-        <span class="ident">str::from_utf8_unchecked</span>(<span class="ident">slice::from_raw_parts</span>(<span class="self">self</span>.<span class="ident">data</span> <span class="kw">as</span> <span class="kw-2">*const</span> <span class="kw">_</span>, <span class="self">self</span>.<span class="ident">len</span>))
+    <span class="doccomment">/// Returns a borrowed string.
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">unsafe fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+        str::from_utf8_unchecked(slice::from_raw_parts(<span class="self">self</span>.data <span class="kw">as </span><span class="kw-2">*const </span><span class="kw">_</span>, <span class="self">self</span>.len))
     }
 }
 
-<span class="comment">// RelayStr is immutable, thus it can be Send + Sync</span>
-<span class="kw">unsafe</span> <span class="kw">impl</span> <span class="ident">Sync</span> <span class="kw">for</span> <span class="ident">RelayStr</span> {}
-<span class="kw">unsafe</span> <span class="kw">impl</span> <span class="ident">Send</span> <span class="kw">for</span> <span class="ident">RelayStr</span> {}
+<span class="comment">// RelayStr is immutable, thus it can be Send + Sync
+</span><span class="kw">unsafe impl </span>Sync <span class="kw">for </span>RelayStr {}
+<span class="kw">unsafe impl </span>Send <span class="kw">for </span>RelayStr {}
 
-<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">RelayStr</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="ident">RelayStr</span> {
-        <span class="ident">RelayStr</span> {
-            <span class="ident">data</span>: <span class="ident">ptr::null_mut</span>(),
-            <span class="ident">len</span>: <span class="number">0</span>,
-            <span class="ident">owned</span>: <span class="bool-val">false</span>,
-        }
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RelayStr</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">string</span>: <span class="ident">String</span>) -&gt; <span class="ident">RelayStr</span> {
-        <span class="ident">RelayStr::from_string</span>(<span class="ident">string</span>)
-    }
-}
-
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RelayStr</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">RelayStr</span> {
-        <span class="ident">RelayStr::new</span>(<span class="ident">string</span>)
-    }
-}
-
-<span class="doccomment">/// Creates a Relay string from a c string.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_str_from_cstr</span>(<span class="ident">s</span>: <span class="kw-2">*const</span> <span class="ident">c_char</span>) -&gt; <span class="ident">RelayStr</span> {
-    <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="ident">CStr::from_ptr</span>(<span class="ident">s</span>).<span class="ident">to_str</span>()<span class="question-mark">?</span>;
-    <span class="ident">RelayStr</span> {
-        <span class="ident">data</span>: <span class="ident">s</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*mut</span> <span class="kw">_</span>,
-        <span class="ident">len</span>: <span class="ident">s</span>.<span class="ident">len</span>(),
-        <span class="ident">owned</span>: <span class="bool-val">false</span>,
-    }
-}
-
-<span class="doccomment">/// Frees a Relay str.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// If the string is marked as not owned then this function does not</span>
-<span class="doccomment">/// do anything.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_str_free</span>(<span class="ident">s</span>: <span class="kw-2">*mut</span> <span class="ident">RelayStr</span>) {
-    <span class="kw">if</span> <span class="op">!</span><span class="ident">s</span>.<span class="ident">is_null</span>() {
-        (<span class="kw-2">*</span><span class="ident">s</span>).<span class="ident">free</span>()
-    }
-}
-
-<span class="doccomment">/// A 16-byte UUID.</span>
-<span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RelayUuid</span> {
-    <span class="doccomment">/// UUID bytes in network byte order (big endian).</span>
-    <span class="kw">pub</span> <span class="ident">data</span>: [<span class="ident">u8</span>; <span class="number">16</span>],
-}
-
-<span class="kw">impl</span> <span class="ident">RelayUuid</span> {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">uuid</span>: <span class="ident">Uuid</span>) -&gt; <span class="ident">RelayUuid</span> {
-        <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="kw-2">*</span><span class="ident">uuid</span>.<span class="ident">as_bytes</span>();
-        <span class="self">Self</span> { <span class="ident">data</span> }
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">Uuid</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RelayUuid</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">uuid</span>: <span class="ident">Uuid</span>) -&gt; <span class="ident">RelayUuid</span> {
-        <span class="ident">RelayUuid::new</span>(<span class="ident">uuid</span>)
-    }
-}
-
-<span class="doccomment">/// Returns true if the uuid is nil.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_uuid_is_nil</span>(<span class="ident">uuid</span>: <span class="kw-2">*const</span> <span class="ident">RelayUuid</span>) -&gt; <span class="ident">bool</span> {
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">uuid</span>) <span class="op">=</span> <span class="ident">Uuid::from_slice</span>(<span class="kw-2">&amp;</span>(<span class="kw-2">*</span><span class="ident">uuid</span>).<span class="ident">data</span>[..]) {
-        <span class="ident">uuid</span> <span class="op">==</span> <span class="ident">Uuid::nil</span>()
-    } <span class="kw">else</span> {
-        <span class="bool-val">false</span>
-    }
-}
-
-<span class="doccomment">/// Formats the UUID into a string.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The string is newly allocated and needs to be released with</span>
-<span class="doccomment">/// `relay_cstr_free`.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_uuid_to_str</span>(<span class="ident">uuid</span>: <span class="kw-2">*const</span> <span class="ident">RelayUuid</span>) -&gt; <span class="ident">RelayStr</span> {
-    <span class="kw">let</span> <span class="ident">uuid</span> <span class="op">=</span> <span class="ident">Uuid::from_slice</span>(<span class="kw-2">&amp;</span>(<span class="kw-2">*</span><span class="ident">uuid</span>).<span class="ident">data</span>[..]).<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">Uuid::nil</span>());
-    <span class="ident">RelayStr::from_string</span>(<span class="ident">uuid</span>.<span class="ident">to_hyphenated_ref</span>().<span class="ident">to_string</span>())
-}
-
-<span class="doccomment">/// A binary buffer of known length.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// If the buffer is owned, indicated by the `owned` flag, the owner must call the `free` function</span>
-<span class="doccomment">/// on this buffer. The convention is:</span>
-<span class="doccomment">///</span>
-<span class="doccomment">///  - When obtained as instance through return values, always free the buffer.</span>
-<span class="doccomment">///  - When obtained as pointer through field access, never free the buffer.</span>
-<span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RelayBuf</span> {
-    <span class="doccomment">/// Pointer to the raw data.</span>
-    <span class="kw">pub</span> <span class="ident">data</span>: <span class="kw-2">*mut</span> <span class="ident">u8</span>,
-    <span class="doccomment">/// The length of the buffer pointed to by `data`.</span>
-    <span class="kw">pub</span> <span class="ident">len</span>: <span class="ident">usize</span>,
-    <span class="doccomment">/// Indicates that the buffer is owned and must be freed.</span>
-    <span class="kw">pub</span> <span class="ident">owned</span>: <span class="ident">bool</span>,
-}
-
-<span class="kw">impl</span> <span class="ident">RelayBuf</span> {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">free</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">owned</span> {
-            <span class="ident">Vec::from_raw_parts</span>(<span class="self">self</span>.<span class="ident">data</span> <span class="kw">as</span> <span class="kw-2">*mut</span> <span class="ident">u8</span>, <span class="self">self</span>.<span class="ident">len</span>, <span class="self">self</span>.<span class="ident">len</span>);
-            <span class="self">self</span>.<span class="ident">data</span> <span class="op">=</span> <span class="ident">ptr::null_mut</span>();
-            <span class="self">self</span>.<span class="ident">len</span> <span class="op">=</span> <span class="number">0</span>;
-            <span class="self">self</span>.<span class="ident">owned</span> <span class="op">=</span> <span class="bool-val">false</span>;
-        }
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">as_bytes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] {
-        <span class="ident">slice::from_raw_parts</span>(<span class="self">self</span>.<span class="ident">data</span> <span class="kw">as</span> <span class="kw-2">*const</span> <span class="ident">u8</span>, <span class="self">self</span>.<span class="ident">len</span>)
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">RelayBuf</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="ident">RelayBuf</span> {
-        <span class="ident">RelayBuf</span> {
-            <span class="ident">data</span>: <span class="ident">ptr::null_mut</span>(),
-            <span class="ident">len</span>: <span class="number">0</span>,
-            <span class="ident">owned</span>: <span class="bool-val">false</span>,
+<span class="kw">impl </span>Default <span class="kw">for </span>RelayStr {
+    <span class="kw">fn </span>default() -&gt; RelayStr {
+        RelayStr {
+            data: ptr::null_mut(),
+            len: <span class="number">0</span>,
+            owned: <span class="bool-val">false</span>,
         }
     }
 }
 
-<span class="doccomment">/// Frees a Relay buf.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// If the buffer is marked as not owned then this function does not</span>
-<span class="doccomment">/// do anything.</span>
-<span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_buf_free</span>(<span class="ident">b</span>: <span class="kw-2">*mut</span> <span class="ident">RelayBuf</span>) {
-    <span class="kw">if</span> <span class="op">!</span><span class="ident">b</span>.<span class="ident">is_null</span>() {
-        (<span class="kw-2">*</span><span class="ident">b</span>).<span class="ident">free</span>()
+<span class="kw">impl </span>From&lt;String&gt; <span class="kw">for </span>RelayStr {
+    <span class="kw">fn </span>from(string: String) -&gt; RelayStr {
+        RelayStr::from_string(string)
+    }
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt; <span class="kw">for </span>RelayStr {
+    <span class="kw">fn </span>from(string: <span class="kw-2">&amp;</span>str) -&gt; RelayStr {
+        RelayStr::new(string)
+    }
+}
+
+<span class="doccomment">/// Creates a Relay string from a c string.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_str_from_cstr(s: <span class="kw-2">*const </span>c_char) -&gt; RelayStr {
+    <span class="kw">let </span>s = CStr::from_ptr(s).to_str()<span class="question-mark">?</span>;
+    RelayStr {
+        data: s.as_ptr() <span class="kw">as </span><span class="kw-2">*mut </span><span class="kw">_</span>,
+        len: s.len(),
+        owned: <span class="bool-val">false</span>,
+    }
+}
+
+<span class="doccomment">/// Frees a Relay str.
+///
+/// If the string is marked as not owned then this function does not
+/// do anything.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_str_free(s: <span class="kw-2">*mut </span>RelayStr) {
+    <span class="kw">if </span>!s.is_null() {
+        (<span class="kw-2">*</span>s).free()
+    }
+}
+
+<span class="doccomment">/// A 16-byte UUID.
+</span><span class="attribute">#[repr(C)]
+</span><span class="kw">pub struct </span>RelayUuid {
+    <span class="doccomment">/// UUID bytes in network byte order (big endian).
+    </span><span class="kw">pub </span>data: [u8; <span class="number">16</span>],
+}
+
+<span class="kw">impl </span>RelayUuid {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(uuid: Uuid) -&gt; RelayUuid {
+        <span class="kw">let </span>data = <span class="kw-2">*</span>uuid.as_bytes();
+        <span class="self">Self </span>{ data }
+    }
+}
+
+<span class="kw">impl </span>From&lt;Uuid&gt; <span class="kw">for </span>RelayUuid {
+    <span class="kw">fn </span>from(uuid: Uuid) -&gt; RelayUuid {
+        RelayUuid::new(uuid)
+    }
+}
+
+<span class="doccomment">/// Returns true if the uuid is nil.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_uuid_is_nil(uuid: <span class="kw-2">*const </span>RelayUuid) -&gt; bool {
+    <span class="kw">if let </span><span class="prelude-val">Ok</span>(uuid) = Uuid::from_slice(<span class="kw-2">&amp;</span>(<span class="kw-2">*</span>uuid).data[..]) {
+        uuid == Uuid::nil()
+    } <span class="kw">else </span>{
+        <span class="bool-val">false
+    </span>}
+}
+
+<span class="doccomment">/// Formats the UUID into a string.
+///
+/// The string is newly allocated and needs to be released with
+/// `relay_cstr_free`.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_uuid_to_str(uuid: <span class="kw-2">*const </span>RelayUuid) -&gt; RelayStr {
+    <span class="kw">let </span>uuid = Uuid::from_slice(<span class="kw-2">&amp;</span>(<span class="kw-2">*</span>uuid).data[..]).unwrap_or_else(|<span class="kw">_</span>| Uuid::nil());
+    RelayStr::from_string(uuid.to_hyphenated_ref().to_string())
+}
+
+<span class="doccomment">/// A binary buffer of known length.
+///
+/// If the buffer is owned, indicated by the `owned` flag, the owner must call the `free` function
+/// on this buffer. The convention is:
+///
+///  - When obtained as instance through return values, always free the buffer.
+///  - When obtained as pointer through field access, never free the buffer.
+</span><span class="attribute">#[repr(C)]
+</span><span class="kw">pub struct </span>RelayBuf {
+    <span class="doccomment">/// Pointer to the raw data.
+    </span><span class="kw">pub </span>data: <span class="kw-2">*mut </span>u8,
+    <span class="doccomment">/// The length of the buffer pointed to by `data`.
+    </span><span class="kw">pub </span>len: usize,
+    <span class="doccomment">/// Indicates that the buffer is owned and must be freed.
+    </span><span class="kw">pub </span>owned: bool,
+}
+
+<span class="kw">impl </span>RelayBuf {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">unsafe fn </span>free(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="kw">if </span><span class="self">self</span>.owned {
+            Vec::from_raw_parts(<span class="self">self</span>.data <span class="kw">as </span><span class="kw-2">*mut </span>u8, <span class="self">self</span>.len, <span class="self">self</span>.len);
+            <span class="self">self</span>.data = ptr::null_mut();
+            <span class="self">self</span>.len = <span class="number">0</span>;
+            <span class="self">self</span>.owned = <span class="bool-val">false</span>;
+        }
+    }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">unsafe fn </span>as_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
+        slice::from_raw_parts(<span class="self">self</span>.data <span class="kw">as </span><span class="kw-2">*const </span>u8, <span class="self">self</span>.len)
+    }
+}
+
+<span class="kw">impl </span>Default <span class="kw">for </span>RelayBuf {
+    <span class="kw">fn </span>default() -&gt; RelayBuf {
+        RelayBuf {
+            data: ptr::null_mut(),
+            len: <span class="number">0</span>,
+            owned: <span class="bool-val">false</span>,
+        }
+    }
+}
+
+<span class="doccomment">/// Frees a Relay buf.
+///
+/// If the buffer is marked as not owned then this function does not
+/// do anything.
+</span><span class="attribute">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_buf_free(b: <span class="kw-2">*mut </span>RelayBuf) {
+    <span class="kw">if </span>!b.is_null() {
+        (<span class="kw-2">*</span>b).free()
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_cabi" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_cabi" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

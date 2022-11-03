@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-profiling/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_profiling/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_profiling/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_profiling/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-profiling/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_profiling/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_profiling/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_profiling/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
 <span id="3">3</span>
 <span id="4">4</span>
@@ -192,199 +192,199 @@
 <span id="192">192</span>
 <span id="193">193</span>
 <span id="194">194</span>
-</pre><pre class="rust"><code><span class="doccomment">//! Profiling protocol and processing for Sentry.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Profiles are captured during the life of a transaction on Sentry clients and sent to Relay for</span>
-<span class="doccomment">//! ingestion as JSON objects with some metadata. They are sent alongside a transaction (usually in</span>
-<span class="doccomment">//! the same envelope) and are usually big objects (average size around 300KB and it&#39;s not unusual</span>
-<span class="doccomment">//! to see several MB). Their size is linked to the amount of code executed during the transaction</span>
-<span class="doccomment">//! (so the duration of the transaction influences the size of the profile).</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! It&#39;s preferrable to have a profile with a transaction. If a transaction is dropped, the profile</span>
-<span class="doccomment">//! should be dropped as well.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! # Envelope</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! To send a profile to Relay, the profile is enclosed in an item of type `profile`:</span>
-<span class="doccomment">//! ```json</span>
-<span class="doccomment">//! {&quot;type&quot;: &quot;profile&quot;, &quot;size&quot;: ...}</span>
-<span class="doccomment">//! { ... }</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! # Protocol</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Relay is expecting a JSON object with some mandatory metadata and a `sampled_profile` key</span>
-<span class="doccomment">//! containing the raw profile. Each platform has their own schema for the profile.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! `android` has a specific binary representation of its profile and Relay is responsible to</span>
-<span class="doccomment">//! unpack it before it&#39;s forwarded down the line.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! The mandatory metadata can vary a bit depending on the platform. For mobile platform, it looks</span>
-<span class="doccomment">//! like this:</span>
-<span class="doccomment">//! ```json</span>
-<span class="doccomment">//! {</span>
-<span class="doccomment">//!     &quot;debug_meta&quot;: { ... },</span>
-<span class="doccomment">//!     &quot;device_is_emulator&quot;: true,</span>
-<span class="doccomment">//!     &quot;device_locale&quot;: &quot;en_US&quot;,</span>
-<span class="doccomment">//!     &quot;device_manufacturer&quot;: &quot;Apple&quot;,</span>
-<span class="doccomment">//!     &quot;device_model&quot;: &quot;iPhone14,3&quot;,</span>
-<span class="doccomment">//!     &quot;device_os_build_number&quot;: &quot;21E258&quot;,</span>
-<span class="doccomment">//!     &quot;device_os_name&quot;: &quot;iOS&quot;,</span>
-<span class="doccomment">//!     &quot;device_os_version&quot;: &quot;15.2&quot;,</span>
-<span class="doccomment">//!     &quot;device_physical_memory_bytes&quot;: 34359738368,</span>
-<span class="doccomment">//!     &quot;duration_ns&quot;: &quot;6634284250&quot;,</span>
-<span class="doccomment">//!     &quot;platform&quot;: &quot;cocoa&quot;,</span>
-<span class="doccomment">//!     &quot;profile_id&quot;: &quot;ee6851adf6014de8af8ca517217ac481&quot;,</span>
-<span class="doccomment">//!     &quot;sampled_profile&quot;: { ... },</span>
-<span class="doccomment">//!     &quot;trace_id&quot;: &quot;4b45d297ef404fb89e8fdf418c8f38a2&quot;,</span>
-<span class="doccomment">//!     &quot;transaction_id&quot;: &quot;8c3e0bc0518540b3ad1aa70d08f1ca7a&quot;,</span>
-<span class="doccomment">//!     &quot;transaction_name&quot;: &quot;iOS_Swift.ViewController&quot;,</span>
-<span class="doccomment">//!     &quot;version_code&quot;: &quot;1&quot;,</span>
-<span class="doccomment">//!     &quot;version_name&quot;: &quot;7.14.0&quot;</span>
-<span class="doccomment">//! }</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! These are the custom attributes for mobile platforms:</span>
-<span class="doccomment">//! - `device_os_build_number`</span>
-<span class="doccomment">//! - `android_api_level`</span>
-<span class="doccomment">//! - `device_is_emulator`</span>
-<span class="doccomment">//! - `device_locale`</span>
-<span class="doccomment">//! - `device_model`</span>
-<span class="doccomment">//! - `device_manufacturer`</span>
-<span class="doccomment">//! - `device_physical_memory_bytes`</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! These are the custom attributes for the `android` platform:</span>
-<span class="doccomment">//! - `build_id`</span>
-<span class="doccomment">//! - `device_cpu_frequencies`</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! These are the custom attributes for backend platforms:</span>
-<span class="doccomment">//! - `architecture`</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! # Ingestion</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Relay will forward those profiles encoded with `msgpack` after unpacking them if needed and push a message on Kafka looking</span>
-<span class="doccomment">//! like this for the `cocoa` platform:</span>
-<span class="doccomment">//! ```json</span>
-<span class="doccomment">//! {</span>
-<span class="doccomment">//!     &quot;debug_meta&quot;: { ... },</span>
-<span class="doccomment">//!     &quot;device_is_emulator&quot;: true,</span>
-<span class="doccomment">//!     &quot;device_locale&quot;: &quot;en_US&quot;,</span>
-<span class="doccomment">//!     &quot;device_manufacturer&quot;: &quot;Apple&quot;,</span>
-<span class="doccomment">//!     &quot;device_model&quot;: &quot;iPhone14,3&quot;,</span>
-<span class="doccomment">//!     &quot;device_os_build_number&quot;: &quot;21E258&quot;,</span>
-<span class="doccomment">//!     &quot;device_os_name&quot;: &quot;iOS&quot;,</span>
-<span class="doccomment">//!     &quot;device_os_version&quot;: &quot;15.2&quot;,</span>
-<span class="doccomment">//!     &quot;device_physical_memory_bytes&quot;: 34359738368,</span>
-<span class="doccomment">//!     &quot;duration_ns&quot;: 6634284250,</span>
-<span class="doccomment">//!     &quot;platform&quot;: &quot;cocoa&quot;,</span>
-<span class="doccomment">//!     &quot;profile_id&quot;: &quot;ee6851adf6014de8af8ca517217ac481&quot;,</span>
-<span class="doccomment">//!     &quot;sampled_profile&quot;: { ... },</span>
-<span class="doccomment">//!     &quot;trace_id&quot;: &quot;4b45d297ef404fb89e8fdf418c8f38a2&quot;,</span>
-<span class="doccomment">//!     &quot;transaction_id&quot;: &quot;8c3e0bc0518540b3ad1aa70d08f1ca7a&quot;,</span>
-<span class="doccomment">//!     &quot;transaction_name&quot;: &quot;iOS_Swift.ViewController&quot;,</span>
-<span class="doccomment">//!     &quot;version_code&quot;: &quot;1&quot;,</span>
-<span class="doccomment">//!     &quot;version_name&quot;: &quot;7.14.0&quot;</span>
-<span class="doccomment">//! }</span>
-<span class="doccomment">//! ```</span>
+</pre><pre class="rust"><code><span class="doccomment">//! Profiling protocol and processing for Sentry.
+//!
+//! Profiles are captured during the life of a transaction on Sentry clients and sent to Relay for
+//! ingestion as JSON objects with some metadata. They are sent alongside a transaction (usually in
+//! the same envelope) and are usually big objects (average size around 300KB and it&#39;s not unusual
+//! to see several MB). Their size is linked to the amount of code executed during the transaction
+//! (so the duration of the transaction influences the size of the profile).
+//!
+//! It&#39;s preferrable to have a profile with a transaction. If a transaction is dropped, the profile
+//! should be dropped as well.
+//!
+//! # Envelope
+//!
+//! To send a profile to Relay, the profile is enclosed in an item of type `profile`:
+//! ```json
+//! {&quot;type&quot;: &quot;profile&quot;, &quot;size&quot;: ...}
+//! { ... }
+//! ```
+//!
+//! # Protocol
+//!
+//! Relay is expecting a JSON object with some mandatory metadata and a `sampled_profile` key
+//! containing the raw profile. Each platform has their own schema for the profile.
+//!
+//! `android` has a specific binary representation of its profile and Relay is responsible to
+//! unpack it before it&#39;s forwarded down the line.
+//!
+//! The mandatory metadata can vary a bit depending on the platform. For mobile platform, it looks
+//! like this:
+//! ```json
+//! {
+//!     &quot;debug_meta&quot;: { ... },
+//!     &quot;device_is_emulator&quot;: true,
+//!     &quot;device_locale&quot;: &quot;en_US&quot;,
+//!     &quot;device_manufacturer&quot;: &quot;Apple&quot;,
+//!     &quot;device_model&quot;: &quot;iPhone14,3&quot;,
+//!     &quot;device_os_build_number&quot;: &quot;21E258&quot;,
+//!     &quot;device_os_name&quot;: &quot;iOS&quot;,
+//!     &quot;device_os_version&quot;: &quot;15.2&quot;,
+//!     &quot;device_physical_memory_bytes&quot;: 34359738368,
+//!     &quot;duration_ns&quot;: &quot;6634284250&quot;,
+//!     &quot;platform&quot;: &quot;cocoa&quot;,
+//!     &quot;profile_id&quot;: &quot;ee6851adf6014de8af8ca517217ac481&quot;,
+//!     &quot;sampled_profile&quot;: { ... },
+//!     &quot;trace_id&quot;: &quot;4b45d297ef404fb89e8fdf418c8f38a2&quot;,
+//!     &quot;transaction_id&quot;: &quot;8c3e0bc0518540b3ad1aa70d08f1ca7a&quot;,
+//!     &quot;transaction_name&quot;: &quot;iOS_Swift.ViewController&quot;,
+//!     &quot;version_code&quot;: &quot;1&quot;,
+//!     &quot;version_name&quot;: &quot;7.14.0&quot;
+//! }
+//! ```
+//!
+//! These are the custom attributes for mobile platforms:
+//! - `device_os_build_number`
+//! - `android_api_level`
+//! - `device_is_emulator`
+//! - `device_locale`
+//! - `device_model`
+//! - `device_manufacturer`
+//! - `device_physical_memory_bytes`
+//!
+//! These are the custom attributes for the `android` platform:
+//! - `build_id`
+//! - `device_cpu_frequencies`
+//!
+//! These are the custom attributes for backend platforms:
+//! - `architecture`
+//!
+//! # Ingestion
+//!
+//! Relay will forward those profiles encoded with `msgpack` after unpacking them if needed and push a message on Kafka looking
+//! like this for the `cocoa` platform:
+//! ```json
+//! {
+//!     &quot;debug_meta&quot;: { ... },
+//!     &quot;device_is_emulator&quot;: true,
+//!     &quot;device_locale&quot;: &quot;en_US&quot;,
+//!     &quot;device_manufacturer&quot;: &quot;Apple&quot;,
+//!     &quot;device_model&quot;: &quot;iPhone14,3&quot;,
+//!     &quot;device_os_build_number&quot;: &quot;21E258&quot;,
+//!     &quot;device_os_name&quot;: &quot;iOS&quot;,
+//!     &quot;device_os_version&quot;: &quot;15.2&quot;,
+//!     &quot;device_physical_memory_bytes&quot;: 34359738368,
+//!     &quot;duration_ns&quot;: 6634284250,
+//!     &quot;platform&quot;: &quot;cocoa&quot;,
+//!     &quot;profile_id&quot;: &quot;ee6851adf6014de8af8ca517217ac481&quot;,
+//!     &quot;sampled_profile&quot;: { ... },
+//!     &quot;trace_id&quot;: &quot;4b45d297ef404fb89e8fdf418c8f38a2&quot;,
+//!     &quot;transaction_id&quot;: &quot;8c3e0bc0518540b3ad1aa70d08f1ca7a&quot;,
+//!     &quot;transaction_name&quot;: &quot;iOS_Swift.ViewController&quot;,
+//!     &quot;version_code&quot;: &quot;1&quot;,
+//!     &quot;version_name&quot;: &quot;7.14.0&quot;
+//! }
+//! ```
 
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
+</span><span class="kw">use </span>serde::{Deserialize, Serialize};
 
-<span class="kw">mod</span> <span class="ident">android</span>;
-<span class="kw">mod</span> <span class="ident">cocoa</span>;
-<span class="kw">mod</span> <span class="ident">error</span>;
-<span class="kw">mod</span> <span class="ident">measurements</span>;
-<span class="kw">mod</span> <span class="ident">native_debug_image</span>;
-<span class="kw">mod</span> <span class="ident">python</span>;
-<span class="kw">mod</span> <span class="ident">rust</span>;
-<span class="kw">mod</span> <span class="ident">sample</span>;
-<span class="kw">mod</span> <span class="ident">transaction_metadata</span>;
-<span class="kw">mod</span> <span class="ident">typescript</span>;
-<span class="kw">mod</span> <span class="ident">utils</span>;
+<span class="kw">mod </span>android;
+<span class="kw">mod </span>cocoa;
+<span class="kw">mod </span>error;
+<span class="kw">mod </span>measurements;
+<span class="kw">mod </span>native_debug_image;
+<span class="kw">mod </span>python;
+<span class="kw">mod </span>rust;
+<span class="kw">mod </span>sample;
+<span class="kw">mod </span>transaction_metadata;
+<span class="kw">mod </span>typescript;
+<span class="kw">mod </span>utils;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::android::expand_android_profile</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::cocoa::expand_cocoa_profile</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::python::parse_python_profile</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::rust::parse_rust_profile</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::sample</span>::{<span class="ident">expand_sample_profile</span>, <span class="ident">Version</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::typescript::parse_typescript_profile</span>;
+<span class="kw">use </span><span class="kw">crate</span>::android::expand_android_profile;
+<span class="kw">use </span><span class="kw">crate</span>::cocoa::expand_cocoa_profile;
+<span class="kw">use </span><span class="kw">crate</span>::python::parse_python_profile;
+<span class="kw">use </span><span class="kw">crate</span>::rust::parse_rust_profile;
+<span class="kw">use </span><span class="kw">crate</span>::sample::{expand_sample_profile, Version};
+<span class="kw">use </span><span class="kw">crate</span>::typescript::parse_typescript_profile;
 
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::error::ProfileError</span>;
+<span class="kw">pub use </span><span class="kw">crate</span>::error::ProfileError;
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Clone</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;lowercase&quot;</span>)]</span>
-<span class="kw">enum</span> <span class="ident">Platform</span> {
-    <span class="ident">Android</span>,
-    <span class="ident">Cocoa</span>,
-    <span class="ident">Node</span>,
-    <span class="ident">Python</span>,
-    <span class="ident">Rust</span>,
-    <span class="ident">Typescript</span>,
+<span class="attribute">#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = <span class="string">&quot;lowercase&quot;</span>)]
+</span><span class="kw">enum </span>Platform {
+    Android,
+    Cocoa,
+    Node,
+    Python,
+    Rust,
+    Typescript,
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="kw">struct</span> <span class="ident">MinimalProfile</span> {
-    <span class="ident">platform</span>: <span class="ident">Platform</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-    <span class="ident">version</span>: <span class="ident">Version</span>,
+<span class="attribute">#[derive(Debug, Deserialize)]
+</span><span class="kw">struct </span>MinimalProfile {
+    platform: Platform,
+    <span class="attribute">#[serde(default)]
+    </span>version: Version,
 }
 
-<span class="kw">fn</span> <span class="ident">minimal_profile_from_json</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">MinimalProfile</span>, <span class="ident">ProfileError</span><span class="op">&gt;</span> {
-    <span class="ident">serde_json::from_slice</span>(<span class="ident">data</span>).<span class="ident">map_err</span>(<span class="ident">ProfileError::InvalidJson</span>)
+<span class="kw">fn </span>minimal_profile_from_json(data: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;MinimalProfile, ProfileError&gt; {
+    serde_json::from_slice(data).map_err(ProfileError::InvalidJson)
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expand_profile</span>(<span class="ident">payload</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="ident">ProfileError</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">profile</span>: <span class="ident">MinimalProfile</span> <span class="op">=</span> <span class="ident">minimal_profile_from_json</span>(<span class="ident">payload</span>)<span class="question-mark">?</span>;
-    <span class="kw">match</span> <span class="ident">profile</span>.<span class="ident">version</span> {
-        <span class="ident">Version::V1</span> =&gt; <span class="ident">expand_sample_profile</span>(<span class="ident">payload</span>),
-        <span class="ident">Version::Unknown</span> =&gt; <span class="kw">match</span> <span class="ident">profile</span>.<span class="ident">platform</span> {
-            <span class="ident">Platform::Android</span> =&gt; <span class="ident">expand_android_profile</span>(<span class="ident">payload</span>),
-            <span class="ident">Platform::Cocoa</span> =&gt; <span class="ident">expand_cocoa_profile</span>(<span class="ident">payload</span>),
-            <span class="kw">_</span> =&gt; {
-                <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">profile</span>.<span class="ident">platform</span> {
-                    <span class="ident">Platform::Python</span> =&gt; <span class="ident">parse_python_profile</span>(<span class="ident">payload</span>),
-                    <span class="ident">Platform::Rust</span> =&gt; <span class="ident">parse_rust_profile</span>(<span class="ident">payload</span>),
-                    <span class="ident">Platform::Typescript</span> =&gt; <span class="ident">parse_typescript_profile</span>(<span class="ident">payload</span>),
-                    <span class="kw">_</span> =&gt; <span class="prelude-val">Err</span>(<span class="ident">ProfileError::PlatformNotSupported</span>),
+<span class="kw">pub fn </span>expand_profile(payload: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Vec&lt;u8&gt;&gt;, ProfileError&gt; {
+    <span class="kw">let </span>profile: MinimalProfile = minimal_profile_from_json(payload)<span class="question-mark">?</span>;
+    <span class="kw">match </span>profile.version {
+        Version::V1 =&gt; expand_sample_profile(payload),
+        Version::Unknown =&gt; <span class="kw">match </span>profile.platform {
+            Platform::Android =&gt; expand_android_profile(payload),
+            Platform::Cocoa =&gt; expand_cocoa_profile(payload),
+            <span class="kw">_ </span>=&gt; {
+                <span class="kw">let </span>payload = <span class="kw">match </span>profile.platform {
+                    Platform::Python =&gt; parse_python_profile(payload),
+                    Platform::Rust =&gt; parse_rust_profile(payload),
+                    Platform::Typescript =&gt; parse_typescript_profile(payload),
+                    <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(ProfileError::PlatformNotSupported),
                 };
-                <span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[<span class="ident">payload</span><span class="question-mark">?</span>])
+                <span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[payload<span class="question-mark">?</span>])
             }
         },
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_minimal_profile_with_version</span>() {
-        <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;version&quot;: &quot;1&quot;, &quot;platform&quot;: &quot;cocoa&quot;}&quot;#</span>;
-        <span class="kw">let</span> <span class="ident">profile</span> <span class="op">=</span> <span class="ident">minimal_profile_from_json</span>(<span class="ident">data</span>.<span class="ident">as_bytes</span>());
-        <span class="macro">assert!</span>(<span class="ident">profile</span>.<span class="ident">is_ok</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">profile</span>.<span class="ident">unwrap</span>().<span class="ident">version</span>, <span class="ident">Version::V1</span>);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_minimal_profile_with_version() {
+        <span class="kw">let </span>data = <span class="string">r#&quot;{&quot;version&quot;: &quot;1&quot;, &quot;platform&quot;: &quot;cocoa&quot;}&quot;#</span>;
+        <span class="kw">let </span>profile = minimal_profile_from_json(data.as_bytes());
+        <span class="macro">assert!</span>(profile.is_ok());
+        <span class="macro">assert_eq!</span>(profile.unwrap().version, Version::V1);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_minimal_profile_without_version</span>() {
-        <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;platform&quot;: &quot;cocoa&quot;}&quot;#</span>;
-        <span class="kw">let</span> <span class="ident">profile</span> <span class="op">=</span> <span class="ident">minimal_profile_from_json</span>(<span class="ident">data</span>.<span class="ident">as_bytes</span>());
-        <span class="macro">assert!</span>(<span class="ident">profile</span>.<span class="ident">is_ok</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">profile</span>.<span class="ident">unwrap</span>().<span class="ident">version</span>, <span class="ident">Version::Unknown</span>);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_minimal_profile_without_version() {
+        <span class="kw">let </span>data = <span class="string">r#&quot;{&quot;platform&quot;: &quot;cocoa&quot;}&quot;#</span>;
+        <span class="kw">let </span>profile = minimal_profile_from_json(data.as_bytes());
+        <span class="macro">assert!</span>(profile.is_ok());
+        <span class="macro">assert_eq!</span>(profile.unwrap().version, Version::Unknown);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_expand_profile_with_version</span>() {
-        <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span> <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/sample/roundtrip.json&quot;</span>);
-        <span class="kw">let</span> <span class="ident">profile</span> <span class="op">=</span> <span class="ident">expand_profile</span>(<span class="ident">payload</span>);
-        <span class="macro">assert!</span>(<span class="ident">profile</span>.<span class="ident">is_ok</span>());
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_expand_profile_with_version() {
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/sample/roundtrip.json&quot;</span>);
+        <span class="kw">let </span>profile = expand_profile(payload);
+        <span class="macro">assert!</span>(profile.is_ok());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_expand_profile_without_version</span>() {
-        <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span> <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/cocoa/roundtrip.json&quot;</span>);
-        <span class="kw">let</span> <span class="ident">profile</span> <span class="op">=</span> <span class="ident">expand_profile</span>(<span class="ident">payload</span>);
-        <span class="macro">assert!</span>(<span class="ident">profile</span>.<span class="ident">is_ok</span>());
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_expand_profile_without_version() {
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/cocoa/roundtrip.json&quot;</span>);
+        <span class="kw">let </span>profile = expand_profile(payload);
+        <span class="macro">assert!</span>(profile.is_ok());
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_profiling" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_profiling" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

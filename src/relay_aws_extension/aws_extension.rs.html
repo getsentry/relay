@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-aws-extension/src/aws_extension.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>aws_extension.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_aws_extension/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_aws_extension/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-aws-extension/src/aws_extension.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>aws_extension.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_aws_extension/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_aws_extension/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_aws_extension/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -247,236 +247,236 @@
 <span id="245">245</span>
 <span id="246">246</span>
 <span id="247">247</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections::HashMap</span>;
-<span class="kw">use</span> <span class="ident">std::fmt</span>;
-<span class="kw">use</span> <span class="ident">std::ops::ControlFlow</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
+<span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::ops::ControlFlow;
 
-<span class="kw">use</span> <span class="ident">reqwest</span>::{<span class="ident">Client</span>, <span class="ident">ClientBuilder</span>, <span class="ident">StatusCode</span>, <span class="ident">Url</span>};
-<span class="kw">use</span> <span class="ident">serde::Deserialize</span>;
+<span class="kw">use </span>reqwest::{Client, ClientBuilder, StatusCode, Url};
+<span class="kw">use </span>serde::Deserialize;
 
-<span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">Controller</span>, <span class="ident">Service</span>, <span class="ident">Signal</span>, <span class="ident">SignalType</span>};
+<span class="kw">use </span>relay_system::{Controller, Service, Signal, SignalType};
 
-<span class="kw">const</span> <span class="ident">EXTENSION_NAME</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;sentry-lambda-extension&quot;</span>;
-<span class="kw">const</span> <span class="ident">EXTENSION_NAME_HEADER</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;Lambda-Extension-Name&quot;</span>;
-<span class="kw">const</span> <span class="ident">EXTENSION_ID_HEADER</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;Lambda-Extension-Identifier&quot;</span>;
+<span class="kw">const </span>EXTENSION_NAME: <span class="kw-2">&amp;</span>str = <span class="string">&quot;sentry-lambda-extension&quot;</span>;
+<span class="kw">const </span>EXTENSION_NAME_HEADER: <span class="kw-2">&amp;</span>str = <span class="string">&quot;Lambda-Extension-Name&quot;</span>;
+<span class="kw">const </span>EXTENSION_ID_HEADER: <span class="kw-2">&amp;</span>str = <span class="string">&quot;Lambda-Extension-Identifier&quot;</span>;
 
-<span class="doccomment">/// Response received from the register API.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// # Example</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```json</span>
-<span class="doccomment">/// {</span>
-<span class="doccomment">///    &quot;functionName&quot;: &quot;helloWorld&quot;,</span>
-<span class="doccomment">///    &quot;functionVersion&quot;: &quot;$LATEST&quot;,</span>
-<span class="doccomment">///    &quot;handler&quot;: &quot;lambda_function.lambda_handler&quot;</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">/// ```</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RegisterResponse</span> {
-    <span class="doccomment">/// The name of the lambda function.</span>
-    <span class="kw">pub</span> <span class="ident">function_name</span>: <span class="ident">String</span>,
-    <span class="doccomment">/// The version of the lambda function.</span>
-    <span class="kw">pub</span> <span class="ident">function_version</span>: <span class="ident">String</span>,
-    <span class="doccomment">/// The handler that the labmda function invokes.</span>
-    <span class="kw">pub</span> <span class="ident">handler</span>: <span class="ident">String</span>,
+<span class="doccomment">/// Response received from the register API.
+///
+/// # Example
+///
+/// ```json
+/// {
+///    &quot;functionName&quot;: &quot;helloWorld&quot;,
+///    &quot;functionVersion&quot;: &quot;$LATEST&quot;,
+///    &quot;handler&quot;: &quot;lambda_function.lambda_handler&quot;
+/// }
+/// ```
+</span><span class="attribute">#[derive(Debug, Deserialize)]
+#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+</span><span class="kw">pub struct </span>RegisterResponse {
+    <span class="doccomment">/// The name of the lambda function.
+    </span><span class="kw">pub </span>function_name: String,
+    <span class="doccomment">/// The version of the lambda function.
+    </span><span class="kw">pub </span>function_version: String,
+    <span class="doccomment">/// The handler that the labmda function invokes.
+    </span><span class="kw">pub </span>handler: String,
 }
 
-<span class="doccomment">/// Tracing headers from an [`InvokeResponse`].</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Tracing</span> {
-    <span class="doccomment">/// type of tracing header</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;type&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">ty</span>: <span class="ident">String</span>,
-    <span class="doccomment">/// tracing header value</span>
-    <span class="kw">pub</span> <span class="ident">value</span>: <span class="ident">String</span>,
+<span class="doccomment">/// Tracing headers from an [`InvokeResponse`].
+</span><span class="attribute">#[derive(Debug, Deserialize)]
+#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+</span><span class="kw">pub struct </span>Tracing {
+    <span class="doccomment">/// type of tracing header
+    </span><span class="attribute">#[serde(rename = <span class="string">&quot;type&quot;</span>)]
+    </span><span class="kw">pub </span>ty: String,
+    <span class="doccomment">/// tracing header value
+    </span><span class="kw">pub </span>value: String,
 }
 
-<span class="doccomment">/// Response received from the next event API on an `INVOKE` event.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// See [Invoke Phase] for more information.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// # Example</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```json</span>
-<span class="doccomment">/// {</span>
-<span class="doccomment">///     &quot;eventType&quot;: &quot;INVOKE&quot;,</span>
-<span class="doccomment">///     &quot;deadlineMs&quot;: 676051,</span>
-<span class="doccomment">///     &quot;requestId&quot;: &quot;3da1f2dc-3222-475e-9205-e2e6c6318895&quot;,</span>
-<span class="doccomment">///     &quot;invokedFunctionArn&quot;: &quot;arn:aws:lambda:us-east-1:123456789012:function:ExtensionTest&quot;,</span>
-<span class="doccomment">///     &quot;tracing&quot;: {</span>
-<span class="doccomment">///         &quot;type&quot;: &quot;X-Amzn-Trace-Id&quot;,</span>
-<span class="doccomment">///         &quot;value&quot;: &quot;Root=1-5f35ae12-0c0fec141ab77a00bc047aa2;Parent=2be948a625588e32;Sampled=1&quot;</span>
-<span class="doccomment">///     }</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// [invoke phase]: https://docs.aws.amazon.com/lambda/latest/dg/runtimes-extensions-api.html#runtimes-lifecycle-invoke</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">InvokeResponse</span> {
-    <span class="doccomment">/// The time and date when the lambda function times out in Unix time milliseconds.</span>
-    <span class="kw">pub</span> <span class="ident">deadline_ms</span>: <span class="ident">u64</span>,
-    <span class="doccomment">/// Unique request identifier.</span>
-    <span class="kw">pub</span> <span class="ident">request_id</span>: <span class="ident">String</span>,
-    <span class="doccomment">/// The invoked lambda function&#39;s ARN (Amazon Resource Name).</span>
-    <span class="kw">pub</span> <span class="ident">invoked_function_arn</span>: <span class="ident">String</span>,
-    <span class="doccomment">/// Tracing headers.</span>
-    <span class="kw">pub</span> <span class="ident">tracing</span>: <span class="ident">Tracing</span>,
+<span class="doccomment">/// Response received from the next event API on an `INVOKE` event.
+///
+/// See [Invoke Phase] for more information.
+///
+/// # Example
+///
+/// ```json
+/// {
+///     &quot;eventType&quot;: &quot;INVOKE&quot;,
+///     &quot;deadlineMs&quot;: 676051,
+///     &quot;requestId&quot;: &quot;3da1f2dc-3222-475e-9205-e2e6c6318895&quot;,
+///     &quot;invokedFunctionArn&quot;: &quot;arn:aws:lambda:us-east-1:123456789012:function:ExtensionTest&quot;,
+///     &quot;tracing&quot;: {
+///         &quot;type&quot;: &quot;X-Amzn-Trace-Id&quot;,
+///         &quot;value&quot;: &quot;Root=1-5f35ae12-0c0fec141ab77a00bc047aa2;Parent=2be948a625588e32;Sampled=1&quot;
+///     }
+/// }
+/// ```
+///
+/// [invoke phase]: https://docs.aws.amazon.com/lambda/latest/dg/runtimes-extensions-api.html#runtimes-lifecycle-invoke
+</span><span class="attribute">#[derive(Debug, Deserialize)]
+#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+</span><span class="kw">pub struct </span>InvokeResponse {
+    <span class="doccomment">/// The time and date when the lambda function times out in Unix time milliseconds.
+    </span><span class="kw">pub </span>deadline_ms: u64,
+    <span class="doccomment">/// Unique request identifier.
+    </span><span class="kw">pub </span>request_id: String,
+    <span class="doccomment">/// The invoked lambda function&#39;s ARN (Amazon Resource Name).
+    </span><span class="kw">pub </span>invoked_function_arn: String,
+    <span class="doccomment">/// Tracing headers.
+    </span><span class="kw">pub </span>tracing: Tracing,
 }
 
-<span class="doccomment">/// Response received from the next event API on a `SHUTDOWN` event.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// See [Shutdown Phase] for more information.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// # Example</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```json</span>
-<span class="doccomment">/// {</span>
-<span class="doccomment">///   &quot;eventType&quot;: &quot;SHUTDOWN&quot;,</span>
-<span class="doccomment">///   &quot;shutdownReason&quot;: &quot;TIMEOUT&quot;,</span>
-<span class="doccomment">///   &quot;deadlineMs&quot;: 42069</span>
-<span class="doccomment">/// }</span>
-<span class="doccomment">/// ```</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// [shutdown phase]: https://docs.aws.amazon.com/lambda/latest/dg/runtimes-extensions-api.html#runtimes-lifecycle-shutdown</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ShutdownResponse</span> {
-    <span class="doccomment">/// The reason for the shutdown.</span>
-    <span class="kw">pub</span> <span class="ident">shutdown_reason</span>: <span class="ident">String</span>,
-    <span class="doccomment">/// The time and date when the lambda function times out in Unix time milliseconds.</span>
-    <span class="kw">pub</span> <span class="ident">deadline_ms</span>: <span class="ident">u64</span>,
+<span class="doccomment">/// Response received from the next event API on a `SHUTDOWN` event.
+///
+/// See [Shutdown Phase] for more information.
+///
+/// # Example
+///
+/// ```json
+/// {
+///   &quot;eventType&quot;: &quot;SHUTDOWN&quot;,
+///   &quot;shutdownReason&quot;: &quot;TIMEOUT&quot;,
+///   &quot;deadlineMs&quot;: 42069
+/// }
+/// ```
+///
+/// [shutdown phase]: https://docs.aws.amazon.com/lambda/latest/dg/runtimes-extensions-api.html#runtimes-lifecycle-shutdown
+</span><span class="attribute">#[derive(Debug, Deserialize)]
+#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+</span><span class="kw">pub struct </span>ShutdownResponse {
+    <span class="doccomment">/// The reason for the shutdown.
+    </span><span class="kw">pub </span>shutdown_reason: String,
+    <span class="doccomment">/// The time and date when the lambda function times out in Unix time milliseconds.
+    </span><span class="kw">pub </span>deadline_ms: u64,
 }
 
-<span class="doccomment">/// All possible next event responses.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;UPPERCASE&quot;</span>, <span class="ident">tag</span> <span class="op">=</span> <span class="string">&quot;eventType&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">NextEventResponse</span> {
-    <span class="doccomment">/// `INVOKE` response.</span>
-    <span class="ident">Invoke</span>(<span class="ident">InvokeResponse</span>),
-    <span class="doccomment">/// `SHUTDOWN` response.</span>
-    <span class="ident">Shutdown</span>(<span class="ident">ShutdownResponse</span>),
+<span class="doccomment">/// All possible next event responses.
+</span><span class="attribute">#[derive(Debug, Deserialize)]
+#[serde(rename_all = <span class="string">&quot;UPPERCASE&quot;</span>, tag = <span class="string">&quot;eventType&quot;</span>)]
+</span><span class="kw">pub enum </span>NextEventResponse {
+    <span class="doccomment">/// `INVOKE` response.
+    </span>Invoke(InvokeResponse),
+    <span class="doccomment">/// `SHUTDOWN` response.
+    </span>Shutdown(ShutdownResponse),
 }
 
-<span class="doccomment">/// Generic error in an AWS extension context.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AwsExtensionError</span>(());
+<span class="doccomment">/// Generic error in an AWS extension context.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>AwsExtensionError(());
 
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">AwsExtensionError</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;aws extension error&quot;</span>)
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>AwsExtensionError {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;aws extension error&quot;</span>)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">std::error::Error</span> <span class="kw">for</span> <span class="ident">AwsExtensionError</span> {}
+<span class="kw">impl </span>std::error::Error <span class="kw">for </span>AwsExtensionError {}
 
-<span class="doccomment">/// Actor implementing an AWS extension.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Spawns an actor that:</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// * registers with the AWS extensions API</span>
-<span class="doccomment">/// * sends blocking (0 timeout) NextEvent calls to the extensions API to get the next invocation</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Each finished invocation immediately polls for the next event. Note that AWS might freeze the</span>
-<span class="doccomment">/// container indefinitely for unused lambdas and this request will also wait until things are</span>
-<span class="doccomment">/// active again.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The actual requests are done in a separate tokio runtime with one worker thread with a oneshot</span>
-<span class="doccomment">/// channel being used for communicating the necessary responses.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AwsExtension</span> {
-    <span class="doccomment">/// The base url for the AWS Extensions API.</span>
-    <span class="ident">base_url</span>: <span class="ident">Url</span>,
-    <span class="doccomment">/// The reqwest client to make Extensions API requests with.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Note that all timeouts need to be 0 because the container might get frozen if lambda is</span>
-    <span class="doccomment">/// idle.</span>
-    <span class="ident">reqwest_client</span>: <span class="ident">Client</span>,
+<span class="doccomment">/// Actor implementing an AWS extension.
+///
+/// Spawns an actor that:
+///
+/// * registers with the AWS extensions API
+/// * sends blocking (0 timeout) NextEvent calls to the extensions API to get the next invocation
+///
+/// Each finished invocation immediately polls for the next event. Note that AWS might freeze the
+/// container indefinitely for unused lambdas and this request will also wait until things are
+/// active again.
+///
+/// The actual requests are done in a separate tokio runtime with one worker thread with a oneshot
+/// channel being used for communicating the necessary responses.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>AwsExtension {
+    <span class="doccomment">/// The base url for the AWS Extensions API.
+    </span>base_url: Url,
+    <span class="doccomment">/// The reqwest client to make Extensions API requests with.
+    ///
+    /// Note that all timeouts need to be 0 because the container might get frozen if lambda is
+    /// idle.
+    </span>reqwest_client: Client,
 }
 
-<span class="kw">impl</span> <span class="ident">AwsExtension</span> {
-    <span class="doccomment">/// Creates a new `AwsExtension` instance.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">aws_runtime_api</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">AwsExtensionError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">base_url</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;http://{}/2020-01-01/extension&quot;</span>, <span class="ident">aws_runtime_api</span>)
-            .<span class="ident">parse</span>()
-            .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">AwsExtensionError</span>(()))<span class="question-mark">?</span>;
+<span class="kw">impl </span>AwsExtension {
+    <span class="doccomment">/// Creates a new `AwsExtension` instance.
+    </span><span class="kw">pub fn </span>new(aws_runtime_api: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, AwsExtensionError&gt; {
+        <span class="kw">let </span>base_url = <span class="macro">format!</span>(<span class="string">&quot;http://{}/2020-01-01/extension&quot;</span>, aws_runtime_api)
+            .parse()
+            .map_err(|<span class="kw">_</span>| AwsExtensionError(()))<span class="question-mark">?</span>;
 
-        <span class="kw">let</span> <span class="ident">reqwest_client</span> <span class="op">=</span> <span class="ident">ClientBuilder::new</span>()
-            .<span class="ident">pool_idle_timeout</span>(<span class="prelude-val">None</span>)
-            .<span class="ident">build</span>()
-            .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">AwsExtensionError</span>(()))<span class="question-mark">?</span>;
+        <span class="kw">let </span>reqwest_client = ClientBuilder::new()
+            .pool_idle_timeout(<span class="prelude-val">None</span>)
+            .build()
+            .map_err(|<span class="kw">_</span>| AwsExtensionError(()))<span class="question-mark">?</span>;
 
-        <span class="prelude-val">Ok</span>(<span class="ident">AwsExtension</span> {
-            <span class="ident">base_url</span>,
-            <span class="ident">reqwest_client</span>,
+        <span class="prelude-val">Ok</span>(AwsExtension {
+            base_url,
+            reqwest_client,
         })
     }
 
-    <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">register</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">AwsExtensionError</span><span class="op">&gt;</span> {
-        <span class="macro">relay_log::info!</span>(<span class="string">&quot;Registering AWS extension on {}&quot;</span>, <span class="self">self</span>.<span class="ident">base_url</span>);
-        <span class="kw">let</span> <span class="ident">url</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;{}/register&quot;</span>, <span class="self">self</span>.<span class="ident">base_url</span>);
-        <span class="kw">let</span> <span class="ident">body</span> <span class="op">=</span> <span class="ident">HashMap::from</span>([(<span class="string">&quot;events&quot;</span>, [<span class="string">&quot;INVOKE&quot;</span>, <span class="string">&quot;SHUTDOWN&quot;</span>])]);
+    <span class="kw">async fn </span>register(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;String, AwsExtensionError&gt; {
+        <span class="macro">relay_log::info!</span>(<span class="string">&quot;Registering AWS extension on {}&quot;</span>, <span class="self">self</span>.base_url);
+        <span class="kw">let </span>url = <span class="macro">format!</span>(<span class="string">&quot;{}/register&quot;</span>, <span class="self">self</span>.base_url);
+        <span class="kw">let </span>body = HashMap::from([(<span class="string">&quot;events&quot;</span>, [<span class="string">&quot;INVOKE&quot;</span>, <span class="string">&quot;SHUTDOWN&quot;</span>])]);
 
-        <span class="kw">let</span> <span class="ident">request</span> <span class="op">=</span> <span class="self">self</span>
-            .<span class="ident">reqwest_client</span>
-            .<span class="ident">post</span>(<span class="kw-2">&amp;</span><span class="ident">url</span>)
-            .<span class="ident">header</span>(<span class="ident">EXTENSION_NAME_HEADER</span>, <span class="ident">EXTENSION_NAME</span>)
-            .<span class="ident">json</span>(<span class="kw-2">&amp;</span><span class="ident">body</span>);
+        <span class="kw">let </span>request = <span class="self">self
+            </span>.reqwest_client
+            .post(<span class="kw-2">&amp;</span>url)
+            .header(EXTENSION_NAME_HEADER, EXTENSION_NAME)
+            .json(<span class="kw-2">&amp;</span>body);
 
-        <span class="kw">let</span> <span class="ident">response</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">send</span>().<span class="kw">await</span>.<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">AwsExtensionError</span>(()))<span class="question-mark">?</span>;
+        <span class="kw">let </span>response = request.send().<span class="kw">await</span>.map_err(|<span class="kw">_</span>| AwsExtensionError(()))<span class="question-mark">?</span>;
 
-        <span class="kw">if</span> <span class="ident">response</span>.<span class="ident">status</span>() <span class="op">!</span><span class="op">=</span> <span class="ident">StatusCode::OK</span> {
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">AwsExtensionError</span>(()));
+        <span class="kw">if </span>response.status() != StatusCode::OK {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(AwsExtensionError(()));
         }
 
-        <span class="kw">let</span> <span class="ident">extension_id</span> <span class="op">=</span> <span class="ident">response</span>
-            .<span class="ident">headers</span>()
-            .<span class="ident">get</span>(<span class="ident">EXTENSION_ID_HEADER</span>)
-            .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">h</span><span class="op">|</span> <span class="ident">h</span>.<span class="ident">to_str</span>().<span class="ident">ok</span>())
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">h</span><span class="op">|</span> <span class="ident">h</span>.<span class="ident">to_string</span>())
-            .<span class="ident">ok_or</span>(<span class="ident">AwsExtensionError</span>(()))<span class="question-mark">?</span>;
+        <span class="kw">let </span>extension_id = response
+            .headers()
+            .get(EXTENSION_ID_HEADER)
+            .and_then(|h| h.to_str().ok())
+            .map(|h| h.to_string())
+            .ok_or(AwsExtensionError(()))<span class="question-mark">?</span>;
 
-        <span class="prelude-val">Ok</span>(<span class="ident">extension_id</span>)
+        <span class="prelude-val">Ok</span>(extension_id)
     }
 
-    <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">next_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">extension_id</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ControlFlow</span><span class="op">&lt;</span>()<span class="op">&gt;</span>, <span class="ident">AwsExtensionError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">url</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;{}/event/next&quot;</span>, <span class="self">self</span>.<span class="ident">base_url</span>);
+    <span class="kw">async fn </span>next_event(<span class="kw-2">&amp;</span><span class="self">self</span>, extension_id: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;ControlFlow&lt;()&gt;, AwsExtensionError&gt; {
+        <span class="kw">let </span>url = <span class="macro">format!</span>(<span class="string">&quot;{}/event/next&quot;</span>, <span class="self">self</span>.base_url);
 
-        <span class="kw">let</span> <span class="ident">request</span> <span class="op">=</span> <span class="self">self</span>
-            .<span class="ident">reqwest_client</span>
-            .<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">url</span>)
-            .<span class="ident">header</span>(<span class="ident">EXTENSION_ID_HEADER</span>, <span class="ident">extension_id</span>);
+        <span class="kw">let </span>request = <span class="self">self
+            </span>.reqwest_client
+            .get(<span class="kw-2">&amp;</span>url)
+            .header(EXTENSION_ID_HEADER, extension_id);
 
-        <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">send</span>().<span class="kw">await</span>.<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">AwsExtensionError</span>(()))<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">next_event</span> <span class="op">=</span> <span class="ident">res</span>.<span class="ident">json</span>().<span class="kw">await</span>.<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">AwsExtensionError</span>(()))<span class="question-mark">?</span>;
+        <span class="kw">let </span>res = request.send().<span class="kw">await</span>.map_err(|<span class="kw">_</span>| AwsExtensionError(()))<span class="question-mark">?</span>;
+        <span class="kw">let </span>next_event = res.json().<span class="kw">await</span>.map_err(|<span class="kw">_</span>| AwsExtensionError(()))<span class="question-mark">?</span>;
 
-        <span class="kw">match</span> <span class="ident">next_event</span> {
-            <span class="ident">NextEventResponse::Invoke</span>(<span class="ident">response</span>) =&gt; {
-                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;Received INVOKE: request_id {}&quot;</span>, <span class="ident">response</span>.<span class="ident">request_id</span>);
-                <span class="prelude-val">Ok</span>(<span class="ident">ControlFlow::Continue</span>(()))
+        <span class="kw">match </span>next_event {
+            NextEventResponse::Invoke(response) =&gt; {
+                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;Received INVOKE: request_id {}&quot;</span>, response.request_id);
+                <span class="prelude-val">Ok</span>(ControlFlow::Continue(()))
             }
-            <span class="ident">NextEventResponse::Shutdown</span>(<span class="ident">response</span>) =&gt; {
-                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;Received SHUTDOWN: reason {}&quot;</span>, <span class="ident">response</span>.<span class="ident">shutdown_reason</span>);
-                <span class="ident">Controller::from_registry</span>().<span class="ident">do_send</span>(<span class="ident">Signal</span>(<span class="ident">SignalType::Term</span>));
-                <span class="prelude-val">Ok</span>(<span class="ident">ControlFlow::Break</span>(()))
+            NextEventResponse::Shutdown(response) =&gt; {
+                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;Received SHUTDOWN: reason {}&quot;</span>, response.shutdown_reason);
+                Controller::from_registry().do_send(Signal(SignalType::Term));
+                <span class="prelude-val">Ok</span>(ControlFlow::Break(()))
             }
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Service</span> <span class="kw">for</span> <span class="ident">AwsExtension</span> {
-    <span class="kw">type</span> <span class="ident">Interface</span> <span class="op">=</span> ();
+<span class="kw">impl </span>Service <span class="kw">for </span>AwsExtension {
+    <span class="kw">type </span>Interface = ();
 
-    <span class="kw">fn</span> <span class="ident">spawn_handler</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_rx</span>: <span class="ident">relay_system::Receiver</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Interface</span><span class="op">&gt;</span>) {
-        <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
+    <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, _rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+        tokio::spawn(<span class="kw">async move </span>{
             <span class="macro">relay_log::info!</span>(<span class="string">&quot;AWS extension started&quot;</span>);
 
-            <span class="kw">let</span> <span class="ident">extension_id</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">register</span>().<span class="kw">await</span> {
-                <span class="prelude-val">Ok</span>(<span class="ident">extension_id</span>) =&gt; {
+            <span class="kw">let </span>extension_id = <span class="kw">match </span><span class="self">self</span>.register().<span class="kw">await </span>{
+                <span class="prelude-val">Ok</span>(extension_id) =&gt; {
                     <span class="macro">relay_log::info!</span>(<span class="string">&quot;AWS extension successfully registered&quot;</span>);
-                    <span class="ident">extension_id</span>
+                    extension_id
                 }
                 <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
                     <span class="macro">relay_log::info!</span>(<span class="string">&quot;AWS extension registration failed&quot;</span>);
@@ -484,8 +484,8 @@
                 }
             };
 
-            <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">control_flow</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">next_event</span>(<span class="kw-2">&amp;</span><span class="ident">extension_id</span>).<span class="kw">await</span> {
-                <span class="kw">if</span> <span class="ident">control_flow</span>.<span class="ident">is_break</span>() {
+            <span class="kw">while let </span><span class="prelude-val">Ok</span>(control_flow) = <span class="self">self</span>.next_event(<span class="kw-2">&amp;</span>extension_id).<span class="kw">await </span>{
+                <span class="kw">if </span>control_flow.is_break() {
                     <span class="kw">break</span>;
                 }
             }
@@ -495,4 +495,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_aws_extension" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_aws_extension" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

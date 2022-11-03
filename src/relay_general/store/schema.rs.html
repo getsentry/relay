@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/store/schema.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>schema.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/store/schema.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>schema.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_general/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -275,102 +275,102 @@
 <span id="273">273</span>
 <span id="274">274</span>
 <span id="275">275</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor</span>::{<span class="ident">ProcessValue</span>, <span class="ident">ProcessingState</span>, <span class="ident">Processor</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{
-    <span class="ident">Array</span>, <span class="ident">Empty</span>, <span class="ident">Error</span>, <span class="ident">ErrorKind</span>, <span class="ident">Meta</span>, <span class="ident">Object</span>, <span class="ident">ProcessingAction</span>, <span class="ident">ProcessingResult</span>,
+</pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::processor::{ProcessValue, ProcessingState, Processor};
+<span class="kw">use </span><span class="kw">crate</span>::types::{
+    Array, Empty, Error, ErrorKind, Meta, Object, ProcessingAction, ProcessingResult,
 };
 
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SchemaProcessor</span>;
+<span class="kw">pub struct </span>SchemaProcessor;
 
-<span class="kw">impl</span> <span class="ident">Processor</span> <span class="kw">for</span> <span class="ident">SchemaProcessor</span> {
-    <span class="kw">fn</span> <span class="ident">process_string</span>(
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
-        <span class="ident">value</span>: <span class="kw-2">&amp;mut</span> <span class="ident">String</span>,
-        <span class="ident">meta</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Meta</span>,
-        <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="ident">ProcessingResult</span> {
-        <span class="ident">value_trim_whitespace</span>(<span class="ident">value</span>, <span class="ident">meta</span>, <span class="ident">state</span>);
-        <span class="ident">verify_value_nonempty</span>(<span class="ident">value</span>, <span class="ident">meta</span>, <span class="ident">state</span>)<span class="question-mark">?</span>;
-        <span class="ident">verify_value_characters</span>(<span class="ident">value</span>, <span class="ident">meta</span>, <span class="ident">state</span>)<span class="question-mark">?</span>;
+<span class="kw">impl </span>Processor <span class="kw">for </span>SchemaProcessor {
+    <span class="kw">fn </span>process_string(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        value: <span class="kw-2">&amp;mut </span>String,
+        meta: <span class="kw-2">&amp;mut </span>Meta,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+    ) -&gt; ProcessingResult {
+        value_trim_whitespace(value, meta, state);
+        verify_value_nonempty(value, meta, state)<span class="question-mark">?</span>;
+        verify_value_characters(value, meta, state)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">process_array</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
-        <span class="ident">value</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Array</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
-        <span class="ident">meta</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Meta</span>,
-        <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="ident">ProcessingResult</span>
-    <span class="kw">where</span>
-        <span class="ident">T</span>: <span class="ident">ProcessValue</span>,
+    <span class="kw">fn </span>process_array&lt;T&gt;(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        value: <span class="kw-2">&amp;mut </span>Array&lt;T&gt;,
+        meta: <span class="kw-2">&amp;mut </span>Meta,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+    ) -&gt; ProcessingResult
+    <span class="kw">where
+        </span>T: ProcessValue,
     {
-        <span class="ident">value</span>.<span class="ident">process_child_values</span>(<span class="self">self</span>, <span class="ident">state</span>)<span class="question-mark">?</span>;
-        <span class="ident">verify_value_nonempty</span>(<span class="ident">value</span>, <span class="ident">meta</span>, <span class="ident">state</span>)<span class="question-mark">?</span>;
+        value.process_child_values(<span class="self">self</span>, state)<span class="question-mark">?</span>;
+        verify_value_nonempty(value, meta, state)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">process_object</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
-        <span class="ident">value</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
-        <span class="ident">meta</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Meta</span>,
-        <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="ident">ProcessingResult</span>
-    <span class="kw">where</span>
-        <span class="ident">T</span>: <span class="ident">ProcessValue</span>,
+    <span class="kw">fn </span>process_object&lt;T&gt;(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        value: <span class="kw-2">&amp;mut </span>Object&lt;T&gt;,
+        meta: <span class="kw-2">&amp;mut </span>Meta,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+    ) -&gt; ProcessingResult
+    <span class="kw">where
+        </span>T: ProcessValue,
     {
-        <span class="ident">value</span>.<span class="ident">process_child_values</span>(<span class="self">self</span>, <span class="ident">state</span>)<span class="question-mark">?</span>;
-        <span class="ident">verify_value_nonempty</span>(<span class="ident">value</span>, <span class="ident">meta</span>, <span class="ident">state</span>)<span class="question-mark">?</span>;
+        value.process_child_values(<span class="self">self</span>, state)<span class="question-mark">?</span>;
+        verify_value_nonempty(value, meta, state)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">before_process</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">ProcessValue</span><span class="op">&gt;</span>(
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
-        <span class="ident">value</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">T</span><span class="op">&gt;</span>,
-        <span class="ident">meta</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Meta</span>,
-        <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="ident">ProcessingResult</span> {
-        <span class="kw">if</span> <span class="ident">value</span>.<span class="ident">is_none</span>() <span class="op">&amp;&amp;</span> <span class="ident">state</span>.<span class="ident">attrs</span>().<span class="ident">required</span> <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">meta</span>.<span class="ident">has_errors</span>() {
-            <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">ErrorKind::MissingAttribute</span>);
+    <span class="kw">fn </span>before_process&lt;T: ProcessValue&gt;(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        value: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>T&gt;,
+        meta: <span class="kw-2">&amp;mut </span>Meta,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+    ) -&gt; ProcessingResult {
+        <span class="kw">if </span>value.is_none() &amp;&amp; state.attrs().required &amp;&amp; !meta.has_errors() {
+            meta.add_error(ErrorKind::MissingAttribute);
         }
 
         <span class="prelude-val">Ok</span>(())
     }
 }
 
-<span class="kw">fn</span> <span class="ident">value_trim_whitespace</span>(<span class="ident">value</span>: <span class="kw-2">&amp;mut</span> <span class="ident">String</span>, <span class="ident">_meta</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Meta</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) {
-    <span class="kw">if</span> <span class="ident">state</span>.<span class="ident">attrs</span>().<span class="ident">trim_whitespace</span> {
-        <span class="kw">let</span> <span class="ident">new_value</span> <span class="op">=</span> <span class="ident">value</span>.<span class="ident">trim</span>().<span class="ident">to_owned</span>();
-        <span class="ident">value</span>.<span class="ident">clear</span>();
-        <span class="ident">value</span>.<span class="ident">push_str</span>(<span class="kw-2">&amp;</span><span class="ident">new_value</span>);
+<span class="kw">fn </span>value_trim_whitespace(value: <span class="kw-2">&amp;mut </span>String, _meta: <span class="kw-2">&amp;mut </span>Meta, state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;) {
+    <span class="kw">if </span>state.attrs().trim_whitespace {
+        <span class="kw">let </span>new_value = value.trim().to_owned();
+        value.clear();
+        value.push_str(<span class="kw-2">&amp;</span>new_value);
     }
 }
 
-<span class="kw">fn</span> <span class="ident">verify_value_nonempty</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(
-    <span class="ident">value</span>: <span class="kw-2">&amp;mut</span> <span class="ident">T</span>,
-    <span class="ident">meta</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Meta</span>,
-    <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-) -&gt; <span class="ident">ProcessingResult</span>
-<span class="kw">where</span>
-    <span class="ident">T</span>: <span class="ident">Empty</span>,
+<span class="kw">fn </span>verify_value_nonempty&lt;T&gt;(
+    value: <span class="kw-2">&amp;mut </span>T,
+    meta: <span class="kw-2">&amp;mut </span>Meta,
+    state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+) -&gt; ProcessingResult
+<span class="kw">where
+    </span>T: Empty,
 {
-    <span class="kw">if</span> <span class="ident">state</span>.<span class="ident">attrs</span>().<span class="ident">nonempty</span> <span class="op">&amp;&amp;</span> <span class="ident">value</span>.<span class="ident">is_empty</span>() {
-        <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::nonempty</span>());
-        <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::DeleteValueHard</span>)
-    } <span class="kw">else</span> {
+    <span class="kw">if </span>state.attrs().nonempty &amp;&amp; value.is_empty() {
+        meta.add_error(Error::nonempty());
+        <span class="prelude-val">Err</span>(ProcessingAction::DeleteValueHard)
+    } <span class="kw">else </span>{
         <span class="prelude-val">Ok</span>(())
     }
 }
 
-<span class="kw">fn</span> <span class="ident">verify_value_characters</span>(
-    <span class="ident">value</span>: <span class="kw-2">&amp;mut</span> <span class="ident">str</span>,
-    <span class="ident">meta</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Meta</span>,
-    <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-) -&gt; <span class="ident">ProcessingResult</span> {
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">character_set</span>) <span class="op">=</span> <span class="ident">state</span>.<span class="ident">attrs</span>().<span class="ident">characters</span> {
-        <span class="kw">for</span> <span class="ident">c</span> <span class="kw">in</span> <span class="ident">value</span>.<span class="ident">chars</span>() {
-            <span class="kw">if</span> <span class="op">!</span>(<span class="ident">character_set</span>.<span class="ident">char_is_valid</span>)(<span class="ident">c</span>) {
-                <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::invalid</span>(<span class="macro">format!</span>(<span class="string">&quot;invalid character {:?}&quot;</span>, <span class="ident">c</span>)));
-                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::DeleteValueSoft</span>);
+<span class="kw">fn </span>verify_value_characters(
+    value: <span class="kw-2">&amp;mut </span>str,
+    meta: <span class="kw-2">&amp;mut </span>Meta,
+    state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+) -&gt; ProcessingResult {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>character_set) = state.attrs().characters {
+        <span class="kw">for </span>c <span class="kw">in </span>value.chars() {
+            <span class="kw">if </span>!(character_set.char_is_valid)(c) {
+                meta.add_error(Error::invalid(<span class="macro">format!</span>(<span class="string">&quot;invalid character {:?}&quot;</span>, c)));
+                <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::DeleteValueSoft);
             }
         }
     }
@@ -378,177 +378,177 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">similar_asserts::assert_eq</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>similar_asserts::assert_eq;
 
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor</span>::{<span class="ident">process_value</span>, <span class="ident">ProcessingState</span>};
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{
-        <span class="ident">CError</span>, <span class="ident">ClientSdkInfo</span>, <span class="ident">Event</span>, <span class="ident">MachException</span>, <span class="ident">Mechanism</span>, <span class="ident">MechanismMeta</span>, <span class="ident">PosixSignal</span>,
-        <span class="ident">RawStacktrace</span>, <span class="ident">User</span>,
+    <span class="kw">use </span><span class="kw">crate</span>::processor::{process_value, ProcessingState};
+    <span class="kw">use </span><span class="kw">crate</span>::protocol::{
+        CError, ClientSdkInfo, Event, MachException, Mechanism, MechanismMeta, PosixSignal,
+        RawStacktrace, User,
     };
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Array</span>, <span class="ident">Error</span>, <span class="ident">ErrorKind</span>, <span class="ident">Object</span>};
+    <span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Array, Error, ErrorKind, Object};
 
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">fn</span> <span class="ident">assert_nonempty_base</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>()
-    <span class="kw">where</span>
-        <span class="ident">T</span>: <span class="ident">Default</span> <span class="op">+</span> <span class="ident">PartialEq</span> <span class="op">+</span> <span class="ident"><span class="kw">crate</span>::processor::ProcessValue</span>,
+    <span class="kw">fn </span>assert_nonempty_base&lt;T&gt;()
+    <span class="kw">where
+        </span>T: Default + PartialEq + <span class="kw">crate</span>::processor::ProcessValue,
     {
-        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>)]</span>
-        <span class="kw">struct</span> <span class="ident">Foo</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
-            <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">required</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>, <span class="ident">nonempty</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>)]</span>
-            <span class="ident">bar</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
-            <span class="ident">bar2</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
+        <span class="attribute">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+        </span><span class="kw">struct </span>Foo&lt;T&gt; {
+            <span class="attribute">#[metastructure(required = <span class="string">&quot;true&quot;</span>, nonempty = <span class="string">&quot;true&quot;</span>)]
+            </span>bar: Annotated&lt;T&gt;,
+            bar2: Annotated&lt;T&gt;,
         }
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">wrapper</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Foo</span> {
-            <span class="ident">bar</span>: <span class="ident">Annotated::new</span>(<span class="ident">T::default</span>()),
-            <span class="ident">bar2</span>: <span class="ident">Annotated::new</span>(<span class="ident">T::default</span>()),
+        <span class="kw">let </span><span class="kw-2">mut </span>wrapper = Annotated::new(Foo {
+            bar: Annotated::new(T::default()),
+            bar2: Annotated::new(T::default()),
         });
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">wrapper</span>, <span class="kw-2">&amp;mut</span> <span class="ident">SchemaProcessor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        process_value(<span class="kw-2">&amp;mut </span>wrapper, <span class="kw-2">&amp;mut </span>SchemaProcessor, ProcessingState::root()).unwrap();
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">wrapper</span>,
-            <span class="ident">Annotated::new</span>(<span class="ident">Foo</span> {
-                <span class="ident">bar</span>: <span class="ident">Annotated::from_error</span>(<span class="ident">Error::expected</span>(<span class="string">&quot;a non-empty value&quot;</span>), <span class="prelude-val">None</span>),
-                <span class="ident">bar2</span>: <span class="ident">Annotated::new</span>(<span class="ident">T::default</span>())
+            wrapper,
+            Annotated::new(Foo {
+                bar: Annotated::from_error(Error::expected(<span class="string">&quot;a non-empty value&quot;</span>), <span class="prelude-val">None</span>),
+                bar2: Annotated::new(T::default())
             })
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_nonempty_string</span>() {
-        <span class="ident">assert_nonempty_base</span>::<span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>();
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_nonempty_string() {
+        assert_nonempty_base::&lt;String&gt;();
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_nonempty_array</span>() {
-        <span class="ident">assert_nonempty_base</span>::<span class="op">&lt;</span><span class="ident">Array</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span><span class="op">&gt;</span>();
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_nonempty_array() {
+        assert_nonempty_base::&lt;Array&lt;u64&gt;&gt;();
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_nonempty_object</span>() {
-        <span class="ident">assert_nonempty_base</span>::<span class="op">&lt;</span><span class="ident">Object</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span><span class="op">&gt;</span>();
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_nonempty_object() {
+        assert_nonempty_base::&lt;Object&lt;u64&gt;&gt;();
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_invalid_email</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">user</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">User</span> {
-            <span class="ident">email</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;bananabread&quot;</span>.<span class="ident">to_owned</span>()),
-            ..<span class="ident">Default::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_invalid_email() {
+        <span class="kw">let </span><span class="kw-2">mut </span>user = Annotated::new(User {
+            email: Annotated::new(<span class="string">&quot;bananabread&quot;</span>.to_owned()),
+            ..Default::default()
         });
 
-        <span class="kw">let</span> <span class="ident">expected</span> <span class="op">=</span> <span class="ident">user</span>.<span class="ident">clone</span>();
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">user</span>, <span class="kw-2">&amp;mut</span> <span class="ident">SchemaProcessor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="kw">let </span>expected = user.clone();
+        process_value(<span class="kw-2">&amp;mut </span>user, <span class="kw-2">&amp;mut </span>SchemaProcessor, ProcessingState::root()).unwrap();
 
-        <span class="macro">assert_eq!</span>(<span class="ident">user</span>, <span class="ident">expected</span>);
+        <span class="macro">assert_eq!</span>(user, expected);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_client_sdk_missing_attribute</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">info</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">ClientSdkInfo</span> {
-            <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;sentry.rust&quot;</span>.<span class="ident">to_string</span>()),
-            ..<span class="ident">Default::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_client_sdk_missing_attribute() {
+        <span class="kw">let </span><span class="kw-2">mut </span>info = Annotated::new(ClientSdkInfo {
+            name: Annotated::new(<span class="string">&quot;sentry.rust&quot;</span>.to_string()),
+            ..Default::default()
         });
 
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">info</span>, <span class="kw-2">&amp;mut</span> <span class="ident">SchemaProcessor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        process_value(<span class="kw-2">&amp;mut </span>info, <span class="kw-2">&amp;mut </span>SchemaProcessor, ProcessingState::root()).unwrap();
 
-        <span class="kw">let</span> <span class="ident">expected</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">ClientSdkInfo</span> {
-            <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;sentry.rust&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">version</span>: <span class="ident">Annotated::from_error</span>(<span class="ident">ErrorKind::MissingAttribute</span>, <span class="prelude-val">None</span>),
-            ..<span class="ident">Default::default</span>()
+        <span class="kw">let </span>expected = Annotated::new(ClientSdkInfo {
+            name: Annotated::new(<span class="string">&quot;sentry.rust&quot;</span>.to_string()),
+            version: Annotated::from_error(ErrorKind::MissingAttribute, <span class="prelude-val">None</span>),
+            ..Default::default()
         });
 
-        <span class="macro">assert_eq!</span>(<span class="ident">info</span>, <span class="ident">expected</span>);
+        <span class="macro">assert_eq!</span>(info, expected);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_mechanism_missing_attributes</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mechanism</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Mechanism</span> {
-            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;mytype&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">meta</span>: <span class="ident">Annotated::new</span>(<span class="ident">MechanismMeta</span> {
-                <span class="ident">errno</span>: <span class="ident">Annotated::new</span>(<span class="ident">CError</span> {
-                    <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;ENOENT&quot;</span>.<span class="ident">to_string</span>()),
-                    ..<span class="ident">Default::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_mechanism_missing_attributes() {
+        <span class="kw">let </span><span class="kw-2">mut </span>mechanism = Annotated::new(Mechanism {
+            ty: Annotated::new(<span class="string">&quot;mytype&quot;</span>.to_string()),
+            meta: Annotated::new(MechanismMeta {
+                errno: Annotated::new(CError {
+                    name: Annotated::new(<span class="string">&quot;ENOENT&quot;</span>.to_string()),
+                    ..Default::default()
                 }),
-                <span class="ident">mach_exception</span>: <span class="ident">Annotated::new</span>(<span class="ident">MachException</span> {
-                    <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;EXC_BAD_ACCESS&quot;</span>.<span class="ident">to_string</span>()),
-                    ..<span class="ident">Default::default</span>()
+                mach_exception: Annotated::new(MachException {
+                    name: Annotated::new(<span class="string">&quot;EXC_BAD_ACCESS&quot;</span>.to_string()),
+                    ..Default::default()
                 }),
-                <span class="ident">signal</span>: <span class="ident">Annotated::new</span>(<span class="ident">PosixSignal</span> {
-                    <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;SIGSEGV&quot;</span>.<span class="ident">to_string</span>()),
-                    ..<span class="ident">Default::default</span>()
+                signal: Annotated::new(PosixSignal {
+                    name: Annotated::new(<span class="string">&quot;SIGSEGV&quot;</span>.to_string()),
+                    ..Default::default()
                 }),
-                ..<span class="ident">Default::default</span>()
+                ..Default::default()
             }),
-            ..<span class="ident">Default::default</span>()
+            ..Default::default()
         });
 
-        <span class="ident">process_value</span>(
-            <span class="kw-2">&amp;mut</span> <span class="ident">mechanism</span>,
-            <span class="kw-2">&amp;mut</span> <span class="ident">SchemaProcessor</span>,
-            <span class="ident">ProcessingState::root</span>(),
+        process_value(
+            <span class="kw-2">&amp;mut </span>mechanism,
+            <span class="kw-2">&amp;mut </span>SchemaProcessor,
+            ProcessingState::root(),
         )
-        .<span class="ident">unwrap</span>();
+        .unwrap();
 
-        <span class="kw">let</span> <span class="ident">expected</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Mechanism</span> {
-            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;mytype&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">meta</span>: <span class="ident">Annotated::new</span>(<span class="ident">MechanismMeta</span> {
-                <span class="ident">errno</span>: <span class="ident">Annotated::new</span>(<span class="ident">CError</span> {
-                    <span class="ident">number</span>: <span class="ident">Annotated::empty</span>(),
-                    <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;ENOENT&quot;</span>.<span class="ident">to_string</span>()),
+        <span class="kw">let </span>expected = Annotated::new(Mechanism {
+            ty: Annotated::new(<span class="string">&quot;mytype&quot;</span>.to_string()),
+            meta: Annotated::new(MechanismMeta {
+                errno: Annotated::new(CError {
+                    number: Annotated::empty(),
+                    name: Annotated::new(<span class="string">&quot;ENOENT&quot;</span>.to_string()),
                 }),
-                <span class="ident">mach_exception</span>: <span class="ident">Annotated::new</span>(<span class="ident">MachException</span> {
-                    <span class="ident">ty</span>: <span class="ident">Annotated::empty</span>(),
-                    <span class="ident">code</span>: <span class="ident">Annotated::empty</span>(),
-                    <span class="ident">subcode</span>: <span class="ident">Annotated::empty</span>(),
-                    <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;EXC_BAD_ACCESS&quot;</span>.<span class="ident">to_string</span>()),
+                mach_exception: Annotated::new(MachException {
+                    ty: Annotated::empty(),
+                    code: Annotated::empty(),
+                    subcode: Annotated::empty(),
+                    name: Annotated::new(<span class="string">&quot;EXC_BAD_ACCESS&quot;</span>.to_string()),
                 }),
-                <span class="ident">signal</span>: <span class="ident">Annotated::new</span>(<span class="ident">PosixSignal</span> {
-                    <span class="ident">number</span>: <span class="ident">Annotated::empty</span>(),
-                    <span class="ident">code</span>: <span class="ident">Annotated::empty</span>(),
-                    <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;SIGSEGV&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="ident">code_name</span>: <span class="ident">Annotated::empty</span>(),
+                signal: Annotated::new(PosixSignal {
+                    number: Annotated::empty(),
+                    code: Annotated::empty(),
+                    name: Annotated::new(<span class="string">&quot;SIGSEGV&quot;</span>.to_string()),
+                    code_name: Annotated::empty(),
                 }),
-                ..<span class="ident">Default::default</span>()
+                ..Default::default()
             }),
-            ..<span class="ident">Default::default</span>()
+            ..Default::default()
         });
 
-        <span class="macro">assert_eq!</span>(<span class="ident">mechanism</span>, <span class="ident">expected</span>);
+        <span class="macro">assert_eq!</span>(mechanism, expected);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_stacktrace_missing_attribute</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stack</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">RawStacktrace::default</span>());
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_stacktrace_missing_attribute() {
+        <span class="kw">let </span><span class="kw-2">mut </span>stack = Annotated::new(RawStacktrace::default());
 
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">stack</span>, <span class="kw-2">&amp;mut</span> <span class="ident">SchemaProcessor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        process_value(<span class="kw-2">&amp;mut </span>stack, <span class="kw-2">&amp;mut </span>SchemaProcessor, ProcessingState::root()).unwrap();
 
-        <span class="kw">let</span> <span class="ident">expected</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">RawStacktrace</span> {
-            <span class="ident">frames</span>: <span class="ident">Annotated::from_error</span>(<span class="ident">ErrorKind::MissingAttribute</span>, <span class="prelude-val">None</span>),
-            ..<span class="ident">Default::default</span>()
+        <span class="kw">let </span>expected = Annotated::new(RawStacktrace {
+            frames: Annotated::from_error(ErrorKind::MissingAttribute, <span class="prelude-val">None</span>),
+            ..Default::default()
         });
 
-        <span class="macro">assert_eq!</span>(<span class="ident">stack</span>, <span class="ident">expected</span>);
+        <span class="macro">assert_eq!</span>(stack, expected);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_newlines_release</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">release</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;42\n&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-            ..<span class="ident">Default::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_newlines_release() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
+            release: Annotated::new(<span class="string">&quot;42\n&quot;</span>.to_string().into()),
+            ..Default::default()
         });
 
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">SchemaProcessor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>SchemaProcessor, ProcessingState::root()).unwrap();
 
-        <span class="kw">let</span> <span class="ident">expected</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">release</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;42&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-            ..<span class="ident">Default::default</span>()
+        <span class="kw">let </span>expected = Annotated::new(Event {
+            release: Annotated::new(<span class="string">&quot;42&quot;</span>.to_string().into()),
+            ..Default::default()
         });
 
-        <span class="macro">assert_eq!</span>(<span class="ident">expected</span>, <span class="ident">event</span>);
+        <span class="macro">assert_eq!</span>(expected, event);
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

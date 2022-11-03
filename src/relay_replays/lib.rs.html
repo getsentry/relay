@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-replays/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_replays/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_replays/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_replays/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-replays/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_replays/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_replays/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_replays/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
 <span id="3">3</span>
 <span id="4">4</span>
@@ -262,269 +262,269 @@
 <span id="262">262</span>
 <span id="263">263</span>
 <span id="264">264</span>
-</pre><pre class="rust"><code><span class="doccomment">//! Replay processing and normalization module.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Replays are multi-part values sent from Sentry integrations spanning arbitrary time-periods.</span>
-<span class="doccomment">//! They are ingested incrementally and are available for viewing after the first two segments</span>
-<span class="doccomment">//! (segment 0 and 1) have completed ingestion.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! # Protocol</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Relay is expecting a JSON object with some mandatory metadata.  However, environment and user</span>
-<span class="doccomment">//! metadata is usually sent in addition to the minimal payload.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ```json</span>
-<span class="doccomment">//! {</span>
-<span class="doccomment">//!     &quot;type&quot;: &quot;replay_event&quot;,</span>
-<span class="doccomment">//!     &quot;replay_id&quot;: &quot;d2132d31b39445f1938d7e21b6bf0ec4&quot;,</span>
-<span class="doccomment">//!     &quot;event_id&quot;: &quot;63c5b0f895441a94340183c5f1e74cd4&quot;,</span>
-<span class="doccomment">//!     &quot;segment_id&quot;: 0,</span>
-<span class="doccomment">//!     &quot;timestamp&quot;: 1597976392.6542819,</span>
-<span class="doccomment">//!     &quot;replay_start_timestamp&quot;: 1597976392.6542819,</span>
-<span class="doccomment">//!     &quot;urls&quot;: [&quot;https://sentry.io&quot;],</span>
-<span class="doccomment">//!     &quot;error_ids&quot;: [&quot;d2132d31b39445f1938d7e21b6bf0ec4&quot;],</span>
-<span class="doccomment">//!     &quot;trace_ids&quot;: [&quot;63c5b0f895441a94340183c5f1e74cd4&quot;],</span>
-<span class="doccomment">//!     &quot;request&quot;: {</span>
-<span class="doccomment">//!         &quot;headers&quot;: {&quot;User-Agent&quot;: &quot;Mozilla/5.0...&quot;}</span>
-<span class="doccomment">//!     },</span>
-<span class="doccomment">//! }</span>
-<span class="doccomment">//! ```</span>
-<span class="kw">use</span> <span class="ident">std::fmt::Write</span>;
-<span class="kw">use</span> <span class="ident">std::net::IpAddr</span>;
+</pre><pre class="rust"><code><span class="doccomment">//! Replay processing and normalization module.
+//!
+//! Replays are multi-part values sent from Sentry integrations spanning arbitrary time-periods.
+//! They are ingested incrementally and are available for viewing after the first two segments
+//! (segment 0 and 1) have completed ingestion.
+//!
+//! # Protocol
+//!
+//! Relay is expecting a JSON object with some mandatory metadata.  However, environment and user
+//! metadata is usually sent in addition to the minimal payload.
+//!
+//! ```json
+//! {
+//!     &quot;type&quot;: &quot;replay_event&quot;,
+//!     &quot;replay_id&quot;: &quot;d2132d31b39445f1938d7e21b6bf0ec4&quot;,
+//!     &quot;event_id&quot;: &quot;63c5b0f895441a94340183c5f1e74cd4&quot;,
+//!     &quot;segment_id&quot;: 0,
+//!     &quot;timestamp&quot;: 1597976392.6542819,
+//!     &quot;replay_start_timestamp&quot;: 1597976392.6542819,
+//!     &quot;urls&quot;: [&quot;https://sentry.io&quot;],
+//!     &quot;error_ids&quot;: [&quot;d2132d31b39445f1938d7e21b6bf0ec4&quot;],
+//!     &quot;trace_ids&quot;: [&quot;63c5b0f895441a94340183c5f1e74cd4&quot;],
+//!     &quot;request&quot;: {
+//!         &quot;headers&quot;: {&quot;User-Agent&quot;: &quot;Mozilla/5.0...&quot;}
+//!     },
+//! }
+//! ```
+</span><span class="kw">use </span>std::fmt::Write;
+<span class="kw">use </span>std::net::IpAddr;
 
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
-<span class="kw">use</span> <span class="ident">serde_json</span>::{<span class="ident">Error</span>, <span class="ident">Value</span>};
+<span class="kw">use </span>serde::{Deserialize, Serialize};
+<span class="kw">use </span>serde_json::{Error, Value};
 
-<span class="kw">use</span> <span class="ident">relay_general::user_agent</span>;
+<span class="kw">use </span>relay_general::user_agent;
 
-<span class="doccomment">/// Validates and accepts a replay-event item as input and returns modified output.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The output of this function will return a valid replay-event payload with the addition of</span>
-<span class="doccomment">/// browser, device, and operating-system metadata.  The output will also contain a default</span>
-<span class="doccomment">/// ip-address value for the user if none was provided.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">normalize_replay_event</span>(
-    <span class="ident">replay_bytes</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
-    <span class="ident">detected_ip_address</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>,
-) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">replay_input</span>: <span class="ident">ReplayInput</span> <span class="op">=</span> <span class="ident">serde_json::from_slice</span>(<span class="ident">replay_bytes</span>)<span class="question-mark">?</span>;
+<span class="doccomment">/// Validates and accepts a replay-event item as input and returns modified output.
+///
+/// The output of this function will return a valid replay-event payload with the addition of
+/// browser, device, and operating-system metadata.  The output will also contain a default
+/// ip-address value for the user if none was provided.
+</span><span class="kw">pub fn </span>normalize_replay_event(
+    replay_bytes: <span class="kw-2">&amp;</span>[u8],
+    detected_ip_address: <span class="prelude-ty">Option</span>&lt;IpAddr&gt;,
+) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, Error&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>replay_input: ReplayInput = serde_json::from_slice(replay_bytes)<span class="question-mark">?</span>;
 
-    <span class="comment">// Set user-agent metadata from request object.</span>
-    <span class="ident">replay_input</span>.<span class="ident">set_user_agent_meta</span>();
+    <span class="comment">// Set user-agent metadata from request object.
+    </span>replay_input.set_user_agent_meta();
 
-    <span class="comment">// Set user ip-address if needed.</span>
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">ip_address</span>) <span class="op">=</span> <span class="ident">detected_ip_address</span> {
-        <span class="ident">replay_input</span>.<span class="ident">set_user_ip_address</span>(<span class="ident">ip_address</span>)
+    <span class="comment">// Set user ip-address if needed.
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(ip_address) = detected_ip_address {
+        replay_input.set_user_ip_address(ip_address)
     }
 
-    <span class="ident">serde_json::to_vec</span>(<span class="kw-2">&amp;</span><span class="ident">replay_input</span>)
+    serde_json::to_vec(<span class="kw-2">&amp;</span>replay_input)
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
-<span class="kw">struct</span> <span class="ident">ReplayInput</span> {
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;type&quot;</span>)]</span>
-    <span class="ident">ty</span>: <span class="ident">String</span>,
-    <span class="ident">replay_id</span>: <span class="ident">String</span>,
-    <span class="ident">event_id</span>: <span class="ident">String</span>,
-    <span class="ident">segment_id</span>: <span class="ident">u16</span>,
-    <span class="ident">timestamp</span>: <span class="ident">f64</span>,
-    <span class="ident">replay_start_timestamp</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span>,
-    <span class="ident">contexts</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Contexts</span><span class="op">&gt;</span>,
-    <span class="ident">dist</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
-    <span class="ident">platform</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
-    <span class="ident">environment</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
-    <span class="ident">release</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
-    <span class="ident">tags</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
-    <span class="ident">sdk</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">VersionedMeta</span><span class="op">&gt;</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-    <span class="ident">urls</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-    <span class="ident">error_ids</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-    <span class="ident">trace_ids</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-    <span class="ident">user</span>: <span class="ident">User</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-    <span class="ident">request</span>: <span class="ident">Request</span>,
+<span class="attribute">#[derive(Debug, Default, Deserialize, Serialize)]
+</span><span class="kw">struct </span>ReplayInput {
+    <span class="attribute">#[serde(rename = <span class="string">&quot;type&quot;</span>)]
+    </span>ty: String,
+    replay_id: String,
+    event_id: String,
+    segment_id: u16,
+    timestamp: f64,
+    replay_start_timestamp: <span class="prelude-ty">Option</span>&lt;f64&gt;,
+    contexts: <span class="prelude-ty">Option</span>&lt;Contexts&gt;,
+    dist: <span class="prelude-ty">Option</span>&lt;Value&gt;,
+    platform: <span class="prelude-ty">Option</span>&lt;Value&gt;,
+    environment: <span class="prelude-ty">Option</span>&lt;Value&gt;,
+    release: <span class="prelude-ty">Option</span>&lt;Value&gt;,
+    tags: <span class="prelude-ty">Option</span>&lt;Value&gt;,
+    sdk: <span class="prelude-ty">Option</span>&lt;VersionedMeta&gt;,
+    <span class="attribute">#[serde(default)]
+    </span>urls: Vec&lt;String&gt;,
+    <span class="attribute">#[serde(default)]
+    </span>error_ids: Vec&lt;String&gt;,
+    <span class="attribute">#[serde(default)]
+    </span>trace_ids: Vec&lt;String&gt;,
+    <span class="attribute">#[serde(default)]
+    </span>user: User,
+    <span class="attribute">#[serde(default)]
+    </span>request: Request,
 }
 
-<span class="kw">impl</span> <span class="ident">ReplayInput</span> {
-    <span class="kw">fn</span> <span class="ident">set_user_agent_meta</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
-        <span class="kw">let</span> <span class="ident">user_agent</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">request</span>.<span class="ident">headers</span>.<span class="ident">user_agent</span>;
+<span class="kw">impl </span>ReplayInput {
+    <span class="kw">fn </span>set_user_agent_meta(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="kw">let </span>user_agent = <span class="kw-2">&amp;</span><span class="self">self</span>.request.headers.user_agent;
 
-        <span class="kw">let</span> <span class="ident">ua</span> <span class="op">=</span> <span class="ident">user_agent::parse_user_agent</span>(<span class="ident">user_agent</span>);
-        <span class="kw">let</span> <span class="ident">browser_struct</span> <span class="op">=</span> <span class="ident">VersionedMeta</span> {
-            <span class="ident">name</span>: <span class="ident">ua</span>.<span class="ident">family</span>,
-            <span class="ident">version</span>: <span class="ident">get_version</span>(<span class="kw-2">&amp;</span><span class="ident">ua</span>.<span class="ident">major</span>, <span class="kw-2">&amp;</span><span class="ident">ua</span>.<span class="ident">minor</span>, <span class="kw-2">&amp;</span><span class="ident">ua</span>.<span class="ident">patch</span>),
+        <span class="kw">let </span>ua = user_agent::parse_user_agent(user_agent);
+        <span class="kw">let </span>browser_struct = VersionedMeta {
+            name: ua.family,
+            version: get_version(<span class="kw-2">&amp;</span>ua.major, <span class="kw-2">&amp;</span>ua.minor, <span class="kw-2">&amp;</span>ua.patch),
         };
 
-        <span class="kw">let</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">user_agent::parse_os</span>(<span class="ident">user_agent</span>);
-        <span class="kw">let</span> <span class="ident">os_struct</span> <span class="op">=</span> <span class="ident">VersionedMeta</span> {
-            <span class="ident">name</span>: <span class="ident">os</span>.<span class="ident">family</span>,
-            <span class="ident">version</span>: <span class="ident">get_version</span>(<span class="kw-2">&amp;</span><span class="ident">os</span>.<span class="ident">major</span>, <span class="kw-2">&amp;</span><span class="ident">os</span>.<span class="ident">minor</span>, <span class="kw-2">&amp;</span><span class="ident">os</span>.<span class="ident">patch</span>),
+        <span class="kw">let </span>os = user_agent::parse_os(user_agent);
+        <span class="kw">let </span>os_struct = VersionedMeta {
+            name: os.family,
+            version: get_version(<span class="kw-2">&amp;</span>os.major, <span class="kw-2">&amp;</span>os.minor, <span class="kw-2">&amp;</span>os.patch),
         };
 
-        <span class="self">self</span>.<span class="ident">contexts</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">Contexts</span> {
-            <span class="ident">device</span>: <span class="prelude-val">Some</span>(<span class="ident">user_agent::parse_device</span>(<span class="ident">user_agent</span>)),
-            <span class="ident">browser</span>: <span class="prelude-val">Some</span>(<span class="ident">browser_struct</span>),
-            <span class="ident">os</span>: <span class="prelude-val">Some</span>(<span class="ident">os_struct</span>),
+        <span class="self">self</span>.contexts = <span class="prelude-val">Some</span>(Contexts {
+            device: <span class="prelude-val">Some</span>(user_agent::parse_device(user_agent)),
+            browser: <span class="prelude-val">Some</span>(browser_struct),
+            os: <span class="prelude-val">Some</span>(os_struct),
         })
     }
 
-    <span class="kw">fn</span> <span class="ident">set_user_ip_address</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">ip_address</span>: <span class="ident">IpAddr</span>) {
-        <span class="self">self</span>.<span class="ident">user</span>
-            .<span class="ident">ip_address</span>
-            .<span class="ident">get_or_insert_with</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">ip_address</span>.<span class="ident">to_string</span>());
+    <span class="kw">fn </span>set_user_ip_address(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ip_address: IpAddr) {
+        <span class="self">self</span>.user
+            .ip_address
+            .get_or_insert_with(|| ip_address.to_string());
     }
 }
 
-<span class="kw">fn</span> <span class="ident">get_version</span>(
-    <span class="ident">major</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="ident">minor</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="ident">patch</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">version</span> <span class="op">=</span> <span class="ident">major</span>.<span class="ident">clone</span>()<span class="question-mark">?</span>;
+<span class="kw">fn </span>get_version(
+    major: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;String&gt;,
+    minor: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;String&gt;,
+    patch: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;String&gt;,
+) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>version = major.clone()<span class="question-mark">?</span>;
 
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">minor</span>) <span class="op">=</span> <span class="ident">minor</span> {
-        <span class="macro">write!</span>(<span class="ident">version</span>, <span class="string">&quot;.{}&quot;</span>, <span class="ident">minor</span>).<span class="ident">ok</span>();
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">patch</span>) <span class="op">=</span> <span class="ident">patch</span> {
-            <span class="macro">write!</span>(<span class="ident">version</span>, <span class="string">&quot;.{}&quot;</span>, <span class="ident">patch</span>).<span class="ident">ok</span>();
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(minor) = minor {
+        <span class="macro">write!</span>(version, <span class="string">&quot;.{}&quot;</span>, minor).ok();
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(patch) = patch {
+            <span class="macro">write!</span>(version, <span class="string">&quot;.{}&quot;</span>, patch).ok();
         }
     }
 
-    <span class="prelude-val">Some</span>(<span class="ident">version</span>)
+    <span class="prelude-val">Some</span>(version)
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
-<span class="kw">struct</span> <span class="ident">Contexts</span> {
-    <span class="ident">browser</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">VersionedMeta</span><span class="op">&gt;</span>,
-    <span class="ident">device</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">user_agent::Device</span><span class="op">&gt;</span>,
-    <span class="ident">os</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">VersionedMeta</span><span class="op">&gt;</span>,
+<span class="attribute">#[derive(Debug, Deserialize, Serialize)]
+</span><span class="kw">struct </span>Contexts {
+    browser: <span class="prelude-ty">Option</span>&lt;VersionedMeta&gt;,
+    device: <span class="prelude-ty">Option</span>&lt;user_agent::Device&gt;,
+    os: <span class="prelude-ty">Option</span>&lt;VersionedMeta&gt;,
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
-<span class="kw">struct</span> <span class="ident">VersionedMeta</span> {
-    <span class="ident">name</span>: <span class="ident">String</span>,
-    <span class="ident">version</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+<span class="attribute">#[derive(Debug, Deserialize, Serialize)]
+</span><span class="kw">struct </span>VersionedMeta {
+    name: String,
+    version: <span class="prelude-ty">Option</span>&lt;String&gt;,
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
-<span class="kw">struct</span> <span class="ident">User</span> {
-    <span class="ident">id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
-    <span class="ident">username</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
-    <span class="ident">email</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
-    <span class="ident">ip_address</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+<span class="attribute">#[derive(Debug, Default, Deserialize, Serialize)]
+</span><span class="kw">struct </span>User {
+    id: <span class="prelude-ty">Option</span>&lt;Value&gt;,
+    username: <span class="prelude-ty">Option</span>&lt;Value&gt;,
+    email: <span class="prelude-ty">Option</span>&lt;Value&gt;,
+    ip_address: <span class="prelude-ty">Option</span>&lt;String&gt;,
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-<span class="kw">struct</span> <span class="ident">Request</span> {
-    <span class="ident">url</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="ident">headers</span>: <span class="ident">Headers</span>,
+<span class="attribute">#[derive(Debug, Default, Deserialize, Serialize)]
+#[serde(default)]
+</span><span class="kw">struct </span>Request {
+    url: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    headers: Headers,
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-<span class="kw">struct</span> <span class="ident">Headers</span> {
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;User-Agent&quot;</span>)]</span>
-    <span class="ident">user_agent</span>: <span class="ident">String</span>,
+<span class="attribute">#[derive(Debug, Default, Deserialize, Serialize)]
+#[serde(default)]
+</span><span class="kw">struct </span>Headers {
+    <span class="attribute">#[serde(rename = <span class="string">&quot;User-Agent&quot;</span>)]
+    </span>user_agent: String,
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">std::net</span>::{<span class="ident">IpAddr</span>, <span class="ident">Ipv4Addr</span>};
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>std::net::{IpAddr, Ipv4Addr};
 
-    <span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">normalize_replay_event</span>, <span class="ident">ReplayInput</span>};
+    <span class="kw">use crate</span>::{normalize_replay_event, ReplayInput};
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_set_ip_address</span>() {
-        <span class="kw">let</span> <span class="ident">ip_address</span> <span class="op">=</span> <span class="ident">IpAddr::V4</span>(<span class="ident">Ipv4Addr::new</span>(<span class="number">127</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>));
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_set_ip_address() {
+        <span class="kw">let </span>ip_address = IpAddr::V4(Ipv4Addr::new(<span class="number">127</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>));
 
-        <span class="comment">// IP-Address was not set.</span>
-        <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span> <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/replay.json&quot;</span>);
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">replay_input</span>: <span class="ident">ReplayInput</span> <span class="op">=</span> <span class="ident">serde_json::from_slice</span>(<span class="ident">payload</span>).<span class="ident">unwrap</span>();
-        <span class="ident">replay_input</span>.<span class="ident">set_user_ip_address</span>(<span class="ident">ip_address</span>);
-        <span class="macro">assert!</span>(<span class="kw-2">*</span><span class="string">&quot;192.168.11.12&quot;</span> <span class="op">==</span> <span class="ident">replay_input</span>.<span class="ident">user</span>.<span class="ident">ip_address</span>.<span class="ident">unwrap</span>());
+        <span class="comment">// IP-Address was not set.
+        </span><span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/replay.json&quot;</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>replay_input: ReplayInput = serde_json::from_slice(payload).unwrap();
+        replay_input.set_user_ip_address(ip_address);
+        <span class="macro">assert!</span>(<span class="kw-2">*</span><span class="string">&quot;192.168.11.12&quot; </span>== replay_input.user.ip_address.unwrap());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_set_ip_address_missing_user</span>() {
-        <span class="kw">let</span> <span class="ident">ip_address</span> <span class="op">=</span> <span class="ident">IpAddr::V4</span>(<span class="ident">Ipv4Addr::new</span>(<span class="number">127</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>));
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_set_ip_address_missing_user() {
+        <span class="kw">let </span>ip_address = IpAddr::V4(Ipv4Addr::new(<span class="number">127</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>));
 
-        <span class="comment">// IP-Address set.</span>
-        <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span> <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/replay_missing_user.json&quot;</span>);
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">replay_input</span>: <span class="ident">ReplayInput</span> <span class="op">=</span> <span class="ident">serde_json::from_slice</span>(<span class="ident">payload</span>).<span class="ident">unwrap</span>();
-        <span class="ident">replay_input</span>.<span class="ident">set_user_ip_address</span>(<span class="ident">ip_address</span>);
-        <span class="macro">assert!</span>(<span class="kw-2">*</span><span class="string">&quot;127.0.0.1&quot;</span> <span class="op">==</span> <span class="ident">replay_input</span>.<span class="ident">user</span>.<span class="ident">ip_address</span>.<span class="ident">unwrap</span>());
+        <span class="comment">// IP-Address set.
+        </span><span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/replay_missing_user.json&quot;</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>replay_input: ReplayInput = serde_json::from_slice(payload).unwrap();
+        replay_input.set_user_ip_address(ip_address);
+        <span class="macro">assert!</span>(<span class="kw-2">*</span><span class="string">&quot;127.0.0.1&quot; </span>== replay_input.user.ip_address.unwrap());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_set_ip_address_missing_user_ip_address</span>() {
-        <span class="kw">let</span> <span class="ident">ip_address</span> <span class="op">=</span> <span class="ident">IpAddr::V4</span>(<span class="ident">Ipv4Addr::new</span>(<span class="number">127</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>));
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_set_ip_address_missing_user_ip_address() {
+        <span class="kw">let </span>ip_address = IpAddr::V4(Ipv4Addr::new(<span class="number">127</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>));
 
-        <span class="comment">// IP-Address set.</span>
-        <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span> <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/replay_missing_user_ip_address.json&quot;</span>);
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">replay_input</span>: <span class="ident">ReplayInput</span> <span class="op">=</span> <span class="ident">serde_json::from_slice</span>(<span class="ident">payload</span>).<span class="ident">unwrap</span>();
-        <span class="ident">replay_input</span>.<span class="ident">set_user_ip_address</span>(<span class="ident">ip_address</span>);
-        <span class="macro">assert!</span>(<span class="kw-2">*</span><span class="string">&quot;127.0.0.1&quot;</span> <span class="op">==</span> <span class="ident">replay_input</span>.<span class="ident">user</span>.<span class="ident">ip_address</span>.<span class="ident">unwrap</span>());
+        <span class="comment">// IP-Address set.
+        </span><span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/replay_missing_user_ip_address.json&quot;</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>replay_input: ReplayInput = serde_json::from_slice(payload).unwrap();
+        replay_input.set_user_ip_address(ip_address);
+        <span class="macro">assert!</span>(<span class="kw-2">*</span><span class="string">&quot;127.0.0.1&quot; </span>== replay_input.user.ip_address.unwrap());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_set_user_agent_meta</span>() {
-        <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span> <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/replay.json&quot;</span>);
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">replay_input</span>: <span class="ident">ReplayInput</span> <span class="op">=</span> <span class="ident">serde_json::from_slice</span>(<span class="ident">payload</span>).<span class="ident">unwrap</span>();
-        <span class="ident">replay_input</span>.<span class="ident">set_user_agent_meta</span>();
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_set_user_agent_meta() {
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/replay.json&quot;</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>replay_input: ReplayInput = serde_json::from_slice(payload).unwrap();
+        replay_input.set_user_agent_meta();
 
-        <span class="kw">let</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">replay_input</span>.<span class="ident">contexts</span>.<span class="ident">unwrap</span>();
+        <span class="kw">let </span>contexts = replay_input.contexts.unwrap();
 
-        <span class="kw">let</span> <span class="ident">browser</span> <span class="op">=</span> <span class="ident">contexts</span>.<span class="ident">browser</span>.<span class="ident">unwrap</span>();
-        <span class="macro">assert!</span>(<span class="ident">browser</span>.<span class="ident">name</span> <span class="op">==</span> <span class="kw-2">*</span><span class="string">&quot;Safari&quot;</span>);
-        <span class="macro">assert!</span>(<span class="ident">browser</span>.<span class="ident">version</span>.<span class="ident">unwrap</span>() <span class="op">==</span> <span class="kw-2">*</span><span class="string">&quot;15.5&quot;</span>);
+        <span class="kw">let </span>browser = contexts.browser.unwrap();
+        <span class="macro">assert!</span>(browser.name == <span class="kw-2">*</span><span class="string">&quot;Safari&quot;</span>);
+        <span class="macro">assert!</span>(browser.version.unwrap() == <span class="kw-2">*</span><span class="string">&quot;15.5&quot;</span>);
 
-        <span class="kw">let</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">contexts</span>.<span class="ident">os</span>.<span class="ident">unwrap</span>();
-        <span class="macro">assert!</span>(<span class="ident">os</span>.<span class="ident">name</span> <span class="op">==</span> <span class="kw-2">*</span><span class="string">&quot;Mac OS X&quot;</span>);
-        <span class="macro">assert!</span>(<span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">unwrap</span>() <span class="op">==</span> <span class="kw-2">*</span><span class="string">&quot;10.15.7&quot;</span>);
+        <span class="kw">let </span>os = contexts.os.unwrap();
+        <span class="macro">assert!</span>(os.name == <span class="kw-2">*</span><span class="string">&quot;Mac OS X&quot;</span>);
+        <span class="macro">assert!</span>(os.version.unwrap() == <span class="kw-2">*</span><span class="string">&quot;10.15.7&quot;</span>);
 
-        <span class="kw">let</span> <span class="ident">device</span> <span class="op">=</span> <span class="ident">contexts</span>.<span class="ident">device</span>.<span class="ident">unwrap</span>();
-        <span class="macro">assert!</span>(<span class="ident">device</span>.<span class="ident">family</span> <span class="op">==</span> <span class="kw-2">*</span><span class="string">&quot;Mac&quot;</span>);
-        <span class="macro">assert!</span>(<span class="ident">device</span>.<span class="ident">brand</span>.<span class="ident">unwrap</span>() <span class="op">==</span> <span class="kw-2">*</span><span class="string">&quot;Apple&quot;</span>);
-        <span class="macro">assert!</span>(<span class="ident">device</span>.<span class="ident">model</span>.<span class="ident">unwrap</span>() <span class="op">==</span> <span class="kw-2">*</span><span class="string">&quot;Mac&quot;</span>);
+        <span class="kw">let </span>device = contexts.device.unwrap();
+        <span class="macro">assert!</span>(device.family == <span class="kw-2">*</span><span class="string">&quot;Mac&quot;</span>);
+        <span class="macro">assert!</span>(device.brand.unwrap() == <span class="kw-2">*</span><span class="string">&quot;Apple&quot;</span>);
+        <span class="macro">assert!</span>(device.model.unwrap() == <span class="kw-2">*</span><span class="string">&quot;Mac&quot;</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_set_user_agent_meta_no_request</span>() {
-        <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span> <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/replay_no_requests.json&quot;</span>);
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">replay_input</span>: <span class="ident">ReplayInput</span> <span class="op">=</span> <span class="ident">serde_json::from_slice</span>(<span class="ident">payload</span>).<span class="ident">unwrap</span>();
-        <span class="ident">replay_input</span>.<span class="ident">set_user_agent_meta</span>();
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_set_user_agent_meta_no_request() {
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/replay_no_requests.json&quot;</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>replay_input: ReplayInput = serde_json::from_slice(payload).unwrap();
+        replay_input.set_user_agent_meta();
 
-        <span class="kw">let</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">replay_input</span>.<span class="ident">contexts</span>.<span class="ident">unwrap</span>();
+        <span class="kw">let </span>contexts = replay_input.contexts.unwrap();
 
-        <span class="kw">let</span> <span class="ident">browser</span> <span class="op">=</span> <span class="ident">contexts</span>.<span class="ident">browser</span>.<span class="ident">unwrap</span>();
-        <span class="macro">assert!</span>(<span class="ident">browser</span>.<span class="ident">name</span> <span class="op">==</span> <span class="kw-2">*</span><span class="string">&quot;Other&quot;</span>);
-        <span class="macro">assert!</span>(<span class="ident">browser</span>.<span class="ident">version</span>.<span class="ident">is_none</span>());
+        <span class="kw">let </span>browser = contexts.browser.unwrap();
+        <span class="macro">assert!</span>(browser.name == <span class="kw-2">*</span><span class="string">&quot;Other&quot;</span>);
+        <span class="macro">assert!</span>(browser.version.is_none());
 
-        <span class="kw">let</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">contexts</span>.<span class="ident">os</span>.<span class="ident">unwrap</span>();
-        <span class="macro">assert!</span>(<span class="ident">os</span>.<span class="ident">name</span> <span class="op">==</span> <span class="kw-2">*</span><span class="string">&quot;Other&quot;</span>);
-        <span class="macro">assert!</span>(<span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">is_none</span>());
+        <span class="kw">let </span>os = contexts.os.unwrap();
+        <span class="macro">assert!</span>(os.name == <span class="kw-2">*</span><span class="string">&quot;Other&quot;</span>);
+        <span class="macro">assert!</span>(os.version.is_none());
 
-        <span class="kw">let</span> <span class="ident">device</span> <span class="op">=</span> <span class="ident">contexts</span>.<span class="ident">device</span>.<span class="ident">unwrap</span>();
-        <span class="macro">assert!</span>(<span class="ident">device</span>.<span class="ident">family</span> <span class="op">==</span> <span class="kw-2">*</span><span class="string">&quot;Other&quot;</span>);
-        <span class="macro">assert!</span>(<span class="ident">device</span>.<span class="ident">brand</span>.<span class="ident">is_none</span>());
-        <span class="macro">assert!</span>(<span class="ident">device</span>.<span class="ident">model</span>.<span class="ident">is_none</span>());
+        <span class="kw">let </span>device = contexts.device.unwrap();
+        <span class="macro">assert!</span>(device.family == <span class="kw-2">*</span><span class="string">&quot;Other&quot;</span>);
+        <span class="macro">assert!</span>(device.brand.is_none());
+        <span class="macro">assert!</span>(device.model.is_none());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_loose_type_requirements</span>() {
-        <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span> <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/replay_failure_22_08_31.json&quot;</span>);
-        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">normalize_replay_event</span>(<span class="ident">payload</span>, <span class="prelude-val">None</span>);
-        <span class="macro">assert!</span>(<span class="ident">result</span>.<span class="ident">is_ok</span>());
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_loose_type_requirements() {
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/replay_failure_22_08_31.json&quot;</span>);
+        <span class="kw">let </span>result = normalize_replay_event(payload, <span class="prelude-val">None</span>);
+        <span class="macro">assert!</span>(result.is_ok());
 
-        <span class="comment">// Assert the user payload is just generally unaffected by parsing.</span>
-        <span class="kw">let</span> <span class="ident">replay_output</span>: <span class="ident">ReplayInput</span> <span class="op">=</span> <span class="ident">serde_json::from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">result</span>.<span class="ident">unwrap</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert!</span>(<span class="ident">replay_output</span>.<span class="ident">user</span>.<span class="ident">ip_address</span>.<span class="ident">unwrap</span>() <span class="op">==</span> <span class="kw-2">*</span><span class="string">&quot;127.1.1.1&quot;</span>);
-        <span class="macro">assert!</span>(<span class="ident">replay_output</span>.<span class="ident">user</span>.<span class="ident">username</span>.<span class="ident">is_none</span>());
-        <span class="macro">assert!</span>(<span class="ident">replay_output</span>.<span class="ident">user</span>.<span class="ident">email</span>.<span class="ident">unwrap</span>() <span class="op">==</span> <span class="kw-2">*</span><span class="string">&quot;email@sentry.io&quot;</span>);
-        <span class="macro">assert!</span>(<span class="ident">replay_output</span>.<span class="ident">user</span>.<span class="ident">id</span>.<span class="ident">unwrap</span>().<span class="ident">is_number</span>());
+        <span class="comment">// Assert the user payload is just generally unaffected by parsing.
+        </span><span class="kw">let </span>replay_output: ReplayInput = serde_json::from_slice(<span class="kw-2">&amp;</span>result.unwrap()).unwrap();
+        <span class="macro">assert!</span>(replay_output.user.ip_address.unwrap() == <span class="kw-2">*</span><span class="string">&quot;127.1.1.1&quot;</span>);
+        <span class="macro">assert!</span>(replay_output.user.username.is_none());
+        <span class="macro">assert!</span>(replay_output.user.email.unwrap() == <span class="kw-2">*</span><span class="string">&quot;email@sentry.io&quot;</span>);
+        <span class="macro">assert!</span>(replay_output.user.id.unwrap().is_number());
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_replays" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_replays" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/store/transactions.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>transactions.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/store/transactions.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>transactions.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_general/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -1230,126 +1230,126 @@
 <span id="1228">1228</span>
 <span id="1229">1229</span>
 <span id="1230">1230</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">relay_common::SpanStatus</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>relay_common::SpanStatus;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor</span>::{<span class="ident">ProcessValue</span>, <span class="ident">ProcessingState</span>, <span class="ident">Processor</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{
-    <span class="ident">Context</span>, <span class="ident">ContextInner</span>, <span class="ident">Event</span>, <span class="ident">EventType</span>, <span class="ident">Span</span>, <span class="ident">Timestamp</span>, <span class="ident">TransactionSource</span>,
+<span class="kw">use </span><span class="kw">crate</span>::processor::{ProcessValue, ProcessingState, Processor};
+<span class="kw">use </span><span class="kw">crate</span>::protocol::{
+    Context, ContextInner, Event, EventType, Span, Timestamp, TransactionSource,
 };
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Meta</span>, <span class="ident">ProcessingAction</span>, <span class="ident">ProcessingResult</span>};
+<span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Meta, ProcessingAction, ProcessingResult};
 
-<span class="doccomment">/// Rejects transactions based on required fields.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TransactionsProcessor</span>;
+<span class="doccomment">/// Rejects transactions based on required fields.
+</span><span class="kw">pub struct </span>TransactionsProcessor;
 
-<span class="doccomment">/// Get the value for a measurement, e.g. lcp -&gt; event.measurements.lcp</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_measurement</span>(<span class="ident">transaction</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>, <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">measurements</span> <span class="op">=</span> <span class="ident">transaction</span>.<span class="ident">measurements</span>.<span class="ident">value</span>()<span class="question-mark">?</span>;
-    <span class="kw">let</span> <span class="ident">annotated</span> <span class="op">=</span> <span class="ident">measurements</span>.<span class="ident">get</span>(<span class="ident">name</span>)<span class="question-mark">?</span>;
-    <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">annotated</span>.<span class="ident">value</span>().<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">value</span>.<span class="ident">value</span>())<span class="question-mark">?</span>;
-    <span class="prelude-val">Some</span>(<span class="kw-2">*</span><span class="ident">value</span>)
+<span class="doccomment">/// Get the value for a measurement, e.g. lcp -&gt; event.measurements.lcp
+</span><span class="kw">pub fn </span>get_measurement(transaction: <span class="kw-2">&amp;</span>Event, name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;f64&gt; {
+    <span class="kw">let </span>measurements = transaction.measurements.value()<span class="question-mark">?</span>;
+    <span class="kw">let </span>annotated = measurements.get(name)<span class="question-mark">?</span>;
+    <span class="kw">let </span>value = annotated.value().and_then(|m| m.value.value())<span class="question-mark">?</span>;
+    <span class="prelude-val">Some</span>(<span class="kw-2">*</span>value)
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_transaction_op</span>(<span class="ident">transaction</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">transaction</span>.<span class="ident">contexts</span>.<span class="ident">value</span>()<span class="question-mark">?</span>.<span class="ident">get</span>(<span class="string">&quot;trace&quot;</span>)<span class="question-mark">?</span>.<span class="ident">value</span>()<span class="question-mark">?</span>;
-    <span class="kw">match</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">context</span> {
-        <span class="ident">Context::Trace</span>(<span class="kw-2">ref</span> <span class="ident">trace_context</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">trace_context</span>.<span class="ident">op</span>.<span class="ident">value</span>()<span class="question-mark">?</span>),
-        <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
+<span class="kw">pub fn </span>get_transaction_op(transaction: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
+    <span class="kw">let </span>context = transaction.contexts.value()<span class="question-mark">?</span>.get(<span class="string">&quot;trace&quot;</span>)<span class="question-mark">?</span>.value()<span class="question-mark">?</span>;
+    <span class="kw">match </span><span class="kw-2">**</span>context {
+        Context::Trace(<span class="kw-2">ref </span>trace_context) =&gt; <span class="prelude-val">Some</span>(trace_context.op.value()<span class="question-mark">?</span>),
+        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
     }
 }
 
-<span class="doccomment">/// Returns start and end timestamps if they are both set and start &lt;= end.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">validate_timestamps</span>(
-    <span class="ident">transaction_event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>,
-) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(<span class="ident">Timestamp</span>, <span class="ident">Timestamp</span>), <span class="ident">ProcessingAction</span><span class="op">&gt;</span> {
-    <span class="kw">match</span> (
-        <span class="ident">transaction_event</span>.<span class="ident">start_timestamp</span>.<span class="ident">value</span>(),
-        <span class="ident">transaction_event</span>.<span class="ident">timestamp</span>.<span class="ident">value</span>(),
+<span class="doccomment">/// Returns start and end timestamps if they are both set and start &lt;= end.
+</span><span class="kw">pub fn </span>validate_timestamps(
+    transaction_event: <span class="kw-2">&amp;</span>Event,
+) -&gt; <span class="prelude-ty">Result</span>&lt;(Timestamp, Timestamp), ProcessingAction&gt; {
+    <span class="kw">match </span>(
+        transaction_event.start_timestamp.value(),
+        transaction_event.timestamp.value(),
     ) {
-        (<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">start</span>), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">end</span>)) =&gt; {
-            <span class="kw">if</span> <span class="ident">end</span> <span class="op">&lt;</span> <span class="ident">start</span> {
-                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::InvalidTransaction</span>(
+        (<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>start), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>end)) =&gt; {
+            <span class="kw">if </span>end &lt; start {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                     <span class="string">&quot;end timestamp is smaller than start timestamp&quot;</span>,
                 ));
             }
-            <span class="prelude-val">Ok</span>((<span class="ident">start</span>, <span class="ident">end</span>))
+            <span class="prelude-val">Ok</span>((start, end))
         }
         (<span class="kw">_</span>, <span class="prelude-val">None</span>) =&gt; {
-            <span class="comment">// This invariant should be already guaranteed for regular error events.</span>
-            <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::InvalidTransaction</span>(
+            <span class="comment">// This invariant should be already guaranteed for regular error events.
+            </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                 <span class="string">&quot;timestamp hard-required for transaction events&quot;</span>,
             ))
         }
         (<span class="prelude-val">None</span>, <span class="kw">_</span>) =&gt; {
-            <span class="comment">// XXX: Maybe copy timestamp over?</span>
-            <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::InvalidTransaction</span>(
+            <span class="comment">// XXX: Maybe copy timestamp over?
+            </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                 <span class="string">&quot;start_timestamp hard-required for transaction events&quot;</span>,
             ))
         }
     }
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">validate_transaction</span>(<span class="ident">event</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Event</span>) -&gt; <span class="ident">ProcessingResult</span> {
-    <span class="kw">if</span> <span class="ident">event</span>.<span class="ident">ty</span>.<span class="ident">value</span>() <span class="op">!</span><span class="op">=</span> <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">EventType::Transaction</span>) {
-        <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
+<span class="kw">pub fn </span>validate_transaction(event: <span class="kw-2">&amp;mut </span>Event) -&gt; ProcessingResult {
+    <span class="kw">if </span>event.ty.value() != <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
+        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     }
 
-    <span class="ident">validate_timestamps</span>(<span class="ident">event</span>)<span class="question-mark">?</span>;
+    validate_timestamps(event)<span class="question-mark">?</span>;
 
-    <span class="kw">let</span> <span class="ident">err_trace_context_required</span> <span class="op">=</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::InvalidTransaction</span>(
+    <span class="kw">let </span>err_trace_context_required = <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
         <span class="string">&quot;trace context hard-required for transaction events&quot;</span>,
     ));
 
-    <span class="kw">let</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">event</span>.<span class="ident">contexts</span>.<span class="ident">value_mut</span>() {
-        <span class="prelude-val">Some</span>(<span class="ident">contexts</span>) =&gt; <span class="ident">contexts</span>,
-        <span class="prelude-val">None</span> =&gt; <span class="kw">return</span> <span class="ident">err_trace_context_required</span>,
+    <span class="kw">let </span>contexts = <span class="kw">match </span>event.contexts.value_mut() {
+        <span class="prelude-val">Some</span>(contexts) =&gt; contexts,
+        <span class="prelude-val">None </span>=&gt; <span class="kw">return </span>err_trace_context_required,
     };
 
-    <span class="kw">let</span> <span class="ident">trace_context</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">contexts</span>.<span class="ident">get_mut</span>(<span class="string">&quot;trace&quot;</span>).<span class="ident">map</span>(<span class="ident">Annotated::value_mut</span>) {
-        <span class="prelude-val">Some</span>(<span class="prelude-val">Some</span>(<span class="ident">trace_context</span>)) =&gt; <span class="ident">trace_context</span>,
-        <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="ident">err_trace_context_required</span>,
+    <span class="kw">let </span>trace_context = <span class="kw">match </span>contexts.get_mut(<span class="string">&quot;trace&quot;</span>).map(Annotated::value_mut) {
+        <span class="prelude-val">Some</span>(<span class="prelude-val">Some</span>(trace_context)) =&gt; trace_context,
+        <span class="kw">_ </span>=&gt; <span class="kw">return </span>err_trace_context_required,
     };
 
-    <span class="kw">match</span> <span class="ident">trace_context</span> {
-        <span class="ident">ContextInner</span>(<span class="ident">Context::Trace</span>(<span class="ident">trace_context</span>)) =&gt; {
-            <span class="kw">if</span> <span class="ident">trace_context</span>.<span class="ident">trace_id</span>.<span class="ident">value</span>().<span class="ident">is_none</span>() {
-                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::InvalidTransaction</span>(
+    <span class="kw">match </span>trace_context {
+        ContextInner(Context::Trace(trace_context)) =&gt; {
+            <span class="kw">if </span>trace_context.trace_id.value().is_none() {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                     <span class="string">&quot;trace context is missing trace_id&quot;</span>,
                 ));
             }
-            <span class="kw">if</span> <span class="ident">trace_context</span>.<span class="ident">span_id</span>.<span class="ident">value</span>().<span class="ident">is_none</span>() {
-                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::InvalidTransaction</span>(
+            <span class="kw">if </span>trace_context.span_id.value().is_none() {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                     <span class="string">&quot;trace context is missing span_id&quot;</span>,
                 ));
             }
 
-            <span class="ident">trace_context</span>.<span class="ident">op</span>.<span class="ident">get_or_insert_with</span>(<span class="op">|</span><span class="op">|</span> <span class="string">&quot;default&quot;</span>.<span class="ident">to_owned</span>());
+            trace_context.op.get_or_insert_with(|| <span class="string">&quot;default&quot;</span>.to_owned());
             <span class="prelude-val">Ok</span>(())
         }
-        <span class="kw">_</span> =&gt; <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::InvalidTransaction</span>(
+        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
             <span class="string">&quot;context at event.contexts.trace must be of type trace.&quot;</span>,
         )),
     }
 }
 
-<span class="doccomment">/// List of SDKs which we assume to produce high cardinality transaction names, such as</span>
-<span class="doccomment">/// &quot;/user/123134/login&quot;.</span>
-<span class="doccomment">/// Newer SDK send the [`TransactionSource`] attribute, which we can rely on to determine cardinality,</span>
-<span class="doccomment">/// but for old SDKs, we fall back to this list.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_high_cardinality_sdk</span>(<span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>) -&gt; <span class="ident">bool</span> {
-    <span class="kw">let</span> <span class="ident">client_sdk</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">event</span>.<span class="ident">client_sdk</span>.<span class="ident">value</span>() {
-        <span class="prelude-val">Some</span>(<span class="ident">info</span>) =&gt; <span class="ident">info</span>,
-        <span class="prelude-val">None</span> =&gt; {
-            <span class="kw">return</span> <span class="bool-val">false</span>;
+<span class="doccomment">/// List of SDKs which we assume to produce high cardinality transaction names, such as
+/// &quot;/user/123134/login&quot;.
+/// Newer SDK send the [`TransactionSource`] attribute, which we can rely on to determine cardinality,
+/// but for old SDKs, we fall back to this list.
+</span><span class="kw">pub fn </span>is_high_cardinality_sdk(event: <span class="kw-2">&amp;</span>Event) -&gt; bool {
+    <span class="kw">let </span>client_sdk = <span class="kw">match </span>event.client_sdk.value() {
+        <span class="prelude-val">Some</span>(info) =&gt; info,
+        <span class="prelude-val">None </span>=&gt; {
+            <span class="kw">return </span><span class="bool-val">false</span>;
         }
     };
 
-    <span class="kw">let</span> <span class="ident">sdk_name</span> <span class="op">=</span> <span class="ident">client_sdk</span>
-        .<span class="ident">name</span>
-        .<span class="ident">value</span>()
-        .<span class="ident">map</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">as_str</span>())
-        .<span class="ident">unwrap_or_default</span>();
+    <span class="kw">let </span>sdk_name = client_sdk
+        .name
+        .value()
+        .map(|s| s.as_str())
+        .unwrap_or_default();
 
-    <span class="kw">if</span> [
+    <span class="kw">if </span>[
         <span class="string">&quot;sentry.javascript.angular&quot;</span>,
         <span class="string">&quot;sentry.javascript.browser&quot;</span>,
         <span class="string">&quot;sentry.javascript.ember&quot;</span>,
@@ -1361,437 +1361,437 @@
         <span class="string">&quot;sentry.php.laravel&quot;</span>,
         <span class="string">&quot;sentry.php.symfony&quot;</span>,
     ]
-    .<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">sdk_name</span>)
+    .contains(<span class="kw-2">&amp;</span>sdk_name)
     {
-        <span class="kw">return</span> <span class="bool-val">true</span>;
+        <span class="kw">return </span><span class="bool-val">true</span>;
     }
 
-    <span class="kw">let</span> <span class="ident">is_http_status_404</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">get_tag_value</span>(<span class="string">&quot;http.status_code&quot;</span>) <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="string">&quot;404&quot;</span>);
-    <span class="kw">if</span> <span class="ident">sdk_name</span> <span class="op">==</span> <span class="string">&quot;sentry.python&quot;</span> <span class="op">&amp;&amp;</span> <span class="ident">is_http_status_404</span> <span class="op">&amp;&amp;</span> <span class="ident">client_sdk</span>.<span class="ident">has_integration</span>(<span class="string">&quot;django&quot;</span>) {
-        <span class="kw">return</span> <span class="bool-val">true</span>;
+    <span class="kw">let </span>is_http_status_404 = event.get_tag_value(<span class="string">&quot;http.status_code&quot;</span>) == <span class="prelude-val">Some</span>(<span class="string">&quot;404&quot;</span>);
+    <span class="kw">if </span>sdk_name == <span class="string">&quot;sentry.python&quot; </span>&amp;&amp; is_http_status_404 &amp;&amp; client_sdk.has_integration(<span class="string">&quot;django&quot;</span>) {
+        <span class="kw">return </span><span class="bool-val">true</span>;
     }
 
-    <span class="kw">let</span> <span class="ident">http_method</span> <span class="op">=</span> <span class="ident">event</span>
-        .<span class="ident">request</span>
-        .<span class="ident">value</span>()
-        .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">r</span><span class="op">|</span> <span class="ident">r</span>.<span class="ident">method</span>.<span class="ident">as_str</span>())
-        .<span class="ident">unwrap_or_default</span>();
-    <span class="kw">if</span> <span class="ident">sdk_name</span> <span class="op">==</span> <span class="string">&quot;sentry.javascript.node&quot;</span>
-        <span class="op">&amp;&amp;</span> <span class="ident">http_method</span>.<span class="ident">eq_ignore_ascii_case</span>(<span class="string">&quot;options&quot;</span>)
-        <span class="op">&amp;&amp;</span> <span class="ident">client_sdk</span>.<span class="ident">has_integration</span>(<span class="string">&quot;Express&quot;</span>)
+    <span class="kw">let </span>http_method = event
+        .request
+        .value()
+        .and_then(|r| r.method.as_str())
+        .unwrap_or_default();
+    <span class="kw">if </span>sdk_name == <span class="string">&quot;sentry.javascript.node&quot;
+        </span>&amp;&amp; http_method.eq_ignore_ascii_case(<span class="string">&quot;options&quot;</span>)
+        &amp;&amp; client_sdk.has_integration(<span class="string">&quot;Express&quot;</span>)
     {
-        <span class="kw">return</span> <span class="bool-val">true</span>;
+        <span class="kw">return </span><span class="bool-val">true</span>;
     }
 
-    <span class="kw">if</span> <span class="ident">sdk_name</span> <span class="op">==</span> <span class="string">&quot;sentry.ruby&quot;</span> <span class="op">&amp;&amp;</span> <span class="ident">event</span>.<span class="ident">has_module</span>(<span class="string">&quot;rack&quot;</span>) {
-        <span class="kw">let</span> <span class="ident">trace</span> <span class="op">=</span> <span class="ident">event</span>
-            .<span class="ident">contexts</span>
-            .<span class="ident">value</span>()
-            .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="ident">c</span>.<span class="ident">get</span>(<span class="string">&quot;trace&quot;</span>))
-            .<span class="ident">and_then</span>(<span class="ident">Annotated::value</span>);
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Trace</span>(<span class="ident">trace_context</span>))) <span class="op">=</span> <span class="ident">trace</span> {
-            <span class="kw">let</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">trace_context</span>.<span class="ident">status</span>.<span class="ident">value</span>().<span class="ident">unwrap_or</span>(<span class="kw-2">&amp;</span><span class="ident">SpanStatus::Unknown</span>);
-            <span class="kw">if</span> [
-                <span class="comment">// See https://github.com/getsentry/sentry-ruby/blob/ad4828f6d8d60e98217b2edb1ab003fb627d6bdb/sentry-ruby/lib/sentry/span.rb#L7-L19</span>
-                <span class="ident">SpanStatus::InvalidArgument</span>,
-                <span class="ident">SpanStatus::Unauthenticated</span>,
-                <span class="ident">SpanStatus::PermissionDenied</span>,
-                <span class="ident">SpanStatus::NotFound</span>,
-                <span class="ident">SpanStatus::AlreadyExists</span>,
-                <span class="ident">SpanStatus::ResourceExhausted</span>,
-                <span class="ident">SpanStatus::Cancelled</span>,
-                <span class="ident">SpanStatus::InternalError</span>,
-                <span class="ident">SpanStatus::Unimplemented</span>,
-                <span class="ident">SpanStatus::Unavailable</span>,
-                <span class="ident">SpanStatus::DeadlineExceeded</span>,
+    <span class="kw">if </span>sdk_name == <span class="string">&quot;sentry.ruby&quot; </span>&amp;&amp; event.has_module(<span class="string">&quot;rack&quot;</span>) {
+        <span class="kw">let </span>trace = event
+            .contexts
+            .value()
+            .and_then(|c| c.get(<span class="string">&quot;trace&quot;</span>))
+            .and_then(Annotated::value);
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(ContextInner(Context::Trace(trace_context))) = trace {
+            <span class="kw">let </span>status = trace_context.status.value().unwrap_or(<span class="kw-2">&amp;</span>SpanStatus::Unknown);
+            <span class="kw">if </span>[
+                <span class="comment">// See https://github.com/getsentry/sentry-ruby/blob/ad4828f6d8d60e98217b2edb1ab003fb627d6bdb/sentry-ruby/lib/sentry/span.rb#L7-L19
+                </span>SpanStatus::InvalidArgument,
+                SpanStatus::Unauthenticated,
+                SpanStatus::PermissionDenied,
+                SpanStatus::NotFound,
+                SpanStatus::AlreadyExists,
+                SpanStatus::ResourceExhausted,
+                SpanStatus::Cancelled,
+                SpanStatus::InternalError,
+                SpanStatus::Unimplemented,
+                SpanStatus::Unavailable,
+                SpanStatus::DeadlineExceeded,
             ]
-            .<span class="ident">contains</span>(<span class="ident">status</span>)
+            .contains(status)
             {
-                <span class="kw">return</span> <span class="bool-val">true</span>;
+                <span class="kw">return </span><span class="bool-val">true</span>;
             }
         }
     }
 
-    <span class="bool-val">false</span>
-}
+    <span class="bool-val">false
+</span>}
 
-<span class="doccomment">/// Set a default transaction source if it is missing, but only if the transaction name was</span>
-<span class="doccomment">/// extracted as a metrics tag.</span>
-<span class="doccomment">/// This behavior makes it possible to identify transactions for which the transaction name was</span>
-<span class="doccomment">/// not extracted as a tag on the corresponding metrics, because</span>
-<span class="doccomment">///     source == null &lt;=&gt; transaction name == null</span>
-<span class="doccomment">/// See `relay_server::metrics_extraction::transactions::get_transaction_name`.</span>
-<span class="kw">fn</span> <span class="ident">set_default_transaction_source</span>(<span class="ident">event</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Event</span>) {
-    <span class="kw">let</span> <span class="ident">source</span> <span class="op">=</span> <span class="ident">event</span>
-        .<span class="ident">transaction_info</span>
-        .<span class="ident">value</span>()
-        .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">info</span><span class="op">|</span> <span class="ident">info</span>.<span class="ident">source</span>.<span class="ident">value</span>());
+<span class="doccomment">/// Set a default transaction source if it is missing, but only if the transaction name was
+/// extracted as a metrics tag.
+/// This behavior makes it possible to identify transactions for which the transaction name was
+/// not extracted as a tag on the corresponding metrics, because
+///     source == null &lt;=&gt; transaction name == null
+/// See `relay_server::metrics_extraction::transactions::get_transaction_name`.
+</span><span class="kw">fn </span>set_default_transaction_source(event: <span class="kw-2">&amp;mut </span>Event) {
+    <span class="kw">let </span>source = event
+        .transaction_info
+        .value()
+        .and_then(|info| info.source.value());
 
-    <span class="kw">if</span> <span class="ident">source</span>.<span class="ident">is_none</span>() <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">is_high_cardinality_sdk</span>(<span class="ident">event</span>) {
-        <span class="kw">let</span> <span class="ident">transaction_info</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">transaction_info</span>.<span class="ident">get_or_insert_with</span>(<span class="ident">Default::default</span>);
-        <span class="ident">transaction_info</span>
-            .<span class="ident">source</span>
-            .<span class="ident">set_value</span>(<span class="prelude-val">Some</span>(<span class="ident">TransactionSource::Unknown</span>));
+    <span class="kw">if </span>source.is_none() &amp;&amp; !is_high_cardinality_sdk(event) {
+        <span class="kw">let </span>transaction_info = event.transaction_info.get_or_insert_with(Default::default);
+        transaction_info
+            .source
+            .set_value(<span class="prelude-val">Some</span>(TransactionSource::Unknown));
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Processor</span> <span class="kw">for</span> <span class="ident">TransactionsProcessor</span> {
-    <span class="kw">fn</span> <span class="ident">process_event</span>(
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
-        <span class="ident">event</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Event</span>,
-        <span class="ident">_meta</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Meta</span>,
-        <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="ident">ProcessingResult</span> {
-        <span class="kw">if</span> <span class="ident">event</span>.<span class="ident">ty</span>.<span class="ident">value</span>() <span class="op">!</span><span class="op">=</span> <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">EventType::Transaction</span>) {
-            <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
+<span class="kw">impl </span>Processor <span class="kw">for </span>TransactionsProcessor {
+    <span class="kw">fn </span>process_event(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        event: <span class="kw-2">&amp;mut </span>Event,
+        _meta: <span class="kw-2">&amp;mut </span>Meta,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+    ) -&gt; ProcessingResult {
+        <span class="kw">if </span>event.ty.value() != <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
 
-        <span class="comment">// The transaction name is expected to be non-empty by downstream services (e.g. Snuba), but</span>
-        <span class="comment">// Relay doesn&#39;t reject events missing the transaction name. Instead, a default transaction</span>
-        <span class="comment">// name is given, similar to how Sentry gives an &quot;&lt;unlabeled event&gt;&quot; title to error events.</span>
-        <span class="comment">// SDKs should avoid sending empty transaction names, setting a more contextual default</span>
-        <span class="comment">// value when possible.</span>
-        <span class="kw">if</span> <span class="ident">event</span>.<span class="ident">transaction</span>.<span class="ident">value</span>().<span class="ident">map_or</span>(<span class="bool-val">true</span>, <span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">is_empty</span>()) {
-            <span class="ident">event</span>
-                .<span class="ident">transaction</span>
-                .<span class="ident">set_value</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;&lt;unlabeled transaction&gt;&quot;</span>.<span class="ident">to_owned</span>()))
+        <span class="comment">// The transaction name is expected to be non-empty by downstream services (e.g. Snuba), but
+        // Relay doesn&#39;t reject events missing the transaction name. Instead, a default transaction
+        // name is given, similar to how Sentry gives an &quot;&lt;unlabeled event&gt;&quot; title to error events.
+        // SDKs should avoid sending empty transaction names, setting a more contextual default
+        // value when possible.
+        </span><span class="kw">if </span>event.transaction.value().map_or(<span class="bool-val">true</span>, |s| s.is_empty()) {
+            event
+                .transaction
+                .set_value(<span class="prelude-val">Some</span>(<span class="string">&quot;&lt;unlabeled transaction&gt;&quot;</span>.to_owned()))
         }
 
-        <span class="ident">validate_transaction</span>(<span class="ident">event</span>)<span class="question-mark">?</span>;
+        validate_transaction(event)<span class="question-mark">?</span>;
 
-        <span class="kw">let</span> <span class="ident">spans</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">spans</span>.<span class="ident">value_mut</span>().<span class="ident">get_or_insert_with</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Vec::new</span>());
+        <span class="kw">let </span>spans = event.spans.value_mut().get_or_insert_with(|| Vec::new());
 
-        <span class="kw">for</span> <span class="ident">span</span> <span class="kw">in</span> <span class="ident">spans</span> {
-            <span class="kw">if</span> <span class="ident">span</span>.<span class="ident">value</span>().<span class="ident">is_none</span>() {
-                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::InvalidTransaction</span>(
+        <span class="kw">for </span>span <span class="kw">in </span>spans {
+            <span class="kw">if </span>span.value().is_none() {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                     <span class="string">&quot;spans must be valid in transaction event&quot;</span>,
                 ));
             }
         }
 
-        <span class="ident">set_default_transaction_source</span>(<span class="ident">event</span>);
+        set_default_transaction_source(event);
 
-        <span class="ident">event</span>.<span class="ident">process_child_values</span>(<span class="self">self</span>, <span class="ident">state</span>)<span class="question-mark">?</span>;
+        event.process_child_values(<span class="self">self</span>, state)<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">process_span</span>(
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
-        <span class="ident">span</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Span</span>,
-        <span class="ident">_meta</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Meta</span>,
-        <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="ident">ProcessingResult</span> {
-        <span class="kw">match</span> (<span class="ident">span</span>.<span class="ident">start_timestamp</span>.<span class="ident">value</span>(), <span class="ident">span</span>.<span class="ident">timestamp</span>.<span class="ident">value</span>()) {
-            (<span class="prelude-val">Some</span>(<span class="ident">start</span>), <span class="prelude-val">Some</span>(<span class="ident">end</span>)) =&gt; {
-                <span class="kw">if</span> <span class="ident">end</span> <span class="op">&lt;</span> <span class="ident">start</span> {
-                    <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::InvalidTransaction</span>(
+    <span class="kw">fn </span>process_span(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        span: <span class="kw-2">&amp;mut </span>Span,
+        _meta: <span class="kw-2">&amp;mut </span>Meta,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
+    ) -&gt; ProcessingResult {
+        <span class="kw">match </span>(span.start_timestamp.value(), span.timestamp.value()) {
+            (<span class="prelude-val">Some</span>(start), <span class="prelude-val">Some</span>(end)) =&gt; {
+                <span class="kw">if </span>end &lt; start {
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                         <span class="string">&quot;end timestamp in span is smaller than start timestamp&quot;</span>,
                     ));
                 }
             }
             (<span class="kw">_</span>, <span class="prelude-val">None</span>) =&gt; {
-                <span class="comment">// XXX: Maybe do the same as event.timestamp?</span>
-                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::InvalidTransaction</span>(
+                <span class="comment">// XXX: Maybe do the same as event.timestamp?
+                </span><span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                     <span class="string">&quot;span is missing timestamp&quot;</span>,
                 ));
             }
             (<span class="prelude-val">None</span>, <span class="kw">_</span>) =&gt; {
-                <span class="comment">// XXX: Maybe copy timestamp over?</span>
-                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::InvalidTransaction</span>(
+                <span class="comment">// XXX: Maybe copy timestamp over?
+                </span><span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                     <span class="string">&quot;span is missing start_timestamp&quot;</span>,
                 ));
             }
         }
 
-        <span class="kw">if</span> <span class="ident">span</span>.<span class="ident">trace_id</span>.<span class="ident">value</span>().<span class="ident">is_none</span>() {
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::InvalidTransaction</span>(
+        <span class="kw">if </span>span.trace_id.value().is_none() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                 <span class="string">&quot;span is missing trace_id&quot;</span>,
             ));
         }
 
-        <span class="kw">if</span> <span class="ident">span</span>.<span class="ident">span_id</span>.<span class="ident">value</span>().<span class="ident">is_none</span>() {
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::InvalidTransaction</span>(
+        <span class="kw">if </span>span.span_id.value().is_none() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                 <span class="string">&quot;span is missing span_id&quot;</span>,
             ));
         }
 
-        <span class="ident">span</span>.<span class="ident">op</span>.<span class="ident">get_or_insert_with</span>(<span class="op">|</span><span class="op">|</span> <span class="string">&quot;default&quot;</span>.<span class="ident">to_owned</span>());
+        span.op.get_or_insert_with(|| <span class="string">&quot;default&quot;</span>.to_owned());
 
-        <span class="ident">span</span>.<span class="ident">process_child_values</span>(<span class="self">self</span>, <span class="ident">state</span>)<span class="question-mark">?</span>;
+        span.process_child_values(<span class="self">self</span>, state)<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(())
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">chrono::offset::TimeZone</span>;
-    <span class="kw">use</span> <span class="ident">chrono::Utc</span>;
-    <span class="kw">use</span> <span class="ident">similar_asserts::assert_eq</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>chrono::offset::TimeZone;
+    <span class="kw">use </span>chrono::Utc;
+    <span class="kw">use </span>similar_asserts::assert_eq;
 
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor::process_value</span>;
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">Contexts</span>, <span class="ident">SpanId</span>, <span class="ident">TraceContext</span>, <span class="ident">TraceId</span>, <span class="ident">TransactionSource</span>};
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::testutils::assert_annotated_snapshot</span>;
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types::Object</span>;
+    <span class="kw">use </span><span class="kw">crate</span>::processor::process_value;
+    <span class="kw">use </span><span class="kw">crate</span>::protocol::{Contexts, SpanId, TraceContext, TraceId, TransactionSource};
+    <span class="kw">use </span><span class="kw">crate</span>::testutils::assert_annotated_snapshot;
+    <span class="kw">use </span><span class="kw">crate</span>::types::Object;
 
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">fn</span> <span class="ident">new_test_event</span>() -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>);
-        <span class="kw">let</span> <span class="ident">end</span> <span class="op">=</span> <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">10</span>);
-        <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="ident">EventType::Transaction</span>),
-            <span class="ident">transaction</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;/&quot;</span>.<span class="ident">to_owned</span>()),
-            <span class="ident">start_timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">start</span>.<span class="ident">into</span>()),
-            <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">end</span>.<span class="ident">into</span>()),
-            <span class="ident">contexts</span>: <span class="ident">Annotated::new</span>(<span class="ident">Contexts</span>({
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                <span class="ident">contexts</span>.<span class="ident">insert</span>(
-                    <span class="string">&quot;trace&quot;</span>.<span class="ident">to_owned</span>(),
-                    <span class="ident">Annotated::new</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Trace</span>(<span class="ident">Box::new</span>(<span class="ident">TraceContext</span> {
-                        <span class="ident">trace_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">TraceId</span>(
-                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.<span class="ident">into</span>(),
+    <span class="kw">fn </span>new_test_event() -&gt; Annotated&lt;Event&gt; {
+        <span class="kw">let </span>start = Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>);
+        <span class="kw">let </span>end = Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">10</span>);
+        Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            transaction: Annotated::new(<span class="string">&quot;/&quot;</span>.to_owned()),
+            start_timestamp: Annotated::new(start.into()),
+            timestamp: Annotated::new(end.into()),
+            contexts: Annotated::new(Contexts({
+                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
+                contexts.insert(
+                    <span class="string">&quot;trace&quot;</span>.to_owned(),
+                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                        trace_id: Annotated::new(TraceId(
+                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into(),
                         )),
-                        <span class="ident">span_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">SpanId</span>(<span class="string">&quot;fa90fdead5f74053&quot;</span>.<span class="ident">into</span>())),
-                        <span class="ident">op</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;http.server&quot;</span>.<span class="ident">to_owned</span>()),
-                        ..<span class="ident">Default::default</span>()
+                        span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
+                        op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
+                        ..Default::default()
                     })))),
                 );
-                <span class="ident">contexts</span>
+                contexts
             })),
-            <span class="ident">spans</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">Span</span> {
-                <span class="ident">start_timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">start</span>.<span class="ident">into</span>()),
-                <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">end</span>.<span class="ident">into</span>()),
-                <span class="ident">trace_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">TraceId</span>(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.<span class="ident">into</span>())),
-                <span class="ident">span_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">SpanId</span>(<span class="string">&quot;fa90fdead5f74053&quot;</span>.<span class="ident">into</span>())),
-                <span class="ident">op</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;db.statement&quot;</span>.<span class="ident">to_owned</span>()),
-                ..<span class="ident">Default::default</span>()
+            spans: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Span {
+                start_timestamp: Annotated::new(start.into()),
+                timestamp: Annotated::new(end.into()),
+                trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
+                span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
+                op: Annotated::new(<span class="string">&quot;db.statement&quot;</span>.to_owned()),
+                ..Default::default()
             })]),
-            ..<span class="ident">Default::default</span>()
+            ..Default::default()
         })
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_skips_non_transaction_events</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event::default</span>());
-        <span class="ident">process_value</span>(
-            <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-            <span class="kw-2">&amp;mut</span> <span class="ident">TransactionsProcessor</span>,
-            <span class="ident">ProcessingState::root</span>(),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_skips_non_transaction_events() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event::default());
+        process_value(
+            <span class="kw-2">&amp;mut </span>event,
+            <span class="kw-2">&amp;mut </span>TransactionsProcessor,
+            ProcessingState::root(),
         )
-        .<span class="ident">unwrap</span>();
-        <span class="macro">assert!</span>(<span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">is_some</span>());
+        .unwrap();
+        <span class="macro">assert!</span>(event.value().is_some());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_discards_when_missing_timestamp</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="ident">EventType::Transaction</span>),
-            ..<span class="ident">Default::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_discards_when_missing_timestamp() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            ..Default::default()
         });
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">process_value</span>(
-                <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-                <span class="kw-2">&amp;mut</span> <span class="ident">TransactionsProcessor</span>,
-                <span class="ident">ProcessingState::root</span>()
+            process_value(
+                <span class="kw-2">&amp;mut </span>event,
+                <span class="kw-2">&amp;mut </span>TransactionsProcessor,
+                ProcessingState::root()
             ),
-            <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::InvalidTransaction</span>(
-                <span class="string">&quot;timestamp hard-required for transaction events&quot;</span>
-            ))
+            <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+                <span class="string">&quot;timestamp hard-required for transaction events&quot;
+            </span>))
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_discards_when_missing_start_timestamp</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="ident">EventType::Transaction</span>),
-            <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-            ..<span class="ident">Default::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_discards_when_missing_start_timestamp() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            ..Default::default()
         });
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">process_value</span>(
-                <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-                <span class="kw-2">&amp;mut</span> <span class="ident">TransactionsProcessor</span>,
-                <span class="ident">ProcessingState::root</span>()
+            process_value(
+                <span class="kw-2">&amp;mut </span>event,
+                <span class="kw-2">&amp;mut </span>TransactionsProcessor,
+                ProcessingState::root()
             ),
-            <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::InvalidTransaction</span>(
-                <span class="string">&quot;start_timestamp hard-required for transaction events&quot;</span>
-            ))
+            <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+                <span class="string">&quot;start_timestamp hard-required for transaction events&quot;
+            </span>))
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_discards_on_missing_contexts_map</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="ident">EventType::Transaction</span>),
-            <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-            <span class="ident">start_timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-            ..<span class="ident">Default::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_discards_on_missing_contexts_map() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            ..Default::default()
         });
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">process_value</span>(
-                <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-                <span class="kw-2">&amp;mut</span> <span class="ident">TransactionsProcessor</span>,
-                <span class="ident">ProcessingState::root</span>()
+            process_value(
+                <span class="kw-2">&amp;mut </span>event,
+                <span class="kw-2">&amp;mut </span>TransactionsProcessor,
+                ProcessingState::root()
             ),
-            <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::InvalidTransaction</span>(
-                <span class="string">&quot;trace context hard-required for transaction events&quot;</span>
-            ))
+            <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+                <span class="string">&quot;trace context hard-required for transaction events&quot;
+            </span>))
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_discards_on_missing_context</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="ident">EventType::Transaction</span>),
-            <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-            <span class="ident">start_timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-            <span class="ident">contexts</span>: <span class="ident">Annotated::new</span>(<span class="ident">Contexts</span>(<span class="ident">Object::new</span>())),
-            ..<span class="ident">Default::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_discards_on_missing_context() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            contexts: Annotated::new(Contexts(Object::new())),
+            ..Default::default()
         });
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">process_value</span>(
-                <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-                <span class="kw-2">&amp;mut</span> <span class="ident">TransactionsProcessor</span>,
-                <span class="ident">ProcessingState::root</span>()
+            process_value(
+                <span class="kw-2">&amp;mut </span>event,
+                <span class="kw-2">&amp;mut </span>TransactionsProcessor,
+                ProcessingState::root()
             ),
-            <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::InvalidTransaction</span>(
-                <span class="string">&quot;trace context hard-required for transaction events&quot;</span>
-            ))
+            <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+                <span class="string">&quot;trace context hard-required for transaction events&quot;
+            </span>))
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_discards_on_null_context</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="ident">EventType::Transaction</span>),
-            <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-            <span class="ident">start_timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-            <span class="ident">contexts</span>: <span class="ident">Annotated::new</span>(<span class="ident">Contexts</span>({
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                <span class="ident">contexts</span>.<span class="ident">insert</span>(<span class="string">&quot;trace&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">Annotated::empty</span>());
-                <span class="ident">contexts</span>
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_discards_on_null_context() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            contexts: Annotated::new(Contexts({
+                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
+                contexts.insert(<span class="string">&quot;trace&quot;</span>.to_owned(), Annotated::empty());
+                contexts
             })),
-            ..<span class="ident">Default::default</span>()
+            ..Default::default()
         });
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">process_value</span>(
-                <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-                <span class="kw-2">&amp;mut</span> <span class="ident">TransactionsProcessor</span>,
-                <span class="ident">ProcessingState::root</span>()
+            process_value(
+                <span class="kw-2">&amp;mut </span>event,
+                <span class="kw-2">&amp;mut </span>TransactionsProcessor,
+                ProcessingState::root()
             ),
-            <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::InvalidTransaction</span>(
-                <span class="string">&quot;trace context hard-required for transaction events&quot;</span>
-            ))
+            <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+                <span class="string">&quot;trace context hard-required for transaction events&quot;
+            </span>))
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_discards_on_missing_trace_id_in_context</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="ident">EventType::Transaction</span>),
-            <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-            <span class="ident">start_timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-            <span class="ident">contexts</span>: <span class="ident">Annotated::new</span>(<span class="ident">Contexts</span>({
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                <span class="ident">contexts</span>.<span class="ident">insert</span>(
-                    <span class="string">&quot;trace&quot;</span>.<span class="ident">to_owned</span>(),
-                    <span class="ident">Annotated::new</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Trace</span>(<span class="ident">Box::new</span>(<span class="ident">TraceContext</span> {
-                        ..<span class="ident">Default::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_discards_on_missing_trace_id_in_context() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            contexts: Annotated::new(Contexts({
+                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
+                contexts.insert(
+                    <span class="string">&quot;trace&quot;</span>.to_owned(),
+                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                        ..Default::default()
                     })))),
                 );
-                <span class="ident">contexts</span>
+                contexts
             })),
-            ..<span class="ident">Default::default</span>()
+            ..Default::default()
         });
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">process_value</span>(
-                <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-                <span class="kw-2">&amp;mut</span> <span class="ident">TransactionsProcessor</span>,
-                <span class="ident">ProcessingState::root</span>()
+            process_value(
+                <span class="kw-2">&amp;mut </span>event,
+                <span class="kw-2">&amp;mut </span>TransactionsProcessor,
+                ProcessingState::root()
             ),
-            <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::InvalidTransaction</span>(
-                <span class="string">&quot;trace context is missing trace_id&quot;</span>
-            ))
+            <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+                <span class="string">&quot;trace context is missing trace_id&quot;
+            </span>))
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_discards_on_missing_span_id_in_context</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="ident">EventType::Transaction</span>),
-            <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-            <span class="ident">start_timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-            <span class="ident">contexts</span>: <span class="ident">Annotated::new</span>(<span class="ident">Contexts</span>({
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                <span class="ident">contexts</span>.<span class="ident">insert</span>(
-                    <span class="string">&quot;trace&quot;</span>.<span class="ident">to_owned</span>(),
-                    <span class="ident">Annotated::new</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Trace</span>(<span class="ident">Box::new</span>(<span class="ident">TraceContext</span> {
-                        <span class="ident">trace_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">TraceId</span>(
-                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.<span class="ident">into</span>(),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_discards_on_missing_span_id_in_context() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            contexts: Annotated::new(Contexts({
+                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
+                contexts.insert(
+                    <span class="string">&quot;trace&quot;</span>.to_owned(),
+                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                        trace_id: Annotated::new(TraceId(
+                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into(),
                         )),
-                        ..<span class="ident">Default::default</span>()
+                        ..Default::default()
                     })))),
                 );
-                <span class="ident">contexts</span>
+                contexts
             })),
-            ..<span class="ident">Default::default</span>()
+            ..Default::default()
         });
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">process_value</span>(
-                <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-                <span class="kw-2">&amp;mut</span> <span class="ident">TransactionsProcessor</span>,
-                <span class="ident">ProcessingState::root</span>()
+            process_value(
+                <span class="kw-2">&amp;mut </span>event,
+                <span class="kw-2">&amp;mut </span>TransactionsProcessor,
+                ProcessingState::root()
             ),
-            <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::InvalidTransaction</span>(
-                <span class="string">&quot;trace context is missing span_id&quot;</span>
-            ))
+            <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+                <span class="string">&quot;trace context is missing span_id&quot;
+            </span>))
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_defaults_missing_op_in_context</span>() {
-        <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>);
-        <span class="kw">let</span> <span class="ident">end</span> <span class="op">=</span> <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">10</span>);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_defaults_missing_op_in_context() {
+        <span class="kw">let </span>start = Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>);
+        <span class="kw">let </span>end = Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">10</span>);
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="ident">EventType::Transaction</span>),
-            <span class="ident">transaction</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;/&quot;</span>.<span class="ident">to_owned</span>()),
-            <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">end</span>.<span class="ident">into</span>()),
-            <span class="ident">start_timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">start</span>.<span class="ident">into</span>()),
-            <span class="ident">contexts</span>: <span class="ident">Annotated::new</span>(<span class="ident">Contexts</span>({
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                <span class="ident">contexts</span>.<span class="ident">insert</span>(
-                    <span class="string">&quot;trace&quot;</span>.<span class="ident">to_owned</span>(),
-                    <span class="ident">Annotated::new</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Trace</span>(<span class="ident">Box::new</span>(<span class="ident">TraceContext</span> {
-                        <span class="ident">trace_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">TraceId</span>(
-                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.<span class="ident">into</span>(),
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            transaction: Annotated::new(<span class="string">&quot;/&quot;</span>.to_owned()),
+            timestamp: Annotated::new(end.into()),
+            start_timestamp: Annotated::new(start.into()),
+            contexts: Annotated::new(Contexts({
+                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
+                contexts.insert(
+                    <span class="string">&quot;trace&quot;</span>.to_owned(),
+                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                        trace_id: Annotated::new(TraceId(
+                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into(),
                         )),
-                        <span class="ident">span_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">SpanId</span>(<span class="string">&quot;fa90fdead5f74053&quot;</span>.<span class="ident">into</span>())),
-                        ..<span class="ident">Default::default</span>()
+                        span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
+                        ..Default::default()
                     })))),
                 );
-                <span class="ident">contexts</span>
+                contexts
             })),
-            ..<span class="ident">Default::default</span>()
+            ..Default::default()
         });
 
-        <span class="ident">process_value</span>(
-            <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-            <span class="kw-2">&amp;mut</span> <span class="ident">TransactionsProcessor</span>,
-            <span class="ident">ProcessingState::root</span>(),
+        process_value(
+            <span class="kw-2">&amp;mut </span>event,
+            <span class="kw-2">&amp;mut </span>TransactionsProcessor,
+            ProcessingState::root(),
         )
-        .<span class="ident">unwrap</span>();
+        .unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r###&quot;
         {
           &quot;type&quot;: &quot;transaction&quot;,
           &quot;transaction&quot;: &quot;/&quot;,
@@ -1813,92 +1813,92 @@
         &quot;###</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_allows_transaction_event_without_span_list</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="ident">EventType::Transaction</span>),
-            <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-            <span class="ident">start_timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-            <span class="ident">contexts</span>: <span class="ident">Annotated::new</span>(<span class="ident">Contexts</span>({
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                <span class="ident">contexts</span>.<span class="ident">insert</span>(
-                    <span class="string">&quot;trace&quot;</span>.<span class="ident">to_owned</span>(),
-                    <span class="ident">Annotated::new</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Trace</span>(<span class="ident">Box::new</span>(<span class="ident">TraceContext</span> {
-                        <span class="ident">trace_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">TraceId</span>(
-                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.<span class="ident">into</span>(),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_allows_transaction_event_without_span_list() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            contexts: Annotated::new(Contexts({
+                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
+                contexts.insert(
+                    <span class="string">&quot;trace&quot;</span>.to_owned(),
+                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                        trace_id: Annotated::new(TraceId(
+                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into(),
                         )),
-                        <span class="ident">span_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">SpanId</span>(<span class="string">&quot;fa90fdead5f74053&quot;</span>.<span class="ident">into</span>())),
-                        <span class="ident">op</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;http.server&quot;</span>.<span class="ident">to_owned</span>()),
-                        ..<span class="ident">Default::default</span>()
+                        span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
+                        op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
+                        ..Default::default()
                     })))),
                 );
-                <span class="ident">contexts</span>
+                contexts
             })),
-            ..<span class="ident">Default::default</span>()
+            ..Default::default()
         });
 
-        <span class="ident">process_value</span>(
-            <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-            <span class="kw-2">&amp;mut</span> <span class="ident">TransactionsProcessor</span>,
-            <span class="ident">ProcessingState::root</span>(),
+        process_value(
+            <span class="kw-2">&amp;mut </span>event,
+            <span class="kw-2">&amp;mut </span>TransactionsProcessor,
+            ProcessingState::root(),
         )
-        .<span class="ident">unwrap</span>();
-        <span class="macro">assert!</span>(<span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">is_some</span>());
+        .unwrap();
+        <span class="macro">assert!</span>(event.value().is_some());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_allows_transaction_event_with_empty_span_list</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="ident">EventType::Transaction</span>),
-            <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-            <span class="ident">start_timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-            <span class="ident">contexts</span>: <span class="ident">Annotated::new</span>(<span class="ident">Contexts</span>({
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                <span class="ident">contexts</span>.<span class="ident">insert</span>(
-                    <span class="string">&quot;trace&quot;</span>.<span class="ident">to_owned</span>(),
-                    <span class="ident">Annotated::new</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Trace</span>(<span class="ident">Box::new</span>(<span class="ident">TraceContext</span> {
-                        <span class="ident">trace_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">TraceId</span>(
-                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.<span class="ident">into</span>(),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_allows_transaction_event_with_empty_span_list() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            contexts: Annotated::new(Contexts({
+                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
+                contexts.insert(
+                    <span class="string">&quot;trace&quot;</span>.to_owned(),
+                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                        trace_id: Annotated::new(TraceId(
+                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into(),
                         )),
-                        <span class="ident">span_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">SpanId</span>(<span class="string">&quot;fa90fdead5f74053&quot;</span>.<span class="ident">into</span>())),
-                        <span class="ident">op</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;http.server&quot;</span>.<span class="ident">to_owned</span>()),
-                        ..<span class="ident">Default::default</span>()
+                        span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
+                        op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
+                        ..Default::default()
                     })))),
                 );
-                <span class="ident">contexts</span>
+                contexts
             })),
-            <span class="ident">spans</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[]),
-            ..<span class="ident">Default::default</span>()
+            spans: Annotated::new(<span class="macro">vec!</span>[]),
+            ..Default::default()
         });
 
-        <span class="ident">process_value</span>(
-            <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-            <span class="kw-2">&amp;mut</span> <span class="ident">TransactionsProcessor</span>,
-            <span class="ident">ProcessingState::root</span>(),
+        process_value(
+            <span class="kw-2">&amp;mut </span>event,
+            <span class="kw-2">&amp;mut </span>TransactionsProcessor,
+            ProcessingState::root(),
         )
-        .<span class="ident">unwrap</span>();
-        <span class="macro">assert!</span>(<span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">is_some</span>());
+        .unwrap();
+        <span class="macro">assert!</span>(event.value().is_some());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_allows_transaction_event_with_null_span_list</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">new_test_event</span>();
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_allows_transaction_event_with_null_span_list() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = new_test_event();
 
-        <span class="ident">event</span>
-            .<span class="ident">apply</span>(<span class="op">|</span><span class="ident">event</span>, <span class="kw">_</span><span class="op">|</span> {
-                <span class="ident">event</span>.<span class="ident">spans</span>.<span class="ident">set_value</span>(<span class="prelude-val">None</span>);
+        event
+            .apply(|event, <span class="kw">_</span>| {
+                event.spans.set_value(<span class="prelude-val">None</span>);
                 <span class="prelude-val">Ok</span>(())
             })
-            .<span class="ident">unwrap</span>();
+            .unwrap();
 
-        <span class="ident">process_value</span>(
-            <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-            <span class="kw-2">&amp;mut</span> <span class="ident">TransactionsProcessor</span>,
-            <span class="ident">ProcessingState::root</span>(),
+        process_value(
+            <span class="kw-2">&amp;mut </span>event,
+            <span class="kw-2">&amp;mut </span>TransactionsProcessor,
+            ProcessingState::root(),
         )
-        .<span class="ident">unwrap</span>();
+        .unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r###&quot;
         {
           &quot;type&quot;: &quot;transaction&quot;,
           &quot;transaction&quot;: &quot;/&quot;,
@@ -1920,249 +1920,249 @@
         &quot;###</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_discards_transaction_event_with_nulled_out_span</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="ident">EventType::Transaction</span>),
-            <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-            <span class="ident">start_timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-            <span class="ident">contexts</span>: <span class="ident">Annotated::new</span>(<span class="ident">Contexts</span>({
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                <span class="ident">contexts</span>.<span class="ident">insert</span>(
-                    <span class="string">&quot;trace&quot;</span>.<span class="ident">to_owned</span>(),
-                    <span class="ident">Annotated::new</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Trace</span>(<span class="ident">Box::new</span>(<span class="ident">TraceContext</span> {
-                        <span class="ident">trace_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">TraceId</span>(
-                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.<span class="ident">into</span>(),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_discards_transaction_event_with_nulled_out_span() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            contexts: Annotated::new(Contexts({
+                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
+                contexts.insert(
+                    <span class="string">&quot;trace&quot;</span>.to_owned(),
+                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                        trace_id: Annotated::new(TraceId(
+                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into(),
                         )),
-                        <span class="ident">span_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">SpanId</span>(<span class="string">&quot;fa90fdead5f74053&quot;</span>.<span class="ident">into</span>())),
-                        <span class="ident">op</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;http.server&quot;</span>.<span class="ident">to_owned</span>()),
-                        ..<span class="ident">Default::default</span>()
+                        span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
+                        op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
+                        ..Default::default()
                     })))),
                 );
-                <span class="ident">contexts</span>
+                contexts
             })),
-            <span class="ident">spans</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::empty</span>()]),
-            ..<span class="ident">Default::default</span>()
+            spans: Annotated::new(<span class="macro">vec!</span>[Annotated::empty()]),
+            ..Default::default()
         });
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">process_value</span>(
-                <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-                <span class="kw-2">&amp;mut</span> <span class="ident">TransactionsProcessor</span>,
-                <span class="ident">ProcessingState::root</span>()
+            process_value(
+                <span class="kw-2">&amp;mut </span>event,
+                <span class="kw-2">&amp;mut </span>TransactionsProcessor,
+                ProcessingState::root()
             ),
-            <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::InvalidTransaction</span>(
-                <span class="string">&quot;spans must be valid in transaction event&quot;</span>
-            ))
+            <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+                <span class="string">&quot;spans must be valid in transaction event&quot;
+            </span>))
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_discards_transaction_event_with_span_with_missing_timestamp</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="ident">EventType::Transaction</span>),
-            <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-            <span class="ident">start_timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-            <span class="ident">contexts</span>: <span class="ident">Annotated::new</span>(<span class="ident">Contexts</span>({
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                <span class="ident">contexts</span>.<span class="ident">insert</span>(
-                    <span class="string">&quot;trace&quot;</span>.<span class="ident">to_owned</span>(),
-                    <span class="ident">Annotated::new</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Trace</span>(<span class="ident">Box::new</span>(<span class="ident">TraceContext</span> {
-                        <span class="ident">trace_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">TraceId</span>(
-                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.<span class="ident">into</span>(),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_discards_transaction_event_with_span_with_missing_timestamp() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            contexts: Annotated::new(Contexts({
+                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
+                contexts.insert(
+                    <span class="string">&quot;trace&quot;</span>.to_owned(),
+                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                        trace_id: Annotated::new(TraceId(
+                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into(),
                         )),
-                        <span class="ident">span_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">SpanId</span>(<span class="string">&quot;fa90fdead5f74053&quot;</span>.<span class="ident">into</span>())),
-                        <span class="ident">op</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;http.server&quot;</span>.<span class="ident">to_owned</span>()),
-                        ..<span class="ident">Default::default</span>()
+                        span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
+                        op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
+                        ..Default::default()
                     })))),
                 );
-                <span class="ident">contexts</span>
+                contexts
             })),
-            <span class="ident">spans</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">Span</span> {
-                ..<span class="ident">Default::default</span>()
+            spans: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Span {
+                ..Default::default()
             })]),
-            ..<span class="ident">Default::default</span>()
+            ..Default::default()
         });
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">process_value</span>(
-                <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-                <span class="kw-2">&amp;mut</span> <span class="ident">TransactionsProcessor</span>,
-                <span class="ident">ProcessingState::root</span>()
+            process_value(
+                <span class="kw-2">&amp;mut </span>event,
+                <span class="kw-2">&amp;mut </span>TransactionsProcessor,
+                ProcessingState::root()
             ),
-            <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::InvalidTransaction</span>(
-                <span class="string">&quot;span is missing timestamp&quot;</span>
-            ))
+            <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+                <span class="string">&quot;span is missing timestamp&quot;
+            </span>))
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_discards_transaction_event_with_span_with_missing_start_timestamp</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="ident">EventType::Transaction</span>),
-            <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-            <span class="ident">start_timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-            <span class="ident">contexts</span>: <span class="ident">Annotated::new</span>(<span class="ident">Contexts</span>({
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                <span class="ident">contexts</span>.<span class="ident">insert</span>(
-                    <span class="string">&quot;trace&quot;</span>.<span class="ident">to_owned</span>(),
-                    <span class="ident">Annotated::new</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Trace</span>(<span class="ident">Box::new</span>(<span class="ident">TraceContext</span> {
-                        <span class="ident">trace_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">TraceId</span>(
-                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.<span class="ident">into</span>(),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_discards_transaction_event_with_span_with_missing_start_timestamp() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            contexts: Annotated::new(Contexts({
+                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
+                contexts.insert(
+                    <span class="string">&quot;trace&quot;</span>.to_owned(),
+                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                        trace_id: Annotated::new(TraceId(
+                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into(),
                         )),
-                        <span class="ident">span_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">SpanId</span>(<span class="string">&quot;fa90fdead5f74053&quot;</span>.<span class="ident">into</span>())),
-                        <span class="ident">op</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;http.server&quot;</span>.<span class="ident">to_owned</span>()),
-                        ..<span class="ident">Default::default</span>()
+                        span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
+                        op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
+                        ..Default::default()
                     })))),
                 );
-                <span class="ident">contexts</span>
+                contexts
             })),
-            <span class="ident">spans</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">Span</span> {
-                <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-                ..<span class="ident">Default::default</span>()
+            spans: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Span {
+                timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+                ..Default::default()
             })]),
-            ..<span class="ident">Default::default</span>()
+            ..Default::default()
         });
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">process_value</span>(
-                <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-                <span class="kw-2">&amp;mut</span> <span class="ident">TransactionsProcessor</span>,
-                <span class="ident">ProcessingState::root</span>()
+            process_value(
+                <span class="kw-2">&amp;mut </span>event,
+                <span class="kw-2">&amp;mut </span>TransactionsProcessor,
+                ProcessingState::root()
             ),
-            <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::InvalidTransaction</span>(
-                <span class="string">&quot;span is missing start_timestamp&quot;</span>
-            ))
+            <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+                <span class="string">&quot;span is missing start_timestamp&quot;
+            </span>))
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_discards_transaction_event_with_span_with_missing_trace_id</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="ident">EventType::Transaction</span>),
-            <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-            <span class="ident">start_timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-            <span class="ident">contexts</span>: <span class="ident">Annotated::new</span>(<span class="ident">Contexts</span>({
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                <span class="ident">contexts</span>.<span class="ident">insert</span>(
-                    <span class="string">&quot;trace&quot;</span>.<span class="ident">to_owned</span>(),
-                    <span class="ident">Annotated::new</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Trace</span>(<span class="ident">Box::new</span>(<span class="ident">TraceContext</span> {
-                        <span class="ident">trace_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">TraceId</span>(
-                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.<span class="ident">into</span>(),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_discards_transaction_event_with_span_with_missing_trace_id() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            contexts: Annotated::new(Contexts({
+                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
+                contexts.insert(
+                    <span class="string">&quot;trace&quot;</span>.to_owned(),
+                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                        trace_id: Annotated::new(TraceId(
+                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into(),
                         )),
-                        <span class="ident">span_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">SpanId</span>(<span class="string">&quot;fa90fdead5f74053&quot;</span>.<span class="ident">into</span>())),
-                        <span class="ident">op</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;http.server&quot;</span>.<span class="ident">to_owned</span>()),
-                        ..<span class="ident">Default::default</span>()
+                        span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
+                        op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
+                        ..Default::default()
                     })))),
                 );
-                <span class="ident">contexts</span>
+                contexts
             })),
-            <span class="ident">spans</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">Span</span> {
-                <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-                <span class="ident">start_timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-                ..<span class="ident">Default::default</span>()
+            spans: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Span {
+                timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+                start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+                ..Default::default()
             })]),
-            ..<span class="ident">Default::default</span>()
+            ..Default::default()
         });
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">process_value</span>(
-                <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-                <span class="kw-2">&amp;mut</span> <span class="ident">TransactionsProcessor</span>,
-                <span class="ident">ProcessingState::root</span>()
+            process_value(
+                <span class="kw-2">&amp;mut </span>event,
+                <span class="kw-2">&amp;mut </span>TransactionsProcessor,
+                ProcessingState::root()
             ),
-            <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::InvalidTransaction</span>(
-                <span class="string">&quot;span is missing trace_id&quot;</span>
-            ))
+            <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+                <span class="string">&quot;span is missing trace_id&quot;
+            </span>))
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_discards_transaction_event_with_span_with_missing_span_id</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="ident">EventType::Transaction</span>),
-            <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-            <span class="ident">start_timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-            <span class="ident">contexts</span>: <span class="ident">Annotated::new</span>(<span class="ident">Contexts</span>({
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                <span class="ident">contexts</span>.<span class="ident">insert</span>(
-                    <span class="string">&quot;trace&quot;</span>.<span class="ident">to_owned</span>(),
-                    <span class="ident">Annotated::new</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Trace</span>(<span class="ident">Box::new</span>(<span class="ident">TraceContext</span> {
-                        <span class="ident">trace_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">TraceId</span>(
-                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.<span class="ident">into</span>(),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_discards_transaction_event_with_span_with_missing_span_id() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+            contexts: Annotated::new(Contexts({
+                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
+                contexts.insert(
+                    <span class="string">&quot;trace&quot;</span>.to_owned(),
+                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                        trace_id: Annotated::new(TraceId(
+                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into(),
                         )),
-                        <span class="ident">span_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">SpanId</span>(<span class="string">&quot;fa90fdead5f74053&quot;</span>.<span class="ident">into</span>())),
-                        <span class="ident">op</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;http.server&quot;</span>.<span class="ident">to_owned</span>()),
-                        ..<span class="ident">Default::default</span>()
+                        span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
+                        op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
+                        ..Default::default()
                     })))),
                 );
-                <span class="ident">contexts</span>
+                contexts
             })),
-            <span class="ident">spans</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">Span</span> {
-                <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-                <span class="ident">start_timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-                <span class="ident">trace_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">TraceId</span>(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.<span class="ident">into</span>())),
-                ..<span class="ident">Default::default</span>()
+            spans: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Span {
+                timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+                start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+                trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
+                ..Default::default()
             })]),
-            ..<span class="ident">Default::default</span>()
+            ..Default::default()
         });
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">process_value</span>(
-                <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-                <span class="kw-2">&amp;mut</span> <span class="ident">TransactionsProcessor</span>,
-                <span class="ident">ProcessingState::root</span>()
+            process_value(
+                <span class="kw-2">&amp;mut </span>event,
+                <span class="kw-2">&amp;mut </span>TransactionsProcessor,
+                ProcessingState::root()
             ),
-            <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::InvalidTransaction</span>(
-                <span class="string">&quot;span is missing span_id&quot;</span>
-            ))
+            <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+                <span class="string">&quot;span is missing span_id&quot;
+            </span>))
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_defaults_transaction_event_with_span_with_missing_op</span>() {
-        <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>);
-        <span class="kw">let</span> <span class="ident">end</span> <span class="op">=</span> <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">10</span>);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_defaults_transaction_event_with_span_with_missing_op() {
+        <span class="kw">let </span>start = Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>);
+        <span class="kw">let </span>end = Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">10</span>);
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="ident">EventType::Transaction</span>),
-            <span class="ident">transaction</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;/&quot;</span>.<span class="ident">to_owned</span>()),
-            <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">end</span>.<span class="ident">into</span>()),
-            <span class="ident">start_timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">start</span>.<span class="ident">into</span>()),
-            <span class="ident">contexts</span>: <span class="ident">Annotated::new</span>(<span class="ident">Contexts</span>({
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                <span class="ident">contexts</span>.<span class="ident">insert</span>(
-                    <span class="string">&quot;trace&quot;</span>.<span class="ident">to_owned</span>(),
-                    <span class="ident">Annotated::new</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Trace</span>(<span class="ident">Box::new</span>(<span class="ident">TraceContext</span> {
-                        <span class="ident">trace_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">TraceId</span>(
-                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.<span class="ident">into</span>(),
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            transaction: Annotated::new(<span class="string">&quot;/&quot;</span>.to_owned()),
+            timestamp: Annotated::new(end.into()),
+            start_timestamp: Annotated::new(start.into()),
+            contexts: Annotated::new(Contexts({
+                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
+                contexts.insert(
+                    <span class="string">&quot;trace&quot;</span>.to_owned(),
+                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                        trace_id: Annotated::new(TraceId(
+                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into(),
                         )),
-                        <span class="ident">span_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">SpanId</span>(<span class="string">&quot;fa90fdead5f74053&quot;</span>.<span class="ident">into</span>())),
-                        <span class="ident">op</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;http.server&quot;</span>.<span class="ident">to_owned</span>()),
-                        ..<span class="ident">Default::default</span>()
+                        span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
+                        op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
+                        ..Default::default()
                     })))),
                 );
-                <span class="ident">contexts</span>
+                contexts
             })),
-            <span class="ident">spans</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">Span</span> {
-                <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">10</span>).<span class="ident">into</span>()),
-                <span class="ident">start_timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-                <span class="ident">trace_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">TraceId</span>(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.<span class="ident">into</span>())),
-                <span class="ident">span_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">SpanId</span>(<span class="string">&quot;fa90fdead5f74053&quot;</span>.<span class="ident">into</span>())),
+            spans: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Span {
+                timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">10</span>).into()),
+                start_timestamp: Annotated::new(Utc.ymd(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
+                trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
+                span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
 
-                ..<span class="ident">Default::default</span>()
+                ..Default::default()
             })]),
-            ..<span class="ident">Default::default</span>()
+            ..Default::default()
         });
 
-        <span class="ident">process_value</span>(
-            <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-            <span class="kw-2">&amp;mut</span> <span class="ident">TransactionsProcessor</span>,
-            <span class="ident">ProcessingState::root</span>(),
+        process_value(
+            <span class="kw-2">&amp;mut </span>event,
+            <span class="kw-2">&amp;mut </span>TransactionsProcessor,
+            ProcessingState::root(),
         )
-        .<span class="ident">unwrap</span>();
+        .unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r###&quot;
         {
           &quot;type&quot;: &quot;transaction&quot;,
           &quot;transaction&quot;: &quot;/&quot;,
@@ -2192,9 +2192,9 @@
         &quot;###</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_default_transaction_source_unknown</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span><span class="ident">::from_json</span>(
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_default_transaction_source_unknown() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(
             <span class="string">r###&quot;
             {
                 &quot;type&quot;: &quot;transaction&quot;,
@@ -2216,29 +2216,29 @@
             }
             &quot;###</span>,
         )
-        .<span class="ident">unwrap</span>();
+        .unwrap();
 
-        <span class="ident">process_value</span>(
-            <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-            <span class="kw-2">&amp;mut</span> <span class="ident">TransactionsProcessor</span>,
-            <span class="ident">ProcessingState::root</span>(),
+        process_value(
+            <span class="kw-2">&amp;mut </span>event,
+            <span class="kw-2">&amp;mut </span>TransactionsProcessor,
+            ProcessingState::root(),
         )
-        .<span class="ident">unwrap</span>();
+        .unwrap();
 
-        <span class="kw">let</span> <span class="ident">source</span> <span class="op">=</span> <span class="ident">event</span>
-            .<span class="ident">value</span>()
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">transaction_info</span>
-            .<span class="ident">value</span>()
-            .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">info</span><span class="op">|</span> <span class="ident">info</span>.<span class="ident">source</span>.<span class="ident">value</span>())
-            .<span class="ident">unwrap</span>();
+        <span class="kw">let </span>source = event
+            .value()
+            .unwrap()
+            .transaction_info
+            .value()
+            .and_then(|info| info.source.value())
+            .unwrap();
 
-        <span class="macro">assert_eq!</span>(<span class="ident">source</span>, <span class="kw-2">&amp;</span><span class="ident">TransactionSource::Unknown</span>);
+        <span class="macro">assert_eq!</span>(source, <span class="kw-2">&amp;</span>TransactionSource::Unknown);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_default_transaction_source_none</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span><span class="ident">::from_json</span>(
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_default_transaction_source_none() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(
             <span class="string">r###&quot;
             {
                 &quot;type&quot;: &quot;transaction&quot;,
@@ -2260,32 +2260,32 @@
             }
         &quot;###</span>,
         )
-        .<span class="ident">unwrap</span>();
+        .unwrap();
 
-        <span class="ident">process_value</span>(
-            <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-            <span class="kw-2">&amp;mut</span> <span class="ident">TransactionsProcessor</span>,
-            <span class="ident">ProcessingState::root</span>(),
+        process_value(
+            <span class="kw-2">&amp;mut </span>event,
+            <span class="kw-2">&amp;mut </span>TransactionsProcessor,
+            ProcessingState::root(),
         )
-        .<span class="ident">unwrap</span>();
+        .unwrap();
 
-        <span class="kw">let</span> <span class="ident">transaction_info</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">transaction_info</span>;
+        <span class="kw">let </span>transaction_info = <span class="kw-2">&amp;</span>event.value().unwrap().transaction_info;
 
-        <span class="macro">assert!</span>(<span class="ident">transaction_info</span>.<span class="ident">value</span>().<span class="ident">is_none</span>());
+        <span class="macro">assert!</span>(transaction_info.value().is_none());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_allows_valid_transaction_event_with_spans</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">new_test_event</span>();
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_allows_valid_transaction_event_with_spans() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = new_test_event();
 
-        <span class="ident">process_value</span>(
-            <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-            <span class="kw-2">&amp;mut</span> <span class="ident">TransactionsProcessor</span>,
-            <span class="ident">ProcessingState::root</span>(),
+        process_value(
+            <span class="kw-2">&amp;mut </span>event,
+            <span class="kw-2">&amp;mut </span>TransactionsProcessor,
+            ProcessingState::root(),
         )
-        .<span class="ident">unwrap</span>();
+        .unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r###&quot;
         {
           &quot;type&quot;: &quot;transaction&quot;,
           &quot;transaction&quot;: &quot;/&quot;,
@@ -2315,25 +2315,25 @@
         &quot;###</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_defaults_transaction_name_when_missing</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">new_test_event</span>();
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_defaults_transaction_name_when_missing() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = new_test_event();
 
-        <span class="ident">event</span>
-            .<span class="ident">apply</span>(<span class="op">|</span><span class="ident">event</span>, <span class="kw">_</span><span class="op">|</span> {
-                <span class="ident">event</span>.<span class="ident">transaction</span>.<span class="ident">set_value</span>(<span class="prelude-val">None</span>);
+        event
+            .apply(|event, <span class="kw">_</span>| {
+                event.transaction.set_value(<span class="prelude-val">None</span>);
                 <span class="prelude-val">Ok</span>(())
             })
-            .<span class="ident">unwrap</span>();
+            .unwrap();
 
-        <span class="ident">process_value</span>(
-            <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-            <span class="kw-2">&amp;mut</span> <span class="ident">TransactionsProcessor</span>,
-            <span class="ident">ProcessingState::root</span>(),
+        process_value(
+            <span class="kw-2">&amp;mut </span>event,
+            <span class="kw-2">&amp;mut </span>TransactionsProcessor,
+            ProcessingState::root(),
         )
-        .<span class="ident">unwrap</span>();
+        .unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r###&quot;
         {
           &quot;type&quot;: &quot;transaction&quot;,
           &quot;transaction&quot;: &quot;&lt;unlabeled transaction&gt;&quot;,
@@ -2363,25 +2363,25 @@
         &quot;###</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_defaults_transaction_name_when_empty</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">new_test_event</span>();
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_defaults_transaction_name_when_empty() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = new_test_event();
 
-        <span class="ident">event</span>
-            .<span class="ident">apply</span>(<span class="op">|</span><span class="ident">event</span>, <span class="kw">_</span><span class="op">|</span> {
-                <span class="ident">event</span>.<span class="ident">transaction</span>.<span class="ident">set_value</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>.<span class="ident">to_owned</span>()));
+        event
+            .apply(|event, <span class="kw">_</span>| {
+                event.transaction.set_value(<span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>.to_owned()));
                 <span class="prelude-val">Ok</span>(())
             })
-            .<span class="ident">unwrap</span>();
+            .unwrap();
 
-        <span class="ident">process_value</span>(
-            <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-            <span class="kw-2">&amp;mut</span> <span class="ident">TransactionsProcessor</span>,
-            <span class="ident">ProcessingState::root</span>(),
+        process_value(
+            <span class="kw-2">&amp;mut </span>event,
+            <span class="kw-2">&amp;mut </span>TransactionsProcessor,
+            ProcessingState::root(),
         )
-        .<span class="ident">unwrap</span>();
+        .unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r###&quot;
         {
           &quot;type&quot;: &quot;transaction&quot;,
           &quot;transaction&quot;: &quot;&lt;unlabeled transaction&gt;&quot;,
@@ -2411,9 +2411,9 @@
         &quot;###</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_is_high_cardinality_sdk_ruby_ok</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_is_high_cardinality_sdk_ruby_ok() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;transaction&quot;: &quot;foo&quot;,
@@ -2430,14 +2430,14 @@
 
         }
         &quot;#</span>;
-        <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
 
-        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">is_high_cardinality_sdk</span>(<span class="kw-2">&amp;</span><span class="ident">event</span>.<span class="number">0</span>.<span class="ident">unwrap</span>()));
+        <span class="macro">assert!</span>(!is_high_cardinality_sdk(<span class="kw-2">&amp;</span>event.<span class="number">0</span>.unwrap()));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_is_high_cardinality_sdk_ruby_error</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_is_high_cardinality_sdk_ruby_error() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;transaction&quot;: &quot;foo&quot;,
@@ -2454,11 +2454,11 @@
 
         }
         &quot;#</span>;
-        <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>();
-        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">event</span>.<span class="ident">meta</span>().<span class="ident">has_errors</span>());
+        <span class="kw">let </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
+        <span class="macro">assert!</span>(!event.meta().has_errors());
 
-        <span class="macro">assert!</span>(<span class="ident">is_high_cardinality_sdk</span>(<span class="kw-2">&amp;</span><span class="ident">event</span>.<span class="number">0</span>.<span class="ident">unwrap</span>()));
+        <span class="macro">assert!</span>(is_high_cardinality_sdk(<span class="kw-2">&amp;</span>event.<span class="number">0</span>.unwrap()));
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

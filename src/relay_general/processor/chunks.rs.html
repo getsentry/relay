@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/processor/chunks.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>chunks.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/processor/chunks.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>chunks.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_general/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -210,215 +210,215 @@
 <span id="208">208</span>
 <span id="209">209</span>
 <span id="210">210</span>
-</pre><pre class="rust"><code><span class="doccomment">//! Utilities for dealing with annotated strings.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! This module contains the `split` and `join` function to destructure and recombine strings by</span>
-<span class="doccomment">//! redaction remarks. This allows to quickly inspect modified sections of a string.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ### Example</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//! use relay_general::processor;</span>
-<span class="doccomment">//! use relay_general::types::{Meta, Remark, RemarkType};</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! let remarks = vec![Remark::with_range(</span>
-<span class="doccomment">//!     RemarkType::Substituted,</span>
-<span class="doccomment">//!     &quot;myrule&quot;,</span>
-<span class="doccomment">//!     (7, 17),</span>
-<span class="doccomment">//! )];</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! let chunks = processor::split_chunks(&quot;Hello, [redacted]!&quot;, &amp;remarks);</span>
-<span class="doccomment">//! let (joined, join_remarks) = processor::join_chunks(chunks);</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! assert_eq!(joined, &quot;Hello, [redacted]!&quot;);</span>
-<span class="doccomment">//! assert_eq!(join_remarks, remarks);</span>
-<span class="doccomment">//! ```</span>
+</pre><pre class="rust"><code><span class="doccomment">//! Utilities for dealing with annotated strings.
+//!
+//! This module contains the `split` and `join` function to destructure and recombine strings by
+//! redaction remarks. This allows to quickly inspect modified sections of a string.
+//!
+//! ### Example
+//!
+//! ```
+//! use relay_general::processor;
+//! use relay_general::types::{Meta, Remark, RemarkType};
+//!
+//! let remarks = vec![Remark::with_range(
+//!     RemarkType::Substituted,
+//!     &quot;myrule&quot;,
+//!     (7, 17),
+//! )];
+//!
+//! let chunks = processor::split_chunks(&quot;Hello, [redacted]!&quot;, &amp;remarks);
+//! let (joined, join_remarks) = processor::join_chunks(chunks);
+//!
+//! assert_eq!(joined, &quot;Hello, [redacted]!&quot;);
+//! assert_eq!(join_remarks, remarks);
+//! ```
 
-<span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
-<span class="kw">use</span> <span class="ident">std::fmt</span>;
+</span><span class="kw">use </span>std::borrow::Cow;
+<span class="kw">use </span>std::fmt;
 
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
+<span class="kw">use </span>serde::{Deserialize, Serialize};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Meta</span>, <span class="ident">Remark</span>, <span class="ident">RemarkType</span>};
+<span class="kw">use </span><span class="kw">crate</span>::types::{Meta, Remark, RemarkType};
 
-<span class="doccomment">/// A type for dealing with chunks of annotated text.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">tag</span> <span class="op">=</span> <span class="string">&quot;type&quot;</span>, <span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;lowercase&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Chunk</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="doccomment">/// Unmodified text chunk.</span>
-    <span class="ident">Text</span> {
-        <span class="doccomment">/// The text value of the chunk</span>
-        <span class="ident">text</span>: <span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">str</span><span class="op">&gt;</span>,
+<span class="doccomment">/// A type for dealing with chunks of annotated text.
+</span><span class="attribute">#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = <span class="string">&quot;type&quot;</span>, rename_all = <span class="string">&quot;lowercase&quot;</span>)]
+</span><span class="kw">pub enum </span>Chunk&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="doccomment">/// Unmodified text chunk.
+    </span>Text {
+        <span class="doccomment">/// The text value of the chunk
+        </span>text: Cow&lt;<span class="lifetime">&#39;a</span>, str&gt;,
     },
-    <span class="doccomment">/// Redacted text chunk with a note.</span>
-    <span class="ident">Redaction</span> {
-        <span class="doccomment">/// The redacted text value</span>
-        <span class="ident">text</span>: <span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">str</span><span class="op">&gt;</span>,
-        <span class="doccomment">/// The rule that crated this redaction</span>
-        <span class="ident">rule_id</span>: <span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">str</span><span class="op">&gt;</span>,
-        <span class="doccomment">/// Type type of remark for this redaction</span>
-        <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;remark&quot;</span>)]</span>
-        <span class="ident">ty</span>: <span class="ident">RemarkType</span>,
+    <span class="doccomment">/// Redacted text chunk with a note.
+    </span>Redaction {
+        <span class="doccomment">/// The redacted text value
+        </span>text: Cow&lt;<span class="lifetime">&#39;a</span>, str&gt;,
+        <span class="doccomment">/// The rule that crated this redaction
+        </span>rule_id: Cow&lt;<span class="lifetime">&#39;a</span>, str&gt;,
+        <span class="doccomment">/// Type type of remark for this redaction
+        </span><span class="attribute">#[serde(rename = <span class="string">&quot;remark&quot;</span>)]
+        </span>ty: RemarkType,
     },
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Chunk</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="doccomment">/// The text of this chunk.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">str</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">Chunk::Text</span> { <span class="ident">text</span> } =&gt; <span class="ident">text</span>,
-            <span class="ident">Chunk::Redaction</span> { <span class="ident">text</span>, .. } =&gt; <span class="ident">text</span>,
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Chunk&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="doccomment">/// The text of this chunk.
+    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            Chunk::Text { text } =&gt; text,
+            Chunk::Redaction { text, .. } =&gt; text,
         }
     }
 
-    <span class="doccomment">/// Effective length of the text in this chunk.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
-        <span class="self">self</span>.<span class="ident">as_str</span>().<span class="ident">len</span>()
+    <span class="doccomment">/// Effective length of the text in this chunk.
+    </span><span class="kw">pub fn </span>len(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.as_str().len()
     }
 
-    <span class="doccomment">/// The number of UTF-8 encoded Unicode codepoints in this chunk.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">count</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
-        <span class="ident">bytecount::num_chars</span>(<span class="self">self</span>.<span class="ident">as_str</span>().<span class="ident">as_bytes</span>())
+    <span class="doccomment">/// The number of UTF-8 encoded Unicode codepoints in this chunk.
+    </span><span class="kw">pub fn </span>count(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        bytecount::num_chars(<span class="self">self</span>.as_str().as_bytes())
     }
 
-    <span class="doccomment">/// Determines whether this chunk is empty.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">0</span>
+    <span class="doccomment">/// Determines whether this chunk is empty.
+    </span><span class="kw">pub fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.len() == <span class="number">0
+    </span>}
+}
+
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>Chunk&lt;<span class="lifetime">&#39;_</span>&gt; {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.as_str())
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">Chunk</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.<span class="ident">as_str</span>())
-    }
-}
-
-<span class="doccomment">/// Chunks the given text based on remarks.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">split_chunks</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">I</span><span class="op">&gt;</span>(<span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>, <span class="ident">remarks</span>: <span class="ident">I</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Chunk</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">I</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Remark</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Chunks the given text based on remarks.
+</span><span class="kw">pub fn </span>split_chunks&lt;<span class="lifetime">&#39;a</span>, I&gt;(text: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str, remarks: I) -&gt; Vec&lt;Chunk&lt;<span class="lifetime">&#39;a</span>&gt;&gt;
+<span class="kw">where
+    </span>I: IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Remark&gt;,
 {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rv</span> <span class="op">=</span> <span class="macro">vec!</span>[];
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pos</span> <span class="op">=</span> <span class="number">0</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>rv = <span class="macro">vec!</span>[];
+    <span class="kw">let </span><span class="kw-2">mut </span>pos = <span class="number">0</span>;
 
-    <span class="kw">for</span> <span class="ident">remark</span> <span class="kw">in</span> <span class="ident">remarks</span> {
-        <span class="kw">let</span> (<span class="ident">from</span>, <span class="ident">to</span>) <span class="op">=</span> <span class="kw">match</span> <span class="ident">remark</span>.<span class="ident">range</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">range</span>) =&gt; <span class="kw-2">*</span><span class="ident">range</span>,
-            <span class="prelude-val">None</span> =&gt; <span class="kw">continue</span>,
+    <span class="kw">for </span>remark <span class="kw">in </span>remarks {
+        <span class="kw">let </span>(from, to) = <span class="kw">match </span>remark.range() {
+            <span class="prelude-val">Some</span>(range) =&gt; <span class="kw-2">*</span>range,
+            <span class="prelude-val">None </span>=&gt; <span class="kw">continue</span>,
         };
 
-        <span class="kw">if</span> <span class="ident">from</span> <span class="op">&gt;</span> <span class="ident">pos</span> {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">piece</span>) <span class="op">=</span> <span class="ident">text</span>.<span class="ident">get</span>(<span class="ident">pos</span>..<span class="ident">from</span>) {
-                <span class="ident">rv</span>.<span class="ident">push</span>(<span class="ident">Chunk::Text</span> {
-                    <span class="ident">text</span>: <span class="ident">Cow::Borrowed</span>(<span class="ident">piece</span>),
+        <span class="kw">if </span>from &gt; pos {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(piece) = text.get(pos..from) {
+                rv.push(Chunk::Text {
+                    text: Cow::Borrowed(piece),
                 });
-            } <span class="kw">else</span> {
+            } <span class="kw">else </span>{
                 <span class="kw">break</span>;
             }
         }
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">piece</span>) <span class="op">=</span> <span class="ident">text</span>.<span class="ident">get</span>(<span class="ident">from</span>..<span class="ident">to</span>) {
-            <span class="ident">rv</span>.<span class="ident">push</span>(<span class="ident">Chunk::Redaction</span> {
-                <span class="ident">text</span>: <span class="ident">Cow::Borrowed</span>(<span class="ident">piece</span>),
-                <span class="ident">rule_id</span>: <span class="ident">remark</span>.<span class="ident">rule_id</span>().<span class="ident">into</span>(),
-                <span class="ident">ty</span>: <span class="ident">remark</span>.<span class="ident">ty</span>(),
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(piece) = text.get(from..to) {
+            rv.push(Chunk::Redaction {
+                text: Cow::Borrowed(piece),
+                rule_id: remark.rule_id().into(),
+                ty: remark.ty(),
             });
-        } <span class="kw">else</span> {
+        } <span class="kw">else </span>{
             <span class="kw">break</span>;
         }
-        <span class="ident">pos</span> <span class="op">=</span> <span class="ident">to</span>;
+        pos = to;
     }
 
-    <span class="kw">if</span> <span class="ident">pos</span> <span class="op">&lt;</span> <span class="ident">text</span>.<span class="ident">len</span>() {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">piece</span>) <span class="op">=</span> <span class="ident">text</span>.<span class="ident">get</span>(<span class="ident">pos</span>..) {
-            <span class="ident">rv</span>.<span class="ident">push</span>(<span class="ident">Chunk::Text</span> {
-                <span class="ident">text</span>: <span class="ident">Cow::Borrowed</span>(<span class="ident">piece</span>),
+    <span class="kw">if </span>pos &lt; text.len() {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(piece) = text.get(pos..) {
+            rv.push(Chunk::Text {
+                text: Cow::Borrowed(piece),
             });
         }
     }
 
-    <span class="ident">rv</span>
+    rv
 }
 
-<span class="doccomment">/// Concatenates chunks into a string and emits remarks for redacted sections.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">join_chunks</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">I</span><span class="op">&gt;</span>(<span class="ident">chunks</span>: <span class="ident">I</span>) -&gt; (<span class="ident">String</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Remark</span><span class="op">&gt;</span>)
-<span class="kw">where</span>
-    <span class="ident">I</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">Chunk</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Concatenates chunks into a string and emits remarks for redacted sections.
+</span><span class="kw">pub fn </span>join_chunks&lt;<span class="lifetime">&#39;a</span>, I&gt;(chunks: I) -&gt; (String, Vec&lt;Remark&gt;)
+<span class="kw">where
+    </span>I: IntoIterator&lt;Item = Chunk&lt;<span class="lifetime">&#39;a</span>&gt;&gt;,
 {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rv</span> <span class="op">=</span> <span class="ident">String::new</span>();
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[];
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pos</span> <span class="op">=</span> <span class="number">0</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>rv = String::new();
+    <span class="kw">let </span><span class="kw-2">mut </span>remarks = <span class="macro">vec!</span>[];
+    <span class="kw">let </span><span class="kw-2">mut </span>pos = <span class="number">0</span>;
 
-    <span class="kw">for</span> <span class="ident">chunk</span> <span class="kw">in</span> <span class="ident">chunks</span> {
-        <span class="kw">let</span> <span class="ident">new_pos</span> <span class="op">=</span> <span class="ident">pos</span> <span class="op">+</span> <span class="ident">chunk</span>.<span class="ident">len</span>();
-        <span class="ident">rv</span>.<span class="ident">push_str</span>(<span class="ident">chunk</span>.<span class="ident">as_str</span>());
+    <span class="kw">for </span>chunk <span class="kw">in </span>chunks {
+        <span class="kw">let </span>new_pos = pos + chunk.len();
+        rv.push_str(chunk.as_str());
 
-        <span class="kw">match</span> <span class="ident">chunk</span> {
-            <span class="ident">Chunk::Redaction</span> { <span class="ident">rule_id</span>, <span class="ident">ty</span>, .. } =&gt; {
-                <span class="ident">remarks</span>.<span class="ident">push</span>(<span class="ident">Remark::with_range</span>(<span class="ident">ty</span>, <span class="ident">rule_id</span>.<span class="ident">clone</span>(), (<span class="ident">pos</span>, <span class="ident">new_pos</span>)))
+        <span class="kw">match </span>chunk {
+            Chunk::Redaction { rule_id, ty, .. } =&gt; {
+                remarks.push(Remark::with_range(ty, rule_id.clone(), (pos, new_pos)))
             }
-            <span class="ident">Chunk::Text</span> { .. } =&gt; {
-                <span class="comment">// Plain text segments do not need remarks</span>
-            }
+            Chunk::Text { .. } =&gt; {
+                <span class="comment">// Plain text segments do not need remarks
+            </span>}
         }
 
-        <span class="ident">pos</span> <span class="op">=</span> <span class="ident">new_pos</span>;
+        pos = new_pos;
     }
 
-    (<span class="ident">rv</span>, <span class="ident">remarks</span>)
+    (rv, remarks)
 }
 
-<span class="doccomment">/// Splits the string into chunks, maps each chunk and then joins chunks again, emitting</span>
-<span class="doccomment">/// remarks along the process.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">process_chunked_value</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="ident">value</span>: <span class="kw-2">&amp;mut</span> <span class="ident">String</span>, <span class="ident">meta</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Meta</span>, <span class="ident">f</span>: <span class="ident">F</span>)
-<span class="kw">where</span>
-    <span class="ident">F</span>: <span class="ident">FnOnce</span>(<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Chunk</span><span class="op">&gt;</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Chunk</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Splits the string into chunks, maps each chunk and then joins chunks again, emitting
+/// remarks along the process.
+</span><span class="kw">pub fn </span>process_chunked_value&lt;F&gt;(value: <span class="kw-2">&amp;mut </span>String, meta: <span class="kw-2">&amp;mut </span>Meta, f: F)
+<span class="kw">where
+    </span>F: FnOnce(Vec&lt;Chunk&gt;) -&gt; Vec&lt;Chunk&gt;,
 {
-    <span class="kw">let</span> <span class="ident">chunks</span> <span class="op">=</span> <span class="ident">split_chunks</span>(<span class="ident">value</span>, <span class="ident">meta</span>.<span class="ident">iter_remarks</span>());
-    <span class="kw">let</span> (<span class="ident">new_value</span>, <span class="ident">remarks</span>) <span class="op">=</span> <span class="ident">join_chunks</span>(<span class="ident">f</span>(<span class="ident">chunks</span>));
+    <span class="kw">let </span>chunks = split_chunks(value, meta.iter_remarks());
+    <span class="kw">let </span>(new_value, remarks) = join_chunks(f(chunks));
 
-    <span class="kw">if</span> <span class="ident">new_value</span> <span class="op">!</span><span class="op">=</span> <span class="kw-2">*</span><span class="ident">value</span> {
-        <span class="ident">meta</span>.<span class="ident">clear_remarks</span>();
-        <span class="kw">for</span> <span class="ident">remark</span> <span class="kw">in</span> <span class="ident">remarks</span>.<span class="ident">into_iter</span>() {
-            <span class="ident">meta</span>.<span class="ident">add_remark</span>(<span class="ident">remark</span>);
+    <span class="kw">if </span>new_value != <span class="kw-2">*</span>value {
+        meta.clear_remarks();
+        <span class="kw">for </span>remark <span class="kw">in </span>remarks.into_iter() {
+            meta.add_remark(remark);
         }
-        <span class="ident">meta</span>.<span class="ident">set_original_length</span>(<span class="prelude-val">Some</span>(<span class="ident">bytecount::num_chars</span>(<span class="ident">value</span>.<span class="ident">as_bytes</span>())));
-        <span class="kw-2">*</span><span class="ident">value</span> <span class="op">=</span> <span class="ident">new_value</span>;
+        meta.set_original_length(<span class="prelude-val">Some</span>(bytecount::num_chars(value.as_bytes())));
+        <span class="kw-2">*</span>value = new_value;
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">similar_asserts::assert_eq</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>similar_asserts::assert_eq;
 
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_chunk_split</span>() {
-        <span class="kw">let</span> <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[<span class="ident">Remark::with_range</span>(
-            <span class="ident">RemarkType::Masked</span>,
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_chunk_split() {
+        <span class="kw">let </span>remarks = <span class="macro">vec!</span>[Remark::with_range(
+            RemarkType::Masked,
             <span class="string">&quot;@email:strip&quot;</span>,
             (<span class="number">33</span>, <span class="number">47</span>),
         )];
 
-        <span class="kw">let</span> <span class="ident">text</span> <span class="op">=</span> <span class="string">&quot;Hello Peter, my email address is ****@*****.com. See you&quot;</span>;
+        <span class="kw">let </span>text = <span class="string">&quot;Hello Peter, my email address is ****@*****.com. See you&quot;</span>;
 
-        <span class="kw">let</span> <span class="ident">chunks</span> <span class="op">=</span> <span class="macro">vec!</span>[
-            <span class="ident">Chunk::Text</span> {
-                <span class="ident">text</span>: <span class="string">&quot;Hello Peter, my email address is &quot;</span>.<span class="ident">into</span>(),
+        <span class="kw">let </span>chunks = <span class="macro">vec!</span>[
+            Chunk::Text {
+                text: <span class="string">&quot;Hello Peter, my email address is &quot;</span>.into(),
             },
-            <span class="ident">Chunk::Redaction</span> {
-                <span class="ident">ty</span>: <span class="ident">RemarkType::Masked</span>,
-                <span class="ident">text</span>: <span class="string">&quot;****@*****.com&quot;</span>.<span class="ident">into</span>(),
-                <span class="ident">rule_id</span>: <span class="string">&quot;@email:strip&quot;</span>.<span class="ident">into</span>(),
+            Chunk::Redaction {
+                ty: RemarkType::Masked,
+                text: <span class="string">&quot;****@*****.com&quot;</span>.into(),
+                rule_id: <span class="string">&quot;@email:strip&quot;</span>.into(),
             },
-            <span class="ident">Chunk::Text</span> {
-                <span class="ident">text</span>: <span class="string">&quot;. See you&quot;</span>.<span class="ident">into</span>(),
+            Chunk::Text {
+                text: <span class="string">&quot;. See you&quot;</span>.into(),
             },
         ];
 
-        <span class="macro">assert_eq!</span>(<span class="ident">split_chunks</span>(<span class="ident">text</span>, <span class="kw-2">&amp;</span><span class="ident">remarks</span>), <span class="ident">chunks</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">join_chunks</span>(<span class="ident">chunks</span>), (<span class="ident">text</span>.<span class="ident">into</span>(), <span class="ident">remarks</span>));
+        <span class="macro">assert_eq!</span>(split_chunks(text, <span class="kw-2">&amp;</span>remarks), chunks);
+        <span class="macro">assert_eq!</span>(join_chunks(chunks), (text.into(), remarks));
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

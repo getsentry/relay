@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-profiling/src/transaction_metadata.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>transaction_metadata.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_profiling/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_profiling/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_profiling/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-profiling/src/transaction_metadata.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>transaction_metadata.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_profiling/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_profiling/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_profiling/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
 <span id="3">3</span>
 <span id="4">4</span>
@@ -81,88 +81,88 @@
 <span id="81">81</span>
 <span id="82">82</span>
 <span id="83">83</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
+</pre><pre class="rust"><code><span class="kw">use </span>serde::{Deserialize, Serialize};
 
-<span class="kw">use</span> <span class="ident">relay_general::protocol::EventId</span>;
+<span class="kw">use </span>relay_general::protocol::EventId;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{<span class="ident">deserialize_number_from_string</span>, <span class="ident">is_zero</span>};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{deserialize_number_from_string, is_zero};
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Clone</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TransactionMetadata</span> {
-    <span class="kw">pub</span> <span class="ident">id</span>: <span class="ident">EventId</span>,
-    <span class="kw">pub</span> <span class="ident">name</span>: <span class="ident">String</span>,
-    <span class="kw">pub</span> <span class="ident">trace_id</span>: <span class="ident">EventId</span>,
+<span class="attribute">#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
+</span><span class="kw">pub struct </span>TransactionMetadata {
+    <span class="kw">pub </span>id: EventId,
+    <span class="kw">pub </span>name: String,
+    <span class="kw">pub </span>trace_id: EventId,
 
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">deserialize_with</span> <span class="op">=</span> <span class="string">&quot;deserialize_number_from_string&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">active_thread_id</span>: <span class="ident">u64</span>,
+    <span class="attribute">#[serde(default, deserialize_with = <span class="string">&quot;deserialize_number_from_string&quot;</span>)]
+    </span><span class="kw">pub </span>active_thread_id: u64,
 
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">deserialize_with</span> <span class="op">=</span> <span class="string">&quot;deserialize_number_from_string&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">relative_start_ns</span>: <span class="ident">u64</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">deserialize_with</span> <span class="op">=</span> <span class="string">&quot;deserialize_number_from_string&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">relative_end_ns</span>: <span class="ident">u64</span>,
+    <span class="attribute">#[serde(deserialize_with = <span class="string">&quot;deserialize_number_from_string&quot;</span>)]
+    </span><span class="kw">pub </span>relative_start_ns: u64,
+    <span class="attribute">#[serde(deserialize_with = <span class="string">&quot;deserialize_number_from_string&quot;</span>)]
+    </span><span class="kw">pub </span>relative_end_ns: u64,
 
-    <span class="comment">// Android might have a CPU clock for the trace</span>
-    <span class="attribute">#[<span class="ident">serde</span>(
-        <span class="ident">default</span>,
-        <span class="ident">deserialize_with</span> <span class="op">=</span> <span class="string">&quot;deserialize_number_from_string&quot;</span>,
-        <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;is_zero&quot;</span>
-    )]</span>
-    <span class="kw">pub</span> <span class="ident">relative_cpu_start_ms</span>: <span class="ident">u64</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(
-        <span class="ident">default</span>,
-        <span class="ident">deserialize_with</span> <span class="op">=</span> <span class="string">&quot;deserialize_number_from_string&quot;</span>,
-        <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;is_zero&quot;</span>
-    )]</span>
-    <span class="kw">pub</span> <span class="ident">relative_cpu_end_ms</span>: <span class="ident">u64</span>,
+    <span class="comment">// Android might have a CPU clock for the trace
+    </span><span class="attribute">#[serde(
+        default,
+        deserialize_with = <span class="string">&quot;deserialize_number_from_string&quot;</span>,
+        skip_serializing_if = <span class="string">&quot;is_zero&quot;
+    </span>)]
+    </span><span class="kw">pub </span>relative_cpu_start_ms: u64,
+    <span class="attribute">#[serde(
+        default,
+        deserialize_with = <span class="string">&quot;deserialize_number_from_string&quot;</span>,
+        skip_serializing_if = <span class="string">&quot;is_zero&quot;
+    </span>)]
+    </span><span class="kw">pub </span>relative_cpu_end_ms: u64,
 }
 
-<span class="kw">impl</span> <span class="ident">TransactionMetadata</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">valid</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="op">!</span><span class="self">self</span>.<span class="ident">id</span>.<span class="ident">is_nil</span>()
-            <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">name</span>.<span class="ident">is_empty</span>()
-            <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">trace_id</span>.<span class="ident">is_nil</span>()
-            <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">relative_cpu_start_ms</span> <span class="op">&lt;</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">relative_cpu_end_ms</span>
-            <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">relative_start_ns</span> <span class="op">&lt;</span> <span class="self">self</span>.<span class="ident">relative_end_ns</span>
+<span class="kw">impl </span>TransactionMetadata {
+    <span class="kw">pub fn </span>valid(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        !<span class="self">self</span>.id.is_nil()
+            &amp;&amp; !<span class="self">self</span>.name.is_empty()
+            &amp;&amp; !<span class="self">self</span>.trace_id.is_nil()
+            &amp;&amp; <span class="self">self</span>.relative_cpu_start_ms &lt;= <span class="self">self</span>.relative_cpu_end_ms
+            &amp;&amp; <span class="self">self</span>.relative_start_ns &lt; <span class="self">self</span>.relative_end_ns
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">duration_ns</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">u64</span> {
-        <span class="self">self</span>.<span class="ident">relative_end_ns</span>.<span class="ident">saturating_sub</span>(<span class="self">self</span>.<span class="ident">relative_start_ns</span>)
+    <span class="kw">pub fn </span>duration_ns(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
+        <span class="self">self</span>.relative_end_ns.saturating_sub(<span class="self">self</span>.relative_start_ns)
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_valid_transaction_metadata</span>() {
-        <span class="kw">let</span> <span class="ident">metadata</span> <span class="op">=</span> <span class="ident">TransactionMetadata</span> {
-            <span class="ident">id</span>: <span class="string">&quot;A2669CD2-C7E0-47ED-8298-4AAF9666A6B6&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>(),
-            <span class="ident">name</span>: <span class="string">&quot;SomeTransaction&quot;</span>.<span class="ident">to_string</span>(),
-            <span class="ident">relative_cpu_end_ms</span>: <span class="number">0</span>,
-            <span class="ident">relative_cpu_start_ms</span>: <span class="number">0</span>,
-            <span class="ident">relative_end_ns</span>: <span class="number">133</span>,
-            <span class="ident">relative_start_ns</span>: <span class="number">1</span>,
-            <span class="ident">active_thread_id</span>: <span class="number">259</span>,
-            <span class="ident">trace_id</span>: <span class="string">&quot;4705BD13-368A-499A-AA48-439DAFD9CFB0&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>(),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_valid_transaction_metadata() {
+        <span class="kw">let </span>metadata = TransactionMetadata {
+            id: <span class="string">&quot;A2669CD2-C7E0-47ED-8298-4AAF9666A6B6&quot;</span>.parse().unwrap(),
+            name: <span class="string">&quot;SomeTransaction&quot;</span>.to_string(),
+            relative_cpu_end_ms: <span class="number">0</span>,
+            relative_cpu_start_ms: <span class="number">0</span>,
+            relative_end_ns: <span class="number">133</span>,
+            relative_start_ns: <span class="number">1</span>,
+            active_thread_id: <span class="number">259</span>,
+            trace_id: <span class="string">&quot;4705BD13-368A-499A-AA48-439DAFD9CFB0&quot;</span>.parse().unwrap(),
         };
-        <span class="macro">assert!</span>(<span class="ident">metadata</span>.<span class="ident">valid</span>());
+        <span class="macro">assert!</span>(metadata.valid());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_invalid_transaction_metadata</span>() {
-        <span class="kw">let</span> <span class="ident">metadata</span> <span class="op">=</span> <span class="ident">TransactionMetadata</span> {
-            <span class="ident">id</span>: <span class="string">&quot;A2669CD2-C7E0-47ED-8298-4AAF9666A6B6&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>(),
-            <span class="ident">name</span>: <span class="string">&quot;&quot;</span>.<span class="ident">to_string</span>(),
-            <span class="ident">relative_cpu_end_ms</span>: <span class="number">0</span>,
-            <span class="ident">relative_cpu_start_ms</span>: <span class="number">0</span>,
-            <span class="ident">relative_end_ns</span>: <span class="number">133</span>,
-            <span class="ident">relative_start_ns</span>: <span class="number">1</span>,
-            <span class="ident">active_thread_id</span>: <span class="number">259</span>,
-            <span class="ident">trace_id</span>: <span class="string">&quot;4705BD13-368A-499A-AA48-439DAFD9CFB0&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>(),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_invalid_transaction_metadata() {
+        <span class="kw">let </span>metadata = TransactionMetadata {
+            id: <span class="string">&quot;A2669CD2-C7E0-47ED-8298-4AAF9666A6B6&quot;</span>.parse().unwrap(),
+            name: <span class="string">&quot;&quot;</span>.to_string(),
+            relative_cpu_end_ms: <span class="number">0</span>,
+            relative_cpu_start_ms: <span class="number">0</span>,
+            relative_end_ns: <span class="number">133</span>,
+            relative_start_ns: <span class="number">1</span>,
+            active_thread_id: <span class="number">259</span>,
+            trace_id: <span class="string">&quot;4705BD13-368A-499A-AA48-439DAFD9CFB0&quot;</span>.parse().unwrap(),
         };
-        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">metadata</span>.<span class="ident">valid</span>());
+        <span class="macro">assert!</span>(!metadata.valid());
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_profiling" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_profiling" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/metrics_extraction/transactions.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>transactions.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/metrics_extraction/transactions.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>transactions.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_server/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -1860,349 +1860,349 @@
 <span id="1858">1858</span>
 <span id="1859">1859</span>
 <span id="1860">1860</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::conditional_tagging::run_conditional_tagging</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::utils</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::TaggingRule</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd::RelayCounters</span>;
-<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">SpanStatus</span>, <span class="ident">UnixTimestamp</span>};
-<span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{
-    <span class="ident">AsPair</span>, <span class="ident">Context</span>, <span class="ident">ContextInner</span>, <span class="ident">Event</span>, <span class="ident">EventType</span>, <span class="ident">Timestamp</span>, <span class="ident">TraceContext</span>, <span class="ident">TransactionSource</span>,
-    <span class="ident">User</span>,
+</pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::conditional_tagging::run_conditional_tagging;
+<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::utils;
+<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::TaggingRule;
+<span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
+<span class="kw">use </span>relay_common::{SpanStatus, UnixTimestamp};
+<span class="kw">use </span>relay_general::protocol::{
+    AsPair, Context, ContextInner, Event, EventType, Timestamp, TraceContext, TransactionSource,
+    User,
 };
-<span class="kw">use</span> <span class="ident">relay_general::store</span>;
-<span class="kw">use</span> <span class="ident">relay_general::types::Annotated</span>;
-<span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">DurationUnit</span>, <span class="ident">Metric</span>, <span class="ident">MetricNamespace</span>, <span class="ident">MetricUnit</span>, <span class="ident">MetricValue</span>};
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
-<span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeMap</span>, <span class="ident">BTreeSet</span>};
-<span class="kw">use</span> <span class="ident">std::fmt</span>;
+<span class="kw">use </span>relay_general::store;
+<span class="kw">use </span>relay_general::types::Annotated;
+<span class="kw">use </span>relay_metrics::{DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue};
+<span class="kw">use </span>serde::{Deserialize, Serialize};
+<span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
+<span class="kw">use </span>std::fmt;
 
-<span class="doccomment">/// The metric on which the user satisfaction threshold is applied.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;lowercase&quot;</span>)]</span>
-<span class="kw">enum</span> <span class="ident">SatisfactionMetric</span> {
-    <span class="ident">Duration</span>,
-    <span class="ident">Lcp</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">other</span>)]</span>
-    <span class="ident">Unknown</span>,
+<span class="doccomment">/// The metric on which the user satisfaction threshold is applied.
+</span><span class="attribute">#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = <span class="string">&quot;lowercase&quot;</span>)]
+</span><span class="kw">enum </span>SatisfactionMetric {
+    Duration,
+    Lcp,
+    <span class="attribute">#[serde(other)]
+    </span>Unknown,
 }
 
-<span class="doccomment">/// Configuration for a single threshold.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="kw">struct</span> <span class="ident">SatisfactionThreshold</span> {
-    <span class="ident">metric</span>: <span class="ident">SatisfactionMetric</span>,
-    <span class="ident">threshold</span>: <span class="ident">f64</span>,
+<span class="doccomment">/// Configuration for a single threshold.
+</span><span class="attribute">#[derive(Debug, Clone, Serialize, Deserialize)]
+</span><span class="kw">struct </span>SatisfactionThreshold {
+    metric: SatisfactionMetric,
+    threshold: f64,
 }
 
-<span class="doccomment">/// Configuration for applying the user satisfaction threshold.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>)]</span>
-<span class="kw">struct</span> <span class="ident">SatisfactionConfig</span> {
-    <span class="doccomment">/// The project-wide threshold to apply.</span>
-    <span class="ident">project_threshold</span>: <span class="ident">SatisfactionThreshold</span>,
-    <span class="doccomment">/// Transaction-specific overrides of the project-wide threshold.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;BTreeMap::is_empty&quot;</span>)]</span>
-    <span class="ident">transaction_thresholds</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">SatisfactionThreshold</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Configuration for applying the user satisfaction threshold.
+</span><span class="attribute">#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+</span><span class="kw">struct </span>SatisfactionConfig {
+    <span class="doccomment">/// The project-wide threshold to apply.
+    </span>project_threshold: SatisfactionThreshold,
+    <span class="doccomment">/// Transaction-specific overrides of the project-wide threshold.
+    </span><span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;BTreeMap::is_empty&quot;</span>)]
+    </span>transaction_thresholds: BTreeMap&lt;String, SatisfactionThreshold&gt;,
 }
 
-<span class="doccomment">/// Configuration for extracting custom measurements from transaction payloads.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Default</span>, <span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">CustomMeasurementConfig</span> {
-    <span class="doccomment">/// The maximum number of custom measurements to extract. Defaults to zero.</span>
-    <span class="ident">limit</span>: <span class="ident">usize</span>,
+<span class="doccomment">/// Configuration for extracting custom measurements from transaction payloads.
+</span><span class="attribute">#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+</span><span class="kw">pub struct </span>CustomMeasurementConfig {
+    <span class="doccomment">/// The maximum number of custom measurements to extract. Defaults to zero.
+    </span>limit: usize,
 }
 
-<span class="doccomment">/// Maximum supported version of metrics extraction from transactions.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The version is an integer scalar, incremented by one on each new version.</span>
-<span class="kw">const</span> <span class="ident">EXTRACT_MAX_VERSION</span>: <span class="ident">u16</span> <span class="op">=</span> <span class="number">1</span>;
+<span class="doccomment">/// Maximum supported version of metrics extraction from transactions.
+///
+/// The version is an integer scalar, incremented by one on each new version.
+</span><span class="kw">const </span>EXTRACT_MAX_VERSION: u16 = <span class="number">1</span>;
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">PartialEq</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">AcceptTransactionNames</span> {
-    <span class="doccomment">/// For some SDKs, accept all transaction names, while for others, apply strict rules.</span>
-    <span class="ident">ClientBased</span>,
+<span class="attribute">#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+</span><span class="kw">pub enum </span>AcceptTransactionNames {
+    <span class="doccomment">/// For some SDKs, accept all transaction names, while for others, apply strict rules.
+    </span>ClientBased,
 
-    <span class="doccomment">/// Only accept transaction names with a low-cardinality source.</span>
-    <span class="doccomment">/// Any value other than &quot;clientBased&quot; will be interpreted as &quot;strict&quot;.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">other</span>)]</span>
-    <span class="ident">Strict</span>,
+    <span class="doccomment">/// Only accept transaction names with a low-cardinality source.
+    /// Any value other than &quot;clientBased&quot; will be interpreted as &quot;strict&quot;.
+    </span><span class="attribute">#[serde(other)]
+    </span>Strict,
 }
 
-<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">AcceptTransactionNames</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
-        <span class="ident"><span class="self">Self</span>::Strict</span>
+<span class="kw">impl </span>Default <span class="kw">for </span>AcceptTransactionNames {
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::Strict
     }
 }
 
-<span class="doccomment">/// Configuration for extracting metrics from transaction payloads.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Default</span>, <span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TransactionMetricsConfig</span> {
-    <span class="doccomment">/// The required version to extract transaction metrics.</span>
-    <span class="ident">version</span>: <span class="ident">u16</span>,
-    <span class="ident">extract_metrics</span>: <span class="ident">BTreeSet</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="ident">extract_custom_tags</span>: <span class="ident">BTreeSet</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="ident">satisfaction_thresholds</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SatisfactionConfig</span><span class="op">&gt;</span>,
-    <span class="ident">custom_measurements</span>: <span class="ident">CustomMeasurementConfig</span>,
-    <span class="ident">accept_transaction_names</span>: <span class="ident">AcceptTransactionNames</span>,
+<span class="doccomment">/// Configuration for extracting metrics from transaction payloads.
+</span><span class="attribute">#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+</span><span class="kw">pub struct </span>TransactionMetricsConfig {
+    <span class="doccomment">/// The required version to extract transaction metrics.
+    </span>version: u16,
+    extract_metrics: BTreeSet&lt;String&gt;,
+    extract_custom_tags: BTreeSet&lt;String&gt;,
+    satisfaction_thresholds: <span class="prelude-ty">Option</span>&lt;SatisfactionConfig&gt;,
+    custom_measurements: CustomMeasurementConfig,
+    accept_transaction_names: AcceptTransactionNames,
 }
 
-<span class="kw">impl</span> <span class="ident">TransactionMetricsConfig</span> {
-    <span class="doccomment">/// Creates an enabled configuration with empty defaults.</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> {
-            <span class="ident">version</span>: <span class="number">1</span>,
-            ..<span class="ident"><span class="self">Self</span>::default</span>()
+<span class="kw">impl </span>TransactionMetricsConfig {
+    <span class="doccomment">/// Creates an enabled configuration with empty defaults.
+    </span><span class="attribute">#[cfg(test)]
+    </span><span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            version: <span class="number">1</span>,
+            ..<span class="self">Self</span>::default()
         }
     }
 
-    <span class="doccomment">/// Returns `true` if metrics extraction is enabled and compatible with this Relay.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_enabled</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">version</span> <span class="op">&gt;</span> <span class="number">0</span> <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">version</span> <span class="op">&lt;</span><span class="op">=</span> <span class="ident">EXTRACT_MAX_VERSION</span>
+    <span class="doccomment">/// Returns `true` if metrics extraction is enabled and compatible with this Relay.
+    </span><span class="kw">pub fn </span>is_enabled(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.version &gt; <span class="number">0 </span>&amp;&amp; <span class="self">self</span>.version &lt;= EXTRACT_MAX_VERSION
     }
 }
 
-<span class="kw">const</span> <span class="ident">METRIC_NAMESPACE</span>: <span class="ident">MetricNamespace</span> <span class="op">=</span> <span class="ident">MetricNamespace::Transactions</span>;
+<span class="kw">const </span>METRIC_NAMESPACE: MetricNamespace = MetricNamespace::Transactions;
 
-<span class="kw">fn</span> <span class="ident">get_trace_context</span>(<span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">TraceContext</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">contexts</span>.<span class="ident">value</span>()<span class="question-mark">?</span>;
-    <span class="kw">let</span> <span class="ident">trace</span> <span class="op">=</span> <span class="ident">contexts</span>.<span class="ident">get</span>(<span class="string">&quot;trace&quot;</span>).<span class="ident">and_then</span>(<span class="ident">Annotated::value</span>);
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Trace</span>(<span class="ident">trace_context</span>))) <span class="op">=</span> <span class="ident">trace</span> {
-        <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">trace_context</span>.<span class="ident">as_ref</span>());
+<span class="kw">fn </span>get_trace_context(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>TraceContext&gt; {
+    <span class="kw">let </span>contexts = event.contexts.value()<span class="question-mark">?</span>;
+    <span class="kw">let </span>trace = contexts.get(<span class="string">&quot;trace&quot;</span>).and_then(Annotated::value);
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(ContextInner(Context::Trace(trace_context))) = trace {
+        <span class="kw">return </span><span class="prelude-val">Some</span>(trace_context.as_ref());
     }
 
-    <span class="prelude-val">None</span>
+    <span class="prelude-val">None
+</span>}
+
+<span class="doccomment">/// Extract transaction status, defaulting to [`SpanStatus::Unknown`].
+/// Must be consistent with `process_trace_context` in [`relay_general::store`].
+</span><span class="kw">fn </span>extract_transaction_status(trace_context: <span class="kw-2">&amp;</span>TraceContext) -&gt; SpanStatus {
+    <span class="kw-2">*</span>trace_context.status.value().unwrap_or(<span class="kw-2">&amp;</span>SpanStatus::Unknown)
 }
 
-<span class="doccomment">/// Extract transaction status, defaulting to [`SpanStatus::Unknown`].</span>
-<span class="doccomment">/// Must be consistent with `process_trace_context` in [`relay_general::store`].</span>
-<span class="kw">fn</span> <span class="ident">extract_transaction_status</span>(<span class="ident">trace_context</span>: <span class="kw-2">&amp;</span><span class="ident">TraceContext</span>) -&gt; <span class="ident">SpanStatus</span> {
-    <span class="kw-2">*</span><span class="ident">trace_context</span>.<span class="ident">status</span>.<span class="ident">value</span>().<span class="ident">unwrap_or</span>(<span class="kw-2">&amp;</span><span class="ident">SpanStatus::Unknown</span>)
-}
+<span class="kw">fn </span>extract_transaction_op(trace_context: <span class="kw-2">&amp;</span>TraceContext) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+    <span class="kw">let </span>op = trace_context.op.value()<span class="question-mark">?</span>;
+    <span class="kw">if </span>op == <span class="string">&quot;default&quot; </span>{
+        <span class="comment">// This was likely set by normalization, so let&#39;s treat it as None
+        // See https://github.com/getsentry/relay/blob/bb2ac4ee82c25faa07a6d078f93d22d799cfc5d1/relay-general/src/store/transactions.rs#L96
 
-<span class="kw">fn</span> <span class="ident">extract_transaction_op</span>(<span class="ident">trace_context</span>: <span class="kw-2">&amp;</span><span class="ident">TraceContext</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">op</span> <span class="op">=</span> <span class="ident">trace_context</span>.<span class="ident">op</span>.<span class="ident">value</span>()<span class="question-mark">?</span>;
-    <span class="kw">if</span> <span class="ident">op</span> <span class="op">==</span> <span class="string">&quot;default&quot;</span> {
-        <span class="comment">// This was likely set by normalization, so let&#39;s treat it as None</span>
-        <span class="comment">// See https://github.com/getsentry/relay/blob/bb2ac4ee82c25faa07a6d078f93d22d799cfc5d1/relay-general/src/store/transactions.rs#L96</span>
-
-        <span class="comment">// Note that this is the opposite behavior of what we do for transaction.status, where</span>
-        <span class="comment">// we coalesce None to &quot;unknown&quot;.</span>
-        <span class="kw">return</span> <span class="prelude-val">None</span>;
+        // Note that this is the opposite behavior of what we do for transaction.status, where
+        // we coalesce None to &quot;unknown&quot;.
+        </span><span class="kw">return </span><span class="prelude-val">None</span>;
     }
-    <span class="prelude-val">Some</span>(<span class="ident">op</span>.<span class="ident">to_string</span>())
+    <span class="prelude-val">Some</span>(op.to_string())
 }
 
-<span class="doccomment">/// Extract HTTP method</span>
-<span class="doccomment">/// See &lt;https://github.com/getsentry/snuba/blob/2e038c13a50735d58cc9397a29155ab5422a62e5/snuba/datasets/errors_processor.py#L64-L67&gt;.</span>
-<span class="kw">fn</span> <span class="ident">extract_http_method</span>(<span class="ident">transaction</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">transaction</span>.<span class="ident">request</span>.<span class="ident">value</span>()<span class="question-mark">?</span>;
-    <span class="kw">let</span> <span class="ident">method</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">method</span>.<span class="ident">value</span>()<span class="question-mark">?</span>;
-    <span class="prelude-val">Some</span>(<span class="ident">method</span>.<span class="ident">clone</span>())
+<span class="doccomment">/// Extract HTTP method
+/// See &lt;https://github.com/getsentry/snuba/blob/2e038c13a50735d58cc9397a29155ab5422a62e5/snuba/datasets/errors_processor.py#L64-L67&gt;.
+</span><span class="kw">fn </span>extract_http_method(transaction: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+    <span class="kw">let </span>request = transaction.request.value()<span class="question-mark">?</span>;
+    <span class="kw">let </span>method = request.method.value()<span class="question-mark">?</span>;
+    <span class="prelude-val">Some</span>(method.clone())
 }
 
-<span class="doccomment">/// Satisfaction value used for Apdex and User Misery</span>
-<span class="doccomment">/// &lt;https://docs.sentry.io/product/performance/metrics/#apdex&gt;</span>
-<span class="kw">enum</span> <span class="ident">UserSatisfaction</span> {
-    <span class="ident">Satisfied</span>,
-    <span class="ident">Tolerated</span>,
-    <span class="ident">Frustrated</span>,
+<span class="doccomment">/// Satisfaction value used for Apdex and User Misery
+/// &lt;https://docs.sentry.io/product/performance/metrics/#apdex&gt;
+</span><span class="kw">enum </span>UserSatisfaction {
+    Satisfied,
+    Tolerated,
+    Frustrated,
 }
 
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">UserSatisfaction</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">UserSatisfaction::Satisfied</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;satisfied&quot;</span>),
-            <span class="ident">UserSatisfaction::Tolerated</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;tolerated&quot;</span>),
-            <span class="ident">UserSatisfaction::Frustrated</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;frustrated&quot;</span>),
-        }
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">UserSatisfaction</span> {
-    <span class="doccomment">/// The frustration threshold is always four times the threshold</span>
-    <span class="doccomment">/// (see &lt;https://docs.sentry.io/product/performance/metrics/#apdex&gt;)</span>
-    <span class="kw">const</span> <span class="ident">FRUSTRATION_FACTOR</span>: <span class="ident">f64</span> <span class="op">=</span> <span class="number">4.0</span>;
-
-    <span class="kw">fn</span> <span class="ident">from_value</span>(<span class="ident">value</span>: <span class="ident">f64</span>, <span class="ident">threshold</span>: <span class="ident">f64</span>) -&gt; <span class="self">Self</span> {
-        <span class="kw">if</span> <span class="ident">value</span> <span class="op">&lt;</span><span class="op">=</span> <span class="ident">threshold</span> {
-            <span class="ident"><span class="self">Self</span>::Satisfied</span>
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">value</span> <span class="op">&lt;</span><span class="op">=</span> <span class="ident"><span class="self">Self</span>::FRUSTRATION_FACTOR</span> <span class="op">*</span> <span class="ident">threshold</span> {
-            <span class="ident"><span class="self">Self</span>::Tolerated</span>
-        } <span class="kw">else</span> {
-            <span class="ident"><span class="self">Self</span>::Frustrated</span>
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>UserSatisfaction {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter) -&gt; fmt::Result {
+        <span class="kw">match </span><span class="self">self </span>{
+            UserSatisfaction::Satisfied =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;satisfied&quot;</span>),
+            UserSatisfaction::Tolerated =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;tolerated&quot;</span>),
+            UserSatisfaction::Frustrated =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;frustrated&quot;</span>),
         }
     }
 }
 
-<span class="doccomment">/// Extract the the satisfaction value depending on the actual measurement/duration value</span>
-<span class="doccomment">/// and the configured threshold.</span>
-<span class="kw">fn</span> <span class="ident">extract_user_satisfaction</span>(
-    <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SatisfactionConfig</span><span class="op">&gt;</span>,
-    <span class="ident">transaction</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>,
-    <span class="ident">start_timestamp</span>: <span class="ident">Timestamp</span>,
-    <span class="ident">end_timestamp</span>: <span class="ident">Timestamp</span>,
-) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">UserSatisfaction</span><span class="op">&gt;</span> {
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">config</span>) <span class="op">=</span> <span class="ident">config</span> {
-        <span class="kw">let</span> <span class="ident">threshold</span> <span class="op">=</span> <span class="ident">transaction</span>
-            .<span class="ident">transaction</span>
-            .<span class="ident">value</span>()
-            .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">name</span><span class="op">|</span> <span class="ident">config</span>.<span class="ident">transaction_thresholds</span>.<span class="ident">get</span>(<span class="ident">name</span>))
-            .<span class="ident">unwrap_or</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>.<span class="ident">project_threshold</span>);
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">value</span>) <span class="op">=</span> <span class="kw">match</span> <span class="ident">threshold</span>.<span class="ident">metric</span> {
-            <span class="ident">SatisfactionMetric::Duration</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">relay_common::chrono_to_positive_millis</span>(
-                <span class="ident">end_timestamp</span> <span class="op">-</span> <span class="ident">start_timestamp</span>,
+<span class="kw">impl </span>UserSatisfaction {
+    <span class="doccomment">/// The frustration threshold is always four times the threshold
+    /// (see &lt;https://docs.sentry.io/product/performance/metrics/#apdex&gt;)
+    </span><span class="kw">const </span>FRUSTRATION_FACTOR: f64 = <span class="number">4.0</span>;
+
+    <span class="kw">fn </span>from_value(value: f64, threshold: f64) -&gt; <span class="self">Self </span>{
+        <span class="kw">if </span>value &lt;= threshold {
+            <span class="self">Self</span>::Satisfied
+        } <span class="kw">else if </span>value &lt;= <span class="self">Self</span>::FRUSTRATION_FACTOR * threshold {
+            <span class="self">Self</span>::Tolerated
+        } <span class="kw">else </span>{
+            <span class="self">Self</span>::Frustrated
+        }
+    }
+}
+
+<span class="doccomment">/// Extract the the satisfaction value depending on the actual measurement/duration value
+/// and the configured threshold.
+</span><span class="kw">fn </span>extract_user_satisfaction(
+    config: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;SatisfactionConfig&gt;,
+    transaction: <span class="kw-2">&amp;</span>Event,
+    start_timestamp: Timestamp,
+    end_timestamp: Timestamp,
+) -&gt; <span class="prelude-ty">Option</span>&lt;UserSatisfaction&gt; {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(config) = config {
+        <span class="kw">let </span>threshold = transaction
+            .transaction
+            .value()
+            .and_then(|name| config.transaction_thresholds.get(name))
+            .unwrap_or(<span class="kw-2">&amp;</span>config.project_threshold);
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = <span class="kw">match </span>threshold.metric {
+            SatisfactionMetric::Duration =&gt; <span class="prelude-val">Some</span>(relay_common::chrono_to_positive_millis(
+                end_timestamp - start_timestamp,
             )),
-            <span class="ident">SatisfactionMetric::Lcp</span> =&gt; <span class="ident">store::get_measurement</span>(<span class="ident">transaction</span>, <span class="string">&quot;lcp&quot;</span>),
-            <span class="ident">SatisfactionMetric::Unknown</span> =&gt; <span class="prelude-val">None</span>,
+            SatisfactionMetric::Lcp =&gt; store::get_measurement(transaction, <span class="string">&quot;lcp&quot;</span>),
+            SatisfactionMetric::Unknown =&gt; <span class="prelude-val">None</span>,
         } {
-            <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">UserSatisfaction::from_value</span>(<span class="ident">value</span>, <span class="ident">threshold</span>.<span class="ident">threshold</span>));
+            <span class="kw">return </span><span class="prelude-val">Some</span>(UserSatisfaction::from_value(value, threshold.threshold));
         }
     }
-    <span class="prelude-val">None</span>
-}
+    <span class="prelude-val">None
+</span>}
 
-<span class="kw">fn</span> <span class="ident">is_low_cardinality</span>(<span class="ident">source</span>: <span class="kw-2">&amp;</span><span class="ident">TransactionSource</span>, <span class="ident">treat_unknown_as_low_cardinality</span>: <span class="ident">bool</span>) -&gt; <span class="ident">bool</span> {
-    <span class="kw">match</span> <span class="ident">source</span> {
-        <span class="comment">// For now, we hope that custom transaction names set by users are low-cardinality.</span>
-        <span class="ident">TransactionSource::Custom</span> =&gt; <span class="bool-val">true</span>,
+<span class="kw">fn </span>is_low_cardinality(source: <span class="kw-2">&amp;</span>TransactionSource, treat_unknown_as_low_cardinality: bool) -&gt; bool {
+    <span class="kw">match </span>source {
+        <span class="comment">// For now, we hope that custom transaction names set by users are low-cardinality.
+        </span>TransactionSource::Custom =&gt; <span class="bool-val">true</span>,
 
-        <span class="comment">// &quot;url&quot; are raw URLs, potentially containing identifiers.</span>
-        <span class="ident">TransactionSource::Url</span> =&gt; <span class="bool-val">false</span>,
+        <span class="comment">// &quot;url&quot; are raw URLs, potentially containing identifiers.
+        </span>TransactionSource::Url =&gt; <span class="bool-val">false</span>,
 
-        <span class="comment">// These four are names of software components, which we assume to be low-cardinality.</span>
-        <span class="ident">TransactionSource::Route</span>
-        <span class="op">|</span> <span class="ident">TransactionSource::View</span>
-        <span class="op">|</span> <span class="ident">TransactionSource::Component</span>
-        <span class="op">|</span> <span class="ident">TransactionSource::Task</span> =&gt; <span class="bool-val">true</span>,
+        <span class="comment">// These four are names of software components, which we assume to be low-cardinality.
+        </span>TransactionSource::Route
+        | TransactionSource::View
+        | TransactionSource::Component
+        | TransactionSource::Task =&gt; <span class="bool-val">true</span>,
 
-        <span class="comment">// &quot;unknown&quot; is the value for old SDKs that do not send a transaction source yet.</span>
-        <span class="comment">// Caller decides how to treat this.</span>
-        <span class="ident">TransactionSource::Unknown</span> =&gt; <span class="ident">treat_unknown_as_low_cardinality</span>,
+        <span class="comment">// &quot;unknown&quot; is the value for old SDKs that do not send a transaction source yet.
+        // Caller decides how to treat this.
+        </span>TransactionSource::Unknown =&gt; treat_unknown_as_low_cardinality,
 
-        <span class="comment">// Any other value would be an SDK bug, assume high-cardinality and drop.</span>
-        <span class="ident">TransactionSource::Other</span>(<span class="ident">source</span>) =&gt; {
-            <span class="macro">relay_log::error!</span>(<span class="string">&quot;Invalid transaction source: &#39;{}&#39;&quot;</span>, <span class="ident">source</span>);
-            <span class="bool-val">false</span>
-        }
+        <span class="comment">// Any other value would be an SDK bug, assume high-cardinality and drop.
+        </span>TransactionSource::Other(source) =&gt; {
+            <span class="macro">relay_log::error!</span>(<span class="string">&quot;Invalid transaction source: &#39;{}&#39;&quot;</span>, source);
+            <span class="bool-val">false
+        </span>}
     }
 }
 
-<span class="doccomment">/// Decide whether we want to keep the transaction name.</span>
-<span class="doccomment">/// High-cardinality sources are excluded to protect our metrics infrastructure.</span>
-<span class="doccomment">/// Note that this will produce a discrepancy between metrics and raw transaction data.</span>
-<span class="kw">fn</span> <span class="ident">get_transaction_name</span>(
-    <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>,
-    <span class="ident">accept_transaction_names</span>: <span class="ident">AcceptTransactionNames</span>,
-) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">original_transaction_name</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">event</span>.<span class="ident">transaction</span>.<span class="ident">value</span>() {
-        <span class="prelude-val">Some</span>(<span class="ident">name</span>) =&gt; <span class="ident">name</span>,
-        <span class="prelude-val">None</span> =&gt; {
-            <span class="kw">return</span> <span class="prelude-val">None</span>;
+<span class="doccomment">/// Decide whether we want to keep the transaction name.
+/// High-cardinality sources are excluded to protect our metrics infrastructure.
+/// Note that this will produce a discrepancy between metrics and raw transaction data.
+</span><span class="kw">fn </span>get_transaction_name(
+    event: <span class="kw-2">&amp;</span>Event,
+    accept_transaction_names: AcceptTransactionNames,
+) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+    <span class="kw">let </span>original_transaction_name = <span class="kw">match </span>event.transaction.value() {
+        <span class="prelude-val">Some</span>(name) =&gt; name,
+        <span class="prelude-val">None </span>=&gt; {
+            <span class="kw">return </span><span class="prelude-val">None</span>;
         }
     };
 
-    <span class="comment">// In client-based mode, handling of &quot;unknown&quot; sources depends on the SDK name.</span>
-    <span class="comment">// In strict mode, treat &quot;unknown&quot; as high cardinality.</span>
-    <span class="kw">let</span> <span class="ident">treat_unknown_as_low_cardinality</span> <span class="op">=</span> <span class="macro">matches!</span>(
-        <span class="ident">accept_transaction_names</span>,
-        <span class="ident">AcceptTransactionNames::ClientBased</span>
-    ) <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">store::is_high_cardinality_sdk</span>(<span class="ident">event</span>);
+    <span class="comment">// In client-based mode, handling of &quot;unknown&quot; sources depends on the SDK name.
+    // In strict mode, treat &quot;unknown&quot; as high cardinality.
+    </span><span class="kw">let </span>treat_unknown_as_low_cardinality = <span class="macro">matches!</span>(
+        accept_transaction_names,
+        AcceptTransactionNames::ClientBased
+    ) &amp;&amp; !store::is_high_cardinality_sdk(event);
 
-    <span class="kw">let</span> <span class="ident">source</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">get_transaction_source</span>();
-    <span class="kw">let</span> <span class="ident">use_original_name</span> <span class="op">=</span> <span class="ident">is_low_cardinality</span>(<span class="ident">source</span>, <span class="ident">treat_unknown_as_low_cardinality</span>);
+    <span class="kw">let </span>source = event.get_transaction_source();
+    <span class="kw">let </span>use_original_name = is_low_cardinality(source, treat_unknown_as_low_cardinality);
 
-    <span class="kw">let</span> <span class="ident">name_used</span>;
-    <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">use_original_name</span> {
-        <span class="ident">name_used</span> <span class="op">=</span> <span class="string">&quot;original&quot;</span>;
-        <span class="prelude-val">Some</span>(<span class="ident">original_transaction_name</span>.<span class="ident">clone</span>())
-    } <span class="kw">else</span> {
-        <span class="comment">// Pick a sentinel based on the transaction source:</span>
-        <span class="kw">match</span> <span class="ident">source</span> {
-            <span class="ident">TransactionSource::Unknown</span> <span class="op">|</span> <span class="ident">TransactionSource::Other</span>(<span class="kw">_</span>) =&gt; {
-                <span class="ident">name_used</span> <span class="op">=</span> <span class="string">&quot;none&quot;</span>;
-                <span class="prelude-val">None</span>
-            }
-            <span class="kw">_</span> =&gt; {
-                <span class="ident">name_used</span> <span class="op">=</span> <span class="string">&quot;placeholder&quot;</span>;
-                <span class="prelude-val">Some</span>(<span class="string">&quot;&lt;&lt; unparameterized &gt;&gt;&quot;</span>.<span class="ident">to_owned</span>())
+    <span class="kw">let </span>name_used;
+    <span class="kw">let </span>name = <span class="kw">if </span>use_original_name {
+        name_used = <span class="string">&quot;original&quot;</span>;
+        <span class="prelude-val">Some</span>(original_transaction_name.clone())
+    } <span class="kw">else </span>{
+        <span class="comment">// Pick a sentinel based on the transaction source:
+        </span><span class="kw">match </span>source {
+            TransactionSource::Unknown | TransactionSource::Other(<span class="kw">_</span>) =&gt; {
+                name_used = <span class="string">&quot;none&quot;</span>;
+                <span class="prelude-val">None
+            </span>}
+            <span class="kw">_ </span>=&gt; {
+                name_used = <span class="string">&quot;placeholder&quot;</span>;
+                <span class="prelude-val">Some</span>(<span class="string">&quot;&lt;&lt; unparameterized &gt;&gt;&quot;</span>.to_owned())
             }
         }
     };
 
     <span class="macro">relay_statsd::metric!</span>(
-        <span class="ident">counter</span>(<span class="ident">RelayCounters::MetricsTransactionNameExtracted</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
-        <span class="ident">strategy</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">&amp;</span><span class="ident">accept_transaction_names</span> {
-            <span class="ident">AcceptTransactionNames::ClientBased</span> =&gt; <span class="string">&quot;client-based&quot;</span>,
-            <span class="ident">AcceptTransactionNames::Strict</span> =&gt; <span class="string">&quot;strict&quot;</span>,
+        counter(RelayCounters::MetricsTransactionNameExtracted) += <span class="number">1</span>,
+        strategy = <span class="kw">match </span><span class="kw-2">&amp;</span>accept_transaction_names {
+            AcceptTransactionNames::ClientBased =&gt; <span class="string">&quot;client-based&quot;</span>,
+            AcceptTransactionNames::Strict =&gt; <span class="string">&quot;strict&quot;</span>,
         },
-        <span class="ident">source</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">source</span>.<span class="ident">to_string</span>(),
-        <span class="ident">sdk_name</span> <span class="op">=</span> <span class="ident">event</span>
-            .<span class="ident">client_sdk</span>
-            .<span class="ident">value</span>()
-            .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="ident">c</span>.<span class="ident">name</span>.<span class="ident">value</span>())
-            .<span class="ident">map</span>(<span class="ident">std::string::String::as_str</span>)
-            .<span class="ident">unwrap_or_default</span>(),
-        <span class="ident">name_used</span> <span class="op">=</span> <span class="ident">name_used</span>,
+        source = <span class="kw-2">&amp;</span>source.to_string(),
+        sdk_name = event
+            .client_sdk
+            .value()
+            .and_then(|c| c.name.value())
+            .map(std::string::String::as_str)
+            .unwrap_or_default(),
+        name_used = name_used,
     );
 
-    <span class="ident">name</span>
+    name
 }
 
-<span class="doccomment">/// These are the tags that are added to all extracted metrics.</span>
-<span class="kw">fn</span> <span class="ident">extract_universal_tags</span>(
-    <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>,
-    <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">TransactionMetricsConfig</span>,
-) -&gt; <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">String</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">tags</span> <span class="op">=</span> <span class="ident">BTreeMap::new</span>();
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">release</span>) <span class="op">=</span> <span class="ident">event</span>.<span class="ident">release</span>.<span class="ident">as_str</span>() {
-        <span class="ident">tags</span>.<span class="ident">insert</span>(<span class="string">&quot;release&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">release</span>.<span class="ident">to_owned</span>());
+<span class="doccomment">/// These are the tags that are added to all extracted metrics.
+</span><span class="kw">fn </span>extract_universal_tags(
+    event: <span class="kw-2">&amp;</span>Event,
+    config: <span class="kw-2">&amp;</span>TransactionMetricsConfig,
+) -&gt; BTreeMap&lt;String, String&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>tags = BTreeMap::new();
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(release) = event.release.as_str() {
+        tags.insert(<span class="string">&quot;release&quot;</span>.to_owned(), release.to_owned());
     }
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">dist</span>) <span class="op">=</span> <span class="ident">event</span>.<span class="ident">dist</span>.<span class="ident">value</span>() {
-        <span class="ident">tags</span>.<span class="ident">insert</span>(<span class="string">&quot;dist&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">dist</span>.<span class="ident">clone</span>());
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(dist) = event.dist.value() {
+        tags.insert(<span class="string">&quot;dist&quot;</span>.to_owned(), dist.clone());
     }
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">environment</span>) <span class="op">=</span> <span class="ident">event</span>.<span class="ident">environment</span>.<span class="ident">as_str</span>() {
-        <span class="ident">tags</span>.<span class="ident">insert</span>(<span class="string">&quot;environment&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">environment</span>.<span class="ident">to_owned</span>());
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(environment) = event.environment.as_str() {
+        tags.insert(<span class="string">&quot;environment&quot;</span>.to_owned(), environment.to_owned());
     }
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">transaction_name</span>) <span class="op">=</span> <span class="ident">get_transaction_name</span>(<span class="ident">event</span>, <span class="ident">config</span>.<span class="ident">accept_transaction_names</span>) {
-        <span class="ident">tags</span>.<span class="ident">insert</span>(<span class="string">&quot;transaction&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">transaction_name</span>);
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_name) = get_transaction_name(event, config.accept_transaction_names) {
+        tags.insert(<span class="string">&quot;transaction&quot;</span>.to_owned(), transaction_name);
     }
 
-    <span class="comment">// The platform tag should not increase dimensionality in most cases, because most</span>
-    <span class="comment">// transactions are specific to one platform.</span>
-    <span class="comment">// NOTE: we might want to reconsider light normalization a little and include the</span>
-    <span class="comment">// `store::is_valid_platform` into light normalization.</span>
-    <span class="kw">let</span> <span class="ident">platform</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">event</span>.<span class="ident">platform</span>.<span class="ident">as_str</span>() {
-        <span class="prelude-val">Some</span>(<span class="ident">platform</span>) <span class="kw">if</span> <span class="ident">store::is_valid_platform</span>(<span class="ident">platform</span>) =&gt; <span class="ident">platform</span>,
-        <span class="kw">_</span> =&gt; <span class="string">&quot;other&quot;</span>,
+    <span class="comment">// The platform tag should not increase dimensionality in most cases, because most
+    // transactions are specific to one platform.
+    // NOTE: we might want to reconsider light normalization a little and include the
+    // `store::is_valid_platform` into light normalization.
+    </span><span class="kw">let </span>platform = <span class="kw">match </span>event.platform.as_str() {
+        <span class="prelude-val">Some</span>(platform) <span class="kw">if </span>store::is_valid_platform(platform) =&gt; platform,
+        <span class="kw">_ </span>=&gt; <span class="string">&quot;other&quot;</span>,
     };
-    <span class="ident">tags</span>.<span class="ident">insert</span>(<span class="string">&quot;platform&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">platform</span>.<span class="ident">to_owned</span>());
+    tags.insert(<span class="string">&quot;platform&quot;</span>.to_owned(), platform.to_owned());
 
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">trace_context</span>) <span class="op">=</span> <span class="ident">get_trace_context</span>(<span class="ident">event</span>) {
-        <span class="kw">let</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">extract_transaction_status</span>(<span class="ident">trace_context</span>);
-        <span class="ident">tags</span>.<span class="ident">insert</span>(<span class="string">&quot;transaction.status&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">status</span>.<span class="ident">to_string</span>());
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(trace_context) = get_trace_context(event) {
+        <span class="kw">let </span>status = extract_transaction_status(trace_context);
+        tags.insert(<span class="string">&quot;transaction.status&quot;</span>.to_owned(), status.to_string());
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">op</span>) <span class="op">=</span> <span class="ident">extract_transaction_op</span>(<span class="ident">trace_context</span>) {
-            <span class="ident">tags</span>.<span class="ident">insert</span>(<span class="string">&quot;transaction.op&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">op</span>);
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(op) = extract_transaction_op(trace_context) {
+            tags.insert(<span class="string">&quot;transaction.op&quot;</span>.to_owned(), op);
         }
     }
 
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">http_method</span>) <span class="op">=</span> <span class="ident">extract_http_method</span>(<span class="ident">event</span>) {
-        <span class="ident">tags</span>.<span class="ident">insert</span>(<span class="string">&quot;http.method&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">http_method</span>);
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(http_method) = extract_http_method(event) {
+        tags.insert(<span class="string">&quot;http.method&quot;</span>.to_owned(), http_method);
     }
 
-    <span class="kw">let</span> <span class="ident">custom_tags</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">config</span>.<span class="ident">extract_custom_tags</span>;
-    <span class="kw">if</span> <span class="op">!</span><span class="ident">custom_tags</span>.<span class="ident">is_empty</span>() {
-        <span class="comment">// XXX(slow): event tags are a flat array</span>
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">event_tags</span>) <span class="op">=</span> <span class="ident">event</span>.<span class="ident">tags</span>.<span class="ident">value</span>() {
-            <span class="kw">for</span> <span class="ident">tag_entry</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">event_tags</span> {
-                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">entry</span>) <span class="op">=</span> <span class="ident">tag_entry</span>.<span class="ident">value</span>() {
-                    <span class="kw">let</span> (<span class="ident">key</span>, <span class="ident">value</span>) <span class="op">=</span> <span class="ident">entry</span>.<span class="ident">as_pair</span>();
-                    <span class="kw">if</span> <span class="kw">let</span> (<span class="prelude-val">Some</span>(<span class="ident">key</span>), <span class="prelude-val">Some</span>(<span class="ident">value</span>)) <span class="op">=</span> (<span class="ident">key</span>.<span class="ident">as_str</span>(), <span class="ident">value</span>.<span class="ident">as_str</span>()) {
-                        <span class="kw">if</span> <span class="ident">custom_tags</span>.<span class="ident">contains</span>(<span class="ident">key</span>) {
-                            <span class="ident">tags</span>.<span class="ident">insert</span>(<span class="ident">key</span>.<span class="ident">to_owned</span>(), <span class="ident">value</span>.<span class="ident">to_owned</span>());
+    <span class="kw">let </span>custom_tags = <span class="kw-2">&amp;</span>config.extract_custom_tags;
+    <span class="kw">if </span>!custom_tags.is_empty() {
+        <span class="comment">// XXX(slow): event tags are a flat array
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(event_tags) = event.tags.value() {
+            <span class="kw">for </span>tag_entry <span class="kw">in </span><span class="kw-2">&amp;**</span>event_tags {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(entry) = tag_entry.value() {
+                    <span class="kw">let </span>(key, value) = entry.as_pair();
+                    <span class="kw">if let </span>(<span class="prelude-val">Some</span>(key), <span class="prelude-val">Some</span>(value)) = (key.as_str(), value.as_str()) {
+                        <span class="kw">if </span>custom_tags.contains(key) {
+                            tags.insert(key.to_owned(), value.to_owned());
                         }
                     }
                 }
@@ -2210,248 +2210,248 @@
         }
     }
 
-    <span class="ident">tags</span>
+    tags
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">extract_transaction_metrics</span>(
-    <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">TransactionMetricsConfig</span>,
-    <span class="ident">conditional_tagging_config</span>: <span class="kw-2">&amp;</span>[<span class="ident">TaggingRule</span>],
-    <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>,
-    <span class="ident">target</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Metric</span><span class="op">&gt;</span>,
-) -&gt; <span class="ident">bool</span> {
-    <span class="kw">let</span> <span class="ident">before_len</span> <span class="op">=</span> <span class="ident">target</span>.<span class="ident">len</span>();
+<span class="kw">pub fn </span>extract_transaction_metrics(
+    config: <span class="kw-2">&amp;</span>TransactionMetricsConfig,
+    conditional_tagging_config: <span class="kw-2">&amp;</span>[TaggingRule],
+    event: <span class="kw-2">&amp;</span>Event,
+    target: <span class="kw-2">&amp;mut </span>Vec&lt;Metric&gt;,
+) -&gt; bool {
+    <span class="kw">let </span>before_len = target.len();
 
-    <span class="ident">extract_transaction_metrics_inner</span>(<span class="ident">config</span>, <span class="ident">event</span>, <span class="ident">target</span>);
+    extract_transaction_metrics_inner(config, event, target);
 
-    <span class="kw">let</span> <span class="ident">added_slice</span> <span class="op">=</span> <span class="kw-2">&amp;mut</span> <span class="ident">target</span>[<span class="ident">before_len</span>..];
-    <span class="ident">run_conditional_tagging</span>(<span class="ident">event</span>, <span class="ident">conditional_tagging_config</span>, <span class="ident">added_slice</span>);
-    <span class="op">!</span><span class="ident">added_slice</span>.<span class="ident">is_empty</span>()
+    <span class="kw">let </span>added_slice = <span class="kw-2">&amp;mut </span>target[before_len..];
+    run_conditional_tagging(event, conditional_tagging_config, added_slice);
+    !added_slice.is_empty()
 }
 
-<span class="kw">fn</span> <span class="ident">extract_transaction_metrics_inner</span>(
-    <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">TransactionMetricsConfig</span>,
-    <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>,
-    <span class="ident">metrics</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Metric</span><span class="op">&gt;</span>, <span class="comment">// output parameter</span>
-) {
-    <span class="kw">if</span> <span class="ident">event</span>.<span class="ident">ty</span>.<span class="ident">value</span>() <span class="op">!</span><span class="op">=</span> <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">EventType::Transaction</span>) {
+<span class="kw">fn </span>extract_transaction_metrics_inner(
+    config: <span class="kw-2">&amp;</span>TransactionMetricsConfig,
+    event: <span class="kw-2">&amp;</span>Event,
+    metrics: <span class="kw-2">&amp;mut </span>Vec&lt;Metric&gt;, <span class="comment">// output parameter
+</span>) {
+    <span class="kw">if </span>event.ty.value() != <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
         <span class="kw">return</span>;
     }
 
-    <span class="kw">let</span> (<span class="ident">start_timestamp</span>, <span class="ident">end_timestamp</span>) <span class="op">=</span>
-        <span class="kw">match</span> (<span class="ident">event</span>.<span class="ident">start_timestamp</span>.<span class="ident">value</span>(), <span class="ident">event</span>.<span class="ident">timestamp</span>.<span class="ident">value</span>()) {
-            (<span class="prelude-val">Some</span>(<span class="ident">start</span>), <span class="prelude-val">Some</span>(<span class="ident">end</span>)) =&gt; (<span class="kw-2">*</span><span class="ident">start</span>, <span class="kw-2">*</span><span class="ident">end</span>),
-            <span class="comment">// invalid transaction</span>
-            <span class="kw">_</span> =&gt; {
+    <span class="kw">let </span>(start_timestamp, end_timestamp) =
+        <span class="kw">match </span>(event.start_timestamp.value(), event.timestamp.value()) {
+            (<span class="prelude-val">Some</span>(start), <span class="prelude-val">Some</span>(end)) =&gt; (<span class="kw-2">*</span>start, <span class="kw-2">*</span>end),
+            <span class="comment">// invalid transaction
+            </span><span class="kw">_ </span>=&gt; {
                 <span class="macro">relay_log::error!</span>(
-                    <span class="string">&quot;failed to extract the start and the end timestamps from the event&quot;</span>
-                );
+                    <span class="string">&quot;failed to extract the start and the end timestamps from the event&quot;
+                </span>);
                 <span class="kw">return</span>;
             }
         };
 
-    <span class="kw">let</span> <span class="ident">duration_millis</span> <span class="op">=</span> <span class="ident">relay_common::chrono_to_positive_millis</span>(<span class="ident">end_timestamp</span> <span class="op">-</span> <span class="ident">start_timestamp</span>);
+    <span class="kw">let </span>duration_millis = relay_common::chrono_to_positive_millis(end_timestamp - start_timestamp);
 
-    <span class="kw">let</span> <span class="ident">unix_timestamp</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">UnixTimestamp::from_datetime</span>(<span class="ident">end_timestamp</span>.<span class="ident">into_inner</span>()) {
-        <span class="prelude-val">Some</span>(<span class="ident">ts</span>) =&gt; <span class="ident">ts</span>,
-        <span class="prelude-val">None</span> =&gt; <span class="kw">return</span>,
+    <span class="kw">let </span>unix_timestamp = <span class="kw">match </span>UnixTimestamp::from_datetime(end_timestamp.into_inner()) {
+        <span class="prelude-val">Some</span>(ts) =&gt; ts,
+        <span class="prelude-val">None </span>=&gt; <span class="kw">return</span>,
     };
 
-    <span class="kw">let</span> <span class="ident">tags</span> <span class="op">=</span> <span class="ident">extract_universal_tags</span>(<span class="ident">event</span>, <span class="ident">config</span>);
+    <span class="kw">let </span>tags = extract_universal_tags(event, config);
 
-    <span class="comment">// Measurements</span>
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">measurements</span>) <span class="op">=</span> <span class="ident">event</span>.<span class="ident">measurements</span>.<span class="ident">value</span>() {
-        <span class="kw">for</span> (<span class="ident">name</span>, <span class="ident">annotated</span>) <span class="kw">in</span> <span class="ident">measurements</span>.<span class="ident">iter</span>() {
-            <span class="kw">let</span> <span class="ident">measurement</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">annotated</span>.<span class="ident">value</span>() {
-                <span class="prelude-val">Some</span>(<span class="ident">m</span>) =&gt; <span class="ident">m</span>,
-                <span class="prelude-val">None</span> =&gt; <span class="kw">continue</span>,
+    <span class="comment">// Measurements
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(measurements) = event.measurements.value() {
+        <span class="kw">for </span>(name, annotated) <span class="kw">in </span>measurements.iter() {
+            <span class="kw">let </span>measurement = <span class="kw">match </span>annotated.value() {
+                <span class="prelude-val">Some</span>(m) =&gt; m,
+                <span class="prelude-val">None </span>=&gt; <span class="kw">continue</span>,
             };
 
-            <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">measurement</span>.<span class="ident">value</span>.<span class="ident">value</span>() {
-                <span class="prelude-val">Some</span>(<span class="ident">value</span>) =&gt; <span class="kw-2">*</span><span class="ident">value</span>,
-                <span class="prelude-val">None</span> =&gt; <span class="kw">continue</span>,
+            <span class="kw">let </span>value = <span class="kw">match </span>measurement.value.value() {
+                <span class="prelude-val">Some</span>(value) =&gt; <span class="kw-2">*</span>value,
+                <span class="prelude-val">None </span>=&gt; <span class="kw">continue</span>,
             };
 
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">tags_for_measurement</span> <span class="op">=</span> <span class="ident">tags</span>.<span class="ident">clone</span>();
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">rating</span>) <span class="op">=</span> <span class="ident">get_measurement_rating</span>(<span class="ident">name</span>, <span class="ident">value</span>) {
-                <span class="ident">tags_for_measurement</span>.<span class="ident">insert</span>(<span class="string">&quot;measurement_rating&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">rating</span>);
+            <span class="kw">let </span><span class="kw-2">mut </span>tags_for_measurement = tags.clone();
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(rating) = get_measurement_rating(name, value) {
+                tags_for_measurement.insert(<span class="string">&quot;measurement_rating&quot;</span>.to_owned(), rating);
             }
 
-            <span class="ident">metrics</span>.<span class="ident">push</span>(<span class="ident">Metric::new_mri</span>(
-                <span class="ident">METRIC_NAMESPACE</span>,
-                <span class="macro">format!</span>(<span class="string">&quot;measurements.{}&quot;</span>, <span class="ident">name</span>),
-                <span class="ident">measurement</span>.<span class="ident">unit</span>.<span class="ident">value</span>().<span class="ident">copied</span>().<span class="ident">unwrap_or_default</span>(),
-                <span class="ident">MetricValue::Distribution</span>(<span class="ident">value</span>),
-                <span class="ident">unix_timestamp</span>,
-                <span class="ident">tags_for_measurement</span>,
+            metrics.push(Metric::new_mri(
+                METRIC_NAMESPACE,
+                <span class="macro">format!</span>(<span class="string">&quot;measurements.{}&quot;</span>, name),
+                measurement.unit.value().copied().unwrap_or_default(),
+                MetricValue::Distribution(value),
+                unix_timestamp,
+                tags_for_measurement,
             ));
         }
     }
 
-    <span class="comment">// Breakdowns</span>
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">breakdowns</span>) <span class="op">=</span> <span class="ident">event</span>.<span class="ident">breakdowns</span>.<span class="ident">value</span>() {
-        <span class="kw">for</span> (<span class="ident">breakdown</span>, <span class="ident">measurements</span>) <span class="kw">in</span> <span class="ident">breakdowns</span>.<span class="ident">iter</span>() {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">measurements</span>) <span class="op">=</span> <span class="ident">measurements</span>.<span class="ident">value</span>() {
-                <span class="kw">for</span> (<span class="ident">measurement_name</span>, <span class="ident">annotated</span>) <span class="kw">in</span> <span class="ident">measurements</span>.<span class="ident">iter</span>() {
-                    <span class="kw">if</span> <span class="ident">measurement_name</span> <span class="op">==</span> <span class="string">&quot;total.time&quot;</span> {
-                        <span class="comment">// The only reason we do not emit total.time as a metric is that is was not</span>
-                        <span class="comment">// on the allowlist in sentry before, and nobody seems to be missing it.</span>
-                        <span class="kw">continue</span>;
+    <span class="comment">// Breakdowns
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(breakdowns) = event.breakdowns.value() {
+        <span class="kw">for </span>(breakdown, measurements) <span class="kw">in </span>breakdowns.iter() {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(measurements) = measurements.value() {
+                <span class="kw">for </span>(measurement_name, annotated) <span class="kw">in </span>measurements.iter() {
+                    <span class="kw">if </span>measurement_name == <span class="string">&quot;total.time&quot; </span>{
+                        <span class="comment">// The only reason we do not emit total.time as a metric is that is was not
+                        // on the allowlist in sentry before, and nobody seems to be missing it.
+                        </span><span class="kw">continue</span>;
                     }
 
-                    <span class="kw">let</span> <span class="ident">measurement</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">annotated</span>.<span class="ident">value</span>() {
-                        <span class="prelude-val">Some</span>(<span class="ident">m</span>) =&gt; <span class="ident">m</span>,
-                        <span class="prelude-val">None</span> =&gt; <span class="kw">continue</span>,
+                    <span class="kw">let </span>measurement = <span class="kw">match </span>annotated.value() {
+                        <span class="prelude-val">Some</span>(m) =&gt; m,
+                        <span class="prelude-val">None </span>=&gt; <span class="kw">continue</span>,
                     };
 
-                    <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">measurement</span>.<span class="ident">value</span>.<span class="ident">value</span>() {
-                        <span class="prelude-val">Some</span>(<span class="ident">value</span>) =&gt; <span class="kw-2">*</span><span class="ident">value</span>,
-                        <span class="prelude-val">None</span> =&gt; <span class="kw">continue</span>,
+                    <span class="kw">let </span>value = <span class="kw">match </span>measurement.value.value() {
+                        <span class="prelude-val">Some</span>(value) =&gt; <span class="kw-2">*</span>value,
+                        <span class="prelude-val">None </span>=&gt; <span class="kw">continue</span>,
                     };
 
-                    <span class="kw">let</span> <span class="ident">unit</span> <span class="op">=</span> <span class="ident">measurement</span>.<span class="ident">unit</span>.<span class="ident">value</span>();
+                    <span class="kw">let </span>unit = measurement.unit.value();
 
-                    <span class="ident">metrics</span>.<span class="ident">push</span>(<span class="ident">Metric::new_mri</span>(
-                        <span class="ident">METRIC_NAMESPACE</span>,
-                        <span class="macro">format!</span>(<span class="string">&quot;breakdowns.{}.{}&quot;</span>, <span class="ident">breakdown</span>, <span class="ident">measurement_name</span>),
-                        <span class="ident">unit</span>.<span class="ident">copied</span>().<span class="ident">unwrap_or</span>(<span class="ident">MetricUnit::None</span>),
-                        <span class="ident">MetricValue::Distribution</span>(<span class="ident">value</span>),
-                        <span class="ident">unix_timestamp</span>,
-                        <span class="ident">tags</span>.<span class="ident">clone</span>(),
+                    metrics.push(Metric::new_mri(
+                        METRIC_NAMESPACE,
+                        <span class="macro">format!</span>(<span class="string">&quot;breakdowns.{}.{}&quot;</span>, breakdown, measurement_name),
+                        unit.copied().unwrap_or(MetricUnit::None),
+                        MetricValue::Distribution(value),
+                        unix_timestamp,
+                        tags.clone(),
                     ));
                 }
             }
         }
     }
 
-    <span class="kw">let</span> <span class="ident">user_satisfaction</span> <span class="op">=</span> <span class="ident">extract_user_satisfaction</span>(
-        <span class="kw-2">&amp;</span><span class="ident">config</span>.<span class="ident">satisfaction_thresholds</span>,
-        <span class="ident">event</span>,
-        <span class="ident">start_timestamp</span>,
-        <span class="ident">end_timestamp</span>,
+    <span class="kw">let </span>user_satisfaction = extract_user_satisfaction(
+        <span class="kw-2">&amp;</span>config.satisfaction_thresholds,
+        event,
+        start_timestamp,
+        end_timestamp,
     );
-    <span class="kw">let</span> <span class="ident">tags_with_satisfaction</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">user_satisfaction</span> {
-        <span class="prelude-val">Some</span>(<span class="ident">satisfaction</span>) =&gt; <span class="ident">utils::with_tag</span>(<span class="kw-2">&amp;</span><span class="ident">tags</span>, <span class="string">&quot;satisfaction&quot;</span>, <span class="ident">satisfaction</span>),
-        <span class="prelude-val">None</span> =&gt; <span class="ident">tags</span>,
+    <span class="kw">let </span>tags_with_satisfaction = <span class="kw">match </span>user_satisfaction {
+        <span class="prelude-val">Some</span>(satisfaction) =&gt; utils::with_tag(<span class="kw-2">&amp;</span>tags, <span class="string">&quot;satisfaction&quot;</span>, satisfaction),
+        <span class="prelude-val">None </span>=&gt; tags,
     };
 
-    <span class="comment">// Duration</span>
-    <span class="ident">metrics</span>.<span class="ident">push</span>(<span class="ident">Metric::new_mri</span>(
-        <span class="ident">METRIC_NAMESPACE</span>,
+    <span class="comment">// Duration
+    </span>metrics.push(Metric::new_mri(
+        METRIC_NAMESPACE,
         <span class="string">&quot;duration&quot;</span>,
-        <span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::MilliSecond</span>),
-        <span class="ident">MetricValue::Distribution</span>(<span class="ident">duration_millis</span>),
-        <span class="ident">unix_timestamp</span>,
-        <span class="ident">tags_with_satisfaction</span>.<span class="ident">clone</span>(),
+        MetricUnit::Duration(DurationUnit::MilliSecond),
+        MetricValue::Distribution(duration_millis),
+        unix_timestamp,
+        tags_with_satisfaction.clone(),
     ));
 
-    <span class="comment">// User</span>
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">user</span>) <span class="op">=</span> <span class="ident">event</span>.<span class="ident">user</span>.<span class="ident">value</span>() {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">value</span>) <span class="op">=</span> <span class="ident">get_eventuser_tag</span>(<span class="ident">user</span>) {
-            <span class="ident">metrics</span>.<span class="ident">push</span>(<span class="ident">Metric::new_mri</span>(
-                <span class="ident">METRIC_NAMESPACE</span>,
+    <span class="comment">// User
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(user) = event.user.value() {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = get_eventuser_tag(user) {
+            metrics.push(Metric::new_mri(
+                METRIC_NAMESPACE,
                 <span class="string">&quot;user&quot;</span>,
-                <span class="ident">MetricUnit::None</span>,
-                <span class="ident">MetricValue::set_from_str</span>(<span class="kw-2">&amp;</span><span class="ident">value</span>),
-                <span class="ident">unix_timestamp</span>,
-                <span class="comment">// A single user might end up in multiple satisfaction buckets when they have</span>
-                <span class="comment">// some satisfying transactions and some frustrating transactions.</span>
-                <span class="comment">// This is OK as long as we do not add these numbers *after* aggregation:</span>
-                <span class="comment">//     &lt;WRONG&gt;total_users = uniqIf(user, satisfied) + uniqIf(user, tolerated) + uniqIf(user, frustrated)&lt;/WRONG&gt;</span>
-                <span class="comment">//     &lt;RIGHT&gt;total_users = uniq(user)&lt;/RIGHT&gt;</span>
-                <span class="ident">tags_with_satisfaction</span>,
+                MetricUnit::None,
+                MetricValue::set_from_str(<span class="kw-2">&amp;</span>value),
+                unix_timestamp,
+                <span class="comment">// A single user might end up in multiple satisfaction buckets when they have
+                // some satisfying transactions and some frustrating transactions.
+                // This is OK as long as we do not add these numbers *after* aggregation:
+                //     &lt;WRONG&gt;total_users = uniqIf(user, satisfied) + uniqIf(user, tolerated) + uniqIf(user, frustrated)&lt;/WRONG&gt;
+                //     &lt;RIGHT&gt;total_users = uniq(user)&lt;/RIGHT&gt;
+                </span>tags_with_satisfaction,
             ));
         }
     }
 }
 
-<span class="doccomment">/// Compute the transaction event&#39;s &quot;user&quot; tag as close as possible to how users are determined in</span>
-<span class="doccomment">/// the transactions dataset in Snuba. This should produce the exact same user counts as the `user`</span>
-<span class="doccomment">/// column in Discover for Transactions, barring:</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// * imprecision caused by HLL sketching in Snuba, which we don&#39;t have in events</span>
-<span class="doccomment">/// * hash collisions in [`MetricValue::set_from_display`], which we don&#39;t have in events</span>
-<span class="doccomment">/// * MD5-collisions caused by `EventUser.hash_from_tag`, which we don&#39;t have in metrics</span>
-<span class="doccomment">///</span>
-<span class="doccomment">///   MD5 is used to efficiently look up the current event user for an event, and if there is a</span>
-<span class="doccomment">///   collision it seems that this code will fetch an event user with potentially different values</span>
-<span class="doccomment">///   for everything that is in `defaults`:</span>
-<span class="doccomment">///   &lt;https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/event_manager.py#L1058-L1060&gt;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The performance product runs a discover query such as `count_unique(user)`, which maps to two</span>
-<span class="doccomment">/// things:</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// * `user` metric for the metrics dataset</span>
-<span class="doccomment">/// * the &quot;promoted tag&quot; column `user` in the transactions clickhouse table</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// A promoted tag is a tag that snuba pulls out into its own column. In this case it pulls out the</span>
-<span class="doccomment">/// `sentry:user` tag from the event payload:</span>
-<span class="doccomment">/// &lt;https://github.com/getsentry/snuba/blob/430763e67e30957c89126e62127e34051eb52fd6/snuba/datasets/transactions_processor.py#L151&gt;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Sentry&#39;s processing pipeline defers to `sentry.models.EventUser` to produce the `sentry:user` tag</span>
-<span class="doccomment">/// here: &lt;https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/event_manager.py#L790-L794&gt;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// `sentry.models.eventuser.KEYWORD_MAP` determines which attributes are looked up in which order, here:</span>
-<span class="doccomment">/// &lt;https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/models/eventuser.py#L18&gt;</span>
-<span class="doccomment">/// If its order is changed, this function needs to be changed.</span>
-<span class="kw">fn</span> <span class="ident">get_eventuser_tag</span>(<span class="ident">user</span>: <span class="kw-2">&amp;</span><span class="ident">User</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> {
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">id</span>) <span class="op">=</span> <span class="ident">user</span>.<span class="ident">id</span>.<span class="ident">as_str</span>() {
-        <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;id:{id}&quot;</span>));
+<span class="doccomment">/// Compute the transaction event&#39;s &quot;user&quot; tag as close as possible to how users are determined in
+/// the transactions dataset in Snuba. This should produce the exact same user counts as the `user`
+/// column in Discover for Transactions, barring:
+///
+/// * imprecision caused by HLL sketching in Snuba, which we don&#39;t have in events
+/// * hash collisions in [`MetricValue::set_from_display`], which we don&#39;t have in events
+/// * MD5-collisions caused by `EventUser.hash_from_tag`, which we don&#39;t have in metrics
+///
+///   MD5 is used to efficiently look up the current event user for an event, and if there is a
+///   collision it seems that this code will fetch an event user with potentially different values
+///   for everything that is in `defaults`:
+///   &lt;https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/event_manager.py#L1058-L1060&gt;
+///
+/// The performance product runs a discover query such as `count_unique(user)`, which maps to two
+/// things:
+///
+/// * `user` metric for the metrics dataset
+/// * the &quot;promoted tag&quot; column `user` in the transactions clickhouse table
+///
+/// A promoted tag is a tag that snuba pulls out into its own column. In this case it pulls out the
+/// `sentry:user` tag from the event payload:
+/// &lt;https://github.com/getsentry/snuba/blob/430763e67e30957c89126e62127e34051eb52fd6/snuba/datasets/transactions_processor.py#L151&gt;
+///
+/// Sentry&#39;s processing pipeline defers to `sentry.models.EventUser` to produce the `sentry:user` tag
+/// here: &lt;https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/event_manager.py#L790-L794&gt;
+///
+/// `sentry.models.eventuser.KEYWORD_MAP` determines which attributes are looked up in which order, here:
+/// &lt;https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/models/eventuser.py#L18&gt;
+/// If its order is changed, this function needs to be changed.
+</span><span class="kw">fn </span>get_eventuser_tag(user: <span class="kw-2">&amp;</span>User) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(id) = user.id.as_str() {
+        <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;id:{id}&quot;</span>));
     }
 
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">username</span>) <span class="op">=</span> <span class="ident">user</span>.<span class="ident">username</span>.<span class="ident">as_str</span>() {
-        <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;username:{username}&quot;</span>));
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(username) = user.username.as_str() {
+        <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;username:{username}&quot;</span>));
     }
 
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">email</span>) <span class="op">=</span> <span class="ident">user</span>.<span class="ident">email</span>.<span class="ident">as_str</span>() {
-        <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;email:{email}&quot;</span>));
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(email) = user.email.as_str() {
+        <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;email:{email}&quot;</span>));
     }
 
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">ip_address</span>) <span class="op">=</span> <span class="ident">user</span>.<span class="ident">ip_address</span>.<span class="ident">as_str</span>() {
-        <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;ip:{ip_address}&quot;</span>));
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(ip_address) = user.ip_address.as_str() {
+        <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;ip:{ip_address}&quot;</span>));
     }
 
-    <span class="prelude-val">None</span>
-}
+    <span class="prelude-val">None
+</span>}
 
-<span class="kw">fn</span> <span class="ident">get_measurement_rating</span>(<span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">value</span>: <span class="ident">f64</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">rate_range</span> <span class="op">=</span> <span class="op">|</span><span class="ident">meh_ceiling</span>: <span class="ident">f64</span>, <span class="ident">poor_ceiling</span>: <span class="ident">f64</span><span class="op">|</span> {
-        <span class="macro">debug_assert!</span>(<span class="ident">meh_ceiling</span> <span class="op">&lt;</span> <span class="ident">poor_ceiling</span>);
-        <span class="kw">if</span> <span class="ident">value</span> <span class="op">&lt;</span> <span class="ident">meh_ceiling</span> {
-            <span class="prelude-val">Some</span>(<span class="string">&quot;good&quot;</span>.<span class="ident">to_owned</span>())
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">value</span> <span class="op">&lt;</span> <span class="ident">poor_ceiling</span> {
-            <span class="prelude-val">Some</span>(<span class="string">&quot;meh&quot;</span>.<span class="ident">to_owned</span>())
-        } <span class="kw">else</span> {
-            <span class="prelude-val">Some</span>(<span class="string">&quot;poor&quot;</span>.<span class="ident">to_owned</span>())
+<span class="kw">fn </span>get_measurement_rating(name: <span class="kw-2">&amp;</span>str, value: f64) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+    <span class="kw">let </span>rate_range = |meh_ceiling: f64, poor_ceiling: f64| {
+        <span class="macro">debug_assert!</span>(meh_ceiling &lt; poor_ceiling);
+        <span class="kw">if </span>value &lt; meh_ceiling {
+            <span class="prelude-val">Some</span>(<span class="string">&quot;good&quot;</span>.to_owned())
+        } <span class="kw">else if </span>value &lt; poor_ceiling {
+            <span class="prelude-val">Some</span>(<span class="string">&quot;meh&quot;</span>.to_owned())
+        } <span class="kw">else </span>{
+            <span class="prelude-val">Some</span>(<span class="string">&quot;poor&quot;</span>.to_owned())
         }
     };
 
-    <span class="kw">match</span> <span class="ident">name</span> {
-        <span class="string">&quot;lcp&quot;</span> =&gt; <span class="ident">rate_range</span>(<span class="number">2500.0</span>, <span class="number">4000.0</span>),
-        <span class="string">&quot;fcp&quot;</span> =&gt; <span class="ident">rate_range</span>(<span class="number">1000.0</span>, <span class="number">3000.0</span>),
-        <span class="string">&quot;fid&quot;</span> =&gt; <span class="ident">rate_range</span>(<span class="number">100.0</span>, <span class="number">300.0</span>),
-        <span class="string">&quot;inp&quot;</span> =&gt; <span class="ident">rate_range</span>(<span class="number">200.0</span>, <span class="number">500.0</span>),
-        <span class="string">&quot;cls&quot;</span> =&gt; <span class="ident">rate_range</span>(<span class="number">0.1</span>, <span class="number">0.25</span>),
-        <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
+    <span class="kw">match </span>name {
+        <span class="string">&quot;lcp&quot; </span>=&gt; rate_range(<span class="number">2500.0</span>, <span class="number">4000.0</span>),
+        <span class="string">&quot;fcp&quot; </span>=&gt; rate_range(<span class="number">1000.0</span>, <span class="number">3000.0</span>),
+        <span class="string">&quot;fid&quot; </span>=&gt; rate_range(<span class="number">100.0</span>, <span class="number">300.0</span>),
+        <span class="string">&quot;inp&quot; </span>=&gt; rate_range(<span class="number">200.0</span>, <span class="number">500.0</span>),
+        <span class="string">&quot;cls&quot; </span>=&gt; rate_range(<span class="number">0.1</span>, <span class="number">0.25</span>),
+        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
 
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">use</span> <span class="ident">relay_general::protocol::User</span>;
-    <span class="kw">use</span> <span class="ident">relay_general::store</span>::{
-        <span class="self">self</span>, <span class="ident">BreakdownsConfig</span>, <span class="ident">LightNormalizationConfig</span>, <span class="ident">MeasurementsConfig</span>,
+    <span class="kw">use </span>relay_general::protocol::User;
+    <span class="kw">use </span>relay_general::store::{
+        <span class="self">self</span>, BreakdownsConfig, LightNormalizationConfig, MeasurementsConfig,
     };
-    <span class="kw">use</span> <span class="ident">relay_general::types::Annotated</span>;
-    <span class="kw">use</span> <span class="ident">relay_metrics::DurationUnit</span>;
+    <span class="kw">use </span>relay_general::types::Annotated;
+    <span class="kw">use </span>relay_metrics::DurationUnit;
 
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::TaggingRule</span>;
+    <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::TaggingRule;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_extract_transaction_metrics</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_extract_transaction_metrics() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;platform&quot;: &quot;javascript&quot;,
@@ -2498,7 +2498,7 @@
         }
         &quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">breakdowns_config</span>: <span class="ident">BreakdownsConfig</span> <span class="op">=</span> <span class="ident">serde_json::from_str</span>(
+        <span class="kw">let </span>breakdowns_config: BreakdownsConfig = serde_json::from_str(
             <span class="string">r#&quot;
             {
                 &quot;span_ops&quot;: {
@@ -2508,11 +2508,11 @@
             }
         &quot;#</span>,
         )
-        .<span class="ident">unwrap</span>();
+        .unwrap();
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::from_json(json).unwrap();
 
-        <span class="kw">let</span> <span class="ident">config</span>: <span class="ident">TransactionMetricsConfig</span> <span class="op">=</span> <span class="ident">serde_json::from_str</span>(
+        <span class="kw">let </span>config: TransactionMetricsConfig = serde_json::from_str(
             <span class="string">r#&quot;
         {
             &quot;version&quot;: 1,
@@ -2520,22 +2520,22 @@
         }
         &quot;#</span>,
         )
-        .<span class="ident">unwrap</span>();
+        .unwrap();
 
-        <span class="comment">// Normalize first, to make sure that all things are correct as in the real pipeline:</span>
-        <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">store::light_normalize_event</span>(
-            <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-            <span class="kw-2">&amp;</span><span class="ident">LightNormalizationConfig</span> {
-                <span class="ident">breakdowns_config</span>: <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">breakdowns_config</span>),
-                ..<span class="ident">Default::default</span>()
+        <span class="comment">// Normalize first, to make sure that all things are correct as in the real pipeline:
+        </span><span class="kw">let </span>res = store::light_normalize_event(
+            <span class="kw-2">&amp;mut </span>event,
+            <span class="kw-2">&amp;</span>LightNormalizationConfig {
+                breakdowns_config: <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>breakdowns_config),
+                ..Default::default()
             },
         );
-        <span class="macro">assert!</span>(<span class="ident">res</span>.<span class="ident">is_ok</span>());
+        <span class="macro">assert!</span>(res.is_ok());
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
-        <span class="ident">extract_transaction_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>, <span class="kw-2">&amp;</span>[], <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>(), <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
+        extract_transaction_metrics(<span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;</span>[], event.value().unwrap(), <span class="kw-2">&amp;mut </span>metrics);
 
-        <span class="macro">insta::assert_debug_snapshot!</span>(<span class="ident">metrics</span>, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###&quot;
         [
             Metric {
                 name: &quot;d:transactions/measurements.foo@none&quot;,
@@ -2632,9 +2632,9 @@
         &quot;###</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_metric_measurement_units</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_metric_measurement_units() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
@@ -2653,18 +2653,18 @@
         }
         &quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">TransactionMetricsConfig::default</span>();
+        <span class="kw">let </span>config = TransactionMetricsConfig::default();
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::from_json(json).unwrap();
 
-        <span class="comment">// Normalize first, to make sure the units are correct:</span>
-        <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">store::light_normalize_event</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="ident">LightNormalizationConfig::default</span>());
-        <span class="macro">assert!</span>(<span class="ident">res</span>.<span class="ident">is_ok</span>(), <span class="string">&quot;{:?}&quot;</span>, <span class="ident">res</span>);
+        <span class="comment">// Normalize first, to make sure the units are correct:
+        </span><span class="kw">let </span>res = store::light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>LightNormalizationConfig::default());
+        <span class="macro">assert!</span>(res.is_ok(), <span class="string">&quot;{:?}&quot;</span>, res);
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
-        <span class="ident">extract_transaction_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>, <span class="kw-2">&amp;</span>[], <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>(), <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
+        extract_transaction_metrics(<span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;</span>[], event.value().unwrap(), <span class="kw-2">&amp;mut </span>metrics);
 
-        <span class="macro">insta::assert_debug_snapshot!</span>(<span class="ident">metrics</span>, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###&quot;
         [
             Metric {
                 name: &quot;d:transactions/measurements.fcp@millisecond&quot;,
@@ -2715,9 +2715,9 @@
         &quot;###</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_metric_measurement_unit_overrides</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_metric_measurement_unit_overrides() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
             &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;,
@@ -2733,18 +2733,18 @@
             }
         }&quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">config</span>: <span class="ident">TransactionMetricsConfig</span> <span class="op">=</span> <span class="ident">TransactionMetricsConfig::default</span>();
+        <span class="kw">let </span>config: TransactionMetricsConfig = TransactionMetricsConfig::default();
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::from_json(json).unwrap();
 
-        <span class="comment">// Normalize first, to make sure the units are correct:</span>
-        <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">store::light_normalize_event</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="ident">LightNormalizationConfig::default</span>());
-        <span class="macro">assert!</span>(<span class="ident">res</span>.<span class="ident">is_ok</span>(), <span class="string">&quot;{:?}&quot;</span>, <span class="ident">res</span>);
+        <span class="comment">// Normalize first, to make sure the units are correct:
+        </span><span class="kw">let </span>res = store::light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>LightNormalizationConfig::default());
+        <span class="macro">assert!</span>(res.is_ok(), <span class="string">&quot;{:?}&quot;</span>, res);
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
-        <span class="ident">extract_transaction_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>, <span class="kw-2">&amp;</span>[], <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>(), <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
+        extract_transaction_metrics(<span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;</span>[], event.value().unwrap(), <span class="kw-2">&amp;mut </span>metrics);
 
-        <span class="macro">insta::assert_debug_snapshot!</span>(<span class="ident">metrics</span>, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###&quot;
         [
             Metric {
                 name: &quot;d:transactions/measurements.fcp@second&quot;,
@@ -2785,9 +2785,9 @@
         &quot;###</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_transaction_duration</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_transaction_duration() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;platform&quot;: &quot;bogus&quot;,
@@ -2804,32 +2804,32 @@
         }
         &quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let </span>event = Annotated::from_json(json).unwrap();
 
-        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">TransactionMetricsConfig::default</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
-        <span class="ident">extract_transaction_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>, <span class="kw-2">&amp;</span>[], <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>(), <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
+        <span class="kw">let </span>config = TransactionMetricsConfig::default();
+        <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
+        extract_transaction_metrics(<span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;</span>[], event.value().unwrap(), <span class="kw-2">&amp;mut </span>metrics);
 
-        <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>.<span class="ident">len</span>(), <span class="number">1</span>);
+        <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">1</span>);
 
-        <span class="kw">let</span> <span class="ident">duration_metric</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">metrics</span>[<span class="number">0</span>];
-        <span class="macro">assert_eq!</span>(<span class="ident">duration_metric</span>.<span class="ident">name</span>, <span class="string">&quot;d:transactions/duration@millisecond&quot;</span>);
-        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">MetricValue::Distribution</span>(<span class="ident">value</span>) <span class="op">=</span> <span class="ident">duration_metric</span>.<span class="ident">value</span> {
-            <span class="macro">assert_eq!</span>(<span class="ident">value</span>, <span class="number">59000.0</span>); <span class="comment">// millis</span>
-        } <span class="kw">else</span> {
-            <span class="macro">panic!</span>(); <span class="comment">// Duration must be set</span>
-        }
+        <span class="kw">let </span>duration_metric = <span class="kw-2">&amp;</span>metrics[<span class="number">0</span>];
+        <span class="macro">assert_eq!</span>(duration_metric.name, <span class="string">&quot;d:transactions/duration@millisecond&quot;</span>);
+        <span class="kw">if let </span>MetricValue::Distribution(value) = duration_metric.value {
+            <span class="macro">assert_eq!</span>(value, <span class="number">59000.0</span>); <span class="comment">// millis
+        </span>} <span class="kw">else </span>{
+            <span class="macro">panic!</span>(); <span class="comment">// Duration must be set
+        </span>}
 
-        <span class="macro">assert_eq!</span>(<span class="ident">duration_metric</span>.<span class="ident">tags</span>.<span class="ident">len</span>(), <span class="number">4</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">duration_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;release&quot;</span>], <span class="string">&quot;1.2.3&quot;</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">duration_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;transaction.status&quot;</span>], <span class="string">&quot;ok&quot;</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">duration_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;environment&quot;</span>], <span class="string">&quot;fake_environment&quot;</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">duration_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;platform&quot;</span>], <span class="string">&quot;other&quot;</span>);
+        <span class="macro">assert_eq!</span>(duration_metric.tags.len(), <span class="number">4</span>);
+        <span class="macro">assert_eq!</span>(duration_metric.tags[<span class="string">&quot;release&quot;</span>], <span class="string">&quot;1.2.3&quot;</span>);
+        <span class="macro">assert_eq!</span>(duration_metric.tags[<span class="string">&quot;transaction.status&quot;</span>], <span class="string">&quot;ok&quot;</span>);
+        <span class="macro">assert_eq!</span>(duration_metric.tags[<span class="string">&quot;environment&quot;</span>], <span class="string">&quot;fake_environment&quot;</span>);
+        <span class="macro">assert_eq!</span>(duration_metric.tags[<span class="string">&quot;platform&quot;</span>], <span class="string">&quot;other&quot;</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_user_satisfaction</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_user_satisfaction() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;transaction&quot;: &quot;foo&quot;,
@@ -2846,9 +2846,9 @@
         }
         &quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let </span>event = Annotated::from_json(json).unwrap();
 
-        <span class="kw">let</span> <span class="ident">config</span>: <span class="ident">TransactionMetricsConfig</span> <span class="op">=</span> <span class="ident">serde_json::from_str</span>(
+        <span class="kw">let </span>config: TransactionMetricsConfig = serde_json::from_str(
             <span class="string">r#&quot;
         {
             &quot;satisfactionThresholds&quot;: {
@@ -2861,24 +2861,24 @@
         }
         &quot;#</span>,
         )
-        .<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
-        <span class="ident">extract_transaction_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>, <span class="kw-2">&amp;</span>[], <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>(), <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>.<span class="ident">len</span>(), <span class="number">2</span>);
+        .unwrap();
+        <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
+        extract_transaction_metrics(<span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;</span>[], event.value().unwrap(), <span class="kw-2">&amp;mut </span>metrics);
+        <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">2</span>);
 
-        <span class="kw">let</span> <span class="ident">duration_metric</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">metrics</span>[<span class="number">0</span>];
-        <span class="macro">assert_eq!</span>(<span class="ident">duration_metric</span>.<span class="ident">tags</span>.<span class="ident">len</span>(), <span class="number">3</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">duration_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;satisfaction&quot;</span>], <span class="string">&quot;tolerated&quot;</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">duration_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;transaction.status&quot;</span>], <span class="string">&quot;ok&quot;</span>);
+        <span class="kw">let </span>duration_metric = <span class="kw-2">&amp;</span>metrics[<span class="number">0</span>];
+        <span class="macro">assert_eq!</span>(duration_metric.tags.len(), <span class="number">3</span>);
+        <span class="macro">assert_eq!</span>(duration_metric.tags[<span class="string">&quot;satisfaction&quot;</span>], <span class="string">&quot;tolerated&quot;</span>);
+        <span class="macro">assert_eq!</span>(duration_metric.tags[<span class="string">&quot;transaction.status&quot;</span>], <span class="string">&quot;ok&quot;</span>);
 
-        <span class="kw">let</span> <span class="ident">user_metric</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">metrics</span>[<span class="number">1</span>];
-        <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">tags</span>.<span class="ident">len</span>(), <span class="number">3</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;satisfaction&quot;</span>], <span class="string">&quot;tolerated&quot;</span>);
+        <span class="kw">let </span>user_metric = <span class="kw-2">&amp;</span>metrics[<span class="number">1</span>];
+        <span class="macro">assert_eq!</span>(user_metric.tags.len(), <span class="number">3</span>);
+        <span class="macro">assert_eq!</span>(user_metric.tags[<span class="string">&quot;satisfaction&quot;</span>], <span class="string">&quot;tolerated&quot;</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_user_satisfaction_override</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_user_satisfaction_override() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;transaction&quot;: &quot;foo&quot;,
@@ -2890,9 +2890,9 @@
         }
         &quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let </span>event = Annotated::from_json(json).unwrap();
 
-        <span class="kw">let</span> <span class="ident">config</span>: <span class="ident">TransactionMetricsConfig</span> <span class="op">=</span> <span class="ident">serde_json::from_str</span>(
+        <span class="kw">let </span>config: TransactionMetricsConfig = serde_json::from_str(
             <span class="string">r#&quot;
         {
             &quot;satisfactionThresholds&quot;: {
@@ -2910,10 +2910,10 @@
         }
         &quot;#</span>,
         )
-        .<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
-        <span class="ident">extract_transaction_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>, <span class="kw-2">&amp;</span>[], <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>(), <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
-        <span class="macro">insta::assert_debug_snapshot!</span>(<span class="ident">metrics</span>, @<span class="string">r###&quot;
+        .unwrap();
+        <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
+        extract_transaction_metrics(<span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;</span>[], event.value().unwrap(), <span class="kw-2">&amp;mut </span>metrics);
+        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###&quot;
         [
             Metric {
                 name: &quot;d:transactions/measurements.lcp@millisecond&quot;,
@@ -2941,9 +2941,9 @@
         &quot;###</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_user_satisfaction_catch_new_metric</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_user_satisfaction_catch_new_metric() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;transaction&quot;: &quot;foo&quot;,
@@ -2955,9 +2955,9 @@
         }
         &quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let </span>event = Annotated::from_json(json).unwrap();
 
-        <span class="kw">let</span> <span class="ident">config</span>: <span class="ident">TransactionMetricsConfig</span> <span class="op">=</span> <span class="ident">serde_json::from_str</span>(
+        <span class="kw">let </span>config: TransactionMetricsConfig = serde_json::from_str(
             <span class="string">r#&quot;
         {
             &quot;satisfactionThresholds&quot;: {
@@ -2969,11 +2969,11 @@
         }
         &quot;#</span>,
         )
-        .<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
-        <span class="ident">extract_transaction_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>, <span class="kw-2">&amp;</span>[], <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>(), <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
+        .unwrap();
+        <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
+        extract_transaction_metrics(<span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;</span>[], event.value().unwrap(), <span class="kw-2">&amp;mut </span>metrics);
 
-        <span class="macro">insta::assert_debug_snapshot!</span>(<span class="ident">metrics</span>, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###&quot;
         [
             Metric {
                 name: &quot;d:transactions/measurements.lcp@millisecond&quot;,
@@ -3000,9 +3000,9 @@
         &quot;###</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_custom_measurements</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_custom_measurements() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;transaction&quot;: &quot;foo&quot;,
@@ -3022,30 +3022,30 @@
         }
         &quot;#</span>;
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::from_json(json).unwrap();
 
-        <span class="comment">// Normalize first, to make sure the units are correct:</span>
-        <span class="kw">let</span> <span class="ident">measurements_config</span>: <span class="ident">MeasurementsConfig</span> <span class="op">=</span> <span class="ident">serde_json::from_value</span>(<span class="macro">serde_json::json!</span>(
+        <span class="comment">// Normalize first, to make sure the units are correct:
+        </span><span class="kw">let </span>measurements_config: MeasurementsConfig = serde_json::from_value(<span class="macro">serde_json::json!</span>(
             {
                 <span class="string">&quot;builtinMeasurements&quot;</span>: [{<span class="string">&quot;name&quot;</span>: <span class="string">&quot;fcp&quot;</span>, <span class="string">&quot;unit&quot;</span>: <span class="string">&quot;millisecond&quot;</span>}],
-                <span class="string">&quot;maxCustomMeasurements&quot;</span>: <span class="number">2</span>
-            }
+                <span class="string">&quot;maxCustomMeasurements&quot;</span>: <span class="number">2
+            </span>}
         ))
-        .<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">store::light_normalize_event</span>(
-            <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-            <span class="kw-2">&amp;</span><span class="ident">LightNormalizationConfig</span> {
-                <span class="ident">measurements_config</span>: <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">measurements_config</span>),
-                ..<span class="ident">Default::default</span>()
+        .unwrap();
+        <span class="kw">let </span>res = store::light_normalize_event(
+            <span class="kw-2">&amp;mut </span>event,
+            <span class="kw-2">&amp;</span>LightNormalizationConfig {
+                measurements_config: <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>measurements_config),
+                ..Default::default()
             },
         );
-        <span class="macro">assert!</span>(<span class="ident">res</span>.<span class="ident">is_ok</span>(), <span class="string">&quot;{:?}&quot;</span>, <span class="ident">res</span>);
+        <span class="macro">assert!</span>(res.is_ok(), <span class="string">&quot;{:?}&quot;</span>, res);
 
-        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">TransactionMetricsConfig::default</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
-        <span class="ident">extract_transaction_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>, <span class="kw-2">&amp;</span>[], <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>(), <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
+        <span class="kw">let </span>config = TransactionMetricsConfig::default();
+        <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
+        extract_transaction_metrics(<span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;</span>[], event.value().unwrap(), <span class="kw-2">&amp;mut </span>metrics);
 
-        <span class="macro">insta::assert_debug_snapshot!</span>(<span class="ident">metrics</span>, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###&quot;
             [
                 Metric {
                     name: &quot;d:transactions/measurements.a_custom1@none&quot;,
@@ -3096,9 +3096,9 @@
         &quot;###</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_conditional_tagging</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_conditional_tagging() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;transaction&quot;: &quot;foo&quot;,
@@ -3110,11 +3110,11 @@
         }
         &quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let </span>event = Annotated::from_json(json).unwrap();
 
-        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">TransactionMetricsConfig::default</span>();
+        <span class="kw">let </span>config = TransactionMetricsConfig::default();
 
-        <span class="kw">let</span> <span class="ident">tagging_config</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TaggingRule</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">serde_json::from_str</span>(
+        <span class="kw">let </span>tagging_config: Vec&lt;TaggingRule&gt; = serde_json::from_str(
             <span class="string">r#&quot;
         [
             {
@@ -3138,17 +3138,17 @@
         ]
         &quot;#</span>,
         )
-        .<span class="ident">unwrap</span>();
+        .unwrap();
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
-        <span class="ident">extract_transaction_metrics</span>(
-            <span class="kw-2">&amp;</span><span class="ident">config</span>,
-            <span class="kw-2">&amp;</span><span class="ident">tagging_config</span>,
-            <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>(),
-            <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>,
+        <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
+        extract_transaction_metrics(
+            <span class="kw-2">&amp;</span>config,
+            <span class="kw-2">&amp;</span>tagging_config,
+            event.value().unwrap(),
+            <span class="kw-2">&amp;mut </span>metrics,
         );
 
-        <span class="macro">insta::assert_debug_snapshot!</span>(<span class="ident">metrics</span>, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###&quot;
         [
             Metric {
                 name: &quot;d:transactions/measurements.lcp@millisecond&quot;,
@@ -3176,9 +3176,9 @@
         &quot;###</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_conditional_tagging_lcp</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_conditional_tagging_lcp() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;transaction&quot;: &quot;foo&quot;,
@@ -3190,11 +3190,11 @@
         }
         &quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let </span>event = Annotated::from_json(json).unwrap();
 
-        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">TransactionMetricsConfig::default</span>();
+        <span class="kw">let </span>config = TransactionMetricsConfig::default();
 
-        <span class="kw">let</span> <span class="ident">tagging_config</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TaggingRule</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">serde_json::from_str</span>(
+        <span class="kw">let </span>tagging_config: Vec&lt;TaggingRule&gt; = serde_json::from_str(
             <span class="string">r#&quot;
         [
             {
@@ -3218,38 +3218,38 @@
         ]
         &quot;#</span>,
         )
-        .<span class="ident">unwrap</span>();
+        .unwrap();
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
-        <span class="ident">extract_transaction_metrics</span>(
-            <span class="kw-2">&amp;</span><span class="ident">config</span>,
-            <span class="kw-2">&amp;</span><span class="ident">tagging_config</span>,
-            <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>(),
-            <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>,
+        <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
+        extract_transaction_metrics(
+            <span class="kw-2">&amp;</span>config,
+            <span class="kw-2">&amp;</span>tagging_config,
+            event.value().unwrap(),
+            <span class="kw-2">&amp;mut </span>metrics,
         );
-        <span class="ident">metrics</span>.<span class="ident">retain</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">name</span>.<span class="ident">contains</span>(<span class="string">&quot;lcp&quot;</span>));
+        metrics.retain(|m| m.name.contains(<span class="string">&quot;lcp&quot;</span>));
         <span class="macro">assert_eq!</span>(
-            <span class="ident">metrics</span>,
-            <span class="kw-2">&amp;</span>[<span class="ident">Metric::new_mri</span>(
-                <span class="ident">METRIC_NAMESPACE</span>,
+            metrics,
+            <span class="kw-2">&amp;</span>[Metric::new_mri(
+                METRIC_NAMESPACE,
                 <span class="string">&quot;measurements.lcp&quot;</span>,
-                <span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::MilliSecond</span>),
-                <span class="ident">MetricValue::Distribution</span>(<span class="number">41.0</span>),
-                <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">1619420402</span>),
+                MetricUnit::Duration(DurationUnit::MilliSecond),
+                MetricValue::Distribution(<span class="number">41.0</span>),
+                UnixTimestamp::from_secs(<span class="number">1619420402</span>),
                 {
-                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">tags</span> <span class="op">=</span> <span class="ident">BTreeMap::new</span>();
-                    <span class="ident">tags</span>.<span class="ident">insert</span>(<span class="string">&quot;satisfaction&quot;</span>.<span class="ident">to_owned</span>(), <span class="string">&quot;frustrated&quot;</span>.<span class="ident">to_owned</span>());
-                    <span class="ident">tags</span>.<span class="ident">insert</span>(<span class="string">&quot;measurement_rating&quot;</span>.<span class="ident">to_owned</span>(), <span class="string">&quot;good&quot;</span>.<span class="ident">to_owned</span>());
-                    <span class="ident">tags</span>.<span class="ident">insert</span>(<span class="string">&quot;platform&quot;</span>.<span class="ident">to_owned</span>(), <span class="string">&quot;other&quot;</span>.<span class="ident">to_owned</span>());
-                    <span class="ident">tags</span>
+                    <span class="kw">let </span><span class="kw-2">mut </span>tags = BTreeMap::new();
+                    tags.insert(<span class="string">&quot;satisfaction&quot;</span>.to_owned(), <span class="string">&quot;frustrated&quot;</span>.to_owned());
+                    tags.insert(<span class="string">&quot;measurement_rating&quot;</span>.to_owned(), <span class="string">&quot;good&quot;</span>.to_owned());
+                    tags.insert(<span class="string">&quot;platform&quot;</span>.to_owned(), <span class="string">&quot;other&quot;</span>.to_owned());
+                    tags
                 }
             )]
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_unknown_transaction_status_no_trace_context</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_unknown_transaction_status_no_trace_context() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
@@ -3257,25 +3257,25 @@
         }
         &quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">TransactionMetricsConfig::default</span>();
+        <span class="kw">let </span>config = TransactionMetricsConfig::default();
 
-        <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let </span>event = Annotated::from_json(json).unwrap();
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
-        <span class="ident">extract_transaction_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>, <span class="kw-2">&amp;</span>[], <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>(), <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
+        extract_transaction_metrics(<span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;</span>[], event.value().unwrap(), <span class="kw-2">&amp;mut </span>metrics);
 
-        <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>.<span class="ident">len</span>(), <span class="number">1</span>, <span class="string">&quot;{:?}&quot;</span>, <span class="ident">metrics</span>);
+        <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">1</span>, <span class="string">&quot;{:?}&quot;</span>, metrics);
 
-        <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>[<span class="number">0</span>].<span class="ident">name</span>, <span class="string">&quot;d:transactions/duration@millisecond&quot;</span>);
+        <span class="macro">assert_eq!</span>(metrics[<span class="number">0</span>].name, <span class="string">&quot;d:transactions/duration@millisecond&quot;</span>);
         <span class="macro">assert_eq!</span>(
-            <span class="ident">metrics</span>[<span class="number">0</span>].<span class="ident">tags</span>,
-            <span class="ident">BTreeMap::from</span>([(<span class="string">&quot;platform&quot;</span>.<span class="ident">to_string</span>(), <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>())])
+            metrics[<span class="number">0</span>].tags,
+            BTreeMap::from([(<span class="string">&quot;platform&quot;</span>.to_string(), <span class="string">&quot;other&quot;</span>.to_string())])
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_unknown_transaction_status</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_unknown_transaction_status() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
@@ -3284,42 +3284,42 @@
         }
         &quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">TransactionMetricsConfig::default</span>();
+        <span class="kw">let </span>config = TransactionMetricsConfig::default();
 
-        <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let </span>event = Annotated::from_json(json).unwrap();
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
-        <span class="ident">extract_transaction_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>, <span class="kw-2">&amp;</span>[], <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>(), <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
+        extract_transaction_metrics(<span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;</span>[], event.value().unwrap(), <span class="kw-2">&amp;mut </span>metrics);
 
-        <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>.<span class="ident">len</span>(), <span class="number">1</span>, <span class="string">&quot;{:?}&quot;</span>, <span class="ident">metrics</span>);
+        <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">1</span>, <span class="string">&quot;{:?}&quot;</span>, metrics);
 
-        <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>[<span class="number">0</span>].<span class="ident">name</span>, <span class="string">&quot;d:transactions/duration@millisecond&quot;</span>);
+        <span class="macro">assert_eq!</span>(metrics[<span class="number">0</span>].name, <span class="string">&quot;d:transactions/duration@millisecond&quot;</span>);
         <span class="macro">assert_eq!</span>(
-            <span class="ident">metrics</span>[<span class="number">0</span>].<span class="ident">tags</span>,
-            <span class="ident">BTreeMap::from</span>([
-                (<span class="string">&quot;transaction.status&quot;</span>.<span class="ident">to_string</span>(), <span class="string">&quot;unknown&quot;</span>.<span class="ident">to_string</span>()),
-                (<span class="string">&quot;platform&quot;</span>.<span class="ident">to_string</span>(), <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>())
+            metrics[<span class="number">0</span>].tags,
+            BTreeMap::from([
+                (<span class="string">&quot;transaction.status&quot;</span>.to_string(), <span class="string">&quot;unknown&quot;</span>.to_string()),
+                (<span class="string">&quot;platform&quot;</span>.to_string(), <span class="string">&quot;other&quot;</span>.to_string())
             ])
         );
     }
 
-    <span class="doccomment">/// Helper function to check if the transaction name is set correctly</span>
-    <span class="kw">fn</span> <span class="ident">extract_transaction_name</span>(<span class="ident">json</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">strategy</span>: <span class="ident">AcceptTransactionNames</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">TransactionMetricsConfig::default</span>();
+    <span class="doccomment">/// Helper function to check if the transaction name is set correctly
+    </span><span class="kw">fn </span>extract_transaction_name(json: <span class="kw-2">&amp;</span>str, strategy: AcceptTransactionNames) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>config = TransactionMetricsConfig::default();
 
-        <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>();
-        <span class="ident">config</span>.<span class="ident">accept_transaction_names</span> <span class="op">=</span> <span class="ident">strategy</span>;
+        <span class="kw">let </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
+        config.accept_transaction_names = strategy;
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
-        <span class="ident">extract_transaction_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>, <span class="kw-2">&amp;</span>[], <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>(), <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
+        extract_transaction_metrics(<span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;</span>[], event.value().unwrap(), <span class="kw-2">&amp;mut </span>metrics);
 
-        <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>.<span class="ident">len</span>(), <span class="number">1</span>);
-        <span class="ident">metrics</span>[<span class="number">0</span>].<span class="ident">tags</span>.<span class="ident">get</span>(<span class="string">&quot;transaction&quot;</span>).<span class="ident">cloned</span>()
+        <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">1</span>);
+        metrics[<span class="number">0</span>].tags.get(<span class="string">&quot;transaction&quot;</span>).cloned()
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_js_unknown_strict</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_js_unknown_strict() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;transaction&quot;: &quot;foo&quot;,
@@ -3330,13 +3330,13 @@
         }
         &quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">extract_transaction_name</span>(<span class="ident">json</span>, <span class="ident">AcceptTransactionNames::Strict</span>);
-        <span class="macro">assert!</span>(<span class="ident">name</span>.<span class="ident">is_none</span>());
+        <span class="kw">let </span>name = extract_transaction_name(json, AcceptTransactionNames::Strict);
+        <span class="macro">assert!</span>(name.is_none());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_js_unknown_client_based</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_js_unknown_client_based() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;transaction&quot;: &quot;foo&quot;,
@@ -3347,13 +3347,13 @@
         }
         &quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">extract_transaction_name</span>(<span class="ident">json</span>, <span class="ident">AcceptTransactionNames::ClientBased</span>);
-        <span class="macro">assert!</span>(<span class="ident">name</span>.<span class="ident">is_none</span>());
+        <span class="kw">let </span>name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        <span class="macro">assert!</span>(name.is_none());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_js_url_strict</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_js_url_strict() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;transaction&quot;: &quot;foo&quot;,
@@ -3365,13 +3365,13 @@
         }
         &quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">extract_transaction_name</span>(<span class="ident">json</span>, <span class="ident">AcceptTransactionNames::Strict</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">name</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;&lt;&lt; unparameterized &gt;&gt;&quot;</span>.<span class="ident">to_owned</span>()));
+        <span class="kw">let </span>name = extract_transaction_name(json, AcceptTransactionNames::Strict);
+        <span class="macro">assert_eq!</span>(name, <span class="prelude-val">Some</span>(<span class="string">&quot;&lt;&lt; unparameterized &gt;&gt;&quot;</span>.to_owned()));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_js_url_client_based</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_js_url_client_based() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;transaction&quot;: &quot;foo&quot;,
@@ -3383,13 +3383,13 @@
         }
         &quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">extract_transaction_name</span>(<span class="ident">json</span>, <span class="ident">AcceptTransactionNames::ClientBased</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">name</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;&lt;&lt; unparameterized &gt;&gt;&quot;</span>.<span class="ident">to_owned</span>()));
+        <span class="kw">let </span>name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        <span class="macro">assert_eq!</span>(name, <span class="prelude-val">Some</span>(<span class="string">&quot;&lt;&lt; unparameterized &gt;&gt;&quot;</span>.to_owned()));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_python_404_strict</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_python_404_strict() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;transaction&quot;: &quot;foo&quot;,
@@ -3401,13 +3401,13 @@
         }
         &quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">extract_transaction_name</span>(<span class="ident">json</span>, <span class="ident">AcceptTransactionNames::Strict</span>);
-        <span class="macro">assert!</span>(<span class="ident">name</span>.<span class="ident">is_none</span>());
+        <span class="kw">let </span>name = extract_transaction_name(json, AcceptTransactionNames::Strict);
+        <span class="macro">assert!</span>(name.is_none());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_python_404_client_based</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_python_404_client_based() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;transaction&quot;: &quot;foo&quot;,
@@ -3419,13 +3419,13 @@
         }
         &quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">extract_transaction_name</span>(<span class="ident">json</span>, <span class="ident">AcceptTransactionNames::ClientBased</span>);
-        <span class="macro">assert!</span>(<span class="ident">name</span>.<span class="ident">is_none</span>());
+        <span class="kw">let </span>name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        <span class="macro">assert!</span>(name.is_none());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_python_200_client_based</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_python_200_client_based() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;transaction&quot;: &quot;foo&quot;,
@@ -3437,13 +3437,13 @@
         }
         &quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">extract_transaction_name</span>(<span class="ident">json</span>, <span class="ident">AcceptTransactionNames::ClientBased</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">name</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_owned</span>()));
+        <span class="kw">let </span>name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        <span class="macro">assert_eq!</span>(name, <span class="prelude-val">Some</span>(<span class="string">&quot;foo&quot;</span>.to_owned()));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_express_options_strict</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_express_options_strict() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;transaction&quot;: &quot;foo&quot;,
@@ -3455,13 +3455,13 @@
         }
         &quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">extract_transaction_name</span>(<span class="ident">json</span>, <span class="ident">AcceptTransactionNames::Strict</span>);
-        <span class="macro">assert!</span>(<span class="ident">name</span>.<span class="ident">is_none</span>());
+        <span class="kw">let </span>name = extract_transaction_name(json, AcceptTransactionNames::Strict);
+        <span class="macro">assert!</span>(name.is_none());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_express_options_client_based</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_express_options_client_based() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;transaction&quot;: &quot;foo&quot;,
@@ -3473,13 +3473,13 @@
         }
         &quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">extract_transaction_name</span>(<span class="ident">json</span>, <span class="ident">AcceptTransactionNames::ClientBased</span>);
-        <span class="macro">assert!</span>(<span class="ident">name</span>.<span class="ident">is_none</span>());
+        <span class="kw">let </span>name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        <span class="macro">assert!</span>(name.is_none());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_express_get_client_based</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_express_get_client_based() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;transaction&quot;: &quot;foo&quot;,
@@ -3491,13 +3491,13 @@
         }
         &quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">extract_transaction_name</span>(<span class="ident">json</span>, <span class="ident">AcceptTransactionNames::ClientBased</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">name</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_owned</span>()));
+        <span class="kw">let </span>name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        <span class="macro">assert_eq!</span>(name, <span class="prelude-val">Some</span>(<span class="string">&quot;foo&quot;</span>.to_owned()));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_other_client_unknown_strict</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_other_client_unknown_strict() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;transaction&quot;: &quot;foo&quot;,
@@ -3508,13 +3508,13 @@
         }
         &quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">extract_transaction_name</span>(<span class="ident">json</span>, <span class="ident">AcceptTransactionNames::Strict</span>);
-        <span class="macro">assert!</span>(<span class="ident">name</span>.<span class="ident">is_none</span>());
+        <span class="kw">let </span>name = extract_transaction_name(json, AcceptTransactionNames::Strict);
+        <span class="macro">assert!</span>(name.is_none());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_other_client_unknown_client_based</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_other_client_unknown_client_based() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;transaction&quot;: &quot;foo&quot;,
@@ -3525,13 +3525,13 @@
         }
         &quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">extract_transaction_name</span>(<span class="ident">json</span>, <span class="ident">AcceptTransactionNames::ClientBased</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">name</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_owned</span>()));
+        <span class="kw">let </span>name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        <span class="macro">assert_eq!</span>(name, <span class="prelude-val">Some</span>(<span class="string">&quot;foo&quot;</span>.to_owned()));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_other_client_url_strict</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_other_client_url_strict() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;transaction&quot;: &quot;foo&quot;,
@@ -3543,13 +3543,13 @@
         }
         &quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">extract_transaction_name</span>(<span class="ident">json</span>, <span class="ident">AcceptTransactionNames::Strict</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">name</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;&lt;&lt; unparameterized &gt;&gt;&quot;</span>.<span class="ident">to_owned</span>()));
+        <span class="kw">let </span>name = extract_transaction_name(json, AcceptTransactionNames::Strict);
+        <span class="macro">assert_eq!</span>(name, <span class="prelude-val">Some</span>(<span class="string">&quot;&lt;&lt; unparameterized &gt;&gt;&quot;</span>.to_owned()));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_other_client_url_client_based</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_other_client_url_client_based() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;transaction&quot;: &quot;foo&quot;,
@@ -3561,13 +3561,13 @@
         }
         &quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">extract_transaction_name</span>(<span class="ident">json</span>, <span class="ident">AcceptTransactionNames::ClientBased</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">name</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;&lt;&lt; unparameterized &gt;&gt;&quot;</span>.<span class="ident">to_owned</span>()));
+        <span class="kw">let </span>name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        <span class="macro">assert_eq!</span>(name, <span class="prelude-val">Some</span>(<span class="string">&quot;&lt;&lt; unparameterized &gt;&gt;&quot;</span>.to_owned()));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_any_client_route_strict</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_any_client_route_strict() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;transaction&quot;: &quot;foo&quot;,
@@ -3579,13 +3579,13 @@
         }
         &quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">extract_transaction_name</span>(<span class="ident">json</span>, <span class="ident">AcceptTransactionNames::Strict</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">name</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_owned</span>()));
+        <span class="kw">let </span>name = extract_transaction_name(json, AcceptTransactionNames::Strict);
+        <span class="macro">assert_eq!</span>(name, <span class="prelude-val">Some</span>(<span class="string">&quot;foo&quot;</span>.to_owned()));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_any_client_route_client_based</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_any_client_route_client_based() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;transaction&quot;: &quot;foo&quot;,
@@ -3597,35 +3597,35 @@
         }
         &quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">extract_transaction_name</span>(<span class="ident">json</span>, <span class="ident">AcceptTransactionNames::ClientBased</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">name</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_owned</span>()));
+        <span class="kw">let </span>name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        <span class="macro">assert_eq!</span>(name, <span class="prelude-val">Some</span>(<span class="string">&quot;foo&quot;</span>.to_owned()));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_parse_transaction_name_strategy</span>() {
-        <span class="kw">for</span> (<span class="ident">config</span>, <span class="ident">expected_strategy</span>) <span class="kw">in</span> [
-            (<span class="string">r#&quot;{}&quot;#</span>, <span class="ident">AcceptTransactionNames::Strict</span>),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_parse_transaction_name_strategy() {
+        <span class="kw">for </span>(config, expected_strategy) <span class="kw">in </span>[
+            (<span class="string">r#&quot;{}&quot;#</span>, AcceptTransactionNames::Strict),
             (
                 <span class="string">r#&quot;{&quot;acceptTransactionNames&quot;: &quot;unknown-strategy&quot;}&quot;#</span>,
-                <span class="ident">AcceptTransactionNames::Strict</span>,
+                AcceptTransactionNames::Strict,
             ),
             (
                 <span class="string">r#&quot;{&quot;acceptTransactionNames&quot;: &quot;strict&quot;}&quot;#</span>,
-                <span class="ident">AcceptTransactionNames::Strict</span>,
+                AcceptTransactionNames::Strict,
             ),
             (
                 <span class="string">r#&quot;{&quot;acceptTransactionNames&quot;: &quot;clientBased&quot;}&quot;#</span>,
-                <span class="ident">AcceptTransactionNames::ClientBased</span>,
+                AcceptTransactionNames::ClientBased,
             ),
         ] {
-            <span class="kw">let</span> <span class="ident">config</span>: <span class="ident">TransactionMetricsConfig</span> <span class="op">=</span> <span class="ident">serde_json::from_str</span>(<span class="ident">config</span>).<span class="ident">unwrap</span>();
-            <span class="macro">assert_eq!</span>(<span class="ident">config</span>.<span class="ident">accept_transaction_names</span>, <span class="ident">expected_strategy</span>);
+            <span class="kw">let </span>config: TransactionMetricsConfig = serde_json::from_str(config).unwrap();
+            <span class="macro">assert_eq!</span>(config.accept_transaction_names, expected_strategy);
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_computed_metrics</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_computed_metrics() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;timestamp&quot;: 1619420520,
             &quot;start_timestamp&quot;: 1619420400,
@@ -3652,17 +3652,17 @@
             }
         }&quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">TransactionMetricsConfig::default</span>();
+        <span class="kw">let </span>config = TransactionMetricsConfig::default();
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>();
-        <span class="comment">// Normalize first, to make sure that the metrics were computed:</span>
-        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">store::light_normalize_event</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="ident">LightNormalizationConfig::default</span>());
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::from_json(json).unwrap();
+        <span class="comment">// Normalize first, to make sure that the metrics were computed:
+        </span><span class="kw">let _ </span>= store::light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>LightNormalizationConfig::default());
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
-        <span class="ident">extract_transaction_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>, <span class="kw-2">&amp;</span>[], <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>(), <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
+        extract_transaction_metrics(<span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;</span>[], event.value().unwrap(), <span class="kw-2">&amp;mut </span>metrics);
 
-        <span class="kw">let</span> <span class="ident">metrics_names</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">metrics</span>.<span class="ident">into_iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">name</span>).<span class="ident">collect</span>();
-        <span class="macro">insta::assert_debug_snapshot!</span>(<span class="ident">metrics_names</span>, @<span class="string">r###&quot;
+        <span class="kw">let </span>metrics_names: Vec&lt;<span class="kw">_</span>&gt; = metrics.into_iter().map(|m| m.name).collect();
+        <span class="macro">insta::assert_debug_snapshot!</span>(metrics_names, @<span class="string">r###&quot;
         [
             &quot;d:transactions/measurements.frames_frozen@none&quot;,
             &quot;d:transactions/measurements.frames_frozen_rate@ratio&quot;,
@@ -3676,49 +3676,49 @@
         &quot;###</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_get_eventuser_tag</span>() {
-        <span class="comment">// Note: If this order changes,</span>
-        <span class="comment">// https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/models/eventuser.py#L18</span>
-        <span class="comment">// has to be changed. Though it is probably not a good idea!</span>
-        <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> <span class="ident">User</span> {
-            <span class="ident">id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;ident&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>()),
-            <span class="ident">username</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;username&quot;</span>.<span class="ident">to_owned</span>()),
-            <span class="ident">email</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;email&quot;</span>.<span class="ident">to_owned</span>()),
-            <span class="ident">ip_address</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;127.0.0.1&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-            ..<span class="ident">User::default</span>()
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_get_eventuser_tag() {
+        <span class="comment">// Note: If this order changes,
+        // https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/models/eventuser.py#L18
+        // has to be changed. Though it is probably not a good idea!
+        </span><span class="kw">let </span>user = User {
+            id: Annotated::new(<span class="string">&quot;ident&quot;</span>.to_owned().into()),
+            username: Annotated::new(<span class="string">&quot;username&quot;</span>.to_owned()),
+            email: Annotated::new(<span class="string">&quot;email&quot;</span>.to_owned()),
+            ip_address: Annotated::new(<span class="string">&quot;127.0.0.1&quot;</span>.parse().unwrap()),
+            ..User::default()
         };
 
-        <span class="macro">assert_eq!</span>(<span class="ident">get_eventuser_tag</span>(<span class="kw-2">&amp;</span><span class="ident">user</span>).<span class="ident">unwrap</span>(), <span class="string">&quot;id:ident&quot;</span>);
+        <span class="macro">assert_eq!</span>(get_eventuser_tag(<span class="kw-2">&amp;</span>user).unwrap(), <span class="string">&quot;id:ident&quot;</span>);
 
-        <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> <span class="ident">User</span> {
-            <span class="ident">username</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;username&quot;</span>.<span class="ident">to_owned</span>()),
-            <span class="ident">email</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;email&quot;</span>.<span class="ident">to_owned</span>()),
-            <span class="ident">ip_address</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;127.0.0.1&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-            ..<span class="ident">User::default</span>()
+        <span class="kw">let </span>user = User {
+            username: Annotated::new(<span class="string">&quot;username&quot;</span>.to_owned()),
+            email: Annotated::new(<span class="string">&quot;email&quot;</span>.to_owned()),
+            ip_address: Annotated::new(<span class="string">&quot;127.0.0.1&quot;</span>.parse().unwrap()),
+            ..User::default()
         };
 
-        <span class="macro">assert_eq!</span>(<span class="ident">get_eventuser_tag</span>(<span class="kw-2">&amp;</span><span class="ident">user</span>).<span class="ident">unwrap</span>(), <span class="string">&quot;username:username&quot;</span>);
+        <span class="macro">assert_eq!</span>(get_eventuser_tag(<span class="kw-2">&amp;</span>user).unwrap(), <span class="string">&quot;username:username&quot;</span>);
 
-        <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> <span class="ident">User</span> {
-            <span class="ident">email</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;email&quot;</span>.<span class="ident">to_owned</span>()),
-            <span class="ident">ip_address</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;127.0.0.1&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-            ..<span class="ident">User::default</span>()
+        <span class="kw">let </span>user = User {
+            email: Annotated::new(<span class="string">&quot;email&quot;</span>.to_owned()),
+            ip_address: Annotated::new(<span class="string">&quot;127.0.0.1&quot;</span>.parse().unwrap()),
+            ..User::default()
         };
 
-        <span class="macro">assert_eq!</span>(<span class="ident">get_eventuser_tag</span>(<span class="kw-2">&amp;</span><span class="ident">user</span>).<span class="ident">unwrap</span>(), <span class="string">&quot;email:email&quot;</span>);
+        <span class="macro">assert_eq!</span>(get_eventuser_tag(<span class="kw-2">&amp;</span>user).unwrap(), <span class="string">&quot;email:email&quot;</span>);
 
-        <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> <span class="ident">User</span> {
-            <span class="ident">ip_address</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;127.0.0.1&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-            ..<span class="ident">User::default</span>()
+        <span class="kw">let </span>user = User {
+            ip_address: Annotated::new(<span class="string">&quot;127.0.0.1&quot;</span>.parse().unwrap()),
+            ..User::default()
         };
 
-        <span class="macro">assert_eq!</span>(<span class="ident">get_eventuser_tag</span>(<span class="kw-2">&amp;</span><span class="ident">user</span>).<span class="ident">unwrap</span>(), <span class="string">&quot;ip:127.0.0.1&quot;</span>);
+        <span class="macro">assert_eq!</span>(get_eventuser_tag(<span class="kw-2">&amp;</span>user).unwrap(), <span class="string">&quot;ip:127.0.0.1&quot;</span>);
 
-        <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> <span class="ident">User::default</span>();
+        <span class="kw">let </span>user = User::default();
 
-        <span class="macro">assert!</span>(<span class="ident">get_eventuser_tag</span>(<span class="kw-2">&amp;</span><span class="ident">user</span>).<span class="ident">is_none</span>());
+        <span class="macro">assert!</span>(get_eventuser_tag(<span class="kw-2">&amp;</span>user).is_none());
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

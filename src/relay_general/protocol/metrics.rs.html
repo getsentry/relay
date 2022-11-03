@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/protocol/metrics.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>metrics.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/protocol/metrics.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>metrics.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_general/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -163,168 +163,168 @@
 <span id="161">161</span>
 <span id="162">162</span>
 <span id="163">163</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor::ProcessValue</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Array</span>};
+</pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
+<span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Array};
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">Empty</span>, <span class="ident">PartialEq</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>)]</span>
-<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SampleRate</span> {
-    <span class="doccomment">/// The unique identifier of the sampling rule or mechanism.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// For client-side sampling, this identifies the sampling mechanism:</span>
-    <span class="doccomment">///  - `client_rate`: Default base sample rate configured in client options. Only reported in</span>
-    <span class="doccomment">///    the absence of the traces sampler callback.</span>
-    <span class="doccomment">///  - `client_sampler`: Return value from the traces sampler callback during runtime. Always</span>
-    <span class="doccomment">///    overrides the `client_rate`.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// For server-side sampling, this identifies the dynamic sampling rule.</span>
-    <span class="ident">id</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+<span class="attribute">#[derive(Clone, Debug, Default, Empty, PartialEq, FromValue, IntoValue)]
+#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+</span><span class="kw">pub struct </span>SampleRate {
+    <span class="doccomment">/// The unique identifier of the sampling rule or mechanism.
+    ///
+    /// For client-side sampling, this identifies the sampling mechanism:
+    ///  - `client_rate`: Default base sample rate configured in client options. Only reported in
+    ///    the absence of the traces sampler callback.
+    ///  - `client_sampler`: Return value from the traces sampler callback during runtime. Always
+    ///    overrides the `client_rate`.
+    ///
+    /// For server-side sampling, this identifies the dynamic sampling rule.
+    </span>id: Annotated&lt;String&gt;,
 
-    <span class="doccomment">/// The effective sample rate in the range `(0..1]`.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// While allowed in the protocol, a value of `0` can never occur in practice since such events</span>
-    <span class="doccomment">/// would never be reported to Sentry and thus never generate this metric.</span>
-    <span class="ident">rate</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The effective sample rate in the range `(0..1]`.
+    ///
+    /// While allowed in the protocol, a value of `0` can never occur in practice since such events
+    /// would never be reported to Sentry and thus never generate this metric.
+    </span>rate: Annotated&lt;f64&gt;,
 }
 
-<span class="doccomment">/// Metrics captured during event ingestion and processing.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// These values are collected in Relay and Sentry and finally persisted into the event payload. A</span>
-<span class="doccomment">/// value of `0` is equivalent to N/A and should not be considered in aggregations and analysis.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">Empty</span>, <span class="ident">PartialEq</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>)]</span>
-<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Metrics</span> {
-    <span class="doccomment">/// The size of the original event payload ingested into Sentry.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The size is measured after applying all content- and transfer-encodings  and thus</span>
-    <span class="doccomment">/// independent of compression over the wire.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// For security reports, this is the size of the JSON request sent by the browser and not of</span>
-    <span class="doccomment">/// the event payload we extract from it. For ingested envelopes, this is only the size of the</span>
-    <span class="doccomment">/// &quot;event&quot; item.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This metric is measured in Relay during ingestion.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">field</span> <span class="op">=</span> <span class="string">&quot;bytes.ingested.event&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">bytes_ingested_event</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Metrics captured during event ingestion and processing.
+///
+/// These values are collected in Relay and Sentry and finally persisted into the event payload. A
+/// value of `0` is equivalent to N/A and should not be considered in aggregations and analysis.
+</span><span class="attribute">#[derive(Clone, Debug, Default, Empty, PartialEq, FromValue, IntoValue)]
+#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+</span><span class="kw">pub struct </span>Metrics {
+    <span class="doccomment">/// The size of the original event payload ingested into Sentry.
+    ///
+    /// The size is measured after applying all content- and transfer-encodings  and thus
+    /// independent of compression over the wire.
+    ///
+    /// For security reports, this is the size of the JSON request sent by the browser and not of
+    /// the event payload we extract from it. For ingested envelopes, this is only the size of the
+    /// &quot;event&quot; item.
+    ///
+    /// This metric is measured in Relay during ingestion.
+    </span><span class="attribute">#[metastructure(field = <span class="string">&quot;bytes.ingested.event&quot;</span>)]
+    </span><span class="kw">pub </span>bytes_ingested_event: Annotated&lt;u64&gt;,
 
-    <span class="doccomment">/// The size of the minidump ingested into Sentry.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The size is measured after applying all content- and transfer-encodings  and thus</span>
-    <span class="doccomment">/// independent of compression over the wire.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This metric is measured in Relay during ingestion.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">field</span> <span class="op">=</span> <span class="string">&quot;bytes.ingested.event.minidump&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">bytes_ingested_event_minidump</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The size of the minidump ingested into Sentry.
+    ///
+    /// The size is measured after applying all content- and transfer-encodings  and thus
+    /// independent of compression over the wire.
+    ///
+    /// This metric is measured in Relay during ingestion.
+    </span><span class="attribute">#[metastructure(field = <span class="string">&quot;bytes.ingested.event.minidump&quot;</span>)]
+    </span><span class="kw">pub </span>bytes_ingested_event_minidump: Annotated&lt;u64&gt;,
 
-    <span class="doccomment">/// The size of an apple crash report ingested into Sentry.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The size is measured after applying all content- and transfer-encodings  and thus</span>
-    <span class="doccomment">/// independent of compression over the wire.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This metric is measured in Relay during ingestion.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">field</span> <span class="op">=</span> <span class="string">&quot;bytes.ingested.event.applecrashreport&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">bytes_ingested_event_applecrashreport</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The size of an apple crash report ingested into Sentry.
+    ///
+    /// The size is measured after applying all content- and transfer-encodings  and thus
+    /// independent of compression over the wire.
+    ///
+    /// This metric is measured in Relay during ingestion.
+    </span><span class="attribute">#[metastructure(field = <span class="string">&quot;bytes.ingested.event.applecrashreport&quot;</span>)]
+    </span><span class="kw">pub </span>bytes_ingested_event_applecrashreport: Annotated&lt;u64&gt;,
 
-    <span class="doccomment">/// The cumulative size of all additional attachments ingested into Sentry.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This is a sum of all all generic attachment payloads (excluding headers). These attachments</span>
-    <span class="doccomment">/// are never processed and only potentially stored. Minidumps and apple crash reports are</span>
-    <span class="doccomment">/// counted separately in their respective metrics.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This metric is measured in Relay during ingestion.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">field</span> <span class="op">=</span> <span class="string">&quot;bytes.ingested.event.attachment&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">bytes_ingested_event_attachment</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The cumulative size of all additional attachments ingested into Sentry.
+    ///
+    /// This is a sum of all all generic attachment payloads (excluding headers). These attachments
+    /// are never processed and only potentially stored. Minidumps and apple crash reports are
+    /// counted separately in their respective metrics.
+    ///
+    /// This metric is measured in Relay during ingestion.
+    </span><span class="attribute">#[metastructure(field = <span class="string">&quot;bytes.ingested.event.attachment&quot;</span>)]
+    </span><span class="kw">pub </span>bytes_ingested_event_attachment: Annotated&lt;u64&gt;,
 
-    <span class="doccomment">/// The size of the event payload as it is saved in node store.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// For security reports, this is the size of the event derived from the original JSON. For</span>
-    <span class="doccomment">/// processed events, such as native or javascript, this includes information derived during</span>
-    <span class="doccomment">/// symbolication and internal meta data.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This metric is measured in Sentry after all processing has completed and when it is posted</span>
-    <span class="doccomment">/// into node store.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">field</span> <span class="op">=</span> <span class="string">&quot;bytes.stored.event&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">bytes_stored_event</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The size of the event payload as it is saved in node store.
+    ///
+    /// For security reports, this is the size of the event derived from the original JSON. For
+    /// processed events, such as native or javascript, this includes information derived during
+    /// symbolication and internal meta data.
+    ///
+    /// This metric is measured in Sentry after all processing has completed and when it is posted
+    /// into node store.
+    </span><span class="attribute">#[metastructure(field = <span class="string">&quot;bytes.stored.event&quot;</span>)]
+    </span><span class="kw">pub </span>bytes_stored_event: Annotated&lt;u64&gt;,
 
-    <span class="doccomment">/// The size of the minidump as it is saved in blob store.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Minidumps are not saved in two conditions. In this case, this number will be zero (missing):</span>
-    <span class="doccomment">///  1. The attachment feature is not enabled for an organization.</span>
-    <span class="doccomment">///  2. The option &quot;Store Native Crash Reports&quot; is disabled (default).</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This metric is measured in Sentry after all processing has completed and when it is posted</span>
-    <span class="doccomment">/// into node store.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">field</span> <span class="op">=</span> <span class="string">&quot;bytes.stored.event.minidump&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">bytes_stored_event_minidump</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The size of the minidump as it is saved in blob store.
+    ///
+    /// Minidumps are not saved in two conditions. In this case, this number will be zero (missing):
+    ///  1. The attachment feature is not enabled for an organization.
+    ///  2. The option &quot;Store Native Crash Reports&quot; is disabled (default).
+    ///
+    /// This metric is measured in Sentry after all processing has completed and when it is posted
+    /// into node store.
+    </span><span class="attribute">#[metastructure(field = <span class="string">&quot;bytes.stored.event.minidump&quot;</span>)]
+    </span><span class="kw">pub </span>bytes_stored_event_minidump: Annotated&lt;u64&gt;,
 
-    <span class="doccomment">/// The size of the apple crash report as it is saved in blob store.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Apple crash reports are not saved in two conditions. In this case, this number will be zero</span>
-    <span class="doccomment">/// (missing):</span>
-    <span class="doccomment">///  1. The attachment feature is not enabled for an organization.</span>
-    <span class="doccomment">///  2. The option &quot;Store Native Crash Reports&quot; is disabled (default).</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This metric is measured in Sentry after all processing has completed and when it is posted</span>
-    <span class="doccomment">/// into node store.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">field</span> <span class="op">=</span> <span class="string">&quot;bytes.stored.event.applecrashreport&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">bytes_stored_event_applecrashreport</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The size of the apple crash report as it is saved in blob store.
+    ///
+    /// Apple crash reports are not saved in two conditions. In this case, this number will be zero
+    /// (missing):
+    ///  1. The attachment feature is not enabled for an organization.
+    ///  2. The option &quot;Store Native Crash Reports&quot; is disabled (default).
+    ///
+    /// This metric is measured in Sentry after all processing has completed and when it is posted
+    /// into node store.
+    </span><span class="attribute">#[metastructure(field = <span class="string">&quot;bytes.stored.event.applecrashreport&quot;</span>)]
+    </span><span class="kw">pub </span>bytes_stored_event_applecrashreport: Annotated&lt;u64&gt;,
 
-    <span class="doccomment">/// The cumulative size of all additional attachments as saved in blob store.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Attachments are not saved if the attachment feature is not enabled for the organization. In</span>
-    <span class="doccomment">/// this case, this number will be zero (missing).</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This metric is measured in Sentry after all processing has completed and when it is posted</span>
-    <span class="doccomment">/// into node store.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">field</span> <span class="op">=</span> <span class="string">&quot;bytes.stored.event.attachment&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">bytes_stored_event_attachment</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The cumulative size of all additional attachments as saved in blob store.
+    ///
+    /// Attachments are not saved if the attachment feature is not enabled for the organization. In
+    /// this case, this number will be zero (missing).
+    ///
+    /// This metric is measured in Sentry after all processing has completed and when it is posted
+    /// into node store.
+    </span><span class="attribute">#[metastructure(field = <span class="string">&quot;bytes.stored.event.attachment&quot;</span>)]
+    </span><span class="kw">pub </span>bytes_stored_event_attachment: Annotated&lt;u64&gt;,
 
-    <span class="doccomment">/// The number of milliseconds Symbolicator spent processing the native event.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This metric is measured in Symbolicator and reported in the native processing task. There</span>
-    <span class="doccomment">/// are additional overheads polling symbolicator for the response, but the time reported from</span>
-    <span class="doccomment">/// symbolicator reflects used resources most accurately.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">field</span> <span class="op">=</span> <span class="string">&quot;ms.processing.symbolicator&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">ms_processing_symbolicator</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The number of milliseconds Symbolicator spent processing the native event.
+    ///
+    /// This metric is measured in Symbolicator and reported in the native processing task. There
+    /// are additional overheads polling symbolicator for the response, but the time reported from
+    /// symbolicator reflects used resources most accurately.
+    </span><span class="attribute">#[metastructure(field = <span class="string">&quot;ms.processing.symbolicator&quot;</span>)]
+    </span><span class="kw">pub </span>ms_processing_symbolicator: Annotated&lt;u64&gt;,
 
-    <span class="doccomment">/// The number of milliseconds Sentry spent resolving proguard mappings for a java event.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This metric is measured in Sentry and reported in the java processing task.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">field</span> <span class="op">=</span> <span class="string">&quot;ms.processing.proguard&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">ms_processing_proguard</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The number of milliseconds Sentry spent resolving proguard mappings for a java event.
+    ///
+    /// This metric is measured in Sentry and reported in the java processing task.
+    </span><span class="attribute">#[metastructure(field = <span class="string">&quot;ms.processing.proguard&quot;</span>)]
+    </span><span class="kw">pub </span>ms_processing_proguard: Annotated&lt;u64&gt;,
 
-    <span class="doccomment">/// The number of milliseconds sentry spent resolving minified stack traces for a javascript event.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This metric is measured in Sentry and reported in the javascript processing task.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">field</span> <span class="op">=</span> <span class="string">&quot;ms.processing.sourcemaps&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">ms_processing_sourcemaps</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The number of milliseconds sentry spent resolving minified stack traces for a javascript event.
+    ///
+    /// This metric is measured in Sentry and reported in the javascript processing task.
+    </span><span class="attribute">#[metastructure(field = <span class="string">&quot;ms.processing.sourcemaps&quot;</span>)]
+    </span><span class="kw">pub </span>ms_processing_sourcemaps: Annotated&lt;u64&gt;,
 
-    <span class="doccomment">/// Whether there has been a processing error that likely impacts the usefulness of an event.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Example: malformed/unparseable debug information files.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This metric is measured in Sentry and should be reported in all processing tasks.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">field</span> <span class="op">=</span> <span class="string">&quot;flag.processing.error&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">flag_processing_error</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Whether there has been a processing error that likely impacts the usefulness of an event.
+    ///
+    /// Example: malformed/unparseable debug information files.
+    ///
+    /// This metric is measured in Sentry and should be reported in all processing tasks.
+    </span><span class="attribute">#[metastructure(field = <span class="string">&quot;flag.processing.error&quot;</span>)]
+    </span><span class="kw">pub </span>flag_processing_error: Annotated&lt;bool&gt;,
 
-    <span class="doccomment">/// Whether there has been a processing error that almost certainly renders the event</span>
-    <span class="doccomment">/// unusuable.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Example: Minidump could not be parsed, but we do not drop the event as it may still contain</span>
-    <span class="doccomment">/// context data and attachments, and we already billed the user anyway.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This metric is measured in Sentry and should be reported in all processing tasks.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">field</span> <span class="op">=</span> <span class="string">&quot;flag.processing.fatal&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">flag_processing_fatal</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Whether there has been a processing error that almost certainly renders the event
+    /// unusuable.
+    ///
+    /// Example: Minidump could not be parsed, but we do not drop the event as it may still contain
+    /// context data and attachments, and we already billed the user anyway.
+    ///
+    /// This metric is measured in Sentry and should be reported in all processing tasks.
+    </span><span class="attribute">#[metastructure(field = <span class="string">&quot;flag.processing.fatal&quot;</span>)]
+    </span><span class="kw">pub </span>flag_processing_fatal: Annotated&lt;bool&gt;,
 
-    <span class="doccomment">/// A list of cumulative sample rates applied to this event.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Multiple entries in `sample_rates` mean that the event was sampled multiple times. The</span>
-    <span class="doccomment">/// effective sample rate is multiplied.</span>
-    <span class="kw">pub</span> <span class="ident">sample_rates</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Array</span><span class="op">&lt;</span><span class="ident">SampleRate</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// A list of cumulative sample rates applied to this event.
+    ///
+    /// Multiple entries in `sample_rates` mean that the event was sampled multiple times. The
+    /// effective sample rate is multiplied.
+    </span><span class="kw">pub </span>sample_rates: Annotated&lt;Array&lt;SampleRate&gt;&gt;,
 }
 
-<span class="comment">// Do not process Metrics</span>
-<span class="kw">impl</span> <span class="ident">ProcessValue</span> <span class="kw">for</span> <span class="ident">Metrics</span> {}
+<span class="comment">// Do not process Metrics
+</span><span class="kw">impl </span>ProcessValue <span class="kw">for </span>Metrics {}
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

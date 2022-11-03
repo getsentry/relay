@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/project_redis.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>project_redis.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/project_redis.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>project_redis.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_server/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -145,150 +145,150 @@
 <span id="143">143</span>
 <span id="144">144</span>
 <span id="145">145</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 
-<span class="kw">use</span> <span class="ident">actix::prelude</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">failure::Fail</span>;
-<span class="kw">use</span> <span class="ident">relay_common::ProjectKey</span>;
-<span class="kw">use</span> <span class="ident">relay_config::Config</span>;
-<span class="kw">use</span> <span class="ident">relay_log::LogError</span>;
-<span class="kw">use</span> <span class="ident">relay_redis</span>::{<span class="ident">RedisError</span>, <span class="ident">RedisPool</span>};
-<span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
+<span class="kw">use </span>actix::prelude::<span class="kw-2">*</span>;
+<span class="kw">use </span>failure::Fail;
+<span class="kw">use </span>relay_common::ProjectKey;
+<span class="kw">use </span>relay_config::Config;
+<span class="kw">use </span>relay_log::LogError;
+<span class="kw">use </span>relay_redis::{RedisError, RedisPool};
+<span class="kw">use </span>relay_statsd::metric;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::project::ProjectState</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::project_cache::FetchOptionalProjectState</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayHistograms</span>, <span class="ident">RelayTimers</span>};
+<span class="kw">use </span><span class="kw">crate</span>::actors::project::ProjectState;
+<span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::FetchOptionalProjectState;
+<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RedisProjectSource</span> {
-    <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
-    <span class="ident">redis</span>: <span class="ident">RedisPool</span>,
+<span class="kw">pub struct </span>RedisProjectSource {
+    config: Arc&lt;Config&gt;,
+    redis: RedisPool,
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Fail</span>)]</span>
-<span class="kw">enum</span> <span class="ident">RedisProjectError</span> {
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;failed to parse projectconfig from redis&quot;</span>)]</span>
-    <span class="ident">Parsing</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">serde_json::Error</span>),
+<span class="attribute">#[derive(Debug, Fail)]
+</span><span class="kw">enum </span>RedisProjectError {
+    <span class="attribute">#[fail(display = <span class="string">&quot;failed to parse projectconfig from redis&quot;</span>)]
+    </span>Parsing(<span class="attribute">#[cause] </span>serde_json::Error),
 
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;failed to talk to redis&quot;</span>)]</span>
-    <span class="ident">Redis</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">RedisError</span>),
+    <span class="attribute">#[fail(display = <span class="string">&quot;failed to talk to redis&quot;</span>)]
+    </span>Redis(<span class="attribute">#[cause] </span>RedisError),
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">RedisError</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RedisProjectError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">e</span>: <span class="ident">RedisError</span>) -&gt; <span class="ident">RedisProjectError</span> {
-        <span class="ident">RedisProjectError::Redis</span>(<span class="ident">e</span>)
+<span class="kw">impl </span>From&lt;RedisError&gt; <span class="kw">for </span>RedisProjectError {
+    <span class="kw">fn </span>from(e: RedisError) -&gt; RedisProjectError {
+        RedisProjectError::Redis(e)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">serde_json::Error</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RedisProjectError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">e</span>: <span class="ident">serde_json::Error</span>) -&gt; <span class="ident">RedisProjectError</span> {
-        <span class="ident">RedisProjectError::Parsing</span>(<span class="ident">e</span>)
+<span class="kw">impl </span>From&lt;serde_json::Error&gt; <span class="kw">for </span>RedisProjectError {
+    <span class="kw">fn </span>from(e: serde_json::Error) -&gt; RedisProjectError {
+        RedisProjectError::Parsing(e)
     }
 }
 
-<span class="kw">fn</span> <span class="ident">parse_redis_response</span>(<span class="ident">raw_response</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ProjectState</span>, <span class="ident">RedisProjectError</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">decompression_result</span> <span class="op">=</span> <span class="macro">metric!</span>(<span class="ident">timer</span>(<span class="ident">RelayTimers::ProjectStateDecompression</span>), {
-        <span class="ident">zstd::decode_all</span>(<span class="ident">raw_response</span>)
+<span class="kw">fn </span>parse_redis_response(raw_response: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;ProjectState, RedisProjectError&gt; {
+    <span class="kw">let </span>decompression_result = <span class="macro">metric!</span>(timer(RelayTimers::ProjectStateDecompression), {
+        zstd::decode_all(raw_response)
     });
 
-    <span class="kw">let</span> <span class="ident">decoded_response</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">&amp;</span><span class="ident">decompression_result</span> {
-        <span class="prelude-val">Ok</span>(<span class="ident">decoded</span>) =&gt; {
+    <span class="kw">let </span>decoded_response = <span class="kw">match </span><span class="kw-2">&amp;</span>decompression_result {
+        <span class="prelude-val">Ok</span>(decoded) =&gt; {
             <span class="macro">metric!</span>(
-                <span class="ident">histogram</span>(<span class="ident">RelayHistograms::ProjectStateSizeBytesCompressed</span>) <span class="op">=</span>
-                    <span class="ident">raw_response</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">f64</span>
+                histogram(RelayHistograms::ProjectStateSizeBytesCompressed) =
+                    raw_response.len() <span class="kw">as </span>f64
             );
             <span class="macro">metric!</span>(
-                <span class="ident">histogram</span>(<span class="ident">RelayHistograms::ProjectStateSizeBytesDecompressed</span>) <span class="op">=</span>
-                    <span class="ident">decoded</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">f64</span>
+                histogram(RelayHistograms::ProjectStateSizeBytesDecompressed) =
+                    decoded.len() <span class="kw">as </span>f64
             );
-            <span class="ident">decoded</span>.<span class="ident">as_slice</span>()
+            decoded.as_slice()
         }
-        <span class="comment">// If decoding fails, assume uncompressed payload and try again</span>
-        <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="ident">raw_response</span>,
+        <span class="comment">// If decoding fails, assume uncompressed payload and try again
+        </span><span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; raw_response,
     };
 
-    <span class="prelude-val">Ok</span>(<span class="ident">serde_json::from_slice</span>(<span class="ident">decoded_response</span>)<span class="question-mark">?</span>)
+    <span class="prelude-val">Ok</span>(serde_json::from_slice(decoded_response)<span class="question-mark">?</span>)
 }
 
-<span class="kw">impl</span> <span class="ident">RedisProjectSource</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>, <span class="ident">redis</span>: <span class="ident">RedisPool</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">RedisProjectSource</span> { <span class="ident">config</span>, <span class="ident">redis</span> }
+<span class="kw">impl </span>RedisProjectSource {
+    <span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;, redis: RedisPool) -&gt; <span class="self">Self </span>{
+        RedisProjectSource { config, redis }
     }
 
-    <span class="kw">fn</span> <span class="ident">get_config</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">key</span>: <span class="ident">ProjectKey</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span>, <span class="ident">RedisProjectError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">command</span> <span class="op">=</span> <span class="ident">relay_redis::redis::cmd</span>(<span class="string">&quot;GET&quot;</span>);
+    <span class="kw">fn </span>get_config(<span class="kw-2">&amp;</span><span class="self">self</span>, key: ProjectKey) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;ProjectState&gt;, RedisProjectError&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>command = relay_redis::redis::cmd(<span class="string">&quot;GET&quot;</span>);
 
-        <span class="kw">let</span> <span class="ident">prefix</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">projectconfig_cache_prefix</span>();
-        <span class="ident">command</span>.<span class="ident">arg</span>(<span class="macro">format!</span>(<span class="string">&quot;{}:{}&quot;</span>, <span class="ident">prefix</span>, <span class="ident">key</span>));
+        <span class="kw">let </span>prefix = <span class="self">self</span>.config.projectconfig_cache_prefix();
+        command.arg(<span class="macro">format!</span>(<span class="string">&quot;{}:{}&quot;</span>, prefix, key));
 
-        <span class="kw">let</span> <span class="ident">raw_response_opt</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">command</span>
-            .<span class="ident">query</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">redis</span>.<span class="ident">client</span>()<span class="question-mark">?</span>.<span class="ident">connection</span>())
-            .<span class="ident">map_err</span>(<span class="ident">RedisError::Redis</span>)<span class="question-mark">?</span>;
+        <span class="kw">let </span>raw_response_opt: <span class="prelude-ty">Option</span>&lt;Vec&lt;u8&gt;&gt; = command
+            .query(<span class="kw-2">&amp;mut </span><span class="self">self</span>.redis.client()<span class="question-mark">?</span>.connection())
+            .map_err(RedisError::Redis)<span class="question-mark">?</span>;
 
-        <span class="kw">let</span> <span class="ident">response</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">raw_response_opt</span> {
-            <span class="prelude-val">Some</span>(<span class="ident">response</span>) =&gt; {
-                <span class="macro">metric!</span>(<span class="ident">counter</span>(<span class="ident">RelayCounters::ProjectStateRedis</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>, <span class="ident">hit</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>);
-                <span class="prelude-val">Some</span>(<span class="ident">parse_redis_response</span>(<span class="ident">response</span>.<span class="ident">as_slice</span>())<span class="question-mark">?</span>)
+        <span class="kw">let </span>response = <span class="kw">match </span>raw_response_opt {
+            <span class="prelude-val">Some</span>(response) =&gt; {
+                <span class="macro">metric!</span>(counter(RelayCounters::ProjectStateRedis) += <span class="number">1</span>, hit = <span class="string">&quot;true&quot;</span>);
+                <span class="prelude-val">Some</span>(parse_redis_response(response.as_slice())<span class="question-mark">?</span>)
             }
-            <span class="prelude-val">None</span> =&gt; {
+            <span class="prelude-val">None </span>=&gt; {
                 <span class="macro">metric!</span>(
-                    <span class="ident">counter</span>(<span class="ident">RelayCounters::ProjectStateRedis</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
-                    <span class="ident">hit</span> <span class="op">=</span> <span class="string">&quot;false&quot;</span>
-                );
-                <span class="prelude-val">None</span>
-            }
+                    counter(RelayCounters::ProjectStateRedis) += <span class="number">1</span>,
+                    hit = <span class="string">&quot;false&quot;
+                </span>);
+                <span class="prelude-val">None
+            </span>}
         };
 
-        <span class="prelude-val">Ok</span>(<span class="ident">response</span>)
+        <span class="prelude-val">Ok</span>(response)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Actor</span> <span class="kw">for</span> <span class="ident">RedisProjectSource</span> {
-    <span class="kw">type</span> <span class="ident">Context</span> <span class="op">=</span> <span class="ident">SyncContext</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>;
+<span class="kw">impl </span>Actor <span class="kw">for </span>RedisProjectSource {
+    <span class="kw">type </span>Context = SyncContext&lt;<span class="self">Self</span>&gt;;
 
-    <span class="kw">fn</span> <span class="ident">started</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) {
+    <span class="kw">fn </span>started(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _ctx: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) {
         <span class="macro">relay_log::info!</span>(<span class="string">&quot;redis project cache started&quot;</span>);
     }
 
-    <span class="kw">fn</span> <span class="ident">stopped</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) {
+    <span class="kw">fn </span>stopped(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _ctx: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) {
         <span class="macro">relay_log::info!</span>(<span class="string">&quot;redis project cache stopped&quot;</span>);
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">FetchOptionalProjectState</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RedisProjectSource</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span>;
+<span class="kw">impl </span>Handler&lt;FetchOptionalProjectState&gt; <span class="kw">for </span>RedisProjectSource {
+    <span class="kw">type </span><span class="prelude-ty">Result </span>= <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
-        <span class="ident">message</span>: <span class="ident">FetchOptionalProjectState</span>,
-        <span class="ident">_ctx</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>,
-    ) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
-        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">get_config</span>(<span class="ident">message</span>.<span class="ident">project_key</span>()) {
-            <span class="prelude-val">Ok</span>(<span class="ident">x</span>) =&gt; <span class="ident">x</span>.<span class="ident">map</span>(<span class="ident">ProjectState::sanitize</span>).<span class="ident">map</span>(<span class="ident">Arc::new</span>),
-            <span class="prelude-val">Err</span>(<span class="ident">e</span>) =&gt; {
-                <span class="macro">relay_log::error!</span>(<span class="string">&quot;Failed to fetch project from Redis: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">e</span>));
-                <span class="prelude-val">None</span>
-            }
+    <span class="kw">fn </span>handle(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        message: FetchOptionalProjectState,
+        _ctx: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context,
+    ) -&gt; <span class="self">Self</span>::Result {
+        <span class="kw">match </span><span class="self">self</span>.get_config(message.project_key()) {
+            <span class="prelude-val">Ok</span>(x) =&gt; x.map(ProjectState::sanitize).map(Arc::new),
+            <span class="prelude-val">Err</span>(e) =&gt; {
+                <span class="macro">relay_log::error!</span>(<span class="string">&quot;Failed to fetch project from Redis: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>e));
+                <span class="prelude-val">None
+            </span>}
         }
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_parse_redis_response</span>() {
-        <span class="kw">let</span> <span class="ident">raw_response</span> <span class="op">=</span> <span class="string">b&quot;{}&quot;</span>;
-        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">parse_redis_response</span>(<span class="ident">raw_response</span>);
-        <span class="macro">assert!</span>(<span class="ident">result</span>.<span class="ident">is_ok</span>());
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_parse_redis_response() {
+        <span class="kw">let </span>raw_response = <span class="string">b&quot;{}&quot;</span>;
+        <span class="kw">let </span>result = parse_redis_response(raw_response);
+        <span class="macro">assert!</span>(result.is_ok());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_parse_redis_response_compressed</span>() {
-        <span class="kw">let</span> <span class="ident">raw_response</span> <span class="op">=</span> <span class="string">b&quot;(\xb5/\xfd \x02\x11\x00\x00{}&quot;</span>; <span class="comment">// As dumped by python zstandard library</span>
-        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">parse_redis_response</span>(<span class="ident">raw_response</span>);
-        <span class="macro">assert!</span>(<span class="ident">result</span>.<span class="ident">is_ok</span>(), <span class="string">&quot;{:?}&quot;</span>, <span class="ident">result</span>);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_parse_redis_response_compressed() {
+        <span class="kw">let </span>raw_response = <span class="string">b&quot;(\xb5/\xfd \x02\x11\x00\x00{}&quot;</span>; <span class="comment">// As dumped by python zstandard library
+        </span><span class="kw">let </span>result = parse_redis_response(raw_response);
+        <span class="macro">assert!</span>(result.is_ok(), <span class="string">&quot;{:?}&quot;</span>, result);
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

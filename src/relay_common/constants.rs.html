@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-common/src/constants.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>constants.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_common/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_common/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-common/src/constants.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>constants.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_common/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_common/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_common/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -684,689 +684,689 @@
 <span id="682">682</span>
 <span id="683">683</span>
 <span id="684">684</span>
-</pre><pre class="rust"><code><span class="doccomment">//! Constants shared with the C-ABI and Sentry.</span>
+</pre><pre class="rust"><code><span class="doccomment">//! Constants shared with the C-ABI and Sentry.
 
-<span class="kw">use</span> <span class="ident">std::convert::TryInto</span>;
-<span class="kw">use</span> <span class="ident">std::fmt</span>;
-<span class="kw">use</span> <span class="ident">std::str::FromStr</span>;
+</span><span class="kw">use </span>std::convert::TryInto;
+<span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::str::FromStr;
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident">schemars::JsonSchema</span>;
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
+<span class="attribute">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+</span><span class="kw">use </span>schemars::JsonSchema;
+<span class="kw">use </span>serde::{Deserialize, Serialize};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::macros::impl_str_serde</span>;
+<span class="kw">use </span><span class="kw">crate</span>::macros::impl_str_serde;
 
-<span class="doccomment">/// The type of an event.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The event type determines how Sentry handles the event and has an impact on processing, rate</span>
-<span class="doccomment">/// limiting, and quotas. There are three fundamental classes of event types:</span>
-<span class="doccomment">///</span>
-<span class="doccomment">///  - **Error monitoring events** (`default`, `error`): Processed and grouped into unique issues</span>
-<span class="doccomment">///    based on their exception stack traces and error messages.</span>
-<span class="doccomment">///  - **Security events** (`csp`, `hpkp`, `expectct`, `expectstaple`): Derived from Browser</span>
-<span class="doccomment">///    security violation reports and grouped into unique issues based on the endpoint and</span>
-<span class="doccomment">///    violation. SDKs do not send such events.</span>
-<span class="doccomment">///  - **Transaction events** (`transaction`): Contain operation spans and collected into traces for</span>
-<span class="doccomment">///    performance monitoring.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">Hash</span>, <span class="ident">Ord</span>, <span class="ident">PartialEq</span>, <span class="ident">PartialOrd</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
-<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;lowercase&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">EventType</span> {
-    <span class="doccomment">/// Events that carry an exception payload.</span>
-    <span class="ident">Error</span>,
-    <span class="doccomment">/// A CSP violation payload.</span>
-    <span class="ident">Csp</span>,
-    <span class="doccomment">/// An HPKP violation payload.</span>
-    <span class="ident">Hpkp</span>,
-    <span class="doccomment">/// An ExpectCT violation payload.</span>
-    <span class="ident">ExpectCt</span>,
-    <span class="doccomment">/// An ExpectStaple violation payload.</span>
-    <span class="ident">ExpectStaple</span>,
-    <span class="doccomment">/// Performance monitoring transactions carrying spans.</span>
-    <span class="ident">Transaction</span>,
-    <span class="doccomment">/// All events that do not qualify as any other type.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">other</span>)]</span>
-    <span class="ident">Default</span>,
+<span class="doccomment">/// The type of an event.
+///
+/// The event type determines how Sentry handles the event and has an impact on processing, rate
+/// limiting, and quotas. There are three fundamental classes of event types:
+///
+///  - **Error monitoring events** (`default`, `error`): Processed and grouped into unique issues
+///    based on their exception stack traces and error messages.
+///  - **Security events** (`csp`, `hpkp`, `expectct`, `expectstaple`): Derived from Browser
+///    security violation reports and grouped into unique issues based on the endpoint and
+///    violation. SDKs do not send such events.
+///  - **Transaction events** (`transaction`): Contain operation spans and collected into traces for
+///    performance monitoring.
+</span><span class="attribute">#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
+#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[serde(rename_all = <span class="string">&quot;lowercase&quot;</span>)]
+</span><span class="kw">pub enum </span>EventType {
+    <span class="doccomment">/// Events that carry an exception payload.
+    </span>Error,
+    <span class="doccomment">/// A CSP violation payload.
+    </span>Csp,
+    <span class="doccomment">/// An HPKP violation payload.
+    </span>Hpkp,
+    <span class="doccomment">/// An ExpectCT violation payload.
+    </span>ExpectCt,
+    <span class="doccomment">/// An ExpectStaple violation payload.
+    </span>ExpectStaple,
+    <span class="doccomment">/// Performance monitoring transactions carrying spans.
+    </span>Transaction,
+    <span class="doccomment">/// All events that do not qualify as any other type.
+    </span><span class="attribute">#[serde(other)]
+    </span>Default,
 }
 
-<span class="doccomment">/// An error used when parsing `EventType`.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ParseEventTypeError</span>;
+<span class="doccomment">/// An error used when parsing `EventType`.
+</span><span class="attribute">#[derive(Clone, Copy, Debug)]
+</span><span class="kw">pub struct </span>ParseEventTypeError;
 
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">ParseEventTypeError</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;invalid event type&quot;</span>)
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>ParseEventTypeError {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;invalid event type&quot;</span>)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">std::error::Error</span> <span class="kw">for</span> <span class="ident">ParseEventTypeError</span> {}
+<span class="kw">impl </span>std::error::Error <span class="kw">for </span>ParseEventTypeError {}
 
-<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">EventType</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
-        <span class="ident">EventType::Default</span>
+<span class="kw">impl </span>Default <span class="kw">for </span>EventType {
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        EventType::Default
     }
 }
 
-<span class="kw">impl</span> <span class="ident">FromStr</span> <span class="kw">for</span> <span class="ident">EventType</span> {
-    <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="ident">ParseEventTypeError</span>;
+<span class="kw">impl </span>FromStr <span class="kw">for </span>EventType {
+    <span class="kw">type </span><span class="prelude-val">Err </span>= ParseEventTypeError;
 
-    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
-        <span class="prelude-val">Ok</span>(<span class="kw">match</span> <span class="ident">string</span> {
-            <span class="string">&quot;default&quot;</span> =&gt; <span class="ident">EventType::Default</span>,
-            <span class="string">&quot;error&quot;</span> =&gt; <span class="ident">EventType::Error</span>,
-            <span class="string">&quot;csp&quot;</span> =&gt; <span class="ident">EventType::Csp</span>,
-            <span class="string">&quot;hpkp&quot;</span> =&gt; <span class="ident">EventType::Hpkp</span>,
-            <span class="string">&quot;expectct&quot;</span> =&gt; <span class="ident">EventType::ExpectCt</span>,
-            <span class="string">&quot;expectstaple&quot;</span> =&gt; <span class="ident">EventType::ExpectStaple</span>,
-            <span class="string">&quot;transaction&quot;</span> =&gt; <span class="ident">EventType::Transaction</span>,
-            <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ParseEventTypeError</span>),
+    <span class="kw">fn </span>from_str(string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
+        <span class="prelude-val">Ok</span>(<span class="kw">match </span>string {
+            <span class="string">&quot;default&quot; </span>=&gt; EventType::Default,
+            <span class="string">&quot;error&quot; </span>=&gt; EventType::Error,
+            <span class="string">&quot;csp&quot; </span>=&gt; EventType::Csp,
+            <span class="string">&quot;hpkp&quot; </span>=&gt; EventType::Hpkp,
+            <span class="string">&quot;expectct&quot; </span>=&gt; EventType::ExpectCt,
+            <span class="string">&quot;expectstaple&quot; </span>=&gt; EventType::ExpectStaple,
+            <span class="string">&quot;transaction&quot; </span>=&gt; EventType::Transaction,
+            <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(ParseEventTypeError),
         })
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">EventType</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">EventType::Default</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;default&quot;</span>),
-            <span class="ident">EventType::Error</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;error&quot;</span>),
-            <span class="ident">EventType::Csp</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;csp&quot;</span>),
-            <span class="ident">EventType::Hpkp</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;hpkp&quot;</span>),
-            <span class="ident">EventType::ExpectCt</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;expectct&quot;</span>),
-            <span class="ident">EventType::ExpectStaple</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;expectstaple&quot;</span>),
-            <span class="ident">EventType::Transaction</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;transaction&quot;</span>),
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>EventType {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
+            EventType::Default =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;default&quot;</span>),
+            EventType::Error =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;error&quot;</span>),
+            EventType::Csp =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;csp&quot;</span>),
+            EventType::Hpkp =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;hpkp&quot;</span>),
+            EventType::ExpectCt =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;expectct&quot;</span>),
+            EventType::ExpectStaple =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;expectstaple&quot;</span>),
+            EventType::Transaction =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;transaction&quot;</span>),
         }
     }
 }
 
-<span class="doccomment">/// Classifies the type of data that is being ingested.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">Hash</span>, <span class="ident">Ord</span>, <span class="ident">PartialEq</span>, <span class="ident">PartialOrd</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;snake_case&quot;</span>)]</span>
-<span class="attribute">#[<span class="ident">repr</span>(<span class="ident">i8</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">DataCategory</span> {
-    <span class="doccomment">/// Reserved and unused.</span>
-    <span class="ident">Default</span> <span class="op">=</span> <span class="number">0</span>,
-    <span class="doccomment">/// Error events and Events with an `event_type` not explicitly listed below.</span>
-    <span class="ident">Error</span> <span class="op">=</span> <span class="number">1</span>,
-    <span class="doccomment">/// Transaction events.</span>
-    <span class="ident">Transaction</span> <span class="op">=</span> <span class="number">2</span>,
-    <span class="doccomment">/// Events with an event type of `csp`, `hpkp`, `expectct` and `expectstaple`.</span>
-    <span class="ident">Security</span> <span class="op">=</span> <span class="number">3</span>,
-    <span class="doccomment">/// An attachment. Quantity is the size of the attachment in bytes.</span>
-    <span class="ident">Attachment</span> <span class="op">=</span> <span class="number">4</span>,
-    <span class="doccomment">/// Session updates. Quantity is the number of updates in the batch.</span>
-    <span class="ident">Session</span> <span class="op">=</span> <span class="number">5</span>,
-    <span class="doccomment">/// A profile</span>
-    <span class="ident">Profile</span> <span class="op">=</span> <span class="number">6</span>,
-    <span class="doccomment">/// Session Replays</span>
-    <span class="ident">Replay</span> <span class="op">=</span> <span class="number">7</span>,
-    <span class="doccomment">/// DEPRECATED: A transaction for which metrics were extracted.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This category is now obsolete because the `Transaction` variant will represent</span>
-    <span class="doccomment">/// processed transactions from now on.</span>
-    <span class="ident">TransactionProcessed</span> <span class="op">=</span> <span class="number">8</span>,
-    <span class="doccomment">/// Indexed transaction events.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This is the category for transaction payloads that were accepted and stored in full. In</span>
-    <span class="doccomment">/// contrast, `transaction` only guarantees that metrics have been accepted for the transaction.</span>
-    <span class="ident">TransactionIndexed</span> <span class="op">=</span> <span class="number">9</span>,
-    <span class="comment">//</span>
-    <span class="comment">// IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run</span>
-    <span class="comment">// `make header` to regenerate the C-binding. This allows using the data category from Python.</span>
-    <span class="comment">// Rerun this step every time the **code name** of the variant is updated.</span>
-    <span class="comment">//</span>
-    <span class="doccomment">/// Any other data category not known by this Relay.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">other</span>)]</span>
-    <span class="ident">Unknown</span> <span class="op">=</span> <span class="op">-</span><span class="number">1</span>,
+<span class="doccomment">/// Classifies the type of data that is being ingested.
+</span><span class="attribute">#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
+#[serde(rename_all = <span class="string">&quot;snake_case&quot;</span>)]
+#[repr(i8)]
+</span><span class="kw">pub enum </span>DataCategory {
+    <span class="doccomment">/// Reserved and unused.
+    </span>Default = <span class="number">0</span>,
+    <span class="doccomment">/// Error events and Events with an `event_type` not explicitly listed below.
+    </span>Error = <span class="number">1</span>,
+    <span class="doccomment">/// Transaction events.
+    </span>Transaction = <span class="number">2</span>,
+    <span class="doccomment">/// Events with an event type of `csp`, `hpkp`, `expectct` and `expectstaple`.
+    </span>Security = <span class="number">3</span>,
+    <span class="doccomment">/// An attachment. Quantity is the size of the attachment in bytes.
+    </span>Attachment = <span class="number">4</span>,
+    <span class="doccomment">/// Session updates. Quantity is the number of updates in the batch.
+    </span>Session = <span class="number">5</span>,
+    <span class="doccomment">/// A profile
+    </span>Profile = <span class="number">6</span>,
+    <span class="doccomment">/// Session Replays
+    </span>Replay = <span class="number">7</span>,
+    <span class="doccomment">/// DEPRECATED: A transaction for which metrics were extracted.
+    ///
+    /// This category is now obsolete because the `Transaction` variant will represent
+    /// processed transactions from now on.
+    </span>TransactionProcessed = <span class="number">8</span>,
+    <span class="doccomment">/// Indexed transaction events.
+    ///
+    /// This is the category for transaction payloads that were accepted and stored in full. In
+    /// contrast, `transaction` only guarantees that metrics have been accepted for the transaction.
+    </span>TransactionIndexed = <span class="number">9</span>,
+    <span class="comment">//
+    // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
+    // `make header` to regenerate the C-binding. This allows using the data category from Python.
+    // Rerun this step every time the **code name** of the variant is updated.
+    //
+    </span><span class="doccomment">/// Any other data category not known by this Relay.
+    </span><span class="attribute">#[serde(other)]
+    </span>Unknown = -<span class="number">1</span>,
 }
 
-<span class="kw">impl</span> <span class="ident">DataCategory</span> {
-    <span class="doccomment">/// Returns the data category corresponding to the given name.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_name</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="self">Self</span> {
-        <span class="comment">// TODO: This should probably use serde.</span>
-        <span class="kw">match</span> <span class="ident">string</span> {
-            <span class="string">&quot;default&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Default</span>,
-            <span class="string">&quot;error&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Error</span>,
-            <span class="string">&quot;transaction&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Transaction</span>,
-            <span class="string">&quot;security&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Security</span>,
-            <span class="string">&quot;attachment&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Attachment</span>,
-            <span class="string">&quot;session&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Session</span>,
-            <span class="string">&quot;profile&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Profile</span>,
-            <span class="string">&quot;replay&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Replay</span>,
-            <span class="string">&quot;transaction_processed&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::TransactionProcessed</span>,
-            <span class="string">&quot;transaction_indexed&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::TransactionIndexed</span>,
-            <span class="kw">_</span> =&gt; <span class="ident"><span class="self">Self</span>::Unknown</span>,
+<span class="kw">impl </span>DataCategory {
+    <span class="doccomment">/// Returns the data category corresponding to the given name.
+    </span><span class="kw">pub fn </span>from_name(string: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
+        <span class="comment">// TODO: This should probably use serde.
+        </span><span class="kw">match </span>string {
+            <span class="string">&quot;default&quot; </span>=&gt; <span class="self">Self</span>::Default,
+            <span class="string">&quot;error&quot; </span>=&gt; <span class="self">Self</span>::Error,
+            <span class="string">&quot;transaction&quot; </span>=&gt; <span class="self">Self</span>::Transaction,
+            <span class="string">&quot;security&quot; </span>=&gt; <span class="self">Self</span>::Security,
+            <span class="string">&quot;attachment&quot; </span>=&gt; <span class="self">Self</span>::Attachment,
+            <span class="string">&quot;session&quot; </span>=&gt; <span class="self">Self</span>::Session,
+            <span class="string">&quot;profile&quot; </span>=&gt; <span class="self">Self</span>::Profile,
+            <span class="string">&quot;replay&quot; </span>=&gt; <span class="self">Self</span>::Replay,
+            <span class="string">&quot;transaction_processed&quot; </span>=&gt; <span class="self">Self</span>::TransactionProcessed,
+            <span class="string">&quot;transaction_indexed&quot; </span>=&gt; <span class="self">Self</span>::TransactionIndexed,
+            <span class="kw">_ </span>=&gt; <span class="self">Self</span>::Unknown,
         }
     }
 
-    <span class="doccomment">/// Returns the canonical name of this data category.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">name</span>(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
-        <span class="comment">// TODO: This should probably use serde.</span>
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident"><span class="self">Self</span>::Default</span> =&gt; <span class="string">&quot;default&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::Error</span> =&gt; <span class="string">&quot;error&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::Transaction</span> =&gt; <span class="string">&quot;transaction&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::Security</span> =&gt; <span class="string">&quot;security&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::Attachment</span> =&gt; <span class="string">&quot;attachment&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::Session</span> =&gt; <span class="string">&quot;session&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::Profile</span> =&gt; <span class="string">&quot;profile&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::Replay</span> =&gt; <span class="string">&quot;replay&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::TransactionProcessed</span> =&gt; <span class="string">&quot;transaction_processed&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::TransactionIndexed</span> =&gt; <span class="string">&quot;transaction_indexed&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::Unknown</span> =&gt; <span class="string">&quot;unknown&quot;</span>,
+    <span class="doccomment">/// Returns the canonical name of this data category.
+    </span><span class="kw">pub fn </span>name(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="comment">// TODO: This should probably use serde.
+        </span><span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::Default =&gt; <span class="string">&quot;default&quot;</span>,
+            <span class="self">Self</span>::Error =&gt; <span class="string">&quot;error&quot;</span>,
+            <span class="self">Self</span>::Transaction =&gt; <span class="string">&quot;transaction&quot;</span>,
+            <span class="self">Self</span>::Security =&gt; <span class="string">&quot;security&quot;</span>,
+            <span class="self">Self</span>::Attachment =&gt; <span class="string">&quot;attachment&quot;</span>,
+            <span class="self">Self</span>::Session =&gt; <span class="string">&quot;session&quot;</span>,
+            <span class="self">Self</span>::Profile =&gt; <span class="string">&quot;profile&quot;</span>,
+            <span class="self">Self</span>::Replay =&gt; <span class="string">&quot;replay&quot;</span>,
+            <span class="self">Self</span>::TransactionProcessed =&gt; <span class="string">&quot;transaction_processed&quot;</span>,
+            <span class="self">Self</span>::TransactionIndexed =&gt; <span class="string">&quot;transaction_indexed&quot;</span>,
+            <span class="self">Self</span>::Unknown =&gt; <span class="string">&quot;unknown&quot;</span>,
         }
     }
 
-    <span class="doccomment">/// Returns true if the DataCategory refers to an error (i.e an error event).</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_error</span>(<span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="macro">matches!</span>(<span class="self">self</span>, <span class="ident"><span class="self">Self</span>::Error</span> <span class="op">|</span> <span class="ident"><span class="self">Self</span>::Default</span> <span class="op">|</span> <span class="ident"><span class="self">Self</span>::Security</span>)
+    <span class="doccomment">/// Returns true if the DataCategory refers to an error (i.e an error event).
+    </span><span class="kw">pub fn </span>is_error(<span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, <span class="self">Self</span>::Error | <span class="self">Self</span>::Default | <span class="self">Self</span>::Security)
     }
 
-    <span class="doccomment">/// Returns the numeric value for this outcome.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">value</span>(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
-        <span class="comment">// negative values (Internal and Unknown) cannot be sent as</span>
-        <span class="comment">// outcomes (internally so!)</span>
-        (<span class="self">self</span> <span class="kw">as</span> <span class="ident">i8</span>).<span class="ident">try_into</span>().<span class="ident">ok</span>()
+    <span class="doccomment">/// Returns the numeric value for this outcome.
+    </span><span class="kw">pub fn </span>value(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;u8&gt; {
+        <span class="comment">// negative values (Internal and Unknown) cannot be sent as
+        // outcomes (internally so!)
+        </span>(<span class="self">self </span><span class="kw">as </span>i8).try_into().ok()
     }
 
-    <span class="doccomment">/// Returns a dedicated category for indexing if this data can be converted to metrics.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This returns `None` for most data categories.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">index_category</span>(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident"><span class="self">Self</span>::Transaction</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident"><span class="self">Self</span>::TransactionIndexed</span>),
-            <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
+    <span class="doccomment">/// Returns a dedicated category for indexing if this data can be converted to metrics.
+    ///
+    /// This returns `None` for most data categories.
+    </span><span class="kw">pub fn </span>index_category(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::Transaction =&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::TransactionIndexed),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">DataCategory</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.<span class="ident">name</span>())
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>DataCategory {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.name())
     }
 }
 
-<span class="kw">impl</span> <span class="ident">FromStr</span> <span class="kw">for</span> <span class="ident">DataCategory</span> {
-    <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> ();
+<span class="kw">impl </span>FromStr <span class="kw">for </span>DataCategory {
+    <span class="kw">type </span><span class="prelude-val">Err </span>= ();
 
-    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
-        <span class="prelude-val">Ok</span>(<span class="ident"><span class="self">Self</span>::from_name</span>(<span class="ident">string</span>))
+    <span class="kw">fn </span>from_str(string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
+        <span class="prelude-val">Ok</span>(<span class="self">Self</span>::from_name(string))
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">EventType</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">DataCategory</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">ty</span>: <span class="ident">EventType</span>) -&gt; <span class="self">Self</span> {
-        <span class="kw">match</span> <span class="ident">ty</span> {
-            <span class="ident">EventType::Default</span> <span class="op">|</span> <span class="ident">EventType::Error</span> =&gt; <span class="ident"><span class="self">Self</span>::Error</span>,
-            <span class="ident">EventType::Transaction</span> =&gt; <span class="ident"><span class="self">Self</span>::Transaction</span>,
-            <span class="ident">EventType::Csp</span> <span class="op">|</span> <span class="ident">EventType::Hpkp</span> <span class="op">|</span> <span class="ident">EventType::ExpectCt</span> <span class="op">|</span> <span class="ident">EventType::ExpectStaple</span> =&gt; {
-                <span class="ident"><span class="self">Self</span>::Security</span>
+<span class="kw">impl </span>From&lt;EventType&gt; <span class="kw">for </span>DataCategory {
+    <span class="kw">fn </span>from(ty: EventType) -&gt; <span class="self">Self </span>{
+        <span class="kw">match </span>ty {
+            EventType::Default | EventType::Error =&gt; <span class="self">Self</span>::Error,
+            EventType::Transaction =&gt; <span class="self">Self</span>::Transaction,
+            EventType::Csp | EventType::Hpkp | EventType::ExpectCt | EventType::ExpectStaple =&gt; {
+                <span class="self">Self</span>::Security
             }
         }
     }
 }
 
-<span class="doccomment">/// Trace status.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Values from &lt;https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e75a9aaa64b0dbbdf02a6067682a/specification/api-tracing.md#status&gt;</span>
-<span class="doccomment">/// Mapping to HTTP from &lt;https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e75a9aaa64b0dbbdf02a6067682a/specification/data-http.md#status&gt;</span>
-<span class="comment">//</span>
-<span class="comment">// Note: This type is represented as a u8 in Snuba/Clickhouse, with Unknown being the default</span>
-<span class="comment">// value. We use repr(u8) to statically validate that the trace status has 255 variants at most.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Serialize</span>)]</span>
-<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;snake_case&quot;</span>)]</span>
-<span class="attribute">#[<span class="ident">repr</span>(<span class="ident">u8</span>)]</span> <span class="comment">// size limit in clickhouse</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">SpanStatus</span> {
-    <span class="doccomment">/// The operation completed successfully.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// HTTP status 100..299 + successful redirects from the 3xx range.</span>
-    <span class="prelude-val">Ok</span> <span class="op">=</span> <span class="number">0</span>,
+<span class="doccomment">/// Trace status.
+///
+/// Values from &lt;https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e75a9aaa64b0dbbdf02a6067682a/specification/api-tracing.md#status&gt;
+/// Mapping to HTTP from &lt;https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e75a9aaa64b0dbbdf02a6067682a/specification/data-http.md#status&gt;
+</span><span class="comment">//
+// Note: This type is represented as a u8 in Snuba/Clickhouse, with Unknown being the default
+// value. We use repr(u8) to statically validate that the trace status has 255 variants at most.
+</span><span class="attribute">#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+#[serde(rename_all = <span class="string">&quot;snake_case&quot;</span>)]
+#[repr(u8)] </span><span class="comment">// size limit in clickhouse
+</span><span class="kw">pub enum </span>SpanStatus {
+    <span class="doccomment">/// The operation completed successfully.
+    ///
+    /// HTTP status 100..299 + successful redirects from the 3xx range.
+    </span><span class="prelude-val">Ok </span>= <span class="number">0</span>,
 
-    <span class="doccomment">/// The operation was cancelled (typically by the user).</span>
-    <span class="ident">Cancelled</span> <span class="op">=</span> <span class="number">1</span>,
+    <span class="doccomment">/// The operation was cancelled (typically by the user).
+    </span>Cancelled = <span class="number">1</span>,
 
-    <span class="doccomment">/// Unknown. Any non-standard HTTP status code.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// &quot;We do not know whether the transaction failed or succeeded&quot;</span>
-    <span class="ident">Unknown</span> <span class="op">=</span> <span class="number">2</span>,
+    <span class="doccomment">/// Unknown. Any non-standard HTTP status code.
+    ///
+    /// &quot;We do not know whether the transaction failed or succeeded&quot;
+    </span>Unknown = <span class="number">2</span>,
 
-    <span class="doccomment">/// Client specified an invalid argument. 4xx.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Note that this differs from FailedPrecondition. InvalidArgument indicates arguments that</span>
-    <span class="doccomment">/// are problematic regardless of the state of the system.</span>
-    <span class="ident">InvalidArgument</span> <span class="op">=</span> <span class="number">3</span>,
+    <span class="doccomment">/// Client specified an invalid argument. 4xx.
+    ///
+    /// Note that this differs from FailedPrecondition. InvalidArgument indicates arguments that
+    /// are problematic regardless of the state of the system.
+    </span>InvalidArgument = <span class="number">3</span>,
 
-    <span class="doccomment">/// Deadline expired before operation could complete.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// For operations that change the state of the system, this error may be returned even if the</span>
-    <span class="doccomment">/// operation has been completed successfully.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// HTTP redirect loops and 504 Gateway Timeout</span>
-    <span class="ident">DeadlineExceeded</span> <span class="op">=</span> <span class="number">4</span>,
+    <span class="doccomment">/// Deadline expired before operation could complete.
+    ///
+    /// For operations that change the state of the system, this error may be returned even if the
+    /// operation has been completed successfully.
+    ///
+    /// HTTP redirect loops and 504 Gateway Timeout
+    </span>DeadlineExceeded = <span class="number">4</span>,
 
-    <span class="doccomment">/// 404 Not Found. Some requested entity (file or directory) was not found.</span>
-    <span class="ident">NotFound</span> <span class="op">=</span> <span class="number">5</span>,
+    <span class="doccomment">/// 404 Not Found. Some requested entity (file or directory) was not found.
+    </span>NotFound = <span class="number">5</span>,
 
-    <span class="doccomment">/// Already exists (409)</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Some entity that we attempted to create already exists.</span>
-    <span class="ident">AlreadyExists</span> <span class="op">=</span> <span class="number">6</span>,
+    <span class="doccomment">/// Already exists (409)
+    ///
+    /// Some entity that we attempted to create already exists.
+    </span>AlreadyExists = <span class="number">6</span>,
 
-    <span class="doccomment">/// 403 Forbidden</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The caller does not have permission to execute the specified operation.</span>
-    <span class="ident">PermissionDenied</span> <span class="op">=</span> <span class="number">7</span>,
+    <span class="doccomment">/// 403 Forbidden
+    ///
+    /// The caller does not have permission to execute the specified operation.
+    </span>PermissionDenied = <span class="number">7</span>,
 
-    <span class="doccomment">/// 429 Too Many Requests</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Some resource has been exhausted, perhaps a per-user quota or perhaps the entire file</span>
-    <span class="doccomment">/// system is out of space.</span>
-    <span class="ident">ResourceExhausted</span> <span class="op">=</span> <span class="number">8</span>,
+    <span class="doccomment">/// 429 Too Many Requests
+    ///
+    /// Some resource has been exhausted, perhaps a per-user quota or perhaps the entire file
+    /// system is out of space.
+    </span>ResourceExhausted = <span class="number">8</span>,
 
-    <span class="doccomment">/// Operation was rejected because the system is not in a state required for the operation&#39;s</span>
-    <span class="doccomment">/// execution</span>
-    <span class="ident">FailedPrecondition</span> <span class="op">=</span> <span class="number">9</span>,
+    <span class="doccomment">/// Operation was rejected because the system is not in a state required for the operation&#39;s
+    /// execution
+    </span>FailedPrecondition = <span class="number">9</span>,
 
-    <span class="doccomment">/// The operation was aborted, typically due to a concurrency issue.</span>
-    <span class="ident">Aborted</span> <span class="op">=</span> <span class="number">10</span>,
+    <span class="doccomment">/// The operation was aborted, typically due to a concurrency issue.
+    </span>Aborted = <span class="number">10</span>,
 
-    <span class="doccomment">/// Operation was attempted past the valid range.</span>
-    <span class="ident">OutOfRange</span> <span class="op">=</span> <span class="number">11</span>,
+    <span class="doccomment">/// Operation was attempted past the valid range.
+    </span>OutOfRange = <span class="number">11</span>,
 
-    <span class="doccomment">/// 501 Not Implemented</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Operation is not implemented or not enabled.</span>
-    <span class="ident">Unimplemented</span> <span class="op">=</span> <span class="number">12</span>,
+    <span class="doccomment">/// 501 Not Implemented
+    ///
+    /// Operation is not implemented or not enabled.
+    </span>Unimplemented = <span class="number">12</span>,
 
-    <span class="doccomment">/// Other/generic 5xx.</span>
-    <span class="ident">InternalError</span> <span class="op">=</span> <span class="number">13</span>,
+    <span class="doccomment">/// Other/generic 5xx.
+    </span>InternalError = <span class="number">13</span>,
 
-    <span class="doccomment">/// 503 Service Unavailable</span>
-    <span class="ident">Unavailable</span> <span class="op">=</span> <span class="number">14</span>,
+    <span class="doccomment">/// 503 Service Unavailable
+    </span>Unavailable = <span class="number">14</span>,
 
-    <span class="doccomment">/// Unrecoverable data loss or corruption</span>
-    <span class="ident">DataLoss</span> <span class="op">=</span> <span class="number">15</span>,
+    <span class="doccomment">/// Unrecoverable data loss or corruption
+    </span>DataLoss = <span class="number">15</span>,
 
-    <span class="doccomment">/// 401 Unauthorized (actually does mean unauthenticated according to RFC 7235)</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Prefer PermissionDenied if a user is logged in.</span>
-    <span class="ident">Unauthenticated</span> <span class="op">=</span> <span class="number">16</span>,
+    <span class="doccomment">/// 401 Unauthorized (actually does mean unauthenticated according to RFC 7235)
+    ///
+    /// Prefer PermissionDenied if a user is logged in.
+    </span>Unauthenticated = <span class="number">16</span>,
 }
 
-<span class="doccomment">/// Error parsing a `SpanStatus`.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ParseSpanStatusError</span>;
+<span class="doccomment">/// Error parsing a `SpanStatus`.
+</span><span class="attribute">#[derive(Clone, Copy, Debug)]
+</span><span class="kw">pub struct </span>ParseSpanStatusError;
 
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">ParseSpanStatusError</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;invalid span status&quot;</span>)
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>ParseSpanStatusError {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;invalid span status&quot;</span>)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">std::error::Error</span> <span class="kw">for</span> <span class="ident">ParseSpanStatusError</span> {}
+<span class="kw">impl </span>std::error::Error <span class="kw">for </span>ParseSpanStatusError {}
 
-<span class="kw">impl</span> <span class="ident">FromStr</span> <span class="kw">for</span> <span class="ident">SpanStatus</span> {
-    <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="ident">ParseSpanStatusError</span>;
+<span class="kw">impl </span>FromStr <span class="kw">for </span>SpanStatus {
+    <span class="kw">type </span><span class="prelude-val">Err </span>= ParseSpanStatusError;
 
-    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SpanStatus</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
-        <span class="prelude-val">Ok</span>(<span class="kw">match</span> <span class="ident">string</span> {
-            <span class="string">&quot;ok&quot;</span> =&gt; <span class="ident">SpanStatus::Ok</span>,
-            <span class="string">&quot;success&quot;</span> =&gt; <span class="ident">SpanStatus::Ok</span>, <span class="comment">// Backwards compat with initial schema</span>
-            <span class="string">&quot;deadline_exceeded&quot;</span> =&gt; <span class="ident">SpanStatus::DeadlineExceeded</span>,
-            <span class="string">&quot;unauthenticated&quot;</span> =&gt; <span class="ident">SpanStatus::Unauthenticated</span>,
-            <span class="string">&quot;permission_denied&quot;</span> =&gt; <span class="ident">SpanStatus::PermissionDenied</span>,
-            <span class="string">&quot;not_found&quot;</span> =&gt; <span class="ident">SpanStatus::NotFound</span>,
-            <span class="string">&quot;resource_exhausted&quot;</span> =&gt; <span class="ident">SpanStatus::ResourceExhausted</span>,
-            <span class="string">&quot;invalid_argument&quot;</span> =&gt; <span class="ident">SpanStatus::InvalidArgument</span>,
-            <span class="string">&quot;unimplemented&quot;</span> =&gt; <span class="ident">SpanStatus::Unimplemented</span>,
-            <span class="string">&quot;unavailable&quot;</span> =&gt; <span class="ident">SpanStatus::Unavailable</span>,
-            <span class="string">&quot;internal_error&quot;</span> =&gt; <span class="ident">SpanStatus::InternalError</span>,
-            <span class="string">&quot;failure&quot;</span> =&gt; <span class="ident">SpanStatus::InternalError</span>, <span class="comment">// Backwards compat with initial schema</span>
-            <span class="string">&quot;unknown&quot;</span> <span class="op">|</span> <span class="string">&quot;unknown_error&quot;</span> =&gt; <span class="ident">SpanStatus::Unknown</span>,
-            <span class="string">&quot;cancelled&quot;</span> =&gt; <span class="ident">SpanStatus::Cancelled</span>,
-            <span class="string">&quot;already_exists&quot;</span> =&gt; <span class="ident">SpanStatus::AlreadyExists</span>,
-            <span class="string">&quot;failed_precondition&quot;</span> =&gt; <span class="ident">SpanStatus::FailedPrecondition</span>,
-            <span class="string">&quot;aborted&quot;</span> =&gt; <span class="ident">SpanStatus::Aborted</span>,
-            <span class="string">&quot;out_of_range&quot;</span> =&gt; <span class="ident">SpanStatus::OutOfRange</span>,
-            <span class="string">&quot;data_loss&quot;</span> =&gt; <span class="ident">SpanStatus::DataLoss</span>,
-            <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ParseSpanStatusError</span>),
+    <span class="kw">fn </span>from_str(string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;SpanStatus, <span class="self">Self</span>::Err&gt; {
+        <span class="prelude-val">Ok</span>(<span class="kw">match </span>string {
+            <span class="string">&quot;ok&quot; </span>=&gt; SpanStatus::Ok,
+            <span class="string">&quot;success&quot; </span>=&gt; SpanStatus::Ok, <span class="comment">// Backwards compat with initial schema
+            </span><span class="string">&quot;deadline_exceeded&quot; </span>=&gt; SpanStatus::DeadlineExceeded,
+            <span class="string">&quot;unauthenticated&quot; </span>=&gt; SpanStatus::Unauthenticated,
+            <span class="string">&quot;permission_denied&quot; </span>=&gt; SpanStatus::PermissionDenied,
+            <span class="string">&quot;not_found&quot; </span>=&gt; SpanStatus::NotFound,
+            <span class="string">&quot;resource_exhausted&quot; </span>=&gt; SpanStatus::ResourceExhausted,
+            <span class="string">&quot;invalid_argument&quot; </span>=&gt; SpanStatus::InvalidArgument,
+            <span class="string">&quot;unimplemented&quot; </span>=&gt; SpanStatus::Unimplemented,
+            <span class="string">&quot;unavailable&quot; </span>=&gt; SpanStatus::Unavailable,
+            <span class="string">&quot;internal_error&quot; </span>=&gt; SpanStatus::InternalError,
+            <span class="string">&quot;failure&quot; </span>=&gt; SpanStatus::InternalError, <span class="comment">// Backwards compat with initial schema
+            </span><span class="string">&quot;unknown&quot; </span>| <span class="string">&quot;unknown_error&quot; </span>=&gt; SpanStatus::Unknown,
+            <span class="string">&quot;cancelled&quot; </span>=&gt; SpanStatus::Cancelled,
+            <span class="string">&quot;already_exists&quot; </span>=&gt; SpanStatus::AlreadyExists,
+            <span class="string">&quot;failed_precondition&quot; </span>=&gt; SpanStatus::FailedPrecondition,
+            <span class="string">&quot;aborted&quot; </span>=&gt; SpanStatus::Aborted,
+            <span class="string">&quot;out_of_range&quot; </span>=&gt; SpanStatus::OutOfRange,
+            <span class="string">&quot;data_loss&quot; </span>=&gt; SpanStatus::DataLoss,
+            <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(ParseSpanStatusError),
         })
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">SpanStatus</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">SpanStatus::Ok</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;ok&quot;</span>),
-            <span class="ident">SpanStatus::DeadlineExceeded</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;deadline_exceeded&quot;</span>),
-            <span class="ident">SpanStatus::Unauthenticated</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;unauthenticated&quot;</span>),
-            <span class="ident">SpanStatus::PermissionDenied</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;permission_denied&quot;</span>),
-            <span class="ident">SpanStatus::NotFound</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;not_found&quot;</span>),
-            <span class="ident">SpanStatus::ResourceExhausted</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;resource_exhausted&quot;</span>),
-            <span class="ident">SpanStatus::InvalidArgument</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;invalid_argument&quot;</span>),
-            <span class="ident">SpanStatus::Unimplemented</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;unimplemented&quot;</span>),
-            <span class="ident">SpanStatus::Unavailable</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;unavailable&quot;</span>),
-            <span class="ident">SpanStatus::InternalError</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;internal_error&quot;</span>),
-            <span class="ident">SpanStatus::Unknown</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;unknown&quot;</span>),
-            <span class="ident">SpanStatus::Cancelled</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;cancelled&quot;</span>),
-            <span class="ident">SpanStatus::AlreadyExists</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;already_exists&quot;</span>),
-            <span class="ident">SpanStatus::FailedPrecondition</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;failed_precondition&quot;</span>),
-            <span class="ident">SpanStatus::Aborted</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;aborted&quot;</span>),
-            <span class="ident">SpanStatus::OutOfRange</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;out_of_range&quot;</span>),
-            <span class="ident">SpanStatus::DataLoss</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;data_loss&quot;</span>),
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>SpanStatus {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
+            SpanStatus::Ok =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;ok&quot;</span>),
+            SpanStatus::DeadlineExceeded =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;deadline_exceeded&quot;</span>),
+            SpanStatus::Unauthenticated =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;unauthenticated&quot;</span>),
+            SpanStatus::PermissionDenied =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;permission_denied&quot;</span>),
+            SpanStatus::NotFound =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;not_found&quot;</span>),
+            SpanStatus::ResourceExhausted =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;resource_exhausted&quot;</span>),
+            SpanStatus::InvalidArgument =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;invalid_argument&quot;</span>),
+            SpanStatus::Unimplemented =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;unimplemented&quot;</span>),
+            SpanStatus::Unavailable =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;unavailable&quot;</span>),
+            SpanStatus::InternalError =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;internal_error&quot;</span>),
+            SpanStatus::Unknown =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;unknown&quot;</span>),
+            SpanStatus::Cancelled =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;cancelled&quot;</span>),
+            SpanStatus::AlreadyExists =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;already_exists&quot;</span>),
+            SpanStatus::FailedPrecondition =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;failed_precondition&quot;</span>),
+            SpanStatus::Aborted =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;aborted&quot;</span>),
+            SpanStatus::OutOfRange =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;out_of_range&quot;</span>),
+            SpanStatus::DataLoss =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;data_loss&quot;</span>),
         }
     }
 }
 
-<span class="doccomment">/// Time duration units used in [`MetricUnit::Duration`].</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Defaults to `millisecond`.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">DurationUnit</span> {
-    <span class="doccomment">/// Nanosecond (`&quot;nanosecond&quot;`), 10^-9 seconds.</span>
-    <span class="ident">NanoSecond</span>,
-    <span class="doccomment">/// Microsecond (`&quot;microsecond&quot;`), 10^-6 seconds.</span>
-    <span class="ident">MicroSecond</span>,
-    <span class="doccomment">/// Millisecond (`&quot;millisecond&quot;`), 10^-3 seconds.</span>
-    <span class="ident">MilliSecond</span>,
-    <span class="doccomment">/// Full second (`&quot;second&quot;`).</span>
-    <span class="ident">Second</span>,
-    <span class="doccomment">/// Minute (`&quot;minute&quot;`), 60 seconds.</span>
-    <span class="ident">Minute</span>,
-    <span class="doccomment">/// Hour (`&quot;hour&quot;`), 3600 seconds.</span>
-    <span class="ident">Hour</span>,
-    <span class="doccomment">/// Day (`&quot;day&quot;`), 86,400 seconds.</span>
-    <span class="ident">Day</span>,
-    <span class="doccomment">/// Week (`&quot;week&quot;`), 604,800 seconds.</span>
-    <span class="ident">Week</span>,
+<span class="doccomment">/// Time duration units used in [`MetricUnit::Duration`].
+///
+/// Defaults to `millisecond`.
+</span><span class="attribute">#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+</span><span class="kw">pub enum </span>DurationUnit {
+    <span class="doccomment">/// Nanosecond (`&quot;nanosecond&quot;`), 10^-9 seconds.
+    </span>NanoSecond,
+    <span class="doccomment">/// Microsecond (`&quot;microsecond&quot;`), 10^-6 seconds.
+    </span>MicroSecond,
+    <span class="doccomment">/// Millisecond (`&quot;millisecond&quot;`), 10^-3 seconds.
+    </span>MilliSecond,
+    <span class="doccomment">/// Full second (`&quot;second&quot;`).
+    </span>Second,
+    <span class="doccomment">/// Minute (`&quot;minute&quot;`), 60 seconds.
+    </span>Minute,
+    <span class="doccomment">/// Hour (`&quot;hour&quot;`), 3600 seconds.
+    </span>Hour,
+    <span class="doccomment">/// Day (`&quot;day&quot;`), 86,400 seconds.
+    </span>Day,
+    <span class="doccomment">/// Week (`&quot;week&quot;`), 604,800 seconds.
+    </span>Week,
 }
 
-<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">DurationUnit</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
-        <span class="ident"><span class="self">Self</span>::MilliSecond</span>
+<span class="kw">impl </span>Default <span class="kw">for </span>DurationUnit {
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::MilliSecond
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">DurationUnit</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident"><span class="self">Self</span>::NanoSecond</span> =&gt; <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;nanosecond&quot;</span>),
-            <span class="ident"><span class="self">Self</span>::MicroSecond</span> =&gt; <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;microsecond&quot;</span>),
-            <span class="ident"><span class="self">Self</span>::MilliSecond</span> =&gt; <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;millisecond&quot;</span>),
-            <span class="ident"><span class="self">Self</span>::Second</span> =&gt; <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;second&quot;</span>),
-            <span class="ident"><span class="self">Self</span>::Minute</span> =&gt; <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;minute&quot;</span>),
-            <span class="ident"><span class="self">Self</span>::Hour</span> =&gt; <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;hour&quot;</span>),
-            <span class="ident"><span class="self">Self</span>::Day</span> =&gt; <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;day&quot;</span>),
-            <span class="ident"><span class="self">Self</span>::Week</span> =&gt; <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;week&quot;</span>),
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>DurationUnit {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::NanoSecond =&gt; f.write_str(<span class="string">&quot;nanosecond&quot;</span>),
+            <span class="self">Self</span>::MicroSecond =&gt; f.write_str(<span class="string">&quot;microsecond&quot;</span>),
+            <span class="self">Self</span>::MilliSecond =&gt; f.write_str(<span class="string">&quot;millisecond&quot;</span>),
+            <span class="self">Self</span>::Second =&gt; f.write_str(<span class="string">&quot;second&quot;</span>),
+            <span class="self">Self</span>::Minute =&gt; f.write_str(<span class="string">&quot;minute&quot;</span>),
+            <span class="self">Self</span>::Hour =&gt; f.write_str(<span class="string">&quot;hour&quot;</span>),
+            <span class="self">Self</span>::Day =&gt; f.write_str(<span class="string">&quot;day&quot;</span>),
+            <span class="self">Self</span>::Week =&gt; f.write_str(<span class="string">&quot;week&quot;</span>),
         }
     }
 }
 
-<span class="doccomment">/// An error parsing a [`MetricUnit`] or one of its variants.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ParseMetricUnitError</span>(());
+<span class="doccomment">/// An error parsing a [`MetricUnit`] or one of its variants.
+</span><span class="attribute">#[derive(Clone, Copy, Debug)]
+</span><span class="kw">pub struct </span>ParseMetricUnitError(());
 
-<span class="doccomment">/// Size of information derived from bytes, used in [`MetricUnit::Information`].</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Defaults to `byte`. See also [Units of</span>
-<span class="doccomment">/// information](https://en.wikipedia.org/wiki/Units_of_information).</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">InformationUnit</span> {
-    <span class="doccomment">/// Bit (`&quot;bit&quot;`), corresponding to 1/8 of a byte.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Note that there are computer systems with a different number of bits per byte.</span>
-    <span class="ident">Bit</span>,
-    <span class="doccomment">/// Byte (`&quot;byte&quot;`).</span>
-    <span class="ident">Byte</span>,
-    <span class="doccomment">/// Kilobyte (`&quot;kilobyte&quot;`), 10^3 bytes.</span>
-    <span class="ident">KiloByte</span>,
-    <span class="doccomment">/// Kibibyte (`&quot;kibibyte&quot;`), 2^10 bytes.</span>
-    <span class="ident">KibiByte</span>,
-    <span class="doccomment">/// Megabyte (`&quot;megabyte&quot;`), 10^6 bytes.</span>
-    <span class="ident">MegaByte</span>,
-    <span class="doccomment">/// Mebibyte (`&quot;mebibyte&quot;`), 2^20 bytes.</span>
-    <span class="ident">MebiByte</span>,
-    <span class="doccomment">/// Gigabyte (`&quot;gigabyte&quot;`), 10^9 bytes.</span>
-    <span class="ident">GigaByte</span>,
-    <span class="doccomment">/// Gibibyte (`&quot;gibibyte&quot;`), 2^30 bytes.</span>
-    <span class="ident">GibiByte</span>,
-    <span class="doccomment">/// Terabyte (`&quot;terabyte&quot;`), 10^12 bytes.</span>
-    <span class="ident">TeraByte</span>,
-    <span class="doccomment">/// Tebibyte (`&quot;tebibyte&quot;`), 2^40 bytes.</span>
-    <span class="ident">TebiByte</span>,
-    <span class="doccomment">/// Petabyte (`&quot;petabyte&quot;`), 10^15 bytes.</span>
-    <span class="ident">PetaByte</span>,
-    <span class="doccomment">/// Pebibyte (`&quot;pebibyte&quot;`), 2^50 bytes.</span>
-    <span class="ident">PebiByte</span>,
-    <span class="doccomment">/// Exabyte (`&quot;exabyte&quot;`), 10^18 bytes.</span>
-    <span class="ident">ExaByte</span>,
-    <span class="doccomment">/// Exbibyte (`&quot;exbibyte&quot;`), 2^60 bytes.</span>
-    <span class="ident">ExbiByte</span>,
+<span class="doccomment">/// Size of information derived from bytes, used in [`MetricUnit::Information`].
+///
+/// Defaults to `byte`. See also [Units of
+/// information](https://en.wikipedia.org/wiki/Units_of_information).
+</span><span class="attribute">#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+</span><span class="kw">pub enum </span>InformationUnit {
+    <span class="doccomment">/// Bit (`&quot;bit&quot;`), corresponding to 1/8 of a byte.
+    ///
+    /// Note that there are computer systems with a different number of bits per byte.
+    </span>Bit,
+    <span class="doccomment">/// Byte (`&quot;byte&quot;`).
+    </span>Byte,
+    <span class="doccomment">/// Kilobyte (`&quot;kilobyte&quot;`), 10^3 bytes.
+    </span>KiloByte,
+    <span class="doccomment">/// Kibibyte (`&quot;kibibyte&quot;`), 2^10 bytes.
+    </span>KibiByte,
+    <span class="doccomment">/// Megabyte (`&quot;megabyte&quot;`), 10^6 bytes.
+    </span>MegaByte,
+    <span class="doccomment">/// Mebibyte (`&quot;mebibyte&quot;`), 2^20 bytes.
+    </span>MebiByte,
+    <span class="doccomment">/// Gigabyte (`&quot;gigabyte&quot;`), 10^9 bytes.
+    </span>GigaByte,
+    <span class="doccomment">/// Gibibyte (`&quot;gibibyte&quot;`), 2^30 bytes.
+    </span>GibiByte,
+    <span class="doccomment">/// Terabyte (`&quot;terabyte&quot;`), 10^12 bytes.
+    </span>TeraByte,
+    <span class="doccomment">/// Tebibyte (`&quot;tebibyte&quot;`), 2^40 bytes.
+    </span>TebiByte,
+    <span class="doccomment">/// Petabyte (`&quot;petabyte&quot;`), 10^15 bytes.
+    </span>PetaByte,
+    <span class="doccomment">/// Pebibyte (`&quot;pebibyte&quot;`), 2^50 bytes.
+    </span>PebiByte,
+    <span class="doccomment">/// Exabyte (`&quot;exabyte&quot;`), 10^18 bytes.
+    </span>ExaByte,
+    <span class="doccomment">/// Exbibyte (`&quot;exbibyte&quot;`), 2^60 bytes.
+    </span>ExbiByte,
 }
 
-<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">InformationUnit</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
-        <span class="ident"><span class="self">Self</span>::Byte</span>
+<span class="kw">impl </span>Default <span class="kw">for </span>InformationUnit {
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::Byte
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">InformationUnit</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident"><span class="self">Self</span>::Bit</span> =&gt; <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;bit&quot;</span>),
-            <span class="ident"><span class="self">Self</span>::Byte</span> =&gt; <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;byte&quot;</span>),
-            <span class="ident"><span class="self">Self</span>::KiloByte</span> =&gt; <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;kilobyte&quot;</span>),
-            <span class="ident"><span class="self">Self</span>::KibiByte</span> =&gt; <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;kibibyte&quot;</span>),
-            <span class="ident"><span class="self">Self</span>::MegaByte</span> =&gt; <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;megabyte&quot;</span>),
-            <span class="ident"><span class="self">Self</span>::MebiByte</span> =&gt; <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;mebibyte&quot;</span>),
-            <span class="ident"><span class="self">Self</span>::GigaByte</span> =&gt; <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;gigabyte&quot;</span>),
-            <span class="ident"><span class="self">Self</span>::GibiByte</span> =&gt; <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;gibibyte&quot;</span>),
-            <span class="ident"><span class="self">Self</span>::TeraByte</span> =&gt; <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;terabyte&quot;</span>),
-            <span class="ident"><span class="self">Self</span>::TebiByte</span> =&gt; <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;tebibyte&quot;</span>),
-            <span class="ident"><span class="self">Self</span>::PetaByte</span> =&gt; <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;petabyte&quot;</span>),
-            <span class="ident"><span class="self">Self</span>::PebiByte</span> =&gt; <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;pebibyte&quot;</span>),
-            <span class="ident"><span class="self">Self</span>::ExaByte</span> =&gt; <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;exabyte&quot;</span>),
-            <span class="ident"><span class="self">Self</span>::ExbiByte</span> =&gt; <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;exbibyte&quot;</span>),
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>InformationUnit {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::Bit =&gt; f.write_str(<span class="string">&quot;bit&quot;</span>),
+            <span class="self">Self</span>::Byte =&gt; f.write_str(<span class="string">&quot;byte&quot;</span>),
+            <span class="self">Self</span>::KiloByte =&gt; f.write_str(<span class="string">&quot;kilobyte&quot;</span>),
+            <span class="self">Self</span>::KibiByte =&gt; f.write_str(<span class="string">&quot;kibibyte&quot;</span>),
+            <span class="self">Self</span>::MegaByte =&gt; f.write_str(<span class="string">&quot;megabyte&quot;</span>),
+            <span class="self">Self</span>::MebiByte =&gt; f.write_str(<span class="string">&quot;mebibyte&quot;</span>),
+            <span class="self">Self</span>::GigaByte =&gt; f.write_str(<span class="string">&quot;gigabyte&quot;</span>),
+            <span class="self">Self</span>::GibiByte =&gt; f.write_str(<span class="string">&quot;gibibyte&quot;</span>),
+            <span class="self">Self</span>::TeraByte =&gt; f.write_str(<span class="string">&quot;terabyte&quot;</span>),
+            <span class="self">Self</span>::TebiByte =&gt; f.write_str(<span class="string">&quot;tebibyte&quot;</span>),
+            <span class="self">Self</span>::PetaByte =&gt; f.write_str(<span class="string">&quot;petabyte&quot;</span>),
+            <span class="self">Self</span>::PebiByte =&gt; f.write_str(<span class="string">&quot;pebibyte&quot;</span>),
+            <span class="self">Self</span>::ExaByte =&gt; f.write_str(<span class="string">&quot;exabyte&quot;</span>),
+            <span class="self">Self</span>::ExbiByte =&gt; f.write_str(<span class="string">&quot;exbibyte&quot;</span>),
         }
     }
 }
 
-<span class="doccomment">/// Units of fraction used in [`MetricUnit::Fraction`].</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Defaults to `ratio`.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">FractionUnit</span> {
-    <span class="doccomment">/// Floating point fraction of `1`.</span>
-    <span class="ident">Ratio</span>,
-    <span class="doccomment">/// Ratio expressed as a fraction of `100`. `100%` equals a ratio of `1.0`.</span>
-    <span class="ident">Percent</span>,
+<span class="doccomment">/// Units of fraction used in [`MetricUnit::Fraction`].
+///
+/// Defaults to `ratio`.
+</span><span class="attribute">#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+</span><span class="kw">pub enum </span>FractionUnit {
+    <span class="doccomment">/// Floating point fraction of `1`.
+    </span>Ratio,
+    <span class="doccomment">/// Ratio expressed as a fraction of `100`. `100%` equals a ratio of `1.0`.
+    </span>Percent,
 }
 
-<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">FractionUnit</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
-        <span class="ident"><span class="self">Self</span>::Ratio</span>
+<span class="kw">impl </span>Default <span class="kw">for </span>FractionUnit {
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::Ratio
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">FractionUnit</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident"><span class="self">Self</span>::Ratio</span> =&gt; <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;ratio&quot;</span>),
-            <span class="ident"><span class="self">Self</span>::Percent</span> =&gt; <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;percent&quot;</span>),
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>FractionUnit {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::Ratio =&gt; f.write_str(<span class="string">&quot;ratio&quot;</span>),
+            <span class="self">Self</span>::Percent =&gt; f.write_str(<span class="string">&quot;percent&quot;</span>),
         }
     }
 }
 
-<span class="kw">const</span> <span class="ident">CUSTOM_UNIT_MAX_SIZE</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">15</span>;
+<span class="kw">const </span>CUSTOM_UNIT_MAX_SIZE: usize = <span class="number">15</span>;
 
-<span class="doccomment">/// Custom user-defined units without builtin conversion.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">CustomUnit</span>([<span class="ident">u8</span>; <span class="ident">CUSTOM_UNIT_MAX_SIZE</span>]);
+<span class="doccomment">/// Custom user-defined units without builtin conversion.
+</span><span class="attribute">#[derive(Clone, Copy, Eq, PartialEq, Hash)]
+</span><span class="kw">pub struct </span>CustomUnit([u8; CUSTOM_UNIT_MAX_SIZE]);
 
-<span class="kw">impl</span> <span class="ident">CustomUnit</span> {
-    <span class="doccomment">/// Parses a `CustomUnit` from a string.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ParseMetricUnitError</span><span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="op">!</span><span class="ident">s</span>.<span class="ident">is_ascii</span>() {
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ParseMetricUnitError</span>(()));
+<span class="kw">impl </span>CustomUnit {
+    <span class="doccomment">/// Parses a `CustomUnit` from a string.
+    </span><span class="kw">pub fn </span>parse(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ParseMetricUnitError&gt; {
+        <span class="kw">if </span>!s.is_ascii() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(ParseMetricUnitError(()));
         }
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">unit</span> <span class="op">=</span> <span class="self">Self</span>([<span class="number">0</span>; <span class="ident">CUSTOM_UNIT_MAX_SIZE</span>]);
-        <span class="kw">let</span> <span class="ident">slice</span> <span class="op">=</span> <span class="ident">unit</span>.<span class="number">0</span>.<span class="ident">get_mut</span>(..<span class="ident">s</span>.<span class="ident">len</span>()).<span class="ident">ok_or</span>(<span class="ident">ParseMetricUnitError</span>(()))<span class="question-mark">?</span>;
-        <span class="ident">slice</span>.<span class="ident">copy_from_slice</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>());
-        <span class="ident">unit</span>.<span class="number">0</span>.<span class="ident">make_ascii_lowercase</span>();
-        <span class="prelude-val">Ok</span>(<span class="ident">unit</span>)
+        <span class="kw">let </span><span class="kw-2">mut </span>unit = <span class="self">Self</span>([<span class="number">0</span>; CUSTOM_UNIT_MAX_SIZE]);
+        <span class="kw">let </span>slice = unit.<span class="number">0</span>.get_mut(..s.len()).ok_or(ParseMetricUnitError(()))<span class="question-mark">?</span>;
+        slice.copy_from_slice(s.as_bytes());
+        unit.<span class="number">0</span>.make_ascii_lowercase();
+        <span class="prelude-val">Ok</span>(unit)
     }
 
-    <span class="doccomment">/// Returns the string representation of this unit.</span>
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">str</span> {
-        <span class="comment">// Safety: The string is already validated to be valid ASCII when</span>
-        <span class="comment">// parsing `CustomUnit`.</span>
-        <span class="kw">unsafe</span> { <span class="ident">std::str::from_utf8_unchecked</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>).<span class="ident">trim_end_matches</span>(<span class="string">&#39;\0&#39;</span>) }
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">CustomUnit</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="self">self</span>.<span class="ident">as_str</span>().<span class="ident">fmt</span>(<span class="ident">f</span>)
+    <span class="doccomment">/// Returns the string representation of this unit.
+    </span><span class="attribute">#[inline]
+    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+        <span class="comment">// Safety: The string is already validated to be valid ASCII when
+        // parsing `CustomUnit`.
+        </span><span class="kw">unsafe </span>{ std::str::from_utf8_unchecked(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>).trim_end_matches(<span class="string">&#39;\0&#39;</span>) }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">CustomUnit</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="self">self</span>.<span class="ident">as_str</span>().<span class="ident">fmt</span>(<span class="ident">f</span>)
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>CustomUnit {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="self">self</span>.as_str().fmt(f)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">std::str::FromStr</span> <span class="kw">for</span> <span class="ident">CustomUnit</span> {
-    <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="ident">ParseMetricUnitError</span>;
-
-    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
-        <span class="ident"><span class="self">Self</span>::parse</span>(<span class="ident">s</span>)
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>CustomUnit {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="self">self</span>.as_str().fmt(f)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">std::ops::Deref</span> <span class="kw">for</span> <span class="ident">CustomUnit</span> {
-    <span class="kw">type</span> <span class="ident">Target</span> <span class="op">=</span> <span class="ident">str</span>;
+<span class="kw">impl </span>std::str::FromStr <span class="kw">for </span>CustomUnit {
+    <span class="kw">type </span><span class="prelude-val">Err </span>= ParseMetricUnitError;
 
-    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident"><span class="self">Self</span>::Target</span> {
-        <span class="self">self</span>.<span class="ident">as_str</span>()
+    <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
+        <span class="self">Self</span>::parse(s)
     }
 }
 
-<span class="doccomment">/// The unit of measurement of a metric value.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Units augment metric values by giving them a magnitude and semantics. There are certain types of</span>
-<span class="doccomment">/// units that are subdivided in their precision, such as the [`DurationUnit`] for time</span>
-<span class="doccomment">/// measurements.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Units and their precisions are uniquely represented by a string identifier.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">MetricUnit</span> {
-    <span class="doccomment">/// A time duration, defaulting to `&quot;millisecond&quot;`.</span>
-    <span class="ident">Duration</span>(<span class="ident">DurationUnit</span>),
-    <span class="doccomment">/// Size of information derived from bytes, defaulting to `&quot;byte&quot;`.</span>
-    <span class="ident">Information</span>(<span class="ident">InformationUnit</span>),
-    <span class="doccomment">/// Fractions such as percentages, defaulting to `&quot;ratio&quot;`.</span>
-    <span class="ident">Fraction</span>(<span class="ident">FractionUnit</span>),
-    <span class="doccomment">/// user-defined units without builtin conversion or default.</span>
-    <span class="ident">Custom</span>(<span class="ident">CustomUnit</span>),
-    <span class="doccomment">/// Untyped value without a unit (`&quot;&quot;`).</span>
-    <span class="prelude-val">None</span>,
-}
+<span class="kw">impl </span>std::ops::Deref <span class="kw">for </span>CustomUnit {
+    <span class="kw">type </span>Target = str;
 
-<span class="kw">impl</span> <span class="ident">MetricUnit</span> {
-    <span class="doccomment">/// Returns `true` if the metric_unit is [`None`].</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_none</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="macro">matches!</span>(<span class="self">self</span>, <span class="ident"><span class="self">Self</span>::None</span>)
+    <span class="kw">fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Target {
+        <span class="self">self</span>.as_str()
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">MetricUnit</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
-        <span class="ident">MetricUnit::None</span>
+<span class="doccomment">/// The unit of measurement of a metric value.
+///
+/// Units augment metric values by giving them a magnitude and semantics. There are certain types of
+/// units that are subdivided in their precision, such as the [`DurationUnit`] for time
+/// measurements.
+///
+/// Units and their precisions are uniquely represented by a string identifier.
+</span><span class="attribute">#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+</span><span class="kw">pub enum </span>MetricUnit {
+    <span class="doccomment">/// A time duration, defaulting to `&quot;millisecond&quot;`.
+    </span>Duration(DurationUnit),
+    <span class="doccomment">/// Size of information derived from bytes, defaulting to `&quot;byte&quot;`.
+    </span>Information(InformationUnit),
+    <span class="doccomment">/// Fractions such as percentages, defaulting to `&quot;ratio&quot;`.
+    </span>Fraction(FractionUnit),
+    <span class="doccomment">/// user-defined units without builtin conversion or default.
+    </span>Custom(CustomUnit),
+    <span class="doccomment">/// Untyped value without a unit (`&quot;&quot;`).
+    </span><span class="prelude-val">None</span>,
+}
+
+<span class="kw">impl </span>MetricUnit {
+    <span class="doccomment">/// Returns `true` if the metric_unit is [`None`].
+    </span><span class="kw">pub fn </span>is_none(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, <span class="self">Self</span>::None)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">MetricUnit</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">MetricUnit::Duration</span>(<span class="ident">u</span>) =&gt; <span class="ident">u</span>.<span class="ident">fmt</span>(<span class="ident">f</span>),
-            <span class="ident">MetricUnit::Information</span>(<span class="ident">u</span>) =&gt; <span class="ident">u</span>.<span class="ident">fmt</span>(<span class="ident">f</span>),
-            <span class="ident">MetricUnit::Fraction</span>(<span class="ident">u</span>) =&gt; <span class="ident">u</span>.<span class="ident">fmt</span>(<span class="ident">f</span>),
-            <span class="ident">MetricUnit::Custom</span>(<span class="ident">u</span>) =&gt; <span class="ident">u</span>.<span class="ident">fmt</span>(<span class="ident">f</span>),
-            <span class="ident">MetricUnit::None</span> =&gt; <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;none&quot;</span>),
+<span class="kw">impl </span>Default <span class="kw">for </span>MetricUnit {
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        MetricUnit::None
+    }
+}
+
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>MetricUnit {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">match </span><span class="self">self </span>{
+            MetricUnit::Duration(u) =&gt; u.fmt(f),
+            MetricUnit::Information(u) =&gt; u.fmt(f),
+            MetricUnit::Fraction(u) =&gt; u.fmt(f),
+            MetricUnit::Custom(u) =&gt; u.fmt(f),
+            MetricUnit::None =&gt; f.write_str(<span class="string">&quot;none&quot;</span>),
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">std::str::FromStr</span> <span class="kw">for</span> <span class="ident">MetricUnit</span> {
-    <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="ident">ParseMetricUnitError</span>;
+<span class="kw">impl </span>std::str::FromStr <span class="kw">for </span>MetricUnit {
+    <span class="kw">type </span><span class="prelude-val">Err </span>= ParseMetricUnitError;
 
-    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
-        <span class="prelude-val">Ok</span>(<span class="kw">match</span> <span class="ident">s</span> {
-            <span class="string">&quot;nanosecond&quot;</span> <span class="op">|</span> <span class="string">&quot;ns&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Duration</span>(<span class="ident">DurationUnit::NanoSecond</span>),
-            <span class="string">&quot;microsecond&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Duration</span>(<span class="ident">DurationUnit::MicroSecond</span>),
-            <span class="string">&quot;millisecond&quot;</span> <span class="op">|</span> <span class="string">&quot;ms&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Duration</span>(<span class="ident">DurationUnit::MilliSecond</span>),
-            <span class="string">&quot;second&quot;</span> <span class="op">|</span> <span class="string">&quot;s&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Duration</span>(<span class="ident">DurationUnit::Second</span>),
-            <span class="string">&quot;minute&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Duration</span>(<span class="ident">DurationUnit::Minute</span>),
-            <span class="string">&quot;hour&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Duration</span>(<span class="ident">DurationUnit::Hour</span>),
-            <span class="string">&quot;day&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Duration</span>(<span class="ident">DurationUnit::Day</span>),
-            <span class="string">&quot;week&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Duration</span>(<span class="ident">DurationUnit::Week</span>),
+    <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
+        <span class="prelude-val">Ok</span>(<span class="kw">match </span>s {
+            <span class="string">&quot;nanosecond&quot; </span>| <span class="string">&quot;ns&quot; </span>=&gt; <span class="self">Self</span>::Duration(DurationUnit::NanoSecond),
+            <span class="string">&quot;microsecond&quot; </span>=&gt; <span class="self">Self</span>::Duration(DurationUnit::MicroSecond),
+            <span class="string">&quot;millisecond&quot; </span>| <span class="string">&quot;ms&quot; </span>=&gt; <span class="self">Self</span>::Duration(DurationUnit::MilliSecond),
+            <span class="string">&quot;second&quot; </span>| <span class="string">&quot;s&quot; </span>=&gt; <span class="self">Self</span>::Duration(DurationUnit::Second),
+            <span class="string">&quot;minute&quot; </span>=&gt; <span class="self">Self</span>::Duration(DurationUnit::Minute),
+            <span class="string">&quot;hour&quot; </span>=&gt; <span class="self">Self</span>::Duration(DurationUnit::Hour),
+            <span class="string">&quot;day&quot; </span>=&gt; <span class="self">Self</span>::Duration(DurationUnit::Day),
+            <span class="string">&quot;week&quot; </span>=&gt; <span class="self">Self</span>::Duration(DurationUnit::Week),
 
-            <span class="string">&quot;bit&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Information</span>(<span class="ident">InformationUnit::Bit</span>),
-            <span class="string">&quot;byte&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Information</span>(<span class="ident">InformationUnit::Byte</span>),
-            <span class="string">&quot;kilobyte&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Information</span>(<span class="ident">InformationUnit::KiloByte</span>),
-            <span class="string">&quot;kibibyte&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Information</span>(<span class="ident">InformationUnit::KibiByte</span>),
-            <span class="string">&quot;megabyte&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Information</span>(<span class="ident">InformationUnit::MegaByte</span>),
-            <span class="string">&quot;mebibyte&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Information</span>(<span class="ident">InformationUnit::MebiByte</span>),
-            <span class="string">&quot;gigabyte&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Information</span>(<span class="ident">InformationUnit::GigaByte</span>),
-            <span class="string">&quot;gibibyte&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Information</span>(<span class="ident">InformationUnit::GibiByte</span>),
-            <span class="string">&quot;terabyte&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Information</span>(<span class="ident">InformationUnit::TeraByte</span>),
-            <span class="string">&quot;tebibyte&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Information</span>(<span class="ident">InformationUnit::TebiByte</span>),
-            <span class="string">&quot;petabyte&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Information</span>(<span class="ident">InformationUnit::PetaByte</span>),
-            <span class="string">&quot;pebibyte&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Information</span>(<span class="ident">InformationUnit::PebiByte</span>),
-            <span class="string">&quot;exabyte&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Information</span>(<span class="ident">InformationUnit::ExaByte</span>),
-            <span class="string">&quot;exbibyte&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Information</span>(<span class="ident">InformationUnit::ExbiByte</span>),
+            <span class="string">&quot;bit&quot; </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::Bit),
+            <span class="string">&quot;byte&quot; </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::Byte),
+            <span class="string">&quot;kilobyte&quot; </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::KiloByte),
+            <span class="string">&quot;kibibyte&quot; </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::KibiByte),
+            <span class="string">&quot;megabyte&quot; </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::MegaByte),
+            <span class="string">&quot;mebibyte&quot; </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::MebiByte),
+            <span class="string">&quot;gigabyte&quot; </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::GigaByte),
+            <span class="string">&quot;gibibyte&quot; </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::GibiByte),
+            <span class="string">&quot;terabyte&quot; </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::TeraByte),
+            <span class="string">&quot;tebibyte&quot; </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::TebiByte),
+            <span class="string">&quot;petabyte&quot; </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::PetaByte),
+            <span class="string">&quot;pebibyte&quot; </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::PebiByte),
+            <span class="string">&quot;exabyte&quot; </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::ExaByte),
+            <span class="string">&quot;exbibyte&quot; </span>=&gt; <span class="self">Self</span>::Information(InformationUnit::ExbiByte),
 
-            <span class="string">&quot;ratio&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Fraction</span>(<span class="ident">FractionUnit::Ratio</span>),
-            <span class="string">&quot;percent&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Fraction</span>(<span class="ident">FractionUnit::Percent</span>),
+            <span class="string">&quot;ratio&quot; </span>=&gt; <span class="self">Self</span>::Fraction(FractionUnit::Ratio),
+            <span class="string">&quot;percent&quot; </span>=&gt; <span class="self">Self</span>::Fraction(FractionUnit::Percent),
 
-            <span class="string">&quot;&quot;</span> <span class="op">|</span> <span class="string">&quot;none&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::None</span>,
-            <span class="kw">_</span> =&gt; <span class="ident"><span class="self">Self</span>::Custom</span>(<span class="ident">CustomUnit::parse</span>(<span class="ident">s</span>)<span class="question-mark">?</span>),
+            <span class="string">&quot;&quot; </span>| <span class="string">&quot;none&quot; </span>=&gt; <span class="self">Self</span>::None,
+            <span class="kw">_ </span>=&gt; <span class="self">Self</span>::Custom(CustomUnit::parse(s)<span class="question-mark">?</span>),
         })
     }
 }
 
-<span class="macro">impl_str_serde!</span>(<span class="ident">MetricUnit</span>, <span class="string">&quot;a metric unit string&quot;</span>);
+<span class="macro">impl_str_serde!</span>(MetricUnit, <span class="string">&quot;a metric unit string&quot;</span>);
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>)]</span>
-<span class="kw">impl</span> <span class="ident">schemars::JsonSchema</span> <span class="kw">for</span> <span class="ident">MetricUnit</span> {
-    <span class="kw">fn</span> <span class="ident">schema_name</span>() -&gt; <span class="ident">String</span> {
-        <span class="ident">std::any::type_name</span>::<span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>().<span class="ident">to_owned</span>()
+<span class="attribute">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
+</span><span class="kw">impl </span>schemars::JsonSchema <span class="kw">for </span>MetricUnit {
+    <span class="kw">fn </span>schema_name() -&gt; String {
+        std::any::type_name::&lt;<span class="self">Self</span>&gt;().to_owned()
     }
 
-    <span class="kw">fn</span> <span class="ident">json_schema</span>(<span class="ident">gen</span>: <span class="kw-2">&amp;mut</span> <span class="ident">schemars::gen::SchemaGenerator</span>) -&gt; <span class="ident">schemars::schema::Schema</span> {
-        <span class="ident">String::json_schema</span>(<span class="ident">gen</span>)
+    <span class="kw">fn </span>json_schema(gen: <span class="kw-2">&amp;mut </span>schemars::gen::SchemaGenerator) -&gt; schemars::schema::Schema {
+        String::json_schema(gen)
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::CustomUnit</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span><span class="kw">crate</span>::CustomUnit;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_custom_unit_parse</span>() {
-        <span class="macro">assert_eq!</span>(<span class="string">&quot;foo&quot;</span>, <span class="ident">CustomUnit::parse</span>(<span class="string">&quot;Foo&quot;</span>).<span class="ident">unwrap</span>().<span class="ident">as_str</span>());
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_custom_unit_parse() {
+        <span class="macro">assert_eq!</span>(<span class="string">&quot;foo&quot;</span>, CustomUnit::parse(<span class="string">&quot;Foo&quot;</span>).unwrap().as_str());
         <span class="macro">assert_eq!</span>(
             <span class="string">&quot;0123456789abcde&quot;</span>,
-            <span class="ident">CustomUnit::parse</span>(<span class="string">&quot;0123456789abcde&quot;</span>).<span class="ident">unwrap</span>().<span class="ident">as_str</span>()
+            CustomUnit::parse(<span class="string">&quot;0123456789abcde&quot;</span>).unwrap().as_str()
         );
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-            <span class="ident">CustomUnit::parse</span>(<span class="string">&quot;this_is_a_unit_that_is_too_long&quot;</span>),
+            CustomUnit::parse(<span class="string">&quot;this_is_a_unit_that_is_too_long&quot;</span>),
             <span class="prelude-val">Err</span>(<span class="kw">_</span>)
         ));
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_common" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_common" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/endpoints/health_check.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>health_check.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/endpoints/health_check.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>health_check.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_server/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -80,85 +80,85 @@
 <span id="78">78</span>
 <span id="79">79</span>
 <span id="80">80</span>
-</pre><pre class="rust"><code><span class="doccomment">//! A simple health check endpoint for the relay.</span>
+</pre><pre class="rust"><code><span class="doccomment">//! A simple health check endpoint for the relay.
 
-<span class="kw">use</span> <span class="ident">::actix::prelude</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">actix_web</span>::{<span class="ident">Error</span>, <span class="ident">HttpResponse</span>};
-<span class="kw">use</span> <span class="ident">futures</span>::{<span class="ident">FutureExt</span>, <span class="ident">TryFutureExt</span>};
-<span class="kw">use</span> <span class="ident">futures01::prelude</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">serde::Serialize</span>;
+</span><span class="kw">use </span>::actix::prelude::<span class="kw-2">*</span>;
+<span class="kw">use </span>actix_web::{Error, HttpResponse};
+<span class="kw">use </span>futures::{FutureExt, TryFutureExt};
+<span class="kw">use </span>futures01::prelude::<span class="kw-2">*</span>;
+<span class="kw">use </span>serde::Serialize;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service::ServiceApp</span>;
+<span class="kw">use </span><span class="kw">crate</span>::service::ServiceApp;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::health_check</span>::{<span class="ident">HealthCheck</span>, <span class="ident">IsHealthy</span>};
+<span class="kw">use </span><span class="kw">crate</span>::actors::health_check::{HealthCheck, IsHealthy};
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>)]</span>
-<span class="kw">struct</span> <span class="ident">HealthCheckResponse</span> {
-    <span class="ident">is_healthy</span>: <span class="ident">bool</span>,
+<span class="attribute">#[derive(Serialize)]
+</span><span class="kw">struct </span>HealthCheckResponse {
+    is_healthy: bool,
 }
 
-<span class="kw">impl</span> <span class="ident">HealthCheckResponse</span> {
-    <span class="kw">fn</span> <span class="ident">healthy</span>() -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> { <span class="ident">is_healthy</span>: <span class="bool-val">true</span> }
+<span class="kw">impl </span>HealthCheckResponse {
+    <span class="kw">fn </span>healthy() -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ is_healthy: <span class="bool-val">true </span>}
     }
 
-    <span class="kw">fn</span> <span class="ident">unhealthy</span>() -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> { <span class="ident">is_healthy</span>: <span class="bool-val">false</span> }
+    <span class="kw">fn </span>unhealthy() -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ is_healthy: <span class="bool-val">false </span>}
     }
 
-    <span class="kw">fn</span> <span class="ident">into_response</span>(<span class="self">self</span>) -&gt; <span class="ident">HttpResponse</span> {
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">is_healthy</span> {
-            <span class="ident">HttpResponse::Ok</span>().<span class="ident">json</span>(<span class="self">self</span>)
-        } <span class="kw">else</span> {
-            <span class="ident">HttpResponse::ServiceUnavailable</span>().<span class="ident">json</span>(<span class="self">self</span>)
+    <span class="kw">fn </span>into_response(<span class="self">self</span>) -&gt; HttpResponse {
+        <span class="kw">if </span><span class="self">self</span>.is_healthy {
+            HttpResponse::Ok().json(<span class="self">self</span>)
+        } <span class="kw">else </span>{
+            HttpResponse::ServiceUnavailable().json(<span class="self">self</span>)
         }
     }
 }
 
-<span class="kw">fn</span> <span class="ident">health_check_impl</span>(<span class="ident">message</span>: <span class="ident">IsHealthy</span>) -&gt; <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">HttpResponse</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">fut</span> <span class="op">=</span> <span class="kw">async</span> <span class="kw">move</span> {
-        <span class="kw">let</span> <span class="ident">addr</span> <span class="op">=</span> <span class="ident">HealthCheck::from_registry</span>();
-        <span class="ident">addr</span>.<span class="ident">send</span>(<span class="ident">message</span>).<span class="kw">await</span>
-    };
+<span class="kw">fn </span>health_check_impl(message: IsHealthy) -&gt; ResponseFuture&lt;HttpResponse, Error&gt; {
+    <span class="kw">let </span>fut = <span class="kw">async move </span>{
+        <span class="kw">let </span>addr = HealthCheck::from_registry();
+        addr.send(message).<span class="kw">await
+    </span>};
 
-    <span class="ident">Box::new</span>(
-        <span class="ident">fut</span>.<span class="ident">boxed_local</span>()
-            .<span class="ident">compat</span>()
-            .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ())
-            .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">is_healthy</span><span class="op">|</span> {
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">is_healthy</span> {
+    Box::new(
+        fut.boxed_local()
+            .compat()
+            .map_err(|<span class="kw">_</span>| ())
+            .and_then(<span class="kw">move </span>|is_healthy| {
+                <span class="kw">if </span>!is_healthy {
                     <span class="prelude-val">Err</span>(())
-                } <span class="kw">else</span> {
-                    <span class="prelude-val">Ok</span>(<span class="ident">HealthCheckResponse::healthy</span>().<span class="ident">into_response</span>())
+                } <span class="kw">else </span>{
+                    <span class="prelude-val">Ok</span>(HealthCheckResponse::healthy().into_response())
                 }
             })
-            .<span class="ident">or_else</span>(<span class="op">|</span>()<span class="op">|</span> <span class="prelude-val">Ok</span>(<span class="ident">HealthCheckResponse::unhealthy</span>().<span class="ident">into_response</span>())),
+            .or_else(|()| <span class="prelude-val">Ok</span>(HealthCheckResponse::unhealthy().into_response())),
     )
 }
 
-<span class="kw">fn</span> <span class="ident">readiness_health_check</span>(<span class="kw">_</span>: ()) -&gt; <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">HttpResponse</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
-    <span class="ident">health_check_impl</span>(<span class="ident">IsHealthy::Readiness</span>)
+<span class="kw">fn </span>readiness_health_check(<span class="kw">_</span>: ()) -&gt; ResponseFuture&lt;HttpResponse, Error&gt; {
+    health_check_impl(IsHealthy::Readiness)
 }
 
-<span class="kw">fn</span> <span class="ident">liveness_health_check</span>(<span class="kw">_</span>: ()) -&gt; <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">HttpResponse</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
-    <span class="ident">health_check_impl</span>(<span class="ident">IsHealthy::Liveness</span>)
+<span class="kw">fn </span>liveness_health_check(<span class="kw">_</span>: ()) -&gt; ResponseFuture&lt;HttpResponse, Error&gt; {
+    health_check_impl(IsHealthy::Liveness)
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">configure_app</span>(<span class="ident">app</span>: <span class="ident">ServiceApp</span>) -&gt; <span class="ident">ServiceApp</span> {
-    <span class="ident">app</span>.<span class="ident">resource</span>(<span class="string">&quot;/api/relay/healthcheck/ready/&quot;</span>, <span class="op">|</span><span class="ident">r</span><span class="op">|</span> {
-        <span class="ident">r</span>.<span class="ident">name</span>(<span class="string">&quot;internal-healthcheck-ready&quot;</span>);
-        <span class="ident">r</span>.<span class="ident">get</span>().<span class="ident">with</span>(<span class="ident">readiness_health_check</span>);
+<span class="kw">pub fn </span>configure_app(app: ServiceApp) -&gt; ServiceApp {
+    app.resource(<span class="string">&quot;/api/relay/healthcheck/ready/&quot;</span>, |r| {
+        r.name(<span class="string">&quot;internal-healthcheck-ready&quot;</span>);
+        r.get().with(readiness_health_check);
     })
-    .<span class="ident">resource</span>(<span class="string">&quot;/api/relay/healthcheck/live/&quot;</span>, <span class="op">|</span><span class="ident">r</span><span class="op">|</span> {
-        <span class="ident">r</span>.<span class="ident">name</span>(<span class="string">&quot;internal-healthcheck-live&quot;</span>);
-        <span class="ident">r</span>.<span class="ident">get</span>().<span class="ident">with</span>(<span class="ident">liveness_health_check</span>);
+    .resource(<span class="string">&quot;/api/relay/healthcheck/live/&quot;</span>, |r| {
+        r.name(<span class="string">&quot;internal-healthcheck-live&quot;</span>);
+        r.get().with(liveness_health_check);
     })
-    <span class="comment">// live check is also used to check network connectivity by downstream relays.</span>
-    <span class="comment">// It must have the same url as Sentry (hence two urls doing the same thing)</span>
-    .<span class="ident">resource</span>(<span class="string">&quot;/api/0/relays/live/&quot;</span>, <span class="op">|</span><span class="ident">r</span><span class="op">|</span> {
-        <span class="ident">r</span>.<span class="ident">name</span>(<span class="string">&quot;external-healthcheck-live&quot;</span>);
-        <span class="ident">r</span>.<span class="ident">get</span>().<span class="ident">with</span>(<span class="ident">liveness_health_check</span>);
+    <span class="comment">// live check is also used to check network connectivity by downstream relays.
+    // It must have the same url as Sentry (hence two urls doing the same thing)
+    </span>.resource(<span class="string">&quot;/api/0/relays/live/&quot;</span>, |r| {
+        r.name(<span class="string">&quot;external-healthcheck-live&quot;</span>);
+        r.get().with(liveness_health_check);
     })
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

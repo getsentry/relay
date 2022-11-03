@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/pii/minidumps.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>minidumps.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/pii/minidumps.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>minidumps.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_general/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -808,461 +808,461 @@
 <span id="806">806</span>
 <span id="807">807</span>
 <span id="808">808</span>
-</pre><pre class="rust"><code><span class="doccomment">//! Minidump scrubbing.</span>
+</pre><pre class="rust"><code><span class="doccomment">//! Minidump scrubbing.
 
-<span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
-<span class="kw">use</span> <span class="ident">std::convert::TryInto</span>;
-<span class="kw">use</span> <span class="ident">std::num::TryFromIntError</span>;
-<span class="kw">use</span> <span class="ident">std::ops::Range</span>;
-<span class="kw">use</span> <span class="ident">std::str::Utf8Error</span>;
+</span><span class="kw">use </span>std::borrow::Cow;
+<span class="kw">use </span>std::convert::TryInto;
+<span class="kw">use </span>std::num::TryFromIntError;
+<span class="kw">use </span>std::ops::Range;
+<span class="kw">use </span>std::str::Utf8Error;
 
-<span class="kw">use</span> <span class="ident">failure::Fail</span>;
-<span class="kw">use</span> <span class="ident">minidump::format</span>::{
-    <span class="ident">CvSignature</span>, <span class="ident">MINIDUMP_LOCATION_DESCRIPTOR</span>, <span class="ident">MINIDUMP_STREAM_TYPE</span> <span class="kw">as</span> <span class="ident">StreamType</span>,
+<span class="kw">use </span>failure::Fail;
+<span class="kw">use </span>minidump::format::{
+    CvSignature, MINIDUMP_LOCATION_DESCRIPTOR, MINIDUMP_STREAM_TYPE <span class="kw">as </span>StreamType,
 };
-<span class="kw">use</span> <span class="ident">minidump</span>::{
-    <span class="ident">Endian</span>, <span class="ident">Error</span> <span class="kw">as</span> <span class="ident">MinidumpError</span>, <span class="ident">Minidump</span>, <span class="ident">MinidumpMemoryList</span>, <span class="ident">MinidumpModuleList</span>,
-    <span class="ident">MinidumpThreadList</span>,
+<span class="kw">use </span>minidump::{
+    Endian, Error <span class="kw">as </span>MinidumpError, Minidump, MinidumpMemoryList, MinidumpModuleList,
+    MinidumpThreadList,
 };
-<span class="kw">use</span> <span class="ident">num_traits::FromPrimitive</span>;
-<span class="kw">use</span> <span class="ident">utf16string</span>::{<span class="ident">Utf16Error</span>, <span class="ident">WStr</span>};
+<span class="kw">use </span>num_traits::FromPrimitive;
+<span class="kw">use </span>utf16string::{Utf16Error, WStr};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::pii</span>::{<span class="ident">PiiAttachmentsProcessor</span>, <span class="ident">ScrubEncodings</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor</span>::{<span class="ident">FieldAttrs</span>, <span class="ident">Pii</span>, <span class="ident">ValueType</span>};
+<span class="kw">use </span><span class="kw">crate</span>::pii::{PiiAttachmentsProcessor, ScrubEncodings};
+<span class="kw">use </span><span class="kw">crate</span>::processor::{FieldAttrs, Pii, ValueType};
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Fail</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">ScrubMinidumpError</span> {
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;failed to parse minidump&quot;</span>)]</span>
-    <span class="ident">InvalidMinidump</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">MinidumpError</span>),
+<span class="attribute">#[derive(Debug, Fail)]
+</span><span class="kw">pub enum </span>ScrubMinidumpError {
+    <span class="attribute">#[fail(display = <span class="string">&quot;failed to parse minidump&quot;</span>)]
+    </span>InvalidMinidump(<span class="attribute">#[cause] </span>MinidumpError),
 
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;invalid memory address&quot;</span>)]</span>
-    <span class="ident">InvalidAddress</span>,
+    <span class="attribute">#[fail(display = <span class="string">&quot;invalid memory address&quot;</span>)]
+    </span>InvalidAddress,
 
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;minidump offsets out of usize range&quot;</span>)]</span>
-    <span class="ident">OutOfRange</span>,
+    <span class="attribute">#[fail(display = <span class="string">&quot;minidump offsets out of usize range&quot;</span>)]
+    </span>OutOfRange,
 
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;string decoding error&quot;</span>)]</span>
-    <span class="ident">Decoding</span>,
+    <span class="attribute">#[fail(display = <span class="string">&quot;string decoding error&quot;</span>)]
+    </span>Decoding,
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">TryFromIntError</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ScrubMinidumpError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">_source</span>: <span class="ident">TryFromIntError</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident"><span class="self">Self</span>::OutOfRange</span>
+<span class="kw">impl </span>From&lt;TryFromIntError&gt; <span class="kw">for </span>ScrubMinidumpError {
+    <span class="kw">fn </span>from(_source: TryFromIntError) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::OutOfRange
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">MinidumpError</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ScrubMinidumpError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">source</span>: <span class="ident">MinidumpError</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident"><span class="self">Self</span>::InvalidMinidump</span>(<span class="ident">source</span>)
+<span class="kw">impl </span>From&lt;MinidumpError&gt; <span class="kw">for </span>ScrubMinidumpError {
+    <span class="kw">fn </span>from(source: MinidumpError) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::InvalidMinidump(source)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">Utf16Error</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ScrubMinidumpError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">_source</span>: <span class="ident">Utf16Error</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident"><span class="self">Self</span>::Decoding</span>
+<span class="kw">impl </span>From&lt;Utf16Error&gt; <span class="kw">for </span>ScrubMinidumpError {
+    <span class="kw">fn </span>from(_source: Utf16Error) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::Decoding
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">Utf8Error</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ScrubMinidumpError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">_source</span>: <span class="ident">Utf8Error</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident"><span class="self">Self</span>::Decoding</span>
+<span class="kw">impl </span>From&lt;Utf8Error&gt; <span class="kw">for </span>ScrubMinidumpError {
+    <span class="kw">fn </span>from(_source: Utf8Error) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::Decoding
     }
 }
 
-<span class="doccomment">/// Items of the minidump which we are interested in.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// For our own convenience we like to be able to identify which areas of the minidump we</span>
-<span class="doccomment">/// have.  This locates the data using [Range] slices since we can not take references to</span>
-<span class="doccomment">/// the original data where we construct these.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
-<span class="kw">enum</span> <span class="ident">MinidumpItem</span> {
-    <span class="doccomment">/// Stack memory region.</span>
-    <span class="ident">StackMemory</span>(<span class="ident">Range</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>),
-    <span class="doccomment">/// Memory region not associated with a stack stack/thread.</span>
-    <span class="ident">NonStackMemory</span>(<span class="ident">Range</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>),
-    <span class="doccomment">/// The Linux environ block.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This is a NULL-byte separated list of `KEY=value` pairs.</span>
-    <span class="ident">LinuxEnviron</span>(<span class="ident">Range</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>),
-    <span class="doccomment">/// The Linux cmdline block.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This is a NULL-byte separated list of arguments.</span>
-    <span class="ident">LinuxCmdLine</span>(<span class="ident">Range</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>),
-    <span class="doccomment">/// This is a UTF-16LE encoded pathname of a code module.</span>
-    <span class="ident">CodeModuleName</span>(<span class="ident">Range</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>),
-    <span class="doccomment">/// This is a UTF-16LE encoded pathname of a debug file.</span>
-    <span class="ident">DebugModuleName</span>(<span class="ident">Range</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>),
+<span class="doccomment">/// Items of the minidump which we are interested in.
+///
+/// For our own convenience we like to be able to identify which areas of the minidump we
+/// have.  This locates the data using [Range] slices since we can not take references to
+/// the original data where we construct these.
+</span><span class="attribute">#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+</span><span class="kw">enum </span>MinidumpItem {
+    <span class="doccomment">/// Stack memory region.
+    </span>StackMemory(Range&lt;usize&gt;),
+    <span class="doccomment">/// Memory region not associated with a stack stack/thread.
+    </span>NonStackMemory(Range&lt;usize&gt;),
+    <span class="doccomment">/// The Linux environ block.
+    ///
+    /// This is a NULL-byte separated list of `KEY=value` pairs.
+    </span>LinuxEnviron(Range&lt;usize&gt;),
+    <span class="doccomment">/// The Linux cmdline block.
+    ///
+    /// This is a NULL-byte separated list of arguments.
+    </span>LinuxCmdLine(Range&lt;usize&gt;),
+    <span class="doccomment">/// This is a UTF-16LE encoded pathname of a code module.
+    </span>CodeModuleName(Range&lt;usize&gt;),
+    <span class="doccomment">/// This is a UTF-16LE encoded pathname of a debug file.
+    </span>DebugModuleName(Range&lt;usize&gt;),
 }
 
-<span class="doccomment">/// Internal struct to keep a minidump and it&#39;s raw data together.</span>
-<span class="kw">struct</span> <span class="ident">MinidumpData</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="ident">data</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>],
-    <span class="ident">minidump</span>: <span class="ident">Minidump</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>]<span class="op">&gt;</span>,
+<span class="doccomment">/// Internal struct to keep a minidump and it&#39;s raw data together.
+</span><span class="kw">struct </span>MinidumpData&lt;<span class="lifetime">&#39;a</span>&gt; {
+    data: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8],
+    minidump: Minidump&lt;<span class="lifetime">&#39;a</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8]&gt;,
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">MinidumpData</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="doccomment">/// Parses raw minidump data into the readable `Minidump` struct.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This does only read the stream index, individual streams might still be corrupt even</span>
-    <span class="doccomment">/// when parsing this succeeds.</span>
-    <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>]) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ScrubMinidumpError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">minidump</span> <span class="op">=</span> <span class="ident">Minidump::read</span>(<span class="ident">data</span>).<span class="ident">map_err</span>(<span class="ident">ScrubMinidumpError::InvalidMinidump</span>)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(<span class="self">Self</span> { <span class="ident">data</span>, <span class="ident">minidump</span> })
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; MinidumpData&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="doccomment">/// Parses raw minidump data into the readable `Minidump` struct.
+    ///
+    /// This does only read the stream index, individual streams might still be corrupt even
+    /// when parsing this succeeds.
+    </span><span class="kw">fn </span>parse(data: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ScrubMinidumpError&gt; {
+        <span class="kw">let </span>minidump = Minidump::read(data).map_err(ScrubMinidumpError::InvalidMinidump)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ data, minidump })
     }
 
-    <span class="doccomment">/// Returns the offset of a given slice into the minidump data.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// In minidump parlance this is also known as the RVA or Relative Virtual Address.</span>
-    <span class="doccomment">/// E.g. if all the raw minidump data is `data` and you have `&amp;data[start..end]` this</span>
-    <span class="doccomment">/// returns you `start`.</span>
-    <span class="kw">fn</span> <span class="ident">offset</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">slice</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">base</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">data</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="ident">usize</span>;
-        <span class="kw">let</span> <span class="ident">pointer</span> <span class="op">=</span> <span class="ident">slice</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="ident">usize</span>;
+    <span class="doccomment">/// Returns the offset of a given slice into the minidump data.
+    ///
+    /// In minidump parlance this is also known as the RVA or Relative Virtual Address.
+    /// E.g. if all the raw minidump data is `data` and you have `&amp;data[start..end]` this
+    /// returns you `start`.
+    </span><span class="kw">fn </span>offset(<span class="kw-2">&amp;</span><span class="self">self</span>, slice: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Option</span>&lt;usize&gt; {
+        <span class="kw">let </span>base = <span class="self">self</span>.data.as_ptr() <span class="kw">as </span>usize;
+        <span class="kw">let </span>pointer = slice.as_ptr() <span class="kw">as </span>usize;
 
-        <span class="kw">if</span> <span class="ident">pointer</span> <span class="op">&gt;</span> <span class="ident">base</span> {
-            <span class="prelude-val">Some</span>(<span class="ident">pointer</span> <span class="op">-</span> <span class="ident">base</span>)
-        } <span class="kw">else</span> {
-            <span class="prelude-val">None</span>
-        }
+        <span class="kw">if </span>pointer &gt; base {
+            <span class="prelude-val">Some</span>(pointer - base)
+        } <span class="kw">else </span>{
+            <span class="prelude-val">None
+        </span>}
     }
 
-    <span class="doccomment">/// Returns the `Range` in the raw minidump data of a slice in the minidump data.</span>
-    <span class="kw">fn</span> <span class="ident">slice_range</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">slice</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Range</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">offset</span>(<span class="ident">slice</span>)<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">end</span> <span class="op">=</span> <span class="ident">start</span> <span class="op">+</span> <span class="ident">slice</span>.<span class="ident">len</span>();
-        <span class="prelude-val">Some</span>(<span class="ident">start</span>..<span class="ident">end</span>)
+    <span class="doccomment">/// Returns the `Range` in the raw minidump data of a slice in the minidump data.
+    </span><span class="kw">fn </span>slice_range(<span class="kw-2">&amp;</span><span class="self">self</span>, slice: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Option</span>&lt;Range&lt;usize&gt;&gt; {
+        <span class="kw">let </span>start = <span class="self">self</span>.offset(slice)<span class="question-mark">?</span>;
+        <span class="kw">let </span>end = start + slice.len();
+        <span class="prelude-val">Some</span>(start..end)
     }
 
-    <span class="doccomment">/// Returns the `Range` in the raw minidump data of a `MINIDUMP_LOCATION_DESCRIPTOR`.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This allows you to create a slice of the data specified in the location descriptor.</span>
-    <span class="kw">fn</span> <span class="ident">location_range</span>(
+    <span class="doccomment">/// Returns the `Range` in the raw minidump data of a `MINIDUMP_LOCATION_DESCRIPTOR`.
+    ///
+    /// This allows you to create a slice of the data specified in the location descriptor.
+    </span><span class="kw">fn </span>location_range(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">location</span>: <span class="ident">MINIDUMP_LOCATION_DESCRIPTOR</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Range</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>, <span class="ident">ScrubMinidumpError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">start</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="ident">location</span>.<span class="ident">rva</span>.<span class="ident">try_into</span>()<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">len</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="ident">location</span>.<span class="ident">data_size</span>.<span class="ident">try_into</span>()<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(<span class="ident">start</span>..<span class="ident">start</span> <span class="op">+</span> <span class="ident">len</span>)
+        location: MINIDUMP_LOCATION_DESCRIPTOR,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Range&lt;usize&gt;, ScrubMinidumpError&gt; {
+        <span class="kw">let </span>start: usize = location.rva.try_into()<span class="question-mark">?</span>;
+        <span class="kw">let </span>len: usize = location.data_size.try_into()<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(start..start + len)
     }
 
-    <span class="doccomment">/// Returns the range of a raw stream, if the stream is preset.</span>
-    <span class="kw">fn</span> <span class="ident">raw_stream_range</span>(
+    <span class="doccomment">/// Returns the range of a raw stream, if the stream is preset.
+    </span><span class="kw">fn </span>raw_stream_range(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">stream_type</span>: <span class="ident">StreamType</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Range</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="ident">ScrubMinidumpError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">range</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">minidump</span>.<span class="ident">get_raw_stream</span>(<span class="ident">stream_type</span>.<span class="ident">into</span>()) {
-            <span class="prelude-val">Ok</span>(<span class="ident">stream</span>) =&gt; <span class="prelude-val">Some</span>(
-                <span class="self">self</span>.<span class="ident">slice_range</span>(<span class="ident">stream</span>)
-                    .<span class="ident">ok_or</span>(<span class="ident">ScrubMinidumpError::InvalidAddress</span>)<span class="question-mark">?</span>,
+        stream_type: StreamType,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Range&lt;usize&gt;&gt;, ScrubMinidumpError&gt; {
+        <span class="kw">let </span>range = <span class="kw">match </span><span class="self">self</span>.minidump.get_raw_stream(stream_type.into()) {
+            <span class="prelude-val">Ok</span>(stream) =&gt; <span class="prelude-val">Some</span>(
+                <span class="self">self</span>.slice_range(stream)
+                    .ok_or(ScrubMinidumpError::InvalidAddress)<span class="question-mark">?</span>,
             ),
-            <span class="prelude-val">Err</span>(<span class="ident">MinidumpError::StreamNotFound</span>) =&gt; <span class="prelude-val">None</span>,
-            <span class="prelude-val">Err</span>(<span class="ident">e</span>) =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ScrubMinidumpError::InvalidMinidump</span>(<span class="ident">e</span>)),
+            <span class="prelude-val">Err</span>(MinidumpError::StreamNotFound) =&gt; <span class="prelude-val">None</span>,
+            <span class="prelude-val">Err</span>(e) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(ScrubMinidumpError::InvalidMinidump(e)),
         };
-        <span class="prelude-val">Ok</span>(<span class="ident">range</span>)
+        <span class="prelude-val">Ok</span>(range)
     }
 
-    <span class="doccomment">/// Extracts all items we care about.</span>
-    <span class="kw">fn</span> <span class="ident">items</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">MinidumpItem</span><span class="op">&gt;</span>, <span class="ident">ScrubMinidumpError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">items</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
+    <span class="doccomment">/// Extracts all items we care about.
+    </span><span class="kw">fn </span>items(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;MinidumpItem&gt;, ScrubMinidumpError&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>items = Vec::new();
 
-        <span class="kw">let</span> <span class="ident">thread_list</span>: <span class="ident">MinidumpThreadList</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">minidump</span>.<span class="ident">get_stream</span>()<span class="question-mark">?</span>;
+        <span class="kw">let </span>thread_list: MinidumpThreadList = <span class="self">self</span>.minidump.get_stream()<span class="question-mark">?</span>;
 
-        <span class="kw">let</span> <span class="ident">mem_list</span>: <span class="ident">MinidumpMemoryList</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">minidump</span>.<span class="ident">get_stream</span>()<span class="question-mark">?</span>;
-        <span class="kw">for</span> <span class="ident">mem</span> <span class="kw">in</span> <span class="ident">mem_list</span>.<span class="ident">iter</span>() {
-            <span class="kw">if</span> <span class="ident">thread_list</span>
-                .<span class="ident">threads</span>
-                .<span class="ident">iter</span>()
-                .<span class="ident">any</span>(<span class="op">|</span><span class="ident">t</span><span class="op">|</span> <span class="ident">t</span>.<span class="ident">raw</span>.<span class="ident">stack</span>.<span class="ident">memory</span>.<span class="ident">rva</span> <span class="op">==</span> <span class="ident">mem</span>.<span class="ident">desc</span>.<span class="ident">memory</span>.<span class="ident">rva</span>)
+        <span class="kw">let </span>mem_list: MinidumpMemoryList = <span class="self">self</span>.minidump.get_stream()<span class="question-mark">?</span>;
+        <span class="kw">for </span>mem <span class="kw">in </span>mem_list.iter() {
+            <span class="kw">if </span>thread_list
+                .threads
+                .iter()
+                .any(|t| t.raw.stack.memory.rva == mem.desc.memory.rva)
             {
-                <span class="ident">items</span>.<span class="ident">push</span>(<span class="ident">MinidumpItem::StackMemory</span>(
-                    <span class="self">self</span>.<span class="ident">location_range</span>(<span class="ident">mem</span>.<span class="ident">desc</span>.<span class="ident">memory</span>)<span class="question-mark">?</span>,
+                items.push(MinidumpItem::StackMemory(
+                    <span class="self">self</span>.location_range(mem.desc.memory)<span class="question-mark">?</span>,
                 ));
-            } <span class="kw">else</span> {
-                <span class="ident">items</span>.<span class="ident">push</span>(<span class="ident">MinidumpItem::NonStackMemory</span>(
-                    <span class="self">self</span>.<span class="ident">location_range</span>(<span class="ident">mem</span>.<span class="ident">desc</span>.<span class="ident">memory</span>)<span class="question-mark">?</span>,
+            } <span class="kw">else </span>{
+                items.push(MinidumpItem::NonStackMemory(
+                    <span class="self">self</span>.location_range(mem.desc.memory)<span class="question-mark">?</span>,
                 ));
             }
         }
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">range</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">raw_stream_range</span>(<span class="ident">StreamType::LinuxEnviron</span>)<span class="question-mark">?</span> {
-            <span class="ident">items</span>.<span class="ident">push</span>(<span class="ident">MinidumpItem::LinuxEnviron</span>(<span class="ident">range</span>));
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(range) = <span class="self">self</span>.raw_stream_range(StreamType::LinuxEnviron)<span class="question-mark">? </span>{
+            items.push(MinidumpItem::LinuxEnviron(range));
         }
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">range</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">raw_stream_range</span>(<span class="ident">StreamType::LinuxCmdLine</span>)<span class="question-mark">?</span> {
-            <span class="ident">items</span>.<span class="ident">push</span>(<span class="ident">MinidumpItem::LinuxCmdLine</span>(<span class="ident">range</span>));
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(range) = <span class="self">self</span>.raw_stream_range(StreamType::LinuxCmdLine)<span class="question-mark">? </span>{
+            items.push(MinidumpItem::LinuxCmdLine(range));
         }
 
-        <span class="kw">let</span> <span class="ident">mod_list</span>: <span class="ident">MinidumpModuleList</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">minidump</span>.<span class="ident">get_stream</span>()<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rvas</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
-        <span class="kw">for</span> <span class="ident">module</span> <span class="kw">in</span> <span class="ident">mod_list</span>.<span class="ident">iter</span>() {
-            <span class="kw">let</span> <span class="ident">rva</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="ident">module</span>.<span class="ident">raw</span>.<span class="ident">module_name_rva</span>.<span class="ident">try_into</span>()<span class="question-mark">?</span>;
-            <span class="kw">if</span> <span class="ident">rvas</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">rva</span>) {
+        <span class="kw">let </span>mod_list: MinidumpModuleList = <span class="self">self</span>.minidump.get_stream()<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>rvas = Vec::new();
+        <span class="kw">for </span>module <span class="kw">in </span>mod_list.iter() {
+            <span class="kw">let </span>rva: usize = module.raw.module_name_rva.try_into()<span class="question-mark">?</span>;
+            <span class="kw">if </span>rvas.contains(<span class="kw-2">&amp;</span>rva) {
                 <span class="kw">continue</span>;
-            } <span class="kw">else</span> {
-                <span class="ident">rvas</span>.<span class="ident">push</span>(<span class="ident">rva</span>);
+            } <span class="kw">else </span>{
+                rvas.push(rva);
             }
-            <span class="kw">let</span> <span class="ident">len_bytes</span> <span class="op">=</span> <span class="self">self</span>
-                .<span class="ident">data</span>
-                .<span class="ident">get</span>(<span class="ident">rva</span>..)
-                .<span class="ident">ok_or</span>(<span class="ident">ScrubMinidumpError::InvalidAddress</span>)<span class="question-mark">?</span>;
-            <span class="kw">let</span> <span class="ident">len</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="ident">u32_from_bytes</span>(<span class="ident">len_bytes</span>, <span class="self">self</span>.<span class="ident">minidump</span>.<span class="ident">endian</span>)<span class="question-mark">?</span>.<span class="ident">try_into</span>()<span class="question-mark">?</span>;
-            <span class="kw">let</span> <span class="ident">start</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="ident">rva</span> <span class="op">+</span> <span class="number">4</span>;
-            <span class="ident">items</span>.<span class="ident">push</span>(<span class="ident">MinidumpItem::CodeModuleName</span>(<span class="ident">start</span>..<span class="ident">start</span> <span class="op">+</span> <span class="ident">len</span>));
+            <span class="kw">let </span>len_bytes = <span class="self">self
+                </span>.data
+                .get(rva..)
+                .ok_or(ScrubMinidumpError::InvalidAddress)<span class="question-mark">?</span>;
+            <span class="kw">let </span>len: usize = u32_from_bytes(len_bytes, <span class="self">self</span>.minidump.endian)<span class="question-mark">?</span>.try_into()<span class="question-mark">?</span>;
+            <span class="kw">let </span>start: usize = rva + <span class="number">4</span>;
+            items.push(MinidumpItem::CodeModuleName(start..start + len));
 
-            <span class="comment">// Try to get the raw debug name range.  Minidump API only give us an owned version.</span>
-            <span class="kw">let</span> <span class="ident">codeview_loc</span> <span class="op">=</span> <span class="ident">module</span>.<span class="ident">raw</span>.<span class="ident">cv_record</span>;
-            <span class="kw">let</span> <span class="ident">cv_start</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="ident">codeview_loc</span>.<span class="ident">rva</span>.<span class="ident">try_into</span>()<span class="question-mark">?</span>;
-            <span class="kw">let</span> <span class="ident">cv_len</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="ident">codeview_loc</span>.<span class="ident">data_size</span>.<span class="ident">try_into</span>()<span class="question-mark">?</span>;
-            <span class="kw">let</span> <span class="ident">signature_bytes</span> <span class="op">=</span> <span class="self">self</span>
-                .<span class="ident">data</span>
-                .<span class="ident">get</span>(<span class="ident">cv_start</span>..)
-                .<span class="ident">ok_or</span>(<span class="ident">ScrubMinidumpError::InvalidAddress</span>)<span class="question-mark">?</span>;
-            <span class="kw">let</span> <span class="ident">signature</span> <span class="op">=</span> <span class="ident">u32_from_bytes</span>(<span class="ident">signature_bytes</span>, <span class="self">self</span>.<span class="ident">minidump</span>.<span class="ident">endian</span>)<span class="question-mark">?</span>;
-            <span class="kw">match</span> <span class="ident">CvSignature::from_u32</span>(<span class="ident">signature</span>) {
-                <span class="prelude-val">Some</span>(<span class="ident">CvSignature::Pdb70</span>) =&gt; {
-                    <span class="kw">let</span> <span class="ident">offset</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">4</span> <span class="op">+</span> (<span class="number">4</span> <span class="op">+</span> <span class="number">2</span> <span class="op">+</span> <span class="number">2</span> <span class="op">+</span> <span class="number">8</span>) <span class="op">+</span> <span class="number">4</span>; <span class="comment">// cv_sig + sig GUID + age</span>
-                    <span class="ident">items</span>.<span class="ident">push</span>(<span class="ident">MinidumpItem::DebugModuleName</span>(
-                        (<span class="ident">cv_start</span> <span class="op">+</span> <span class="ident">offset</span>)..(<span class="ident">cv_start</span> <span class="op">+</span> <span class="ident">cv_len</span>),
+            <span class="comment">// Try to get the raw debug name range.  Minidump API only give us an owned version.
+            </span><span class="kw">let </span>codeview_loc = module.raw.cv_record;
+            <span class="kw">let </span>cv_start: usize = codeview_loc.rva.try_into()<span class="question-mark">?</span>;
+            <span class="kw">let </span>cv_len: usize = codeview_loc.data_size.try_into()<span class="question-mark">?</span>;
+            <span class="kw">let </span>signature_bytes = <span class="self">self
+                </span>.data
+                .get(cv_start..)
+                .ok_or(ScrubMinidumpError::InvalidAddress)<span class="question-mark">?</span>;
+            <span class="kw">let </span>signature = u32_from_bytes(signature_bytes, <span class="self">self</span>.minidump.endian)<span class="question-mark">?</span>;
+            <span class="kw">match </span>CvSignature::from_u32(signature) {
+                <span class="prelude-val">Some</span>(CvSignature::Pdb70) =&gt; {
+                    <span class="kw">let </span>offset: usize = <span class="number">4 </span>+ (<span class="number">4 </span>+ <span class="number">2 </span>+ <span class="number">2 </span>+ <span class="number">8</span>) + <span class="number">4</span>; <span class="comment">// cv_sig + sig GUID + age
+                    </span>items.push(MinidumpItem::DebugModuleName(
+                        (cv_start + offset)..(cv_start + cv_len),
                     ));
                 }
-                <span class="prelude-val">Some</span>(<span class="ident">CvSignature::Pdb20</span>) =&gt; {
-                    <span class="kw">let</span> <span class="ident">offset</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">4</span> <span class="op">+</span> <span class="number">4</span> <span class="op">+</span> <span class="number">4</span> <span class="op">+</span> <span class="number">4</span>; <span class="comment">// cv_sig + cv_offset + sig + age</span>
-                    <span class="ident">items</span>.<span class="ident">push</span>(<span class="ident">MinidumpItem::DebugModuleName</span>(
-                        (<span class="ident">cv_start</span> <span class="op">+</span> <span class="ident">offset</span>)..(<span class="ident">cv_start</span> <span class="op">+</span> <span class="ident">cv_len</span>),
+                <span class="prelude-val">Some</span>(CvSignature::Pdb20) =&gt; {
+                    <span class="kw">let </span>offset: usize = <span class="number">4 </span>+ <span class="number">4 </span>+ <span class="number">4 </span>+ <span class="number">4</span>; <span class="comment">// cv_sig + cv_offset + sig + age
+                    </span>items.push(MinidumpItem::DebugModuleName(
+                        (cv_start + offset)..(cv_start + cv_len),
                     ));
                 }
-                <span class="kw">_</span> =&gt; {}
+                <span class="kw">_ </span>=&gt; {}
             }
         }
 
-        <span class="prelude-val">Ok</span>(<span class="ident">items</span>)
+        <span class="prelude-val">Ok</span>(items)
     }
 }
 
-<span class="doccomment">/// Read a u32 from the start of a byte-slice.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This function is exceedingly close in functionality to `bytes.pread_with(0, endian)` from scroll</span>
-<span class="doccomment">/// directly, only differing in the error type.</span>
-<span class="kw">fn</span> <span class="ident">u32_from_bytes</span>(<span class="ident">bytes</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">endian</span>: <span class="ident">Endian</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">u32</span>, <span class="ident">ScrubMinidumpError</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buf</span> <span class="op">=</span> [<span class="number">0u8</span>; <span class="number">4</span>];
-    <span class="ident">buf</span>.<span class="ident">copy_from_slice</span>(<span class="ident">bytes</span>.<span class="ident">get</span>(..<span class="number">4</span>).<span class="ident">ok_or</span>(<span class="ident">ScrubMinidumpError::InvalidAddress</span>)<span class="question-mark">?</span>);
-    <span class="kw">match</span> <span class="ident">endian</span> {
-        <span class="ident">Endian::Little</span> =&gt; <span class="prelude-val">Ok</span>(<span class="ident">u32::from_le_bytes</span>(<span class="ident">buf</span>)),
-        <span class="ident">Endian::Big</span> =&gt; <span class="prelude-val">Ok</span>(<span class="ident">u32::from_be_bytes</span>(<span class="ident">buf</span>)),
+<span class="doccomment">/// Read a u32 from the start of a byte-slice.
+///
+/// This function is exceedingly close in functionality to `bytes.pread_with(0, endian)` from scroll
+/// directly, only differing in the error type.
+</span><span class="kw">fn </span>u32_from_bytes(bytes: <span class="kw-2">&amp;</span>[u8], endian: Endian) -&gt; <span class="prelude-ty">Result</span>&lt;u32, ScrubMinidumpError&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>buf = [<span class="number">0u8</span>; <span class="number">4</span>];
+    buf.copy_from_slice(bytes.get(..<span class="number">4</span>).ok_or(ScrubMinidumpError::InvalidAddress)<span class="question-mark">?</span>);
+    <span class="kw">match </span>endian {
+        Endian::Little =&gt; <span class="prelude-val">Ok</span>(u32::from_le_bytes(buf)),
+        Endian::Big =&gt; <span class="prelude-val">Ok</span>(u32::from_be_bytes(buf)),
     }
 }
 
-<span class="kw">impl</span> <span class="ident">PiiAttachmentsProcessor</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span> {
-    <span class="doccomment">/// Applies PII rules to the given minidump.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This function selectively opens minidump streams in order to avoid destroying the stack</span>
-    <span class="doccomment">/// memory required for minidump processing. It visits:</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">///  1. All stack memory regions with `ValueType::StackMemory`</span>
-    <span class="doccomment">///  2. All other memory regions with `ValueType::HeapMemory`</span>
-    <span class="doccomment">///  3. Linux auxiliary streams with `ValueType::Binary`</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Returns `true`, if the minidump was modified.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">scrub_minidump</span>(
+<span class="kw">impl </span>PiiAttachmentsProcessor&lt;<span class="lifetime">&#39;_</span>&gt; {
+    <span class="doccomment">/// Applies PII rules to the given minidump.
+    ///
+    /// This function selectively opens minidump streams in order to avoid destroying the stack
+    /// memory required for minidump processing. It visits:
+    ///
+    ///  1. All stack memory regions with `ValueType::StackMemory`
+    ///  2. All other memory regions with `ValueType::HeapMemory`
+    ///  3. Linux auxiliary streams with `ValueType::Binary`
+    ///
+    /// Returns `true`, if the minidump was modified.
+    </span><span class="kw">pub fn </span>scrub_minidump(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">filename</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
-        <span class="ident">data</span>: <span class="kw-2">&amp;mut</span> [<span class="ident">u8</span>],
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">bool</span>, <span class="ident">ScrubMinidumpError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">file_state</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">state</span>(<span class="ident">filename</span>, <span class="ident">ValueType::Minidump</span>);
-        <span class="kw">let</span> <span class="ident">items</span> <span class="op">=</span> <span class="ident">MinidumpData::parse</span>(<span class="ident">data</span>)<span class="question-mark">?</span>.<span class="ident">items</span>()<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">changed</span> <span class="op">=</span> <span class="bool-val">false</span>;
+        filename: <span class="kw-2">&amp;</span>str,
+        data: <span class="kw-2">&amp;mut </span>[u8],
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;bool, ScrubMinidumpError&gt; {
+        <span class="kw">let </span>file_state = <span class="self">self</span>.state(filename, ValueType::Minidump);
+        <span class="kw">let </span>items = MinidumpData::parse(data)<span class="question-mark">?</span>.items()<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>changed = <span class="bool-val">false</span>;
 
-        <span class="kw">for</span> <span class="ident">item</span> <span class="kw">in</span> <span class="ident">items</span> {
-            <span class="kw">match</span> <span class="ident">item</span> {
-                <span class="ident">MinidumpItem::StackMemory</span>(<span class="ident">range</span>) =&gt; {
-                    <span class="comment">// IMPORTANT: The stack is PII::Maybe to avoid accidentally scrubbing it</span>
-                    <span class="comment">// with highly generic selectors.</span>
-                    <span class="kw">let</span> <span class="ident">slice</span> <span class="op">=</span> <span class="ident">data</span>
-                        .<span class="ident">get_mut</span>(<span class="ident">range</span>)
-                        .<span class="ident">ok_or</span>(<span class="ident">ScrubMinidumpError::InvalidAddress</span>)<span class="question-mark">?</span>;
+        <span class="kw">for </span>item <span class="kw">in </span>items {
+            <span class="kw">match </span>item {
+                MinidumpItem::StackMemory(range) =&gt; {
+                    <span class="comment">// IMPORTANT: The stack is PII::Maybe to avoid accidentally scrubbing it
+                    // with highly generic selectors.
+                    </span><span class="kw">let </span>slice = data
+                        .get_mut(range)
+                        .ok_or(ScrubMinidumpError::InvalidAddress)<span class="question-mark">?</span>;
 
-                    <span class="kw">let</span> <span class="ident">attrs</span> <span class="op">=</span> <span class="ident">Cow::Owned</span>(<span class="ident">FieldAttrs::new</span>().<span class="ident">pii</span>(<span class="ident">Pii::Maybe</span>));
-                    <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">file_state</span>.<span class="ident">enter_static</span>(
+                    <span class="kw">let </span>attrs = Cow::Owned(FieldAttrs::new().pii(Pii::Maybe));
+                    <span class="kw">let </span>state = file_state.enter_static(
                         <span class="string">&quot;stack_memory&quot;</span>,
-                        <span class="prelude-val">Some</span>(<span class="ident">attrs</span>),
-                        <span class="ident">ValueType::Binary</span> <span class="op">|</span> <span class="ident">ValueType::StackMemory</span>,
+                        <span class="prelude-val">Some</span>(attrs),
+                        ValueType::Binary | ValueType::StackMemory,
                     );
-                    <span class="ident">changed</span> <span class="op">|</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">scrub_bytes</span>(<span class="ident">slice</span>, <span class="kw-2">&amp;</span><span class="ident">state</span>, <span class="ident">ScrubEncodings::All</span>);
+                    changed |= <span class="self">self</span>.scrub_bytes(slice, <span class="kw-2">&amp;</span>state, ScrubEncodings::All);
                 }
-                <span class="ident">MinidumpItem::NonStackMemory</span>(<span class="ident">range</span>) =&gt; {
-                    <span class="kw">let</span> <span class="ident">slice</span> <span class="op">=</span> <span class="ident">data</span>
-                        .<span class="ident">get_mut</span>(<span class="ident">range</span>)
-                        .<span class="ident">ok_or</span>(<span class="ident">ScrubMinidumpError::InvalidAddress</span>)<span class="question-mark">?</span>;
-                    <span class="kw">let</span> <span class="ident">attrs</span> <span class="op">=</span> <span class="ident">Cow::Owned</span>(<span class="ident">FieldAttrs::new</span>().<span class="ident">pii</span>(<span class="ident">Pii::True</span>));
-                    <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">file_state</span>.<span class="ident">enter_static</span>(
+                MinidumpItem::NonStackMemory(range) =&gt; {
+                    <span class="kw">let </span>slice = data
+                        .get_mut(range)
+                        .ok_or(ScrubMinidumpError::InvalidAddress)<span class="question-mark">?</span>;
+                    <span class="kw">let </span>attrs = Cow::Owned(FieldAttrs::new().pii(Pii::True));
+                    <span class="kw">let </span>state = file_state.enter_static(
                         <span class="string">&quot;heap_memory&quot;</span>,
-                        <span class="prelude-val">Some</span>(<span class="ident">attrs</span>),
-                        <span class="ident">ValueType::Binary</span> <span class="op">|</span> <span class="ident">ValueType::HeapMemory</span>,
+                        <span class="prelude-val">Some</span>(attrs),
+                        ValueType::Binary | ValueType::HeapMemory,
                     );
-                    <span class="ident">changed</span> <span class="op">|</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">scrub_bytes</span>(<span class="ident">slice</span>, <span class="kw-2">&amp;</span><span class="ident">state</span>, <span class="ident">ScrubEncodings::All</span>);
+                    changed |= <span class="self">self</span>.scrub_bytes(slice, <span class="kw-2">&amp;</span>state, ScrubEncodings::All);
                 }
-                <span class="ident">MinidumpItem::LinuxEnviron</span>(<span class="ident">range</span>) <span class="op">|</span> <span class="ident">MinidumpItem::LinuxCmdLine</span>(<span class="ident">range</span>) =&gt; {
-                    <span class="kw">let</span> <span class="ident">slice</span> <span class="op">=</span> <span class="ident">data</span>
-                        .<span class="ident">get_mut</span>(<span class="ident">range</span>)
-                        .<span class="ident">ok_or</span>(<span class="ident">ScrubMinidumpError::InvalidAddress</span>)<span class="question-mark">?</span>;
-                    <span class="kw">let</span> <span class="ident">attrs</span> <span class="op">=</span> <span class="ident">Cow::Owned</span>(<span class="ident">FieldAttrs::new</span>().<span class="ident">pii</span>(<span class="ident">Pii::True</span>));
-                    <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">file_state</span>.<span class="ident">enter_static</span>(<span class="string">&quot;&quot;</span>, <span class="prelude-val">Some</span>(<span class="ident">attrs</span>), <span class="prelude-val">Some</span>(<span class="ident">ValueType::Binary</span>));
-                    <span class="ident">changed</span> <span class="op">|</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">scrub_bytes</span>(<span class="ident">slice</span>, <span class="kw-2">&amp;</span><span class="ident">state</span>, <span class="ident">ScrubEncodings::All</span>);
+                MinidumpItem::LinuxEnviron(range) | MinidumpItem::LinuxCmdLine(range) =&gt; {
+                    <span class="kw">let </span>slice = data
+                        .get_mut(range)
+                        .ok_or(ScrubMinidumpError::InvalidAddress)<span class="question-mark">?</span>;
+                    <span class="kw">let </span>attrs = Cow::Owned(FieldAttrs::new().pii(Pii::True));
+                    <span class="kw">let </span>state = file_state.enter_static(<span class="string">&quot;&quot;</span>, <span class="prelude-val">Some</span>(attrs), <span class="prelude-val">Some</span>(ValueType::Binary));
+                    changed |= <span class="self">self</span>.scrub_bytes(slice, <span class="kw-2">&amp;</span>state, ScrubEncodings::All);
                 }
-                <span class="ident">MinidumpItem::CodeModuleName</span>(<span class="ident">range</span>) =&gt; {
-                    <span class="kw">let</span> <span class="ident">slice</span> <span class="op">=</span> <span class="ident">data</span>
-                        .<span class="ident">get_mut</span>(<span class="ident">range</span>)
-                        .<span class="ident">ok_or</span>(<span class="ident">ScrubMinidumpError::InvalidAddress</span>)<span class="question-mark">?</span>;
-                    <span class="kw">let</span> <span class="ident">attrs</span> <span class="op">=</span> <span class="ident">Cow::Owned</span>(<span class="ident">FieldAttrs::new</span>().<span class="ident">pii</span>(<span class="ident">Pii::True</span>));
-                    <span class="comment">// Mirrors decisions made on NativeImagePath type</span>
-                    <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span>
-                        <span class="ident">file_state</span>.<span class="ident">enter_static</span>(<span class="string">&quot;code_file&quot;</span>, <span class="prelude-val">Some</span>(<span class="ident">attrs</span>), <span class="prelude-val">Some</span>(<span class="ident">ValueType::String</span>));
-                    <span class="kw">let</span> <span class="ident">wstr</span> <span class="op">=</span> <span class="ident">WStr::from_utf16le_mut</span>(<span class="ident">slice</span>)<span class="question-mark">?</span>; <span class="comment">// TODO: Consider making this lossy?</span>
-                    <span class="ident">changed</span> <span class="op">|</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">scrub_utf16_filepath</span>(<span class="ident">wstr</span>, <span class="kw-2">&amp;</span><span class="ident">state</span>);
+                MinidumpItem::CodeModuleName(range) =&gt; {
+                    <span class="kw">let </span>slice = data
+                        .get_mut(range)
+                        .ok_or(ScrubMinidumpError::InvalidAddress)<span class="question-mark">?</span>;
+                    <span class="kw">let </span>attrs = Cow::Owned(FieldAttrs::new().pii(Pii::True));
+                    <span class="comment">// Mirrors decisions made on NativeImagePath type
+                    </span><span class="kw">let </span>state =
+                        file_state.enter_static(<span class="string">&quot;code_file&quot;</span>, <span class="prelude-val">Some</span>(attrs), <span class="prelude-val">Some</span>(ValueType::String));
+                    <span class="kw">let </span>wstr = WStr::from_utf16le_mut(slice)<span class="question-mark">?</span>; <span class="comment">// TODO: Consider making this lossy?
+                    </span>changed |= <span class="self">self</span>.scrub_utf16_filepath(wstr, <span class="kw-2">&amp;</span>state);
                 }
-                <span class="ident">MinidumpItem::DebugModuleName</span>(<span class="ident">range</span>) =&gt; {
-                    <span class="kw">let</span> <span class="ident">slice</span> <span class="op">=</span> <span class="ident">data</span>
-                        .<span class="ident">get_mut</span>(<span class="ident">range</span>)
-                        .<span class="ident">ok_or</span>(<span class="ident">ScrubMinidumpError::InvalidAddress</span>)<span class="question-mark">?</span>;
-                    <span class="kw">let</span> <span class="ident">attrs</span> <span class="op">=</span> <span class="ident">Cow::Owned</span>(<span class="ident">FieldAttrs::new</span>().<span class="ident">pii</span>(<span class="ident">Pii::True</span>));
-                    <span class="comment">// Mirrors decisions made on NativeImagePath type</span>
-                    <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span>
-                        <span class="ident">file_state</span>.<span class="ident">enter_static</span>(<span class="string">&quot;debug_file&quot;</span>, <span class="prelude-val">Some</span>(<span class="ident">attrs</span>), <span class="prelude-val">Some</span>(<span class="ident">ValueType::String</span>));
-                    <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="ident">std::str::from_utf8_mut</span>(<span class="ident">slice</span>)<span class="question-mark">?</span>;
-                    <span class="ident">changed</span> <span class="op">|</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">scrub_utf8_filepath</span>(<span class="ident">s</span>, <span class="kw-2">&amp;</span><span class="ident">state</span>);
+                MinidumpItem::DebugModuleName(range) =&gt; {
+                    <span class="kw">let </span>slice = data
+                        .get_mut(range)
+                        .ok_or(ScrubMinidumpError::InvalidAddress)<span class="question-mark">?</span>;
+                    <span class="kw">let </span>attrs = Cow::Owned(FieldAttrs::new().pii(Pii::True));
+                    <span class="comment">// Mirrors decisions made on NativeImagePath type
+                    </span><span class="kw">let </span>state =
+                        file_state.enter_static(<span class="string">&quot;debug_file&quot;</span>, <span class="prelude-val">Some</span>(attrs), <span class="prelude-val">Some</span>(ValueType::String));
+                    <span class="kw">let </span>s = std::str::from_utf8_mut(slice)<span class="question-mark">?</span>;
+                    changed |= <span class="self">self</span>.scrub_utf8_filepath(s, <span class="kw-2">&amp;</span>state);
                 }
             };
         }
 
-        <span class="prelude-val">Ok</span>(<span class="ident">changed</span>)
+        <span class="prelude-val">Ok</span>(changed)
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">minidump</span>::{<span class="ident">format::RVA</span>, <span class="ident">MinidumpModule</span>, <span class="ident">Module</span>};
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>minidump::{format::RVA, MinidumpModule, Module};
 
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::pii::PiiConfig</span>;
+    <span class="kw">use </span><span class="kw">crate</span>::pii::PiiConfig;
 
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">struct</span> <span class="ident">TestScrubber</span> {
-        <span class="ident">orig_dump</span>: <span class="ident">Minidump</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">u8</span>]<span class="op">&gt;</span>,
-        <span class="ident">_scrubbed_data</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
-        <span class="ident">scrubbed_dump</span>: <span class="ident">Minidump</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">u8</span>]<span class="op">&gt;</span>,
+    <span class="kw">struct </span>TestScrubber {
+        orig_dump: Minidump&lt;<span class="lifetime">&#39;static</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>[u8]&gt;,
+        _scrubbed_data: Vec&lt;u8&gt;,
+        scrubbed_dump: Minidump&lt;<span class="lifetime">&#39;static</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>[u8]&gt;,
     }
 
-    <span class="kw">impl</span> <span class="ident">TestScrubber</span> {
-        <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">filename</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">orig_data</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">u8</span>], <span class="ident">json</span>: <span class="ident">serde_json::Value</span>) -&gt; <span class="self">Self</span> {
-            <span class="kw">let</span> <span class="ident">orig_dump</span> <span class="op">=</span> <span class="ident">Minidump::read</span>(<span class="ident">orig_data</span>).<span class="ident">expect</span>(<span class="string">&quot;original minidump failed to parse&quot;</span>);
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">scrubbed_data</span> <span class="op">=</span> <span class="ident">Vec::from</span>(<span class="ident">orig_data</span>);
+    <span class="kw">impl </span>TestScrubber {
+        <span class="kw">fn </span>new(filename: <span class="kw-2">&amp;</span>str, orig_data: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>[u8], json: serde_json::Value) -&gt; <span class="self">Self </span>{
+            <span class="kw">let </span>orig_dump = Minidump::read(orig_data).expect(<span class="string">&quot;original minidump failed to parse&quot;</span>);
+            <span class="kw">let </span><span class="kw-2">mut </span>scrubbed_data = Vec::from(orig_data);
 
-            <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">serde_json::from_value</span>::<span class="op">&lt;</span><span class="ident">PiiConfig</span><span class="op">&gt;</span>(<span class="ident">json</span>).<span class="ident">expect</span>(<span class="string">&quot;invalid config json&quot;</span>);
-            <span class="kw">let</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiAttachmentsProcessor::new</span>(<span class="ident">config</span>.<span class="ident">compiled</span>());
-            <span class="ident">processor</span>
-                .<span class="ident">scrub_minidump</span>(<span class="ident">filename</span>, <span class="ident">scrubbed_data</span>.<span class="ident">as_mut_slice</span>())
-                .<span class="ident">expect</span>(<span class="string">&quot;scrubbing failed&quot;</span>);
+            <span class="kw">let </span>config = serde_json::from_value::&lt;PiiConfig&gt;(json).expect(<span class="string">&quot;invalid config json&quot;</span>);
+            <span class="kw">let </span>processor = PiiAttachmentsProcessor::new(config.compiled());
+            processor
+                .scrub_minidump(filename, scrubbed_data.as_mut_slice())
+                .expect(<span class="string">&quot;scrubbing failed&quot;</span>);
 
-            <span class="comment">// We could let scrubbed_dump just consume the Vec&lt;[u8]&gt;, but that would give</span>
-            <span class="comment">// both our dumps different types which is awkward to work with.  So we store</span>
-            <span class="comment">// the Vec separately to keep the slice alive and pretend we give Minidump a</span>
-            <span class="comment">// &amp;&#39;static [u8].</span>
-            <span class="kw">let</span> <span class="ident">slice</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">std::mem::transmute</span>(<span class="ident">scrubbed_data</span>.<span class="ident">as_slice</span>()) };
-            <span class="kw">let</span> <span class="ident">scrubbed_dump</span> <span class="op">=</span> <span class="ident">Minidump::read</span>(<span class="ident">slice</span>).<span class="ident">expect</span>(<span class="string">&quot;scrubbed minidump failed to parse&quot;</span>);
-            <span class="self">Self</span> {
-                <span class="ident">orig_dump</span>,
-                <span class="ident">_scrubbed_data</span>: <span class="ident">scrubbed_data</span>,
-                <span class="ident">scrubbed_dump</span>,
+            <span class="comment">// We could let scrubbed_dump just consume the Vec&lt;[u8]&gt;, but that would give
+            // both our dumps different types which is awkward to work with.  So we store
+            // the Vec separately to keep the slice alive and pretend we give Minidump a
+            // &amp;&#39;static [u8].
+            </span><span class="kw">let </span>slice = <span class="kw">unsafe </span>{ std::mem::transmute(scrubbed_data.as_slice()) };
+            <span class="kw">let </span>scrubbed_dump = Minidump::read(slice).expect(<span class="string">&quot;scrubbed minidump failed to parse&quot;</span>);
+            <span class="self">Self </span>{
+                orig_dump,
+                _scrubbed_data: scrubbed_data,
+                scrubbed_dump,
             }
         }
     }
 
-    <span class="kw">enum</span> <span class="ident">Which</span> {
-        <span class="ident">Original</span>,
-        <span class="ident">Scrubbed</span>,
+    <span class="kw">enum </span>Which {
+        Original,
+        Scrubbed,
     }
 
-    <span class="kw">enum</span> <span class="ident">MemRegion</span> {
-        <span class="ident">Stack</span>,
-        <span class="ident">Heap</span>,
+    <span class="kw">enum </span>MemRegion {
+        Stack,
+        Heap,
     }
 
-    <span class="kw">impl</span> <span class="ident">TestScrubber</span> {
-        <span class="kw">fn</span> <span class="ident">main_module</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">which</span>: <span class="ident">Which</span>) -&gt; <span class="ident">MinidumpModule</span> {
-            <span class="kw">let</span> <span class="ident">dump</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">which</span> {
-                <span class="ident">Which::Original</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">orig_dump</span>,
-                <span class="ident">Which::Scrubbed</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">scrubbed_dump</span>,
+    <span class="kw">impl </span>TestScrubber {
+        <span class="kw">fn </span>main_module(<span class="kw-2">&amp;</span><span class="self">self</span>, which: Which) -&gt; MinidumpModule {
+            <span class="kw">let </span>dump = <span class="kw">match </span>which {
+                Which::Original =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.orig_dump,
+                Which::Scrubbed =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.scrubbed_dump,
             };
-            <span class="kw">let</span> <span class="ident">modules</span>: <span class="ident">MinidumpModuleList</span> <span class="op">=</span> <span class="ident">dump</span>.<span class="ident">get_stream</span>().<span class="ident">unwrap</span>();
-            <span class="ident">modules</span>.<span class="ident">main_module</span>().<span class="ident">unwrap</span>().<span class="ident">clone</span>()
+            <span class="kw">let </span>modules: MinidumpModuleList = dump.get_stream().unwrap();
+            modules.main_module().unwrap().clone()
         }
 
-        <span class="kw">fn</span> <span class="ident">other_modules</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">which</span>: <span class="ident">Which</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">MinidumpModule</span><span class="op">&gt;</span> {
-            <span class="kw">let</span> <span class="ident">dump</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">which</span> {
-                <span class="ident">Which::Original</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">orig_dump</span>,
-                <span class="ident">Which::Scrubbed</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">scrubbed_dump</span>,
+        <span class="kw">fn </span>other_modules(<span class="kw-2">&amp;</span><span class="self">self</span>, which: Which) -&gt; Vec&lt;MinidumpModule&gt; {
+            <span class="kw">let </span>dump = <span class="kw">match </span>which {
+                Which::Original =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.orig_dump,
+                Which::Scrubbed =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.scrubbed_dump,
             };
-            <span class="kw">let</span> <span class="ident">modules</span>: <span class="ident">MinidumpModuleList</span> <span class="op">=</span> <span class="ident">dump</span>.<span class="ident">get_stream</span>().<span class="ident">unwrap</span>();
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">iter</span> <span class="op">=</span> <span class="ident">modules</span>.<span class="ident">iter</span>();
-            <span class="ident">iter</span>.<span class="ident">next</span>(); <span class="comment">// remove main module</span>
-            <span class="ident">iter</span>.<span class="ident">cloned</span>().<span class="ident">collect</span>()
+            <span class="kw">let </span>modules: MinidumpModuleList = dump.get_stream().unwrap();
+            <span class="kw">let </span><span class="kw-2">mut </span>iter = modules.iter();
+            iter.next(); <span class="comment">// remove main module
+            </span>iter.cloned().collect()
         }
 
-        <span class="doccomment">/// Returns the raw stack or heap memory regions.</span>
-        <span class="kw">fn</span> <span class="ident">memory_regions</span><span class="op">&lt;</span><span class="lifetime">&#39;slf</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;slf</span> <span class="self">self</span>, <span class="ident">which</span>: <span class="ident">Which</span>, <span class="ident">region</span>: <span class="ident">MemRegion</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;slf</span> [<span class="ident">u8</span>]<span class="op">&gt;</span> {
-            <span class="kw">let</span> <span class="ident">dump</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;slf</span> <span class="ident">Minidump</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">u8</span>]<span class="op">&gt;</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">which</span> {
-                <span class="ident">Which::Original</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">orig_dump</span>,
-                <span class="ident">Which::Scrubbed</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">scrubbed_dump</span>,
+        <span class="doccomment">/// Returns the raw stack or heap memory regions.
+        </span><span class="kw">fn </span>memory_regions&lt;<span class="lifetime">&#39;slf</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;slf </span><span class="self">self</span>, which: Which, region: MemRegion) -&gt; Vec&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;slf </span>[u8]&gt; {
+            <span class="kw">let </span>dump: <span class="kw-2">&amp;</span><span class="lifetime">&#39;slf </span>Minidump&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>[u8]&gt; = <span class="kw">match </span>which {
+                Which::Original =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.orig_dump,
+                Which::Scrubbed =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.scrubbed_dump,
             };
 
-            <span class="kw">let</span> <span class="ident">thread_list</span>: <span class="ident">MinidumpThreadList</span> <span class="op">=</span> <span class="ident">dump</span>.<span class="ident">get_stream</span>().<span class="ident">unwrap</span>();
-            <span class="kw">let</span> <span class="ident">stack_rvas</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">RVA</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">thread_list</span>
-                .<span class="ident">threads</span>
-                .<span class="ident">iter</span>()
-                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">t</span><span class="op">|</span> <span class="ident">t</span>.<span class="ident">raw</span>.<span class="ident">stack</span>.<span class="ident">memory</span>.<span class="ident">rva</span>)
-                .<span class="ident">collect</span>();
+            <span class="kw">let </span>thread_list: MinidumpThreadList = dump.get_stream().unwrap();
+            <span class="kw">let </span>stack_rvas: Vec&lt;RVA&gt; = thread_list
+                .threads
+                .iter()
+                .map(|t| t.raw.stack.memory.rva)
+                .collect();
 
-            <span class="comment">// These bytes are kept alive by our struct itself, so returning them with the</span>
-            <span class="comment">// lifetime of our struct is fine.  The lifetimes on the Minidump::MemoryRegions</span>
-            <span class="comment">// iterator are currenty wrong and assumes we keep a reference to the</span>
-            <span class="comment">// MinidumpMemoryList, hence we need to transmute this.  See</span>
-            <span class="comment">// https://github.com/luser/rust-minidump/pull/111</span>
-            <span class="kw">let</span> <span class="ident">mem_list</span>: <span class="ident">MinidumpMemoryList</span><span class="op">&lt;</span><span class="lifetime">&#39;slf</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">dump</span>.<span class="ident">get_stream</span>().<span class="ident">unwrap</span>();
-            <span class="ident">mem_list</span>
-                .<span class="ident">iter</span>()
-                .<span class="ident">filter</span>(<span class="op">|</span><span class="ident">mem</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">region</span> {
-                    <span class="ident">MemRegion::Stack</span> =&gt; <span class="ident">stack_rvas</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">mem</span>.<span class="ident">desc</span>.<span class="ident">memory</span>.<span class="ident">rva</span>),
-                    <span class="ident">MemRegion::Heap</span> =&gt; <span class="op">!</span><span class="ident">stack_rvas</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">mem</span>.<span class="ident">desc</span>.<span class="ident">memory</span>.<span class="ident">rva</span>),
+            <span class="comment">// These bytes are kept alive by our struct itself, so returning them with the
+            // lifetime of our struct is fine.  The lifetimes on the Minidump::MemoryRegions
+            // iterator are currenty wrong and assumes we keep a reference to the
+            // MinidumpMemoryList, hence we need to transmute this.  See
+            // https://github.com/luser/rust-minidump/pull/111
+            </span><span class="kw">let </span>mem_list: MinidumpMemoryList&lt;<span class="lifetime">&#39;slf</span>&gt; = dump.get_stream().unwrap();
+            mem_list
+                .iter()
+                .filter(|mem| <span class="kw">match </span>region {
+                    MemRegion::Stack =&gt; stack_rvas.contains(<span class="kw-2">&amp;</span>mem.desc.memory.rva),
+                    MemRegion::Heap =&gt; !stack_rvas.contains(<span class="kw-2">&amp;</span>mem.desc.memory.rva),
                 })
-                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">mem</span><span class="op">|</span> <span class="kw">unsafe</span> { <span class="ident">std::mem::transmute</span>(<span class="ident">mem</span>.<span class="ident">bytes</span>) })
-                .<span class="ident">collect</span>()
+                .map(|mem| <span class="kw">unsafe </span>{ std::mem::transmute(mem.bytes) })
+                .collect()
         }
 
-        <span class="doccomment">/// Returns the raw stack memory regions.</span>
-        <span class="kw">fn</span> <span class="ident">stacks</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">which</span>: <span class="ident">Which</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span> {
-            <span class="self">self</span>.<span class="ident">memory_regions</span>(<span class="ident">which</span>, <span class="ident">MemRegion::Stack</span>)
+        <span class="doccomment">/// Returns the raw stack memory regions.
+        </span><span class="kw">fn </span>stacks(<span class="kw-2">&amp;</span><span class="self">self</span>, which: Which) -&gt; Vec&lt;<span class="kw-2">&amp;</span>[u8]&gt; {
+            <span class="self">self</span>.memory_regions(which, MemRegion::Stack)
         }
 
-        <span class="doccomment">/// Returns the raw heap memory regions.</span>
-        <span class="kw">fn</span> <span class="ident">heaps</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">which</span>: <span class="ident">Which</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span> {
-            <span class="self">self</span>.<span class="ident">memory_regions</span>(<span class="ident">which</span>, <span class="ident">MemRegion::Heap</span>)
+        <span class="doccomment">/// Returns the raw heap memory regions.
+        </span><span class="kw">fn </span>heaps(<span class="kw-2">&amp;</span><span class="self">self</span>, which: Which) -&gt; Vec&lt;<span class="kw-2">&amp;</span>[u8]&gt; {
+            <span class="self">self</span>.memory_regions(which, MemRegion::Heap)
         }
 
-        <span class="doccomment">/// Returns the Linux environ region.</span>
-        <span class="doccomment">///</span>
-        <span class="doccomment">/// Panics if there is no such region.</span>
-        <span class="kw">fn</span> <span class="ident">environ</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">which</span>: <span class="ident">Which</span>) -&gt; <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] {
-            <span class="kw">let</span> <span class="ident">dump</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">which</span> {
-                <span class="ident">Which::Original</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">orig_dump</span>,
-                <span class="ident">Which::Scrubbed</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">scrubbed_dump</span>,
+        <span class="doccomment">/// Returns the Linux environ region.
+        ///
+        /// Panics if there is no such region.
+        </span><span class="kw">fn </span>environ(<span class="kw-2">&amp;</span><span class="self">self</span>, which: Which) -&gt; <span class="kw-2">&amp;</span>[u8] {
+            <span class="kw">let </span>dump = <span class="kw">match </span>which {
+                Which::Original =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.orig_dump,
+                Which::Scrubbed =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.scrubbed_dump,
             };
-            <span class="ident">dump</span>.<span class="ident">get_raw_stream</span>(<span class="ident">StreamType::LinuxEnviron</span>.<span class="ident">into</span>())
-                .<span class="ident">unwrap</span>()
+            dump.get_raw_stream(StreamType::LinuxEnviron.into())
+                .unwrap()
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_module_list_removed_win</span>() {
-        <span class="kw">let</span> <span class="ident">scrubber</span> <span class="op">=</span> <span class="ident">TestScrubber::new</span>(
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_module_list_removed_win() {
+        <span class="kw">let </span>scrubber = TestScrubber::new(
             <span class="string">&quot;windows.dmp&quot;</span>,
             <span class="macro">include_bytes!</span>(<span class="string">&quot;../../../tests/fixtures/windows.dmp&quot;</span>),
             <span class="macro">serde_json::json!</span>(
@@ -1275,48 +1275,48 @@
             ),
         );
 
-        <span class="kw">let</span> <span class="ident">main</span> <span class="op">=</span> <span class="ident">scrubber</span>.<span class="ident">main_module</span>(<span class="ident">Which::Original</span>);
+        <span class="kw">let </span>main = scrubber.main_module(Which::Original);
         <span class="macro">assert_eq!</span>(
-            <span class="ident">main</span>.<span class="ident">code_file</span>(),
-            <span class="string">&quot;C:\\projects\\breakpad-tools\\windows\\Release\\crash.exe&quot;</span>
-        );
+            main.code_file(),
+            <span class="string">&quot;C:\\projects\\breakpad-tools\\windows\\Release\\crash.exe&quot;
+        </span>);
         <span class="macro">assert_eq!</span>(
-            <span class="ident">main</span>.<span class="ident">debug_file</span>().<span class="ident">unwrap</span>(),
-            <span class="string">&quot;C:\\projects\\breakpad-tools\\windows\\Release\\crash.pdb&quot;</span>
-        );
+            main.debug_file().unwrap(),
+            <span class="string">&quot;C:\\projects\\breakpad-tools\\windows\\Release\\crash.pdb&quot;
+        </span>);
 
-        <span class="kw">let</span> <span class="ident">main</span> <span class="op">=</span> <span class="ident">scrubber</span>.<span class="ident">main_module</span>(<span class="ident">Which::Scrubbed</span>);
+        <span class="kw">let </span>main = scrubber.main_module(Which::Scrubbed);
         <span class="macro">assert_eq!</span>(
-            <span class="ident">main</span>.<span class="ident">code_file</span>(),
-            <span class="string">&quot;******************************************\\crash.exe&quot;</span>
-        );
+            main.code_file(),
+            <span class="string">&quot;******************************************\\crash.exe&quot;
+        </span>);
         <span class="macro">assert_eq!</span>(
-            <span class="ident">main</span>.<span class="ident">debug_file</span>().<span class="ident">unwrap</span>(),
-            <span class="string">&quot;******************************************\\crash.pdb&quot;</span>
-        );
+            main.debug_file().unwrap(),
+            <span class="string">&quot;******************************************\\crash.pdb&quot;
+        </span>);
 
-        <span class="kw">let</span> <span class="ident">modules</span> <span class="op">=</span> <span class="ident">scrubber</span>.<span class="ident">other_modules</span>(<span class="ident">Which::Original</span>);
-        <span class="kw">for</span> <span class="ident">module</span> <span class="kw">in</span> <span class="ident">modules</span> {
+        <span class="kw">let </span>modules = scrubber.other_modules(Which::Original);
+        <span class="kw">for </span>module <span class="kw">in </span>modules {
             <span class="macro">assert!</span>(
-                <span class="ident">module</span>.<span class="ident">code_file</span>().<span class="ident">starts_with</span>(<span class="string">&quot;C:\\Windows\\System32\\&quot;</span>),
-                <span class="string">&quot;code file without full path&quot;</span>
-            );
-            <span class="macro">assert!</span>(<span class="ident">module</span>.<span class="ident">debug_file</span>().<span class="ident">unwrap</span>().<span class="ident">ends_with</span>(<span class="string">&quot;.pdb&quot;</span>));
+                module.code_file().starts_with(<span class="string">&quot;C:\\Windows\\System32\\&quot;</span>),
+                <span class="string">&quot;code file without full path&quot;
+            </span>);
+            <span class="macro">assert!</span>(module.debug_file().unwrap().ends_with(<span class="string">&quot;.pdb&quot;</span>));
         }
 
-        <span class="kw">let</span> <span class="ident">modules</span> <span class="op">=</span> <span class="ident">scrubber</span>.<span class="ident">other_modules</span>(<span class="ident">Which::Scrubbed</span>);
-        <span class="kw">for</span> <span class="ident">module</span> <span class="kw">in</span> <span class="ident">modules</span> {
+        <span class="kw">let </span>modules = scrubber.other_modules(Which::Scrubbed);
+        <span class="kw">for </span>module <span class="kw">in </span>modules {
             <span class="macro">assert!</span>(
-                <span class="ident">module</span>.<span class="ident">code_file</span>().<span class="ident">starts_with</span>(<span class="string">&quot;*******************\\&quot;</span>),
-                <span class="string">&quot;code file path not scrubbed&quot;</span>
-            );
-            <span class="macro">assert!</span>(<span class="ident">module</span>.<span class="ident">debug_file</span>().<span class="ident">unwrap</span>().<span class="ident">ends_with</span>(<span class="string">&quot;.pdb&quot;</span>));
+                module.code_file().starts_with(<span class="string">&quot;*******************\\&quot;</span>),
+                <span class="string">&quot;code file path not scrubbed&quot;
+            </span>);
+            <span class="macro">assert!</span>(module.debug_file().unwrap().ends_with(<span class="string">&quot;.pdb&quot;</span>));
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_module_list_removed_lin</span>() {
-        <span class="kw">let</span> <span class="ident">scrubber</span> <span class="op">=</span> <span class="ident">TestScrubber::new</span>(
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_module_list_removed_lin() {
+        <span class="kw">let </span>scrubber = TestScrubber::new(
             <span class="string">&quot;linux.dmp&quot;</span>,
             <span class="macro">include_bytes!</span>(<span class="string">&quot;../../../tests/fixtures/linux.dmp&quot;</span>),
             <span class="macro">serde_json::json!</span>(
@@ -1329,46 +1329,46 @@
             ),
         );
 
-        <span class="kw">let</span> <span class="ident">main</span> <span class="op">=</span> <span class="ident">scrubber</span>.<span class="ident">main_module</span>(<span class="ident">Which::Original</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">main</span>.<span class="ident">code_file</span>(), <span class="string">&quot;/work/linux/build/crash&quot;</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">main</span>.<span class="ident">debug_file</span>().<span class="ident">unwrap</span>(), <span class="string">&quot;/work/linux/build/crash&quot;</span>);
+        <span class="kw">let </span>main = scrubber.main_module(Which::Original);
+        <span class="macro">assert_eq!</span>(main.code_file(), <span class="string">&quot;/work/linux/build/crash&quot;</span>);
+        <span class="macro">assert_eq!</span>(main.debug_file().unwrap(), <span class="string">&quot;/work/linux/build/crash&quot;</span>);
 
-        <span class="kw">let</span> <span class="ident">main</span> <span class="op">=</span> <span class="ident">scrubber</span>.<span class="ident">main_module</span>(<span class="ident">Which::Scrubbed</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">main</span>.<span class="ident">code_file</span>(), <span class="string">&quot;*****************/crash&quot;</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">main</span>.<span class="ident">debug_file</span>().<span class="ident">unwrap</span>(), <span class="string">&quot;*****************/crash&quot;</span>);
+        <span class="kw">let </span>main = scrubber.main_module(Which::Scrubbed);
+        <span class="macro">assert_eq!</span>(main.code_file(), <span class="string">&quot;*****************/crash&quot;</span>);
+        <span class="macro">assert_eq!</span>(main.debug_file().unwrap(), <span class="string">&quot;*****************/crash&quot;</span>);
 
-        <span class="kw">let</span> <span class="ident">modules</span> <span class="op">=</span> <span class="ident">scrubber</span>.<span class="ident">other_modules</span>(<span class="ident">Which::Original</span>);
-        <span class="kw">for</span> <span class="ident">module</span> <span class="kw">in</span> <span class="ident">modules</span> {
+        <span class="kw">let </span>modules = scrubber.other_modules(Which::Original);
+        <span class="kw">for </span>module <span class="kw">in </span>modules {
             <span class="macro">assert!</span>(
-                <span class="ident">module</span>.<span class="ident">code_file</span>().<span class="ident">matches</span>(<span class="string">&#39;/&#39;</span>).<span class="ident">count</span>() <span class="op">&gt;</span> <span class="number">1</span>
-                    <span class="op">|</span><span class="op">|</span> <span class="ident">module</span>.<span class="ident">code_file</span>() <span class="op">==</span> <span class="string">&quot;linux-gate.so&quot;</span>,
-                <span class="string">&quot;code file does not contain path&quot;</span>
-            );
+                module.code_file().matches(<span class="string">&#39;/&#39;</span>).count() &gt; <span class="number">1
+                    </span>|| module.code_file() == <span class="string">&quot;linux-gate.so&quot;</span>,
+                <span class="string">&quot;code file does not contain path&quot;
+            </span>);
             <span class="macro">assert!</span>(
-                <span class="ident">module</span>.<span class="ident">debug_file</span>().<span class="ident">unwrap</span>().<span class="ident">matches</span>(<span class="string">&#39;/&#39;</span>).<span class="ident">count</span>() <span class="op">&gt;</span> <span class="number">1</span>
-                    <span class="op">|</span><span class="op">|</span> <span class="ident">module</span>.<span class="ident">debug_file</span>().<span class="ident">unwrap</span>() <span class="op">==</span> <span class="string">&quot;linux-gate.so&quot;</span>,
-                <span class="string">&quot;debug file does not contain a path&quot;</span>
-            );
+                module.debug_file().unwrap().matches(<span class="string">&#39;/&#39;</span>).count() &gt; <span class="number">1
+                    </span>|| module.debug_file().unwrap() == <span class="string">&quot;linux-gate.so&quot;</span>,
+                <span class="string">&quot;debug file does not contain a path&quot;
+            </span>);
         }
 
-        <span class="kw">let</span> <span class="ident">modules</span> <span class="op">=</span> <span class="ident">scrubber</span>.<span class="ident">other_modules</span>(<span class="ident">Which::Scrubbed</span>);
-        <span class="kw">for</span> <span class="ident">module</span> <span class="kw">in</span> <span class="ident">modules</span> {
+        <span class="kw">let </span>modules = scrubber.other_modules(Which::Scrubbed);
+        <span class="kw">for </span>module <span class="kw">in </span>modules {
             <span class="macro">assert!</span>(
-                <span class="ident">module</span>.<span class="ident">code_file</span>().<span class="ident">matches</span>(<span class="string">&#39;/&#39;</span>).<span class="ident">count</span>() <span class="op">==</span> <span class="number">1</span>
-                    <span class="op">|</span><span class="op">|</span> <span class="ident">module</span>.<span class="ident">code_file</span>() <span class="op">==</span> <span class="string">&quot;linux-gate.so&quot;</span>,
-                <span class="string">&quot;code file not scrubbed&quot;</span>
-            );
+                module.code_file().matches(<span class="string">&#39;/&#39;</span>).count() == <span class="number">1
+                    </span>|| module.code_file() == <span class="string">&quot;linux-gate.so&quot;</span>,
+                <span class="string">&quot;code file not scrubbed&quot;
+            </span>);
             <span class="macro">assert!</span>(
-                <span class="ident">module</span>.<span class="ident">debug_file</span>().<span class="ident">unwrap</span>().<span class="ident">matches</span>(<span class="string">&#39;/&#39;</span>).<span class="ident">count</span>() <span class="op">==</span> <span class="number">1</span>
-                    <span class="op">|</span><span class="op">|</span> <span class="ident">module</span>.<span class="ident">debug_file</span>().<span class="ident">unwrap</span>() <span class="op">==</span> <span class="string">&quot;linux-gate.so&quot;</span>,
-                <span class="string">&quot;scrubbed debug file contains a path&quot;</span>
-            );
+                module.debug_file().unwrap().matches(<span class="string">&#39;/&#39;</span>).count() == <span class="number">1
+                    </span>|| module.debug_file().unwrap() == <span class="string">&quot;linux-gate.so&quot;</span>,
+                <span class="string">&quot;scrubbed debug file contains a path&quot;
+            </span>);
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_module_list_removed_mac</span>() {
-        <span class="kw">let</span> <span class="ident">scrubber</span> <span class="op">=</span> <span class="ident">TestScrubber::new</span>(
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_module_list_removed_mac() {
+        <span class="kw">let </span>scrubber = TestScrubber::new(
             <span class="string">&quot;macos.dmp&quot;</span>,
             <span class="macro">include_bytes!</span>(<span class="string">&quot;../../../tests/fixtures/macos.dmp&quot;</span>),
             <span class="macro">serde_json::json!</span>(
@@ -1381,53 +1381,53 @@
             ),
         );
 
-        <span class="kw">let</span> <span class="ident">main</span> <span class="op">=</span> <span class="ident">scrubber</span>.<span class="ident">main_module</span>(<span class="ident">Which::Original</span>);
+        <span class="kw">let </span>main = scrubber.main_module(Which::Original);
         <span class="macro">assert_eq!</span>(
-            <span class="ident">main</span>.<span class="ident">code_file</span>(),
-            <span class="string">&quot;/Users/travis/build/getsentry/breakpad-tools/macos/build/./crash&quot;</span>
-        );
-        <span class="macro">assert_eq!</span>(<span class="ident">main</span>.<span class="ident">debug_file</span>().<span class="ident">unwrap</span>(), <span class="string">&quot;crash&quot;</span>);
+            main.code_file(),
+            <span class="string">&quot;/Users/travis/build/getsentry/breakpad-tools/macos/build/./crash&quot;
+        </span>);
+        <span class="macro">assert_eq!</span>(main.debug_file().unwrap(), <span class="string">&quot;crash&quot;</span>);
 
-        <span class="kw">let</span> <span class="ident">main</span> <span class="op">=</span> <span class="ident">scrubber</span>.<span class="ident">main_module</span>(<span class="ident">Which::Scrubbed</span>);
+        <span class="kw">let </span>main = scrubber.main_module(Which::Scrubbed);
         <span class="macro">assert_eq!</span>(
-            <span class="ident">main</span>.<span class="ident">code_file</span>(),
-            <span class="string">&quot;**********************************************************/crash&quot;</span>
-        );
-        <span class="macro">assert_eq!</span>(<span class="ident">main</span>.<span class="ident">debug_file</span>().<span class="ident">unwrap</span>(), <span class="string">&quot;crash&quot;</span>);
+            main.code_file(),
+            <span class="string">&quot;**********************************************************/crash&quot;
+        </span>);
+        <span class="macro">assert_eq!</span>(main.debug_file().unwrap(), <span class="string">&quot;crash&quot;</span>);
 
-        <span class="kw">let</span> <span class="ident">modules</span> <span class="op">=</span> <span class="ident">scrubber</span>.<span class="ident">other_modules</span>(<span class="ident">Which::Original</span>);
-        <span class="kw">for</span> <span class="ident">module</span> <span class="kw">in</span> <span class="ident">modules</span>.<span class="ident">iter</span>() {
-            <span class="macro">dbg!</span>(<span class="ident">module</span>.<span class="ident">code_file</span>());
-            <span class="macro">dbg!</span>(<span class="ident">module</span>.<span class="ident">debug_file</span>());
+        <span class="kw">let </span>modules = scrubber.other_modules(Which::Original);
+        <span class="kw">for </span>module <span class="kw">in </span>modules.iter() {
+            <span class="macro">dbg!</span>(module.code_file());
+            <span class="macro">dbg!</span>(module.debug_file());
         }
-        <span class="kw">for</span> <span class="ident">module</span> <span class="kw">in</span> <span class="ident">modules</span> {
+        <span class="kw">for </span>module <span class="kw">in </span>modules {
             <span class="macro">assert!</span>(
-                <span class="ident">module</span>.<span class="ident">code_file</span>().<span class="ident">matches</span>(<span class="string">&#39;/&#39;</span>).<span class="ident">count</span>() <span class="op">&gt;</span> <span class="number">1</span>,
-                <span class="string">&quot;code file does not contain path&quot;</span>
-            );
+                module.code_file().matches(<span class="string">&#39;/&#39;</span>).count() &gt; <span class="number">1</span>,
+                <span class="string">&quot;code file does not contain path&quot;
+            </span>);
             <span class="macro">assert!</span>(
-                <span class="ident">module</span>.<span class="ident">debug_file</span>().<span class="ident">unwrap</span>().<span class="ident">matches</span>(<span class="string">&#39;/&#39;</span>).<span class="ident">count</span>() <span class="op">==</span> <span class="number">0</span>,
-                <span class="string">&quot;debug file contains a path&quot;</span>
-            );
+                module.debug_file().unwrap().matches(<span class="string">&#39;/&#39;</span>).count() == <span class="number">0</span>,
+                <span class="string">&quot;debug file contains a path&quot;
+            </span>);
         }
 
-        <span class="kw">let</span> <span class="ident">modules</span> <span class="op">=</span> <span class="ident">scrubber</span>.<span class="ident">other_modules</span>(<span class="ident">Which::Scrubbed</span>);
-        <span class="kw">for</span> <span class="ident">module</span> <span class="kw">in</span> <span class="ident">modules</span> {
+        <span class="kw">let </span>modules = scrubber.other_modules(Which::Scrubbed);
+        <span class="kw">for </span>module <span class="kw">in </span>modules {
             <span class="macro">assert!</span>(
-                <span class="ident">module</span>.<span class="ident">code_file</span>().<span class="ident">matches</span>(<span class="string">&#39;/&#39;</span>).<span class="ident">count</span>() <span class="op">==</span> <span class="number">1</span>,
-                <span class="string">&quot;code file not scrubbed&quot;</span>
-            );
+                module.code_file().matches(<span class="string">&#39;/&#39;</span>).count() == <span class="number">1</span>,
+                <span class="string">&quot;code file not scrubbed&quot;
+            </span>);
             <span class="macro">assert!</span>(
-                <span class="ident">module</span>.<span class="ident">debug_file</span>().<span class="ident">unwrap</span>().<span class="ident">matches</span>(<span class="string">&#39;/&#39;</span>).<span class="ident">count</span>() <span class="op">==</span> <span class="number">0</span>,
-                <span class="string">&quot;scrubbed debug file contains a path&quot;</span>
-            );
+                module.debug_file().unwrap().matches(<span class="string">&#39;/&#39;</span>).count() == <span class="number">0</span>,
+                <span class="string">&quot;scrubbed debug file contains a path&quot;
+            </span>);
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_module_list_selectors</span>() {
-        <span class="comment">// Since scrubbing the module list is safe, it should be scrubbed by valuetype.</span>
-        <span class="kw">let</span> <span class="ident">scrubber</span> <span class="op">=</span> <span class="ident">TestScrubber::new</span>(
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_module_list_selectors() {
+        <span class="comment">// Since scrubbing the module list is safe, it should be scrubbed by valuetype.
+        </span><span class="kw">let </span>scrubber = TestScrubber::new(
             <span class="string">&quot;linux.dmp&quot;</span>,
             <span class="macro">include_bytes!</span>(<span class="string">&quot;../../../tests/fixtures/linux.dmp&quot;</span>),
             <span class="macro">serde_json::json!</span>(
@@ -1438,16 +1438,16 @@
                 }
             ),
         );
-        <span class="kw">let</span> <span class="ident">main</span> <span class="op">=</span> <span class="ident">scrubber</span>.<span class="ident">main_module</span>(<span class="ident">Which::Scrubbed</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">main</span>.<span class="ident">code_file</span>(), <span class="string">&quot;*****************/crash&quot;</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">main</span>.<span class="ident">debug_file</span>().<span class="ident">unwrap</span>(), <span class="string">&quot;*****************/crash&quot;</span>);
+        <span class="kw">let </span>main = scrubber.main_module(Which::Scrubbed);
+        <span class="macro">assert_eq!</span>(main.code_file(), <span class="string">&quot;*****************/crash&quot;</span>);
+        <span class="macro">assert_eq!</span>(main.debug_file().unwrap(), <span class="string">&quot;*****************/crash&quot;</span>);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_stack_scrubbing_backwards_compatible_selector</span>() {
-        <span class="comment">// Some users already use this bare selector, that&#39;s all we care about for backwards</span>
-        <span class="comment">// compatibility.</span>
-        <span class="kw">let</span> <span class="ident">scrubber</span> <span class="op">=</span> <span class="ident">TestScrubber::new</span>(
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_stack_scrubbing_backwards_compatible_selector() {
+        <span class="comment">// Some users already use this bare selector, that&#39;s all we care about for backwards
+        // compatibility.
+        </span><span class="kw">let </span>scrubber = TestScrubber::new(
             <span class="string">&quot;linux.dmp&quot;</span>,
             <span class="macro">include_bytes!</span>(<span class="string">&quot;../../../tests/fixtures/linux.dmp&quot;</span>),
             <span class="macro">serde_json::json!</span>(
@@ -1458,14 +1458,14 @@
                 }
             ),
         );
-        <span class="kw">for</span> <span class="ident">stack</span> <span class="kw">in</span> <span class="ident">scrubber</span>.<span class="ident">stacks</span>(<span class="ident">Which::Scrubbed</span>) {
-            <span class="macro">assert!</span>(<span class="ident">stack</span>.<span class="ident">iter</span>().<span class="ident">all</span>(<span class="op">|</span><span class="ident">b</span><span class="op">|</span> <span class="kw-2">*</span><span class="ident">b</span> <span class="op">==</span> <span class="string">b&#39;*&#39;</span>));
+        <span class="kw">for </span>stack <span class="kw">in </span>scrubber.stacks(Which::Scrubbed) {
+            <span class="macro">assert!</span>(stack.iter().all(|b| <span class="kw-2">*</span>b == <span class="string">b&#39;*&#39;</span>));
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_stack_scrubbing_path_item_selector</span>() {
-        <span class="kw">let</span> <span class="ident">scrubber</span> <span class="op">=</span> <span class="ident">TestScrubber::new</span>(
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_stack_scrubbing_path_item_selector() {
+        <span class="kw">let </span>scrubber = TestScrubber::new(
             <span class="string">&quot;linux.dmp&quot;</span>,
             <span class="macro">include_bytes!</span>(<span class="string">&quot;../../../tests/fixtures/linux.dmp&quot;</span>),
             <span class="macro">serde_json::json!</span>(
@@ -1476,17 +1476,17 @@
                 }
             ),
         );
-        <span class="kw">for</span> <span class="ident">stack</span> <span class="kw">in</span> <span class="ident">scrubber</span>.<span class="ident">stacks</span>(<span class="ident">Which::Scrubbed</span>) {
-            <span class="macro">assert!</span>(<span class="ident">stack</span>.<span class="ident">iter</span>().<span class="ident">all</span>(<span class="op">|</span><span class="ident">b</span><span class="op">|</span> <span class="kw-2">*</span><span class="ident">b</span> <span class="op">==</span> <span class="string">b&#39;*&#39;</span>));
+        <span class="kw">for </span>stack <span class="kw">in </span>scrubber.stacks(Which::Scrubbed) {
+            <span class="macro">assert!</span>(stack.iter().all(|b| <span class="kw-2">*</span>b == <span class="string">b&#39;*&#39;</span>));
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="attribute">#[<span class="ident">should_panic</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_stack_scrubbing_valuetype_selector</span>() {
-        <span class="comment">// This should work, but is known to fail currently because the selector logic never</span>
-        <span class="comment">// considers a selector containing $binary as specific.</span>
-        <span class="kw">let</span> <span class="ident">scrubber</span> <span class="op">=</span> <span class="ident">TestScrubber::new</span>(
+    <span class="attribute">#[test]
+    #[should_panic]
+    </span><span class="kw">fn </span>test_stack_scrubbing_valuetype_selector() {
+        <span class="comment">// This should work, but is known to fail currently because the selector logic never
+        // considers a selector containing $binary as specific.
+        </span><span class="kw">let </span>scrubber = TestScrubber::new(
             <span class="string">&quot;linux.dmp&quot;</span>,
             <span class="macro">include_bytes!</span>(<span class="string">&quot;../../../tests/fixtures/linux.dmp&quot;</span>),
             <span class="macro">serde_json::json!</span>(
@@ -1497,15 +1497,15 @@
                 }
             ),
         );
-        <span class="kw">for</span> <span class="ident">stack</span> <span class="kw">in</span> <span class="ident">scrubber</span>.<span class="ident">stacks</span>(<span class="ident">Which::Scrubbed</span>) {
-            <span class="macro">assert!</span>(<span class="ident">stack</span>.<span class="ident">iter</span>().<span class="ident">all</span>(<span class="op">|</span><span class="ident">b</span><span class="op">|</span> <span class="kw-2">*</span><span class="ident">b</span> <span class="op">==</span> <span class="string">b&#39;*&#39;</span>));
+        <span class="kw">for </span>stack <span class="kw">in </span>scrubber.stacks(Which::Scrubbed) {
+            <span class="macro">assert!</span>(stack.iter().all(|b| <span class="kw-2">*</span>b == <span class="string">b&#39;*&#39;</span>));
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_stack_scrubbing_valuetype_not_fully_qualified</span>() {
-        <span class="comment">// Not fully qualified valuetype should not touch the stack</span>
-        <span class="kw">let</span> <span class="ident">scrubber</span> <span class="op">=</span> <span class="ident">TestScrubber::new</span>(
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_stack_scrubbing_valuetype_not_fully_qualified() {
+        <span class="comment">// Not fully qualified valuetype should not touch the stack
+        </span><span class="kw">let </span>scrubber = TestScrubber::new(
             <span class="string">&quot;linux.dmp&quot;</span>,
             <span class="macro">include_bytes!</span>(<span class="string">&quot;../../../tests/fixtures/linux.dmp&quot;</span>),
             <span class="macro">serde_json::json!</span>(
@@ -1516,21 +1516,21 @@
                 }
             ),
         );
-        <span class="kw">for</span> (<span class="ident">scrubbed_stack</span>, <span class="ident">original_stack</span>) <span class="kw">in</span> <span class="ident">scrubber</span>
-            .<span class="ident">stacks</span>(<span class="ident">Which::Scrubbed</span>)
-            .<span class="ident">iter</span>()
-            .<span class="ident">zip</span>(<span class="ident">scrubber</span>.<span class="ident">stacks</span>(<span class="ident">Which::Original</span>).<span class="ident">iter</span>())
+        <span class="kw">for </span>(scrubbed_stack, original_stack) <span class="kw">in </span>scrubber
+            .stacks(Which::Scrubbed)
+            .iter()
+            .zip(scrubber.stacks(Which::Original).iter())
         {
-            <span class="macro">assert_eq!</span>(<span class="ident">scrubbed_stack</span>, <span class="ident">original_stack</span>);
+            <span class="macro">assert_eq!</span>(scrubbed_stack, original_stack);
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="attribute">#[<span class="ident">should_panic</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_stack_scrubbing_wildcard</span>() {
-        <span class="comment">// Wildcard should not touch the stack.  However currently wildcards are considered</span>
-        <span class="comment">// specific selectors so they do.  This is a known issue.</span>
-        <span class="kw">let</span> <span class="ident">scrubber</span> <span class="op">=</span> <span class="ident">TestScrubber::new</span>(
+    <span class="attribute">#[test]
+    #[should_panic]
+    </span><span class="kw">fn </span>test_stack_scrubbing_wildcard() {
+        <span class="comment">// Wildcard should not touch the stack.  However currently wildcards are considered
+        // specific selectors so they do.  This is a known issue.
+        </span><span class="kw">let </span>scrubber = TestScrubber::new(
             <span class="string">&quot;linux.dmp&quot;</span>,
             <span class="macro">include_bytes!</span>(<span class="string">&quot;../../../tests/fixtures/linux.dmp&quot;</span>),
             <span class="macro">serde_json::json!</span>(
@@ -1541,19 +1541,19 @@
                 }
             ),
         );
-        <span class="kw">for</span> (<span class="ident">scrubbed_stack</span>, <span class="ident">original_stack</span>) <span class="kw">in</span> <span class="ident">scrubber</span>
-            .<span class="ident">stacks</span>(<span class="ident">Which::Scrubbed</span>)
-            .<span class="ident">iter</span>()
-            .<span class="ident">zip</span>(<span class="ident">scrubber</span>.<span class="ident">stacks</span>(<span class="ident">Which::Original</span>).<span class="ident">iter</span>())
+        <span class="kw">for </span>(scrubbed_stack, original_stack) <span class="kw">in </span>scrubber
+            .stacks(Which::Scrubbed)
+            .iter()
+            .zip(scrubber.stacks(Which::Original).iter())
         {
-            <span class="macro">assert_eq!</span>(<span class="ident">scrubbed_stack</span>, <span class="ident">original_stack</span>);
+            <span class="macro">assert_eq!</span>(scrubbed_stack, original_stack);
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_stack_scrubbing_deep_wildcard</span>() {
-        <span class="comment">// Wildcard should not touch the stack</span>
-        <span class="kw">let</span> <span class="ident">scrubber</span> <span class="op">=</span> <span class="ident">TestScrubber::new</span>(
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_stack_scrubbing_deep_wildcard() {
+        <span class="comment">// Wildcard should not touch the stack
+        </span><span class="kw">let </span>scrubber = TestScrubber::new(
             <span class="string">&quot;linux.dmp&quot;</span>,
             <span class="macro">include_bytes!</span>(<span class="string">&quot;../../../tests/fixtures/linux.dmp&quot;</span>),
             <span class="macro">serde_json::json!</span>(
@@ -1564,18 +1564,18 @@
                 }
             ),
         );
-        <span class="kw">for</span> (<span class="ident">scrubbed_stack</span>, <span class="ident">original_stack</span>) <span class="kw">in</span> <span class="ident">scrubber</span>
-            .<span class="ident">stacks</span>(<span class="ident">Which::Scrubbed</span>)
-            .<span class="ident">iter</span>()
-            .<span class="ident">zip</span>(<span class="ident">scrubber</span>.<span class="ident">stacks</span>(<span class="ident">Which::Original</span>).<span class="ident">iter</span>())
+        <span class="kw">for </span>(scrubbed_stack, original_stack) <span class="kw">in </span>scrubber
+            .stacks(Which::Scrubbed)
+            .iter()
+            .zip(scrubber.stacks(Which::Original).iter())
         {
-            <span class="macro">assert_eq!</span>(<span class="ident">scrubbed_stack</span>, <span class="ident">original_stack</span>);
+            <span class="macro">assert_eq!</span>(scrubbed_stack, original_stack);
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_stack_scrubbing_binary_not_stack</span>() {
-        <span class="kw">let</span> <span class="ident">scrubber</span> <span class="op">=</span> <span class="ident">TestScrubber::new</span>(
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_stack_scrubbing_binary_not_stack() {
+        <span class="kw">let </span>scrubber = TestScrubber::new(
             <span class="string">&quot;linux.dmp&quot;</span>,
             <span class="macro">include_bytes!</span>(<span class="string">&quot;../../../tests/fixtures/linux.dmp&quot;</span>),
             <span class="macro">serde_json::json!</span>(
@@ -1586,22 +1586,22 @@
                 }
             ),
         );
-        <span class="kw">for</span> (<span class="ident">scrubbed_stack</span>, <span class="ident">original_stack</span>) <span class="kw">in</span> <span class="ident">scrubber</span>
-            .<span class="ident">stacks</span>(<span class="ident">Which::Scrubbed</span>)
-            .<span class="ident">iter</span>()
-            .<span class="ident">zip</span>(<span class="ident">scrubber</span>.<span class="ident">stacks</span>(<span class="ident">Which::Original</span>).<span class="ident">iter</span>())
+        <span class="kw">for </span>(scrubbed_stack, original_stack) <span class="kw">in </span>scrubber
+            .stacks(Which::Scrubbed)
+            .iter()
+            .zip(scrubber.stacks(Which::Original).iter())
         {
-            <span class="macro">assert_eq!</span>(<span class="ident">scrubbed_stack</span>, <span class="ident">original_stack</span>);
+            <span class="macro">assert_eq!</span>(scrubbed_stack, original_stack);
         }
-        <span class="kw">for</span> <span class="ident">heap</span> <span class="kw">in</span> <span class="ident">scrubber</span>.<span class="ident">heaps</span>(<span class="ident">Which::Scrubbed</span>) {
-            <span class="macro">assert!</span>(<span class="ident">heap</span>.<span class="ident">iter</span>().<span class="ident">all</span>(<span class="op">|</span><span class="ident">b</span><span class="op">|</span> <span class="kw-2">*</span><span class="ident">b</span> <span class="op">==</span> <span class="string">b&#39;*&#39;</span>));
+        <span class="kw">for </span>heap <span class="kw">in </span>scrubber.heaps(Which::Scrubbed) {
+            <span class="macro">assert!</span>(heap.iter().all(|b| <span class="kw-2">*</span>b == <span class="string">b&#39;*&#39;</span>));
         }
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_linux_environ_valuetype</span>() {
-        <span class="comment">// The linux environ should be scrubbed for any $binary</span>
-        <span class="kw">let</span> <span class="ident">scrubber</span> <span class="op">=</span> <span class="ident">TestScrubber::new</span>(
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_linux_environ_valuetype() {
+        <span class="comment">// The linux environ should be scrubbed for any $binary
+        </span><span class="kw">let </span>scrubber = TestScrubber::new(
             <span class="string">&quot;linux.dmp&quot;</span>,
             <span class="macro">include_bytes!</span>(<span class="string">&quot;../../../tests/fixtures/linux.dmp&quot;</span>),
             <span class="macro">serde_json::json!</span>(
@@ -1612,9 +1612,9 @@
                 }
             ),
         );
-        <span class="kw">let</span> <span class="ident">environ</span> <span class="op">=</span> <span class="ident">scrubber</span>.<span class="ident">environ</span>(<span class="ident">Which::Scrubbed</span>);
-        <span class="macro">assert!</span>(<span class="ident">environ</span>.<span class="ident">iter</span>().<span class="ident">all</span>(<span class="op">|</span><span class="ident">b</span><span class="op">|</span> <span class="kw-2">*</span><span class="ident">b</span> <span class="op">==</span> <span class="string">b&#39;*&#39;</span>));
+        <span class="kw">let </span>environ = scrubber.environ(Which::Scrubbed);
+        <span class="macro">assert!</span>(environ.iter().all(|b| <span class="kw-2">*</span>b == <span class="string">b&#39;*&#39;</span>));
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

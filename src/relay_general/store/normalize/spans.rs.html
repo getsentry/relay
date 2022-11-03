@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/store/normalize/spans.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>spans.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../../storage.js"></script><script defer src="../../../../source-script.js"></script><script defer src="../../../../source-files.js"></script><script defer src="../../../../main.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/store/normalize/spans.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>spans.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../../normalize.css"><link rel="stylesheet" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../../ayu.css" disabled><link rel="stylesheet" href="../../../../dark.css" disabled><link rel="stylesheet" href="../../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../../storage.js"></script><script defer src="../../../../source-script.js"></script><script defer src="../../../../source-files.js"></script><script defer src="../../../../main.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../../relay_general/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../../relay_general/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -742,747 +742,747 @@
 <span id="740">740</span>
 <span id="741">741</span>
 <span id="742">742</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeSet</span>, <span class="ident">HashMap</span>};
-<span class="kw">use</span> <span class="ident">std::time::Duration</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeSet, HashMap};
+<span class="kw">use </span>std::time::Duration;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">Context</span>, <span class="ident">ContextInner</span>, <span class="ident">Contexts</span>, <span class="ident">Event</span>, <span class="ident">Span</span>, <span class="ident">SpanId</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::store::normalize::breakdowns::TimeWindowSpan</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Annotated</span>, <span class="ident">SpanAttribute</span>};
+<span class="kw">use </span><span class="kw">crate</span>::protocol::{Context, ContextInner, Contexts, Event, Span, SpanId};
+<span class="kw">use </span><span class="kw">crate</span>::store::normalize::breakdowns::TimeWindowSpan;
+<span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, SpanAttribute};
 
-<span class="doccomment">/// Computes the exclusive time of the source interval after subtracting the</span>
-<span class="doccomment">/// list of intervals.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Assumes that the input intervals are sorted by start time.</span>
-<span class="kw">fn</span> <span class="ident">interval_exclusive_time</span>(<span class="kw-2">mut</span> <span class="ident">parent</span>: <span class="ident">TimeWindowSpan</span>, <span class="ident">intervals</span>: <span class="kw-2">&amp;</span>[<span class="ident">TimeWindowSpan</span>]) -&gt; <span class="ident">Duration</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">exclusive_time</span> <span class="op">=</span> <span class="ident">Duration::new</span>(<span class="number">0</span>, <span class="number">0</span>);
+<span class="doccomment">/// Computes the exclusive time of the source interval after subtracting the
+/// list of intervals.
+///
+/// Assumes that the input intervals are sorted by start time.
+</span><span class="kw">fn </span>interval_exclusive_time(<span class="kw-2">mut </span>parent: TimeWindowSpan, intervals: <span class="kw-2">&amp;</span>[TimeWindowSpan]) -&gt; Duration {
+    <span class="kw">let </span><span class="kw-2">mut </span>exclusive_time = Duration::new(<span class="number">0</span>, <span class="number">0</span>);
 
-    <span class="kw">for</span> <span class="ident">interval</span> <span class="kw">in</span> <span class="ident">intervals</span> {
-        <span class="comment">// Exit early to avoid adding zeros</span>
-        <span class="kw">if</span> <span class="ident">interval</span>.<span class="ident">start</span> <span class="op">&gt;</span><span class="op">=</span> <span class="ident">parent</span>.<span class="ident">end</span> {
+    <span class="kw">for </span>interval <span class="kw">in </span>intervals {
+        <span class="comment">// Exit early to avoid adding zeros
+        </span><span class="kw">if </span>interval.start &gt;= parent.end {
             <span class="kw">break</span>;
         }
 
-        <span class="comment">// Add time in the parent before the start of the current interval to the exclusive time</span>
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">start_offset</span>) <span class="op">=</span> (<span class="ident">interval</span>.<span class="ident">start</span> <span class="op">-</span> <span class="ident">parent</span>.<span class="ident">start</span>).<span class="ident">to_std</span>() {
-            <span class="ident">exclusive_time</span> <span class="op">+</span><span class="op">=</span> <span class="ident">start_offset</span>;
+        <span class="comment">// Add time in the parent before the start of the current interval to the exclusive time
+        </span><span class="kw">if let </span><span class="prelude-val">Ok</span>(start_offset) = (interval.start - parent.start).to_std() {
+            exclusive_time += start_offset;
         }
 
-        <span class="ident">parent</span>.<span class="ident">start</span> <span class="op">=</span> <span class="ident">interval</span>.<span class="ident">end</span>.<span class="ident">clamp</span>(<span class="ident">parent</span>.<span class="ident">start</span>, <span class="ident">parent</span>.<span class="ident">end</span>);
+        parent.start = interval.end.clamp(parent.start, parent.end);
     }
 
-    <span class="comment">// Add the remaining duration after the last interval ended</span>
-    <span class="ident">exclusive_time</span> <span class="op">+</span> <span class="ident">parent</span>.<span class="ident">duration</span>()
+    <span class="comment">// Add the remaining duration after the last interval ended
+    </span>exclusive_time + parent.duration()
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">normalize_spans</span>(<span class="ident">event</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Event</span>, <span class="ident">attributes</span>: <span class="kw-2">&amp;</span><span class="ident">BTreeSet</span><span class="op">&lt;</span><span class="ident">SpanAttribute</span><span class="op">&gt;</span>) {
-    <span class="kw">for</span> <span class="ident">attribute</span> <span class="kw">in</span> <span class="ident">attributes</span> {
-        <span class="kw">match</span> <span class="ident">attribute</span> {
-            <span class="ident">SpanAttribute::ExclusiveTime</span> =&gt; <span class="ident">compute_span_exclusive_time</span>(<span class="ident">event</span>),
-            <span class="ident">SpanAttribute::Unknown</span> =&gt; (), <span class="comment">// ignored</span>
-        }
+<span class="kw">pub fn </span>normalize_spans(event: <span class="kw-2">&amp;mut </span>Event, attributes: <span class="kw-2">&amp;</span>BTreeSet&lt;SpanAttribute&gt;) {
+    <span class="kw">for </span>attribute <span class="kw">in </span>attributes {
+        <span class="kw">match </span>attribute {
+            SpanAttribute::ExclusiveTime =&gt; compute_span_exclusive_time(event),
+            SpanAttribute::Unknown =&gt; (), <span class="comment">// ignored
+        </span>}
     }
 }
 
-<span class="kw">fn</span> <span class="ident">set_event_exclusive_time</span>(
-    <span class="ident">event_interval</span>: <span class="ident">TimeWindowSpan</span>,
-    <span class="ident">contexts</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Contexts</span>,
-    <span class="ident">span_map</span>: <span class="kw-2">&amp;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">SpanId</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TimeWindowSpan</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+<span class="kw">fn </span>set_event_exclusive_time(
+    event_interval: TimeWindowSpan,
+    contexts: <span class="kw-2">&amp;mut </span>Contexts,
+    span_map: <span class="kw-2">&amp;</span>HashMap&lt;SpanId, Vec&lt;TimeWindowSpan&gt;&gt;,
 ) {
-    <span class="kw">let</span> <span class="ident">trace_context</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">contexts</span>.<span class="ident">get_mut</span>(<span class="string">&quot;trace&quot;</span>).<span class="ident">map</span>(<span class="ident">Annotated::value_mut</span>) {
-        <span class="prelude-val">Some</span>(<span class="prelude-val">Some</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Trace</span>(<span class="ident">trace_context</span>)))) =&gt; <span class="ident">trace_context</span>,
-        <span class="kw">_</span> =&gt; <span class="kw">return</span>,
+    <span class="kw">let </span>trace_context = <span class="kw">match </span>contexts.get_mut(<span class="string">&quot;trace&quot;</span>).map(Annotated::value_mut) {
+        <span class="prelude-val">Some</span>(<span class="prelude-val">Some</span>(ContextInner(Context::Trace(trace_context)))) =&gt; trace_context,
+        <span class="kw">_ </span>=&gt; <span class="kw">return</span>,
     };
 
-    <span class="kw">let</span> <span class="ident">span_id</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">trace_context</span>.<span class="ident">span_id</span>.<span class="ident">value</span>() {
-        <span class="prelude-val">Some</span>(<span class="ident">span_id</span>) =&gt; <span class="ident">span_id</span>,
-        <span class="kw">_</span> =&gt; <span class="kw">return</span>,
+    <span class="kw">let </span>span_id = <span class="kw">match </span>trace_context.span_id.value() {
+        <span class="prelude-val">Some</span>(span_id) =&gt; span_id,
+        <span class="kw">_ </span>=&gt; <span class="kw">return</span>,
     };
 
-    <span class="kw">let</span> <span class="ident">child_intervals</span> <span class="op">=</span> <span class="ident">span_map</span>
-        .<span class="ident">get</span>(<span class="ident">span_id</span>)
-        .<span class="ident">map</span>(<span class="op">|</span><span class="ident">vec</span><span class="op">|</span> <span class="ident">vec</span>.<span class="ident">as_slice</span>())
-        .<span class="ident">unwrap_or_default</span>();
+    <span class="kw">let </span>child_intervals = span_map
+        .get(span_id)
+        .map(|vec| vec.as_slice())
+        .unwrap_or_default();
 
-    <span class="kw">let</span> <span class="ident">exclusive_time</span> <span class="op">=</span> <span class="ident">interval_exclusive_time</span>(<span class="ident">event_interval</span>, <span class="ident">child_intervals</span>);
-    <span class="ident">trace_context</span>.<span class="ident">exclusive_time</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">relay_common::duration_to_millis</span>(<span class="ident">exclusive_time</span>));
+    <span class="kw">let </span>exclusive_time = interval_exclusive_time(event_interval, child_intervals);
+    trace_context.exclusive_time = Annotated::new(relay_common::duration_to_millis(exclusive_time));
 }
 
-<span class="kw">fn</span> <span class="ident">set_span_exclusive_time</span>(
-    <span class="ident">span</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Span</span><span class="op">&gt;</span>,
-    <span class="ident">span_map</span>: <span class="kw-2">&amp;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">SpanId</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TimeWindowSpan</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+<span class="kw">fn </span>set_span_exclusive_time(
+    span: <span class="kw-2">&amp;mut </span>Annotated&lt;Span&gt;,
+    span_map: <span class="kw-2">&amp;</span>HashMap&lt;SpanId, Vec&lt;TimeWindowSpan&gt;&gt;,
 ) {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">span</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">span</span>.<span class="ident">value_mut</span>() {
-        <span class="prelude-val">None</span> =&gt; <span class="kw">return</span>,
-        <span class="prelude-val">Some</span>(<span class="ident">span</span>) =&gt; <span class="ident">span</span>,
+    <span class="kw">let </span><span class="kw-2">mut </span>span = <span class="kw">match </span>span.value_mut() {
+        <span class="prelude-val">None </span>=&gt; <span class="kw">return</span>,
+        <span class="prelude-val">Some</span>(span) =&gt; span,
     };
 
-    <span class="kw">let</span> <span class="ident">span_id</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">span</span>.<span class="ident">span_id</span>.<span class="ident">value</span>() {
-        <span class="prelude-val">None</span> =&gt; <span class="kw">return</span>,
-        <span class="prelude-val">Some</span>(<span class="ident">span_id</span>) =&gt; <span class="ident">span_id</span>,
+    <span class="kw">let </span>span_id = <span class="kw">match </span>span.span_id.value() {
+        <span class="prelude-val">None </span>=&gt; <span class="kw">return</span>,
+        <span class="prelude-val">Some</span>(span_id) =&gt; span_id,
     };
 
-    <span class="kw">let</span> <span class="ident">span_interval</span> <span class="op">=</span> <span class="kw">match</span> (<span class="ident">span</span>.<span class="ident">start_timestamp</span>.<span class="ident">value</span>(), <span class="ident">span</span>.<span class="ident">timestamp</span>.<span class="ident">value</span>()) {
-        (<span class="prelude-val">Some</span>(<span class="ident">start</span>), <span class="prelude-val">Some</span>(<span class="ident">end</span>)) =&gt; <span class="ident">TimeWindowSpan::new</span>(<span class="kw-2">*</span><span class="ident">start</span>, <span class="kw-2">*</span><span class="ident">end</span>),
-        <span class="kw">_</span> =&gt; <span class="kw">return</span>,
+    <span class="kw">let </span>span_interval = <span class="kw">match </span>(span.start_timestamp.value(), span.timestamp.value()) {
+        (<span class="prelude-val">Some</span>(start), <span class="prelude-val">Some</span>(end)) =&gt; TimeWindowSpan::new(<span class="kw-2">*</span>start, <span class="kw-2">*</span>end),
+        <span class="kw">_ </span>=&gt; <span class="kw">return</span>,
     };
 
-    <span class="kw">let</span> <span class="ident">child_intervals</span> <span class="op">=</span> <span class="ident">span_map</span>
-        .<span class="ident">get</span>(<span class="ident">span_id</span>)
-        .<span class="ident">map</span>(<span class="op">|</span><span class="ident">vec</span><span class="op">|</span> <span class="ident">vec</span>.<span class="ident">as_slice</span>())
-        .<span class="ident">unwrap_or_default</span>();
+    <span class="kw">let </span>child_intervals = span_map
+        .get(span_id)
+        .map(|vec| vec.as_slice())
+        .unwrap_or_default();
 
-    <span class="kw">let</span> <span class="ident">exclusive_time</span> <span class="op">=</span> <span class="ident">interval_exclusive_time</span>(<span class="ident">span_interval</span>, <span class="ident">child_intervals</span>);
-    <span class="ident">span</span>.<span class="ident">exclusive_time</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">relay_common::duration_to_millis</span>(<span class="ident">exclusive_time</span>));
+    <span class="kw">let </span>exclusive_time = interval_exclusive_time(span_interval, child_intervals);
+    span.exclusive_time = Annotated::new(relay_common::duration_to_millis(exclusive_time));
 }
 
-<span class="kw">fn</span> <span class="ident">compute_span_exclusive_time</span>(<span class="ident">event</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Event</span>) {
-    <span class="kw">let</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">event</span>.<span class="ident">contexts</span>.<span class="ident">value_mut</span>() {
-        <span class="prelude-val">Some</span>(<span class="ident">contexts</span>) =&gt; <span class="ident">contexts</span>,
-        <span class="kw">_</span> =&gt; <span class="kw">return</span>,
+<span class="kw">fn </span>compute_span_exclusive_time(event: <span class="kw-2">&amp;mut </span>Event) {
+    <span class="kw">let </span>contexts = <span class="kw">match </span>event.contexts.value_mut() {
+        <span class="prelude-val">Some</span>(contexts) =&gt; contexts,
+        <span class="kw">_ </span>=&gt; <span class="kw">return</span>,
     };
 
-    <span class="kw">let</span> <span class="ident">event_interval</span> <span class="op">=</span> <span class="kw">match</span> (<span class="ident">event</span>.<span class="ident">start_timestamp</span>.<span class="ident">value</span>(), <span class="ident">event</span>.<span class="ident">timestamp</span>.<span class="ident">value</span>()) {
-        (<span class="prelude-val">Some</span>(<span class="ident">start</span>), <span class="prelude-val">Some</span>(<span class="ident">end</span>)) =&gt; <span class="ident">TimeWindowSpan::new</span>(<span class="kw-2">*</span><span class="ident">start</span>, <span class="kw-2">*</span><span class="ident">end</span>),
-        <span class="kw">_</span> =&gt; <span class="kw">return</span>,
+    <span class="kw">let </span>event_interval = <span class="kw">match </span>(event.start_timestamp.value(), event.timestamp.value()) {
+        (<span class="prelude-val">Some</span>(start), <span class="prelude-val">Some</span>(end)) =&gt; TimeWindowSpan::new(<span class="kw-2">*</span>start, <span class="kw-2">*</span>end),
+        <span class="kw">_ </span>=&gt; <span class="kw">return</span>,
     };
 
-    <span class="kw">let</span> <span class="ident">spans</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">spans</span>.<span class="ident">value_mut</span>().<span class="ident">get_or_insert_with</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Vec::new</span>());
+    <span class="kw">let </span>spans = event.spans.value_mut().get_or_insert_with(|| Vec::new());
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">span_map</span> <span class="op">=</span> <span class="ident">HashMap::new</span>();
-    <span class="kw">for</span> <span class="ident">span</span> <span class="kw">in</span> <span class="ident">spans</span>.<span class="ident">iter</span>() {
-        <span class="kw">let</span> <span class="ident">span</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">span</span>.<span class="ident">value</span>() {
-            <span class="prelude-val">None</span> =&gt; <span class="kw">continue</span>,
-            <span class="prelude-val">Some</span>(<span class="ident">span</span>) =&gt; <span class="ident">span</span>,
+    <span class="kw">let </span><span class="kw-2">mut </span>span_map = HashMap::new();
+    <span class="kw">for </span>span <span class="kw">in </span>spans.iter() {
+        <span class="kw">let </span>span = <span class="kw">match </span>span.value() {
+            <span class="prelude-val">None </span>=&gt; <span class="kw">continue</span>,
+            <span class="prelude-val">Some</span>(span) =&gt; span,
         };
 
-        <span class="kw">let</span> <span class="ident">parent_span_id</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">span</span>.<span class="ident">parent_span_id</span>.<span class="ident">value</span>() {
-            <span class="prelude-val">None</span> =&gt; <span class="kw">continue</span>,
-            <span class="prelude-val">Some</span>(<span class="ident">parent_span_id</span>) =&gt; <span class="ident">parent_span_id</span>.<span class="ident">clone</span>(),
+        <span class="kw">let </span>parent_span_id = <span class="kw">match </span>span.parent_span_id.value() {
+            <span class="prelude-val">None </span>=&gt; <span class="kw">continue</span>,
+            <span class="prelude-val">Some</span>(parent_span_id) =&gt; parent_span_id.clone(),
         };
 
-        <span class="kw">let</span> <span class="ident">interval</span> <span class="op">=</span> <span class="kw">match</span> (<span class="ident">span</span>.<span class="ident">start_timestamp</span>.<span class="ident">value</span>(), <span class="ident">span</span>.<span class="ident">timestamp</span>.<span class="ident">value</span>()) {
-            (<span class="prelude-val">Some</span>(<span class="ident">start</span>), <span class="prelude-val">Some</span>(<span class="ident">end</span>)) =&gt; <span class="ident">TimeWindowSpan::new</span>(<span class="kw-2">*</span><span class="ident">start</span>, <span class="kw-2">*</span><span class="ident">end</span>),
-            <span class="kw">_</span> =&gt; <span class="kw">continue</span>,
+        <span class="kw">let </span>interval = <span class="kw">match </span>(span.start_timestamp.value(), span.timestamp.value()) {
+            (<span class="prelude-val">Some</span>(start), <span class="prelude-val">Some</span>(end)) =&gt; TimeWindowSpan::new(<span class="kw-2">*</span>start, <span class="kw-2">*</span>end),
+            <span class="kw">_ </span>=&gt; <span class="kw">continue</span>,
         };
 
-        <span class="ident">span_map</span>
-            .<span class="ident">entry</span>(<span class="ident">parent_span_id</span>)
-            .<span class="ident">or_insert_with</span>(<span class="ident">Vec::new</span>)
-            .<span class="ident">push</span>(<span class="ident">interval</span>)
+        span_map
+            .entry(parent_span_id)
+            .or_insert_with(Vec::new)
+            .push(interval)
     }
 
-    <span class="comment">// Sort intervals to fulfill precondition of `interval_exclusive_time`</span>
-    <span class="kw">for</span> <span class="ident">intervals</span> <span class="kw">in</span> <span class="ident">span_map</span>.<span class="ident">values_mut</span>() {
-        <span class="ident">intervals</span>.<span class="ident">sort_unstable_by_key</span>(<span class="op">|</span><span class="ident">interval</span><span class="op">|</span> <span class="ident">interval</span>.<span class="ident">start</span>);
+    <span class="comment">// Sort intervals to fulfill precondition of `interval_exclusive_time`
+    </span><span class="kw">for </span>intervals <span class="kw">in </span>span_map.values_mut() {
+        intervals.sort_unstable_by_key(|interval| interval.start);
     }
 
-    <span class="ident">set_event_exclusive_time</span>(<span class="ident">event_interval</span>, <span class="ident">contexts</span>, <span class="kw-2">&amp;</span><span class="ident">span_map</span>);
+    set_event_exclusive_time(event_interval, contexts, <span class="kw-2">&amp;</span>span_map);
 
-    <span class="kw">for</span> <span class="ident">span</span> <span class="kw">in</span> <span class="ident">spans</span>.<span class="ident">iter_mut</span>() {
-        <span class="ident">set_span_exclusive_time</span>(<span class="ident">span</span>, <span class="kw-2">&amp;</span><span class="ident">span_map</span>);
+    <span class="kw">for </span>span <span class="kw">in </span>spans.iter_mut() {
+        set_span_exclusive_time(span, <span class="kw-2">&amp;</span>span_map);
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">TimeZone</span>, <span class="ident">Utc</span>};
-    <span class="kw">use</span> <span class="ident">similar_asserts::assert_eq</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>chrono::{TimeZone, Utc};
+    <span class="kw">use </span>similar_asserts::assert_eq;
 
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{
-        <span class="ident">Context</span>, <span class="ident">ContextInner</span>, <span class="ident">Contexts</span>, <span class="ident">Event</span>, <span class="ident">EventType</span>, <span class="ident">Span</span>, <span class="ident">SpanId</span>, <span class="ident">Timestamp</span>, <span class="ident">TraceContext</span>,
-        <span class="ident">TraceId</span>,
+    <span class="kw">use </span><span class="kw">crate</span>::protocol::{
+        Context, ContextInner, Contexts, Event, EventType, Span, SpanId, Timestamp, TraceContext,
+        TraceId,
     };
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types::Object</span>;
+    <span class="kw">use </span><span class="kw">crate</span>::types::Object;
 
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">fn</span> <span class="ident">make_event</span>(
-        <span class="ident">start</span>: <span class="ident">Timestamp</span>,
-        <span class="ident">end</span>: <span class="ident">Timestamp</span>,
-        <span class="ident">span_id</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
-        <span class="ident">spans</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Span</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="ident">Event</span> {
-        <span class="ident">Event</span> {
-            <span class="ident">ty</span>: <span class="ident">EventType::Transaction</span>.<span class="ident">into</span>(),
-            <span class="ident">start_timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">start</span>),
-            <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">end</span>),
-            <span class="ident">contexts</span>: <span class="ident">Annotated::new</span>(<span class="ident">Contexts</span>({
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                <span class="ident">contexts</span>.<span class="ident">insert</span>(
-                    <span class="string">&quot;trace&quot;</span>.<span class="ident">to_owned</span>(),
-                    <span class="ident">Annotated::new</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Trace</span>(<span class="ident">Box::new</span>(<span class="ident">TraceContext</span> {
-                        <span class="ident">trace_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">TraceId</span>(
-                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.<span class="ident">into</span>(),
+    <span class="kw">fn </span>make_event(
+        start: Timestamp,
+        end: Timestamp,
+        span_id: <span class="kw-2">&amp;</span>str,
+        spans: Vec&lt;Annotated&lt;Span&gt;&gt;,
+    ) -&gt; Event {
+        Event {
+            ty: EventType::Transaction.into(),
+            start_timestamp: Annotated::new(start),
+            timestamp: Annotated::new(end),
+            contexts: Annotated::new(Contexts({
+                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
+                contexts.insert(
+                    <span class="string">&quot;trace&quot;</span>.to_owned(),
+                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                        trace_id: Annotated::new(TraceId(
+                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into(),
                         )),
-                        <span class="ident">span_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">SpanId</span>(<span class="ident">span_id</span>.<span class="ident">into</span>())),
-                        ..<span class="ident">Default::default</span>()
+                        span_id: Annotated::new(SpanId(span_id.into())),
+                        ..Default::default()
                     })))),
                 );
-                <span class="ident">contexts</span>
+                contexts
             })),
-            <span class="ident">spans</span>: <span class="ident">spans</span>.<span class="ident">into</span>(),
-            ..<span class="ident">Default::default</span>()
+            spans: spans.into(),
+            ..Default::default()
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">make_span</span>(
-        <span class="ident">op</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
-        <span class="ident">description</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
-        <span class="ident">start</span>: <span class="ident">Timestamp</span>,
-        <span class="ident">end</span>: <span class="ident">Timestamp</span>,
-        <span class="ident">span_id</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
-        <span class="ident">parent_span_id</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
-    ) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Span</span><span class="op">&gt;</span> {
-        <span class="ident">Annotated::new</span>(<span class="ident">Span</span> {
-            <span class="ident">op</span>: <span class="ident">Annotated::new</span>(<span class="ident">op</span>.<span class="ident">into</span>()),
-            <span class="ident">description</span>: <span class="ident">Annotated::new</span>(<span class="ident">description</span>.<span class="ident">into</span>()),
-            <span class="ident">start_timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">start</span>),
-            <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">end</span>),
-            <span class="ident">trace_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">TraceId</span>(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.<span class="ident">into</span>())),
-            <span class="ident">span_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">SpanId</span>(<span class="ident">span_id</span>.<span class="ident">into</span>())),
-            <span class="ident">parent_span_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">SpanId</span>(<span class="ident">parent_span_id</span>.<span class="ident">into</span>())),
-            ..<span class="ident">Default::default</span>()
+    <span class="kw">fn </span>make_span(
+        op: <span class="kw-2">&amp;</span>str,
+        description: <span class="kw-2">&amp;</span>str,
+        start: Timestamp,
+        end: Timestamp,
+        span_id: <span class="kw-2">&amp;</span>str,
+        parent_span_id: <span class="kw-2">&amp;</span>str,
+    ) -&gt; Annotated&lt;Span&gt; {
+        Annotated::new(Span {
+            op: Annotated::new(op.into()),
+            description: Annotated::new(description.into()),
+            start_timestamp: Annotated::new(start),
+            timestamp: Annotated::new(end),
+            trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
+            span_id: Annotated::new(SpanId(span_id.into())),
+            parent_span_id: Annotated::new(SpanId(parent_span_id.into())),
+            ..Default::default()
         })
     }
 
-    <span class="kw">fn</span> <span class="ident">extract_exclusive_time</span>(<span class="ident">span</span>: <span class="ident">Span</span>) -&gt; (<span class="ident">SpanId</span>, <span class="ident">f64</span>) {
+    <span class="kw">fn </span>extract_exclusive_time(span: Span) -&gt; (SpanId, f64) {
         (
-            <span class="ident">span</span>.<span class="ident">span_id</span>.<span class="ident">into_value</span>().<span class="ident">unwrap</span>(),
-            <span class="ident">span</span>.<span class="ident">exclusive_time</span>.<span class="ident">into_value</span>().<span class="ident">unwrap</span>(),
+            span.span_id.into_value().unwrap(),
+            span.exclusive_time.into_value().unwrap(),
         )
     }
 
-    <span class="kw">fn</span> <span class="ident">extract_span_exclusive_times</span>(<span class="ident">event</span>: <span class="ident">Event</span>) -&gt; <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">SpanId</span>, <span class="ident">f64</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">exclusive_times</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">SpanId</span>, <span class="ident">f64</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">event</span>
-            .<span class="ident">clone</span>()
-            .<span class="ident">spans</span>
-            .<span class="ident">into_value</span>()
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">into_iter</span>()
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">span</span><span class="op">|</span> <span class="ident">extract_exclusive_time</span>(<span class="ident">span</span>.<span class="ident">into_value</span>().<span class="ident">unwrap</span>()))
-            .<span class="ident">collect</span>();
+    <span class="kw">fn </span>extract_span_exclusive_times(event: Event) -&gt; HashMap&lt;SpanId, f64&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>exclusive_times: HashMap&lt;SpanId, f64&gt; = event
+            .clone()
+            .spans
+            .into_value()
+            .unwrap()
+            .into_iter()
+            .map(|span| extract_exclusive_time(span.into_value().unwrap()))
+            .collect();
 
-        <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">event</span>
-            .<span class="ident">contexts</span>
-            .<span class="ident">into_value</span>()
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">get</span>(<span class="string">&quot;trace&quot;</span>)
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">clone</span>();
+        <span class="kw">let </span>context = event
+            .contexts
+            .into_value()
+            .unwrap()
+            .get(<span class="string">&quot;trace&quot;</span>)
+            .unwrap()
+            .clone();
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Context::Trace</span>(<span class="ident">trace_context</span>) <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">context</span>.<span class="ident">into_value</span>().<span class="ident">unwrap</span>() {
-            <span class="kw">let</span> <span class="ident">transaction_span_id</span>: <span class="ident">SpanId</span> <span class="op">=</span> <span class="ident">trace_context</span>.<span class="ident">span_id</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">clone</span>();
-            <span class="kw">let</span> <span class="ident">transaction_exclusive_time</span> <span class="op">=</span> <span class="kw-2">*</span><span class="ident">trace_context</span>.<span class="ident">exclusive_time</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
-            <span class="ident">exclusive_times</span>.<span class="ident">insert</span>(<span class="ident">transaction_span_id</span>, <span class="ident">transaction_exclusive_time</span>);
+        <span class="kw">if let </span>Context::Trace(trace_context) = <span class="kw-2">&amp;*</span>context.into_value().unwrap() {
+            <span class="kw">let </span>transaction_span_id: SpanId = trace_context.span_id.value().unwrap().clone();
+            <span class="kw">let </span>transaction_exclusive_time = <span class="kw-2">*</span>trace_context.exclusive_time.value().unwrap();
+            exclusive_times.insert(transaction_span_id, transaction_exclusive_time);
         }
 
-        <span class="ident">exclusive_times</span>
+        exclusive_times
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_skip_exclusive_time</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">make_event</span>(
-            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>(),
-            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_skip_exclusive_time() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = make_event(
+            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into(),
+            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).into(),
             <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
             <span class="macro">vec!</span>[
-                <span class="ident">make_span</span>(
+                make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>).<span class="ident">into</span>(),
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">4</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>).into(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">4</span>, <span class="number">0</span>).into(),
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                     <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
                 ),
-                <span class="ident">make_span</span>(
+                make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>).<span class="ident">into</span>(),
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">3</span>, <span class="number">500_000_000</span>)
-                        .<span class="ident">into</span>(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>).into(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
+                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">3</span>, <span class="number">500_000_000</span>)
+                        .into(),
                     <span class="string">&quot;cccccccccccccccc&quot;</span>,
                     <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
                 ),
-                <span class="ident">make_span</span>(
+                make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">3</span>, <span class="number">0</span>).<span class="ident">into</span>(),
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">4</span>, <span class="number">877_000_000</span>)
-                        .<span class="ident">into</span>(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">3</span>, <span class="number">0</span>).into(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
+                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">4</span>, <span class="number">877_000_000</span>)
+                        .into(),
                     <span class="string">&quot;dddddddddddddddd&quot;</span>,
                     <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
                 ),
             ],
         );
 
-        <span class="comment">// do not insert `exclusive-time`</span>
-        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">BTreeSet::new</span>();
+        <span class="comment">// do not insert `exclusive-time`
+        </span><span class="kw">let </span>config = BTreeSet::new();
 
-        <span class="ident">normalize_spans</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="ident">config</span>);
+        normalize_spans(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config);
 
-        <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">event</span>
-            .<span class="ident">contexts</span>
-            .<span class="ident">into_value</span>()
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">get</span>(<span class="string">&quot;trace&quot;</span>)
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">clone</span>();
+        <span class="kw">let </span>context = event
+            .contexts
+            .into_value()
+            .unwrap()
+            .get(<span class="string">&quot;trace&quot;</span>)
+            .unwrap()
+            .clone();
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Context::Trace</span>(<span class="ident">trace_context</span>) <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">context</span>.<span class="ident">into_value</span>().<span class="ident">unwrap</span>() {
-            <span class="macro">assert!</span>(<span class="ident">trace_context</span>.<span class="ident">exclusive_time</span>.<span class="ident">value</span>().<span class="ident">is_none</span>());
+        <span class="kw">if let </span>Context::Trace(trace_context) = <span class="kw-2">&amp;*</span>context.into_value().unwrap() {
+            <span class="macro">assert!</span>(trace_context.exclusive_time.value().is_none());
         }
 
-        <span class="kw">let</span> <span class="ident">has_exclusive_times</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">event</span>
-            .<span class="ident">spans</span>
-            .<span class="ident">into_value</span>()
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">into_iter</span>()
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">span</span><span class="op">|</span> <span class="ident">span</span>.<span class="ident">into_value</span>().<span class="ident">unwrap</span>().<span class="ident">exclusive_time</span>.<span class="ident">value</span>().<span class="ident">is_none</span>())
-            .<span class="ident">collect</span>();
+        <span class="kw">let </span>has_exclusive_times: Vec&lt;bool&gt; = event
+            .spans
+            .into_value()
+            .unwrap()
+            .into_iter()
+            .map(|span| span.into_value().unwrap().exclusive_time.value().is_none())
+            .collect();
 
-        <span class="macro">assert_eq!</span>(<span class="ident">has_exclusive_times</span>, <span class="macro">vec!</span>[<span class="bool-val">true</span>, <span class="bool-val">true</span>, <span class="bool-val">true</span>]);
+        <span class="macro">assert_eq!</span>(has_exclusive_times, <span class="macro">vec!</span>[<span class="bool-val">true</span>, <span class="bool-val">true</span>, <span class="bool-val">true</span>]);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_childless_spans</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">make_event</span>(
-            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>(),
-            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_childless_spans() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = make_event(
+            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into(),
+            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).into(),
             <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
             <span class="macro">vec!</span>[
-                <span class="ident">make_span</span>(
+                make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>).<span class="ident">into</span>(),
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">4</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>).into(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">4</span>, <span class="number">0</span>).into(),
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                     <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
                 ),
-                <span class="ident">make_span</span>(
+                make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>).<span class="ident">into</span>(),
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">3</span>, <span class="number">500_000_000</span>)
-                        .<span class="ident">into</span>(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>).into(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
+                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">3</span>, <span class="number">500_000_000</span>)
+                        .into(),
                     <span class="string">&quot;cccccccccccccccc&quot;</span>,
                     <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
                 ),
-                <span class="ident">make_span</span>(
+                make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">3</span>, <span class="number">0</span>).<span class="ident">into</span>(),
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">4</span>, <span class="number">877_000_000</span>)
-                        .<span class="ident">into</span>(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">3</span>, <span class="number">0</span>).into(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
+                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">4</span>, <span class="number">877_000_000</span>)
+                        .into(),
                     <span class="string">&quot;dddddddddddddddd&quot;</span>,
                     <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
                 ),
             ],
         );
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">BTreeSet::new</span>();
-        <span class="ident">config</span>.<span class="ident">insert</span>(<span class="ident">SpanAttribute::ExclusiveTime</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>config = BTreeSet::new();
+        config.insert(SpanAttribute::ExclusiveTime);
 
-        <span class="ident">normalize_spans</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="ident">config</span>);
+        normalize_spans(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config);
 
-        <span class="kw">let</span> <span class="ident">exclusive_times</span> <span class="op">=</span> <span class="ident">extract_span_exclusive_times</span>(<span class="ident">event</span>);
+        <span class="kw">let </span>exclusive_times = extract_span_exclusive_times(event);
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">exclusive_times</span>,
+            exclusive_times,
             <span class="macro">vec!</span>[
-                (<span class="ident">SpanId</span>(<span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>.<span class="ident">to_string</span>()), <span class="number">1123.0</span>),
-                (<span class="ident">SpanId</span>(<span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>.<span class="ident">to_string</span>()), <span class="number">3000.0</span>),
-                (<span class="ident">SpanId</span>(<span class="string">&quot;cccccccccccccccc&quot;</span>.<span class="ident">to_string</span>()), <span class="number">2500.0</span>),
-                (<span class="ident">SpanId</span>(<span class="string">&quot;dddddddddddddddd&quot;</span>.<span class="ident">to_string</span>()), <span class="number">1877.0</span>)
+                (SpanId(<span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>.to_string()), <span class="number">1123.0</span>),
+                (SpanId(<span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>.to_string()), <span class="number">3000.0</span>),
+                (SpanId(<span class="string">&quot;cccccccccccccccc&quot;</span>.to_string()), <span class="number">2500.0</span>),
+                (SpanId(<span class="string">&quot;dddddddddddddddd&quot;</span>.to_string()), <span class="number">1877.0</span>)
             ]
-            .<span class="ident">iter</span>()
-            .<span class="ident">cloned</span>()
-            .<span class="ident">collect</span>()
+            .iter()
+            .cloned()
+            .collect()
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_nested_spans</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">make_event</span>(
-            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>(),
-            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_nested_spans() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = make_event(
+            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into(),
+            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).into(),
             <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
             <span class="macro">vec!</span>[
-                <span class="ident">make_span</span>(
+                make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>).<span class="ident">into</span>(),
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>).into(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">0</span>).into(),
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                     <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
                 ),
-                <span class="ident">make_span</span>(
+                make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">200_000_000</span>)
-                        .<span class="ident">into</span>(),
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">800_000_000</span>)
-                        .<span class="ident">into</span>(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
+                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">200_000_000</span>)
+                        .into(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
+                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">800_000_000</span>)
+                        .into(),
                     <span class="string">&quot;cccccccccccccccc&quot;</span>,
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                 ),
-                <span class="ident">make_span</span>(
+                make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">400_000_000</span>)
-                        .<span class="ident">into</span>(),
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">600_000_000</span>)
-                        .<span class="ident">into</span>(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
+                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">400_000_000</span>)
+                        .into(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
+                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">600_000_000</span>)
+                        .into(),
                     <span class="string">&quot;dddddddddddddddd&quot;</span>,
                     <span class="string">&quot;cccccccccccccccc&quot;</span>,
                 ),
             ],
         );
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">BTreeSet::new</span>();
-        <span class="ident">config</span>.<span class="ident">insert</span>(<span class="ident">SpanAttribute::ExclusiveTime</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>config = BTreeSet::new();
+        config.insert(SpanAttribute::ExclusiveTime);
 
-        <span class="ident">normalize_spans</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="ident">config</span>);
+        normalize_spans(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config);
 
-        <span class="kw">let</span> <span class="ident">exclusive_times</span> <span class="op">=</span> <span class="ident">extract_span_exclusive_times</span>(<span class="ident">event</span>);
+        <span class="kw">let </span>exclusive_times = extract_span_exclusive_times(event);
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">exclusive_times</span>,
+            exclusive_times,
             <span class="macro">vec!</span>[
-                (<span class="ident">SpanId</span>(<span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>.<span class="ident">to_string</span>()), <span class="number">4000.0</span>),
-                (<span class="ident">SpanId</span>(<span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>.<span class="ident">to_string</span>()), <span class="number">400.0</span>),
-                (<span class="ident">SpanId</span>(<span class="string">&quot;cccccccccccccccc&quot;</span>.<span class="ident">to_string</span>()), <span class="number">400.0</span>),
-                (<span class="ident">SpanId</span>(<span class="string">&quot;dddddddddddddddd&quot;</span>.<span class="ident">to_string</span>()), <span class="number">200.0</span>),
+                (SpanId(<span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>.to_string()), <span class="number">4000.0</span>),
+                (SpanId(<span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>.to_string()), <span class="number">400.0</span>),
+                (SpanId(<span class="string">&quot;cccccccccccccccc&quot;</span>.to_string()), <span class="number">400.0</span>),
+                (SpanId(<span class="string">&quot;dddddddddddddddd&quot;</span>.to_string()), <span class="number">200.0</span>),
             ]
-            .<span class="ident">iter</span>()
-            .<span class="ident">cloned</span>()
-            .<span class="ident">collect</span>()
+            .iter()
+            .cloned()
+            .collect()
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_overlapping_child_spans</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">make_event</span>(
-            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>(),
-            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_overlapping_child_spans() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = make_event(
+            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into(),
+            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).into(),
             <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
             <span class="macro">vec!</span>[
-                <span class="ident">make_span</span>(
+                make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>).<span class="ident">into</span>(),
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>).into(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">0</span>).into(),
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                     <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
                 ),
-                <span class="ident">make_span</span>(
+                make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">200_000_000</span>)
-                        .<span class="ident">into</span>(),
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">600_000_000</span>)
-                        .<span class="ident">into</span>(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
+                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">200_000_000</span>)
+                        .into(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
+                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">600_000_000</span>)
+                        .into(),
                     <span class="string">&quot;cccccccccccccccc&quot;</span>,
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                 ),
-                <span class="ident">make_span</span>(
+                make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">400_000_000</span>)
-                        .<span class="ident">into</span>(),
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">800_000_000</span>)
-                        .<span class="ident">into</span>(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
+                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">400_000_000</span>)
+                        .into(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
+                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">800_000_000</span>)
+                        .into(),
                     <span class="string">&quot;dddddddddddddddd&quot;</span>,
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                 ),
             ],
         );
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">BTreeSet::new</span>();
-        <span class="ident">config</span>.<span class="ident">insert</span>(<span class="ident">SpanAttribute::ExclusiveTime</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>config = BTreeSet::new();
+        config.insert(SpanAttribute::ExclusiveTime);
 
-        <span class="ident">normalize_spans</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="ident">config</span>);
+        normalize_spans(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config);
 
-        <span class="kw">let</span> <span class="ident">exclusive_times</span> <span class="op">=</span> <span class="ident">extract_span_exclusive_times</span>(<span class="ident">event</span>);
+        <span class="kw">let </span>exclusive_times = extract_span_exclusive_times(event);
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">exclusive_times</span>,
+            exclusive_times,
             <span class="macro">vec!</span>[
-                (<span class="ident">SpanId</span>(<span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>.<span class="ident">to_string</span>()), <span class="number">4000.0</span>),
-                (<span class="ident">SpanId</span>(<span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>.<span class="ident">to_string</span>()), <span class="number">400.0</span>),
-                (<span class="ident">SpanId</span>(<span class="string">&quot;cccccccccccccccc&quot;</span>.<span class="ident">to_string</span>()), <span class="number">400.0</span>),
-                (<span class="ident">SpanId</span>(<span class="string">&quot;dddddddddddddddd&quot;</span>.<span class="ident">to_string</span>()), <span class="number">400.0</span>),
+                (SpanId(<span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>.to_string()), <span class="number">4000.0</span>),
+                (SpanId(<span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>.to_string()), <span class="number">400.0</span>),
+                (SpanId(<span class="string">&quot;cccccccccccccccc&quot;</span>.to_string()), <span class="number">400.0</span>),
+                (SpanId(<span class="string">&quot;dddddddddddddddd&quot;</span>.to_string()), <span class="number">400.0</span>),
             ]
-            .<span class="ident">iter</span>()
-            .<span class="ident">cloned</span>()
-            .<span class="ident">collect</span>()
+            .iter()
+            .cloned()
+            .collect()
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_child_spans_dont_intersect_parent</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">make_event</span>(
-            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>(),
-            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_child_spans_dont_intersect_parent() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = make_event(
+            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into(),
+            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).into(),
             <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
             <span class="macro">vec!</span>[
-                <span class="ident">make_span</span>(
+                make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>).<span class="ident">into</span>(),
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>).into(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">0</span>).into(),
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                     <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
                 ),
-                <span class="ident">make_span</span>(
+                make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">400_000_000</span>)
-                        .<span class="ident">into</span>(),
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">800_000_000</span>)
-                        .<span class="ident">into</span>(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
+                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">400_000_000</span>)
+                        .into(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
+                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">800_000_000</span>)
+                        .into(),
                     <span class="string">&quot;cccccccccccccccc&quot;</span>,
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                 ),
-                <span class="ident">make_span</span>(
+                make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">200_000_000</span>)
-                        .<span class="ident">into</span>(),
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">600_000_000</span>)
-                        .<span class="ident">into</span>(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
+                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">200_000_000</span>)
+                        .into(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
+                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">600_000_000</span>)
+                        .into(),
                     <span class="string">&quot;dddddddddddddddd&quot;</span>,
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                 ),
             ],
         );
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">BTreeSet::new</span>();
-        <span class="ident">config</span>.<span class="ident">insert</span>(<span class="ident">SpanAttribute::ExclusiveTime</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>config = BTreeSet::new();
+        config.insert(SpanAttribute::ExclusiveTime);
 
-        <span class="ident">normalize_spans</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="ident">config</span>);
+        normalize_spans(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config);
 
-        <span class="kw">let</span> <span class="ident">exclusive_times</span> <span class="op">=</span> <span class="ident">extract_span_exclusive_times</span>(<span class="ident">event</span>);
+        <span class="kw">let </span>exclusive_times = extract_span_exclusive_times(event);
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">exclusive_times</span>,
+            exclusive_times,
             <span class="macro">vec!</span>[
-                (<span class="ident">SpanId</span>(<span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>.<span class="ident">to_string</span>()), <span class="number">4000.0</span>),
-                (<span class="ident">SpanId</span>(<span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>.<span class="ident">to_string</span>()), <span class="number">1000.0</span>),
-                (<span class="ident">SpanId</span>(<span class="string">&quot;cccccccccccccccc&quot;</span>.<span class="ident">to_string</span>()), <span class="number">400.0</span>),
-                (<span class="ident">SpanId</span>(<span class="string">&quot;dddddddddddddddd&quot;</span>.<span class="ident">to_string</span>()), <span class="number">400.0</span>),
+                (SpanId(<span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>.to_string()), <span class="number">4000.0</span>),
+                (SpanId(<span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>.to_string()), <span class="number">1000.0</span>),
+                (SpanId(<span class="string">&quot;cccccccccccccccc&quot;</span>.to_string()), <span class="number">400.0</span>),
+                (SpanId(<span class="string">&quot;dddddddddddddddd&quot;</span>.to_string()), <span class="number">400.0</span>),
             ]
-            .<span class="ident">iter</span>()
-            .<span class="ident">cloned</span>()
-            .<span class="ident">collect</span>()
+            .iter()
+            .cloned()
+            .collect()
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_child_spans_extend_beyond_parent</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">make_event</span>(
-            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>(),
-            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_child_spans_extend_beyond_parent() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = make_event(
+            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into(),
+            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).into(),
             <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
             <span class="macro">vec!</span>[
-                <span class="ident">make_span</span>(
+                make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>).<span class="ident">into</span>(),
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>).into(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">0</span>).into(),
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                     <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
                 ),
-                <span class="ident">make_span</span>(
+                make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">800_000_000</span>)
-                        .<span class="ident">into</span>(),
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">400_000_000</span>)
-                        .<span class="ident">into</span>(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
+                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">800_000_000</span>)
+                        .into(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
+                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">400_000_000</span>)
+                        .into(),
                     <span class="string">&quot;cccccccccccccccc&quot;</span>,
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                 ),
-                <span class="ident">make_span</span>(
+                make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">600_000_000</span>)
-                        .<span class="ident">into</span>(),
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">200_000_000</span>)
-                        .<span class="ident">into</span>(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
+                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">600_000_000</span>)
+                        .into(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
+                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">200_000_000</span>)
+                        .into(),
                     <span class="string">&quot;dddddddddddddddd&quot;</span>,
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                 ),
             ],
         );
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">BTreeSet::new</span>();
-        <span class="ident">config</span>.<span class="ident">insert</span>(<span class="ident">SpanAttribute::ExclusiveTime</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>config = BTreeSet::new();
+        config.insert(SpanAttribute::ExclusiveTime);
 
-        <span class="ident">normalize_spans</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="ident">config</span>);
+        normalize_spans(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config);
 
-        <span class="kw">let</span> <span class="ident">exclusive_times</span> <span class="op">=</span> <span class="ident">extract_span_exclusive_times</span>(<span class="ident">event</span>);
+        <span class="kw">let </span>exclusive_times = extract_span_exclusive_times(event);
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">exclusive_times</span>,
+            exclusive_times,
             <span class="macro">vec!</span>[
-                (<span class="ident">SpanId</span>(<span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>.<span class="ident">to_string</span>()), <span class="number">4000.0</span>),
-                (<span class="ident">SpanId</span>(<span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>.<span class="ident">to_string</span>()), <span class="number">200.0</span>),
-                (<span class="ident">SpanId</span>(<span class="string">&quot;cccccccccccccccc&quot;</span>.<span class="ident">to_string</span>()), <span class="number">600.0</span>),
-                (<span class="ident">SpanId</span>(<span class="string">&quot;dddddddddddddddd&quot;</span>.<span class="ident">to_string</span>()), <span class="number">600.0</span>),
+                (SpanId(<span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>.to_string()), <span class="number">4000.0</span>),
+                (SpanId(<span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>.to_string()), <span class="number">200.0</span>),
+                (SpanId(<span class="string">&quot;cccccccccccccccc&quot;</span>.to_string()), <span class="number">600.0</span>),
+                (SpanId(<span class="string">&quot;dddddddddddddddd&quot;</span>.to_string()), <span class="number">600.0</span>),
             ]
-            .<span class="ident">iter</span>()
-            .<span class="ident">cloned</span>()
-            .<span class="ident">collect</span>()
+            .iter()
+            .cloned()
+            .collect()
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_child_spans_consumes_all_of_parent</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">make_event</span>(
-            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>(),
-            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_child_spans_consumes_all_of_parent() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = make_event(
+            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into(),
+            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).into(),
             <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
             <span class="macro">vec!</span>[
-                <span class="ident">make_span</span>(
+                make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>).<span class="ident">into</span>(),
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>).into(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">0</span>).into(),
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                     <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
                 ),
-                <span class="ident">make_span</span>(
+                make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">800_000_000</span>)
-                        .<span class="ident">into</span>(),
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">600_000_000</span>)
-                        .<span class="ident">into</span>(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
+                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">800_000_000</span>)
+                        .into(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
+                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">600_000_000</span>)
+                        .into(),
                     <span class="string">&quot;cccccccccccccccc&quot;</span>,
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                 ),
-                <span class="ident">make_span</span>(
+                make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">400_000_000</span>)
-                        .<span class="ident">into</span>(),
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">200_000_000</span>)
-                        .<span class="ident">into</span>(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
+                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">400_000_000</span>)
+                        .into(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
+                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">200_000_000</span>)
+                        .into(),
                     <span class="string">&quot;dddddddddddddddd&quot;</span>,
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                 ),
             ],
         );
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">BTreeSet::new</span>();
-        <span class="ident">config</span>.<span class="ident">insert</span>(<span class="ident">SpanAttribute::ExclusiveTime</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>config = BTreeSet::new();
+        config.insert(SpanAttribute::ExclusiveTime);
 
-        <span class="ident">normalize_spans</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="ident">config</span>);
+        normalize_spans(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config);
 
-        <span class="kw">let</span> <span class="ident">exclusive_times</span> <span class="op">=</span> <span class="ident">extract_span_exclusive_times</span>(<span class="ident">event</span>);
+        <span class="kw">let </span>exclusive_times = extract_span_exclusive_times(event);
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">exclusive_times</span>,
+            exclusive_times,
             <span class="macro">vec!</span>[
-                (<span class="ident">SpanId</span>(<span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>.<span class="ident">to_string</span>()), <span class="number">4000.0</span>),
-                (<span class="ident">SpanId</span>(<span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>.<span class="ident">to_string</span>()), <span class="number">0.0</span>),
-                (<span class="ident">SpanId</span>(<span class="string">&quot;cccccccccccccccc&quot;</span>.<span class="ident">to_string</span>()), <span class="number">800.0</span>),
-                (<span class="ident">SpanId</span>(<span class="string">&quot;dddddddddddddddd&quot;</span>.<span class="ident">to_string</span>()), <span class="number">800.0</span>),
+                (SpanId(<span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>.to_string()), <span class="number">4000.0</span>),
+                (SpanId(<span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>.to_string()), <span class="number">0.0</span>),
+                (SpanId(<span class="string">&quot;cccccccccccccccc&quot;</span>.to_string()), <span class="number">800.0</span>),
+                (SpanId(<span class="string">&quot;dddddddddddddddd&quot;</span>.to_string()), <span class="number">800.0</span>),
             ]
-            .<span class="ident">iter</span>()
-            .<span class="ident">cloned</span>()
-            .<span class="ident">collect</span>()
+            .iter()
+            .cloned()
+            .collect()
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_only_immediate_child_spans_affect_calculation</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">make_event</span>(
-            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>(),
-            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_only_immediate_child_spans_affect_calculation() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = make_event(
+            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into(),
+            Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).into(),
             <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
             <span class="macro">vec!</span>[
-                <span class="ident">make_span</span>(
+                make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>).<span class="ident">into</span>(),
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>).into(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">0</span>).into(),
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                     <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
                 ),
-                <span class="ident">make_span</span>(
+                make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">600_000_000</span>)
-                        .<span class="ident">into</span>(),
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">200_000_000</span>)
-                        .<span class="ident">into</span>(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
+                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">600_000_000</span>)
+                        .into(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
+                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">200_000_000</span>)
+                        .into(),
                     <span class="string">&quot;cccccccccccccccc&quot;</span>,
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                 ),
-                <span class="comment">// this should only affect the calculation for it&#39;s immediate parent</span>
-                <span class="comment">// which is `cccccccccccccccc` and not `bbbbbbbbbbbbbbbb`</span>
-                <span class="ident">make_span</span>(
+                <span class="comment">// this should only affect the calculation for it&#39;s immediate parent
+                // which is `cccccccccccccccc` and not `bbbbbbbbbbbbbbbb`
+                </span>make_span(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">400_000_000</span>)
-                        .<span class="ident">into</span>(),
-                    <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
-                        .<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">800_000_000</span>)
-                        .<span class="ident">into</span>(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
+                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">400_000_000</span>)
+                        .into(),
+                    Utc.ymd(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>)
+                        .and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">800_000_000</span>)
+                        .into(),
                     <span class="string">&quot;dddddddddddddddd&quot;</span>,
                     <span class="string">&quot;cccccccccccccccc&quot;</span>,
                 ),
             ],
         );
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">BTreeSet::new</span>();
-        <span class="ident">config</span>.<span class="ident">insert</span>(<span class="ident">SpanAttribute::ExclusiveTime</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>config = BTreeSet::new();
+        config.insert(SpanAttribute::ExclusiveTime);
 
-        <span class="ident">normalize_spans</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="ident">config</span>);
+        normalize_spans(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config);
 
-        <span class="kw">let</span> <span class="ident">exclusive_times</span> <span class="op">=</span> <span class="ident">extract_span_exclusive_times</span>(<span class="ident">event</span>);
+        <span class="kw">let </span>exclusive_times = extract_span_exclusive_times(event);
 
         <span class="macro">assert_eq!</span>(
-            <span class="ident">exclusive_times</span>,
+            exclusive_times,
             <span class="macro">vec!</span>[
-                (<span class="ident">SpanId</span>(<span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>.<span class="ident">to_string</span>()), <span class="number">4000.0</span>),
-                (<span class="ident">SpanId</span>(<span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>.<span class="ident">to_string</span>()), <span class="number">600.0</span>),
-                (<span class="ident">SpanId</span>(<span class="string">&quot;cccccccccccccccc&quot;</span>.<span class="ident">to_string</span>()), <span class="number">400.0</span>),
-                (<span class="ident">SpanId</span>(<span class="string">&quot;dddddddddddddddd&quot;</span>.<span class="ident">to_string</span>()), <span class="number">400.0</span>),
+                (SpanId(<span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>.to_string()), <span class="number">4000.0</span>),
+                (SpanId(<span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>.to_string()), <span class="number">600.0</span>),
+                (SpanId(<span class="string">&quot;cccccccccccccccc&quot;</span>.to_string()), <span class="number">400.0</span>),
+                (SpanId(<span class="string">&quot;dddddddddddddddd&quot;</span>.to_string()), <span class="number">400.0</span>),
             ]
-            .<span class="ident">iter</span>()
-            .<span class="ident">cloned</span>()
-            .<span class="ident">collect</span>()
+            .iter()
+            .cloned()
+            .collect()
         );
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

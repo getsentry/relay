@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-auth/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_auth/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_auth/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-auth/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../relay_auth/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../relay_auth/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../relay_auth/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -906,911 +906,911 @@
 <span id="904">904</span>
 <span id="905">905</span>
 <span id="906">906</span>
-</pre><pre class="rust"><code><span class="attribute">#![<span class="ident">doc</span>(
-    <span class="ident">html_logo_url</span> <span class="op">=</span> <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
-    <span class="ident">html_favicon_url</span> <span class="op">=</span> <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>
-)]</span>
-<span class="attribute">#![<span class="ident">allow</span>(<span class="ident">clippy::derive_partial_eq_without_eq</span>)]</span>
-<span class="kw">use</span> <span class="ident">std::fmt</span>;
-<span class="kw">use</span> <span class="ident">std::str::FromStr</span>;
+</pre><pre class="rust"><code><span class="attribute">#![doc(
+    html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
+    html_favicon_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;
+</span>)]
+#![allow(clippy::derive_partial_eq_without_eq)]
+</span><span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::str::FromStr;
 
-<span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">DateTime</span>, <span class="ident">Duration</span>, <span class="ident">TimeZone</span>, <span class="ident">Utc</span>};
-<span class="kw">use</span> <span class="ident">failure::Fail</span>;
-<span class="kw">use</span> <span class="ident">hmac</span>::{<span class="ident">Hmac</span>, <span class="ident">Mac</span>};
-<span class="kw">use</span> <span class="ident">rand</span>::{<span class="ident">rngs::OsRng</span>, <span class="ident">thread_rng</span>, <span class="ident">RngCore</span>};
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">de::DeserializeOwned</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
-<span class="kw">use</span> <span class="ident">sha2::Sha512</span>;
+<span class="kw">use </span>chrono::{DateTime, Duration, TimeZone, Utc};
+<span class="kw">use </span>failure::Fail;
+<span class="kw">use </span>hmac::{Hmac, Mac};
+<span class="kw">use </span>rand::{rngs::OsRng, thread_rng, RngCore};
+<span class="kw">use </span>serde::{de::DeserializeOwned, Deserialize, Serialize};
+<span class="kw">use </span>sha2::Sha512;
 
-<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">UnixTimestamp</span>, <span class="ident">Uuid</span>};
+<span class="kw">use </span>relay_common::{UnixTimestamp, Uuid};
 
 <span class="macro">include!</span>(<span class="macro">concat!</span>(<span class="macro">env!</span>(<span class="string">&quot;OUT_DIR&quot;</span>), <span class="string">&quot;/constants.gen.rs&quot;</span>));
 
-<span class="doccomment">/// The latest Relay version known to this Relay. This is the current version.</span>
-<span class="kw">const</span> <span class="ident">LATEST_VERSION</span>: <span class="ident">RelayVersion</span> <span class="op">=</span> <span class="ident">RelayVersion::new</span>(<span class="ident">VERSION_MAJOR</span>, <span class="ident">VERSION_MINOR</span>, <span class="ident">VERSION_PATCH</span>);
+<span class="doccomment">/// The latest Relay version known to this Relay. This is the current version.
+</span><span class="kw">const </span>LATEST_VERSION: RelayVersion = RelayVersion::new(VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH);
 
-<span class="doccomment">/// The oldest downstream Relay version still supported by this Relay.</span>
-<span class="kw">const</span> <span class="ident">OLDEST_VERSION</span>: <span class="ident">RelayVersion</span> <span class="op">=</span> <span class="ident">RelayVersion::new</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>); <span class="comment">// support all</span>
+<span class="doccomment">/// The oldest downstream Relay version still supported by this Relay.
+</span><span class="kw">const </span>OLDEST_VERSION: RelayVersion = RelayVersion::new(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>); <span class="comment">// support all
 
-<span class="doccomment">/// Alias for relay IDs (UUIDs).</span>
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">RelayId</span> <span class="op">=</span> <span class="ident">Uuid</span>;
+</span><span class="doccomment">/// Alias for relay IDs (UUIDs).
+</span><span class="kw">pub type </span>RelayId = Uuid;
 
-<span class="doccomment">/// The version of a Relay.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">Eq</span>, <span class="ident">Ord</span>, <span class="ident">PartialEq</span>, <span class="ident">PartialOrd</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RelayVersion</span> {
-    <span class="ident">major</span>: <span class="ident">u8</span>,
-    <span class="ident">minor</span>: <span class="ident">u8</span>,
-    <span class="ident">patch</span>: <span class="ident">u8</span>,
+<span class="doccomment">/// The version of a Relay.
+</span><span class="attribute">#[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
+</span><span class="kw">pub struct </span>RelayVersion {
+    major: u8,
+    minor: u8,
+    patch: u8,
 }
 
-<span class="kw">impl</span> <span class="ident">RelayVersion</span> {
-    <span class="doccomment">/// Returns the current Relay version.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">current</span>() -&gt; <span class="self">Self</span> {
-        <span class="ident">LATEST_VERSION</span>
+<span class="kw">impl </span>RelayVersion {
+    <span class="doccomment">/// Returns the current Relay version.
+    </span><span class="kw">pub fn </span>current() -&gt; <span class="self">Self </span>{
+        LATEST_VERSION
     }
 
-    <span class="doccomment">/// Returns the oldest compatible Relay version.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Relays older than this cannot authenticate with this Relay. It is possible for newer Relays</span>
-    <span class="doccomment">/// to authenticate.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">oldest</span>() -&gt; <span class="self">Self</span> {
-        <span class="ident">OLDEST_VERSION</span>
+    <span class="doccomment">/// Returns the oldest compatible Relay version.
+    ///
+    /// Relays older than this cannot authenticate with this Relay. It is possible for newer Relays
+    /// to authenticate.
+    </span><span class="kw">pub fn </span>oldest() -&gt; <span class="self">Self </span>{
+        OLDEST_VERSION
     }
 
-    <span class="doccomment">/// Creates a new version with the given components.</span>
-    <span class="kw">pub</span> <span class="kw">const</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">major</span>: <span class="ident">u8</span>, <span class="ident">minor</span>: <span class="ident">u8</span>, <span class="ident">patch</span>: <span class="ident">u8</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> {
-            <span class="ident">major</span>,
-            <span class="ident">minor</span>,
-            <span class="ident">patch</span>,
+    <span class="doccomment">/// Creates a new version with the given components.
+    </span><span class="kw">pub const fn </span>new(major: u8, minor: u8, patch: u8) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            major,
+            minor,
+            patch,
         }
     }
 
-    <span class="doccomment">/// Returns `true` if this version is still supported.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">supported</span>(<span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span> <span class="op">&gt;</span><span class="op">=</span> <span class="ident"><span class="self">Self</span>::oldest</span>()
+    <span class="doccomment">/// Returns `true` if this version is still supported.
+    </span><span class="kw">pub fn </span>supported(<span class="self">self</span>) -&gt; bool {
+        <span class="self">self </span>&gt;= <span class="self">Self</span>::oldest()
     }
 
-    <span class="doccomment">/// Returns `true` if this version is older than the current version.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">outdated</span>(<span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span> <span class="op">&lt;</span> <span class="ident"><span class="self">Self</span>::current</span>()
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">RelayVersion</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{}.{}.{}&quot;</span>, <span class="self">self</span>.<span class="ident">major</span>, <span class="self">self</span>.<span class="ident">minor</span>, <span class="self">self</span>.<span class="ident">patch</span>)
+    <span class="doccomment">/// Returns `true` if this version is older than the current version.
+    </span><span class="kw">pub fn </span>outdated(<span class="self">self</span>) -&gt; bool {
+        <span class="self">self </span>&lt; <span class="self">Self</span>::current()
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">Fail</span>)]</span>
-<span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;hello&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ParseRelayVersionError</span>;
-
-<span class="kw">impl</span> <span class="ident">FromStr</span> <span class="kw">for</span> <span class="ident">RelayVersion</span> {
-    <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="ident">ParseRelayVersionError</span>;
-
-    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">iter</span> <span class="op">=</span> <span class="ident">s</span>
-            .<span class="ident">split</span>(<span class="kw-2">&amp;</span>[<span class="string">&#39;.&#39;</span>, <span class="string">&#39;-&#39;</span>][..])
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">parse</span>().<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">ParseRelayVersionError</span>));
-
-        <span class="kw">let</span> <span class="ident">major</span> <span class="op">=</span> <span class="ident">iter</span>.<span class="ident">next</span>().<span class="ident">ok_or</span>(<span class="ident">ParseRelayVersionError</span>)<span class="question-mark">?</span><span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">minor</span> <span class="op">=</span> <span class="ident">iter</span>.<span class="ident">next</span>().<span class="ident">ok_or</span>(<span class="ident">ParseRelayVersionError</span>)<span class="question-mark">?</span><span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">patch</span> <span class="op">=</span> <span class="ident">iter</span>.<span class="ident">next</span>().<span class="ident">ok_or</span>(<span class="ident">ParseRelayVersionError</span>)<span class="question-mark">?</span><span class="question-mark">?</span>;
-
-        <span class="prelude-val">Ok</span>(<span class="ident"><span class="self">Self</span>::new</span>(<span class="ident">major</span>, <span class="ident">minor</span>, <span class="ident">patch</span>))
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>RelayVersion {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;{}.{}.{}&quot;</span>, <span class="self">self</span>.major, <span class="self">self</span>.minor, <span class="self">self</span>.patch)
     }
 }
 
-<span class="macro">relay_common::impl_str_serde!</span>(<span class="ident">RelayVersion</span>, <span class="string">&quot;a version string&quot;</span>);
+<span class="attribute">#[derive(Clone, Copy, Debug, Default, Fail)]
+#[fail(display = <span class="string">&quot;hello&quot;</span>)]
+</span><span class="kw">pub struct </span>ParseRelayVersionError;
 
-<span class="doccomment">/// Raised if a key could not be parsed.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Fail</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Hash</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">KeyParseError</span> {
-    <span class="doccomment">/// Invalid key encoding.</span>
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;bad key encoding&quot;</span>)]</span>
-    <span class="ident">BadEncoding</span>,
-    <span class="doccomment">/// Invalid key data.</span>
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;bad key data&quot;</span>)]</span>
-    <span class="ident">BadKey</span>,
-}
+<span class="kw">impl </span>FromStr <span class="kw">for </span>RelayVersion {
+    <span class="kw">type </span><span class="prelude-val">Err </span>= ParseRelayVersionError;
 
-<span class="doccomment">/// Raised to indicate failure on unpacking.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Fail</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">UnpackError</span> {
-    <span class="doccomment">/// Raised if the signature is invalid.</span>
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;invalid signature on data&quot;</span>)]</span>
-    <span class="ident">BadSignature</span>,
-    <span class="doccomment">/// Invalid key encoding.</span>
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;bad key encoding&quot;</span>)]</span>
-    <span class="ident">BadEncoding</span>,
-    <span class="doccomment">/// Raised if deserializing of data failed.</span>
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;could not deserialize payload&quot;</span>)]</span>
-    <span class="ident">BadPayload</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">serde_json::Error</span>),
-    <span class="doccomment">/// Raised on unpacking if the data is too old.</span>
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;signature is too old&quot;</span>)]</span>
-    <span class="ident">SignatureExpired</span>,
-}
+    <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>iter = s
+            .split(<span class="kw-2">&amp;</span>[<span class="string">&#39;.&#39;</span>, <span class="string">&#39;-&#39;</span>][..])
+            .map(|s| s.parse().map_err(|<span class="kw">_</span>| ParseRelayVersionError));
 
-<span class="doccomment">/// A wrapper around packed data that adds a timestamp.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This is internally automatically used when data is signed.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SignatureHeader</span> {
-    <span class="doccomment">/// The timestamp of when the data was packed and signed.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;t&quot;</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">timestamp</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-}
+        <span class="kw">let </span>major = iter.next().ok_or(ParseRelayVersionError)<span class="question-mark">??</span>;
+        <span class="kw">let </span>minor = iter.next().ok_or(ParseRelayVersionError)<span class="question-mark">??</span>;
+        <span class="kw">let </span>patch = iter.next().ok_or(ParseRelayVersionError)<span class="question-mark">??</span>;
 
-<span class="kw">impl</span> <span class="ident">SignatureHeader</span> {
-    <span class="doccomment">/// Checks if the signature expired.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expired</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">max_age</span>: <span class="ident">Duration</span>) -&gt; <span class="ident">bool</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">ts</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">timestamp</span> {
-            <span class="ident">ts</span> <span class="op">&lt;</span> (<span class="ident">Utc::now</span>() <span class="op">-</span> <span class="ident">max_age</span>)
-        } <span class="kw">else</span> {
-            <span class="bool-val">false</span>
-        }
+        <span class="prelude-val">Ok</span>(<span class="self">Self</span>::new(major, minor, patch))
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">SignatureHeader</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="ident">SignatureHeader</span> {
-        <span class="ident">SignatureHeader</span> {
-            <span class="ident">timestamp</span>: <span class="prelude-val">Some</span>(<span class="ident">Utc::now</span>()),
-        }
+<span class="macro">relay_common::impl_str_serde!</span>(RelayVersion, <span class="string">&quot;a version string&quot;</span>);
+
+<span class="doccomment">/// Raised if a key could not be parsed.
+</span><span class="attribute">#[derive(Debug, Fail, PartialEq, Eq, Hash)]
+</span><span class="kw">pub enum </span>KeyParseError {
+    <span class="doccomment">/// Invalid key encoding.
+    </span><span class="attribute">#[fail(display = <span class="string">&quot;bad key encoding&quot;</span>)]
+    </span>BadEncoding,
+    <span class="doccomment">/// Invalid key data.
+    </span><span class="attribute">#[fail(display = <span class="string">&quot;bad key data&quot;</span>)]
+    </span>BadKey,
+}
+
+<span class="doccomment">/// Raised to indicate failure on unpacking.
+</span><span class="attribute">#[derive(Debug, Fail)]
+</span><span class="kw">pub enum </span>UnpackError {
+    <span class="doccomment">/// Raised if the signature is invalid.
+    </span><span class="attribute">#[fail(display = <span class="string">&quot;invalid signature on data&quot;</span>)]
+    </span>BadSignature,
+    <span class="doccomment">/// Invalid key encoding.
+    </span><span class="attribute">#[fail(display = <span class="string">&quot;bad key encoding&quot;</span>)]
+    </span>BadEncoding,
+    <span class="doccomment">/// Raised if deserializing of data failed.
+    </span><span class="attribute">#[fail(display = <span class="string">&quot;could not deserialize payload&quot;</span>)]
+    </span>BadPayload(<span class="attribute">#[cause] </span>serde_json::Error),
+    <span class="doccomment">/// Raised on unpacking if the data is too old.
+    </span><span class="attribute">#[fail(display = <span class="string">&quot;signature is too old&quot;</span>)]
+    </span>SignatureExpired,
+}
+
+<span class="doccomment">/// A wrapper around packed data that adds a timestamp.
+///
+/// This is internally automatically used when data is signed.
+</span><span class="attribute">#[derive(Serialize, Deserialize, Debug)]
+</span><span class="kw">pub struct </span>SignatureHeader {
+    <span class="doccomment">/// The timestamp of when the data was packed and signed.
+    </span><span class="attribute">#[serde(rename = <span class="string">&quot;t&quot;</span>, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="kw">pub </span>timestamp: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
+}
+
+<span class="kw">impl </span>SignatureHeader {
+    <span class="doccomment">/// Checks if the signature expired.
+    </span><span class="kw">pub fn </span>expired(<span class="kw-2">&amp;</span><span class="self">self</span>, max_age: Duration) -&gt; bool {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(ts) = <span class="self">self</span>.timestamp {
+            ts &lt; (Utc::now() - max_age)
+        } <span class="kw">else </span>{
+            <span class="bool-val">false
+        </span>}
     }
 }
 
-<span class="doccomment">/// Represents the public key of an relay.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Public keys are based on ed25519 but this should be considered an</span>
-<span class="doccomment">/// implementation detail for now.  We only ever represent public keys</span>
-<span class="doccomment">/// on the wire as opaque ascii encoded strings of arbitrary format or length.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">PublicKey</span> {
-    <span class="ident">inner</span>: <span class="ident">ed25519_dalek::PublicKey</span>,
-}
-
-<span class="doccomment">/// Represents the secret key of an relay.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Secret keys are based on ed25519 but this should be considered an</span>
-<span class="doccomment">/// implementation detail for now.  We only ever represent public keys</span>
-<span class="doccomment">/// on the wire as opaque ascii encoded strings of arbitrary format or length.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SecretKey</span> {
-    <span class="ident">inner</span>: <span class="ident">ed25519_dalek::Keypair</span>,
-}
-
-<span class="kw">impl</span> <span class="ident">Clone</span> <span class="kw">for</span> <span class="ident">SecretKey</span> {
-    <span class="kw">fn</span> <span class="ident">clone</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">SecretKey</span> {
-        <span class="ident">SecretKey</span> {
-            <span class="ident">inner</span>: <span class="ident">ed25519_dalek::Keypair::from_bytes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">to_bytes</span>()[..]).<span class="ident">unwrap</span>(),
+<span class="kw">impl </span>Default <span class="kw">for </span>SignatureHeader {
+    <span class="kw">fn </span>default() -&gt; SignatureHeader {
+        SignatureHeader {
+            timestamp: <span class="prelude-val">Some</span>(Utc::now()),
         }
     }
 }
 
-<span class="doccomment">/// Represents the final registration.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Registration</span> {
-    <span class="ident">relay_id</span>: <span class="ident">RelayId</span>,
+<span class="doccomment">/// Represents the public key of an relay.
+///
+/// Public keys are based on ed25519 but this should be considered an
+/// implementation detail for now.  We only ever represent public keys
+/// on the wire as opaque ascii encoded strings of arbitrary format or length.
+</span><span class="attribute">#[derive(Clone)]
+</span><span class="kw">pub struct </span>PublicKey {
+    inner: ed25519_dalek::PublicKey,
 }
 
-<span class="kw">impl</span> <span class="ident">SecretKey</span> {
-    <span class="doccomment">/// Signs some data with the secret key and returns the signature.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This is will sign with the default header.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sign</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="ident">String</span> {
-        <span class="self">self</span>.<span class="ident">sign_with_header</span>(<span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="ident">SignatureHeader::default</span>())
+<span class="doccomment">/// Represents the secret key of an relay.
+///
+/// Secret keys are based on ed25519 but this should be considered an
+/// implementation detail for now.  We only ever represent public keys
+/// on the wire as opaque ascii encoded strings of arbitrary format or length.
+</span><span class="kw">pub struct </span>SecretKey {
+    inner: ed25519_dalek::Keypair,
+}
+
+<span class="kw">impl </span>Clone <span class="kw">for </span>SecretKey {
+    <span class="kw">fn </span>clone(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; SecretKey {
+        SecretKey {
+            inner: ed25519_dalek::Keypair::from_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>.inner.to_bytes()[..]).unwrap(),
+        }
+    }
+}
+
+<span class="doccomment">/// Represents the final registration.
+</span><span class="attribute">#[derive(Serialize, Deserialize, Debug)]
+</span><span class="kw">pub struct </span>Registration {
+    relay_id: RelayId,
+}
+
+<span class="kw">impl </span>SecretKey {
+    <span class="doccomment">/// Signs some data with the secret key and returns the signature.
+    ///
+    /// This is will sign with the default header.
+    </span><span class="kw">pub fn </span>sign(<span class="kw-2">&amp;</span><span class="self">self</span>, data: <span class="kw-2">&amp;</span>[u8]) -&gt; String {
+        <span class="self">self</span>.sign_with_header(data, <span class="kw-2">&amp;</span>SignatureHeader::default())
     }
 
-    <span class="doccomment">/// Signs some data with the seret key and a specific header and</span>
-    <span class="doccomment">/// then returns the signature.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The default behavior is to attach the timestamp in the header to the</span>
-    <span class="doccomment">/// signature so that old signatures on verification can be rejected.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sign_with_header</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">header</span>: <span class="kw-2">&amp;</span><span class="ident">SignatureHeader</span>) -&gt; <span class="ident">String</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">header</span> <span class="op">=</span>
-            <span class="ident">serde_json::to_vec</span>(<span class="kw-2">&amp;</span><span class="ident">header</span>).<span class="ident">expect</span>(<span class="string">&quot;attempted to pack non json safe header&quot;</span>);
-        <span class="kw">let</span> <span class="ident">header_encoded</span> <span class="op">=</span> <span class="ident">base64::encode_config</span>(<span class="kw-2">&amp;</span><span class="ident">header</span>[..], <span class="ident">base64::URL_SAFE_NO_PAD</span>);
-        <span class="ident">header</span>.<span class="ident">push</span>(<span class="string">b&#39;\x00&#39;</span>);
-        <span class="ident">header</span>.<span class="ident">extend_from_slice</span>(<span class="ident">data</span>);
-        <span class="kw">let</span> <span class="ident">sig</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">sign</span>::<span class="op">&lt;</span><span class="ident">Sha512</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="ident">header</span>);
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">sig_encoded</span> <span class="op">=</span> <span class="ident">base64::encode_config</span>(<span class="kw-2">&amp;</span><span class="ident">sig</span>.<span class="ident">to_bytes</span>()[..], <span class="ident">base64::URL_SAFE_NO_PAD</span>);
-        <span class="ident">sig_encoded</span>.<span class="ident">push</span>(<span class="string">&#39;.&#39;</span>);
-        <span class="ident">sig_encoded</span>.<span class="ident">push_str</span>(<span class="kw-2">&amp;</span><span class="ident">header_encoded</span>);
-        <span class="ident">sig_encoded</span>
+    <span class="doccomment">/// Signs some data with the seret key and a specific header and
+    /// then returns the signature.
+    ///
+    /// The default behavior is to attach the timestamp in the header to the
+    /// signature so that old signatures on verification can be rejected.
+    </span><span class="kw">pub fn </span>sign_with_header(<span class="kw-2">&amp;</span><span class="self">self</span>, data: <span class="kw-2">&amp;</span>[u8], header: <span class="kw-2">&amp;</span>SignatureHeader) -&gt; String {
+        <span class="kw">let </span><span class="kw-2">mut </span>header =
+            serde_json::to_vec(<span class="kw-2">&amp;</span>header).expect(<span class="string">&quot;attempted to pack non json safe header&quot;</span>);
+        <span class="kw">let </span>header_encoded = base64::encode_config(<span class="kw-2">&amp;</span>header[..], base64::URL_SAFE_NO_PAD);
+        header.push(<span class="string">b&#39;\x00&#39;</span>);
+        header.extend_from_slice(data);
+        <span class="kw">let </span>sig = <span class="self">self</span>.inner.sign::&lt;Sha512&gt;(<span class="kw-2">&amp;</span>header);
+        <span class="kw">let </span><span class="kw-2">mut </span>sig_encoded = base64::encode_config(<span class="kw-2">&amp;</span>sig.to_bytes()[..], base64::URL_SAFE_NO_PAD);
+        sig_encoded.push(<span class="string">&#39;.&#39;</span>);
+        sig_encoded.push_str(<span class="kw-2">&amp;</span>header_encoded);
+        sig_encoded
     }
 
-    <span class="doccomment">/// Packs some serializable data into JSON and signs it with the default header.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pack</span><span class="op">&lt;</span><span class="ident">S</span>: <span class="ident">Serialize</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">data</span>: <span class="ident">S</span>) -&gt; (<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">String</span>) {
-        <span class="self">self</span>.<span class="ident">pack_with_header</span>(<span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="ident">SignatureHeader::default</span>())
+    <span class="doccomment">/// Packs some serializable data into JSON and signs it with the default header.
+    </span><span class="kw">pub fn </span>pack&lt;S: Serialize&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, data: S) -&gt; (Vec&lt;u8&gt;, String) {
+        <span class="self">self</span>.pack_with_header(data, <span class="kw-2">&amp;</span>SignatureHeader::default())
     }
 
-    <span class="doccomment">/// Packs some serializable data into JSON and signs it with the specified header.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pack_with_header</span><span class="op">&lt;</span><span class="ident">S</span>: <span class="ident">Serialize</span><span class="op">&gt;</span>(
+    <span class="doccomment">/// Packs some serializable data into JSON and signs it with the specified header.
+    </span><span class="kw">pub fn </span>pack_with_header&lt;S: Serialize&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">data</span>: <span class="ident">S</span>,
-        <span class="ident">header</span>: <span class="kw-2">&amp;</span><span class="ident">SignatureHeader</span>,
-    ) -&gt; (<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">String</span>) {
-        <span class="comment">// this can only fail if we deal with badly formed data.  In that case we</span>
-        <span class="comment">// consider that a panic.  Should not happen.</span>
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="ident">serde_json::to_vec</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>).<span class="ident">expect</span>(<span class="string">&quot;attempted to pack non json safe data&quot;</span>);
-        <span class="kw">let</span> <span class="ident">sig</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">sign_with_header</span>(<span class="kw-2">&amp;</span><span class="ident">json</span>, <span class="ident">header</span>);
-        (<span class="ident">json</span>, <span class="ident">sig</span>)
+        data: S,
+        header: <span class="kw-2">&amp;</span>SignatureHeader,
+    ) -&gt; (Vec&lt;u8&gt;, String) {
+        <span class="comment">// this can only fail if we deal with badly formed data.  In that case we
+        // consider that a panic.  Should not happen.
+        </span><span class="kw">let </span>json = serde_json::to_vec(<span class="kw-2">&amp;</span>data).expect(<span class="string">&quot;attempted to pack non json safe data&quot;</span>);
+        <span class="kw">let </span>sig = <span class="self">self</span>.sign_with_header(<span class="kw-2">&amp;</span>json, header);
+        (json, sig)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">PartialEq</span> <span class="kw">for</span> <span class="ident">SecretKey</span> {
-    <span class="kw">fn</span> <span class="ident">eq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="ident">SecretKey</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">to_bytes</span>()[..] <span class="op">==</span> <span class="ident">other</span>.<span class="ident">inner</span>.<span class="ident">to_bytes</span>()[..]
+<span class="kw">impl </span>PartialEq <span class="kw">for </span>SecretKey {
+    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span>SecretKey) -&gt; bool {
+        <span class="self">self</span>.inner.to_bytes()[..] == other.inner.to_bytes()[..]
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Eq</span> <span class="kw">for</span> <span class="ident">SecretKey</span> {}
+<span class="kw">impl </span>Eq <span class="kw">for </span>SecretKey {}
 
-<span class="kw">impl</span> <span class="ident">FromStr</span> <span class="kw">for</span> <span class="ident">SecretKey</span> {
-    <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="ident">KeyParseError</span>;
+<span class="kw">impl </span>FromStr <span class="kw">for </span>SecretKey {
+    <span class="kw">type </span><span class="prelude-val">Err </span>= KeyParseError;
 
-    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SecretKey</span>, <span class="ident">KeyParseError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">bytes</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">base64::decode_config</span>(<span class="ident">s</span>, <span class="ident">base64::URL_SAFE_NO_PAD</span>) {
-            <span class="prelude-val">Ok</span>(<span class="ident">bytes</span>) =&gt; <span class="ident">bytes</span>,
-            <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">KeyParseError::BadEncoding</span>),
+    <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;SecretKey, KeyParseError&gt; {
+        <span class="kw">let </span>bytes = <span class="kw">match </span>base64::decode_config(s, base64::URL_SAFE_NO_PAD) {
+            <span class="prelude-val">Ok</span>(bytes) =&gt; bytes,
+            <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(KeyParseError::BadEncoding),
         };
 
-        <span class="prelude-val">Ok</span>(<span class="ident">SecretKey</span> {
-            <span class="ident">inner</span>: <span class="kw">if</span> <span class="ident">bytes</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">64</span> {
-                <span class="ident">ed25519_dalek::Keypair::from_bytes</span>(<span class="kw-2">&amp;</span><span class="ident">bytes</span>).<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">KeyParseError::BadKey</span>)<span class="question-mark">?</span>
-            } <span class="kw">else</span> {
-                <span class="kw">let</span> <span class="ident">secret</span> <span class="op">=</span> <span class="ident">ed25519_dalek::SecretKey::from_bytes</span>(<span class="kw-2">&amp;</span><span class="ident">bytes</span>)
-                    .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">KeyParseError::BadKey</span>)<span class="question-mark">?</span>;
-                <span class="kw">let</span> <span class="ident">public</span> <span class="op">=</span> <span class="ident">ed25519_dalek::PublicKey::from_secret</span>::<span class="op">&lt;</span><span class="ident">Sha512</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="ident">secret</span>);
-                <span class="ident">ed25519_dalek::Keypair</span> { <span class="ident">secret</span>, <span class="ident">public</span> }
+        <span class="prelude-val">Ok</span>(SecretKey {
+            inner: <span class="kw">if </span>bytes.len() == <span class="number">64 </span>{
+                ed25519_dalek::Keypair::from_bytes(<span class="kw-2">&amp;</span>bytes).map_err(|<span class="kw">_</span>| KeyParseError::BadKey)<span class="question-mark">?
+            </span>} <span class="kw">else </span>{
+                <span class="kw">let </span>secret = ed25519_dalek::SecretKey::from_bytes(<span class="kw-2">&amp;</span>bytes)
+                    .map_err(|<span class="kw">_</span>| KeyParseError::BadKey)<span class="question-mark">?</span>;
+                <span class="kw">let </span>public = ed25519_dalek::PublicKey::from_secret::&lt;Sha512&gt;(<span class="kw-2">&amp;</span>secret);
+                ed25519_dalek::Keypair { secret, public }
             },
         })
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">SecretKey</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="kw">if</span> <span class="ident">f</span>.<span class="ident">alternate</span>() {
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>SecretKey {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">if </span>f.alternate() {
             <span class="macro">write!</span>(
-                <span class="ident">f</span>,
+                f,
                 <span class="string">&quot;{}&quot;</span>,
-                <span class="ident">base64::encode_config</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">to_bytes</span>()[..], <span class="ident">base64::URL_SAFE_NO_PAD</span>)
+                base64::encode_config(<span class="kw-2">&amp;</span><span class="self">self</span>.inner.to_bytes()[..], base64::URL_SAFE_NO_PAD)
             )
-        } <span class="kw">else</span> {
+        } <span class="kw">else </span>{
             <span class="macro">write!</span>(
-                <span class="ident">f</span>,
+                f,
                 <span class="string">&quot;{}&quot;</span>,
-                <span class="ident">base64::encode_config</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">secret</span>.<span class="ident">to_bytes</span>()[..], <span class="ident">base64::URL_SAFE_NO_PAD</span>)
+                base64::encode_config(<span class="kw-2">&amp;</span><span class="self">self</span>.inner.secret.to_bytes()[..], base64::URL_SAFE_NO_PAD)
             )
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">SecretKey</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;SecretKey(\&quot;{}\&quot;)&quot;</span>, <span class="self">self</span>)
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>SecretKey {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;SecretKey(\&quot;{}\&quot;)&quot;</span>, <span class="self">self</span>)
     }
 }
 
-<span class="macro">relay_common::impl_str_serde!</span>(<span class="ident">SecretKey</span>, <span class="string">&quot;a secret key&quot;</span>);
+<span class="macro">relay_common::impl_str_serde!</span>(SecretKey, <span class="string">&quot;a secret key&quot;</span>);
 
-<span class="kw">impl</span> <span class="ident">PublicKey</span> {
-    <span class="doccomment">/// Verifies the signature and returns the embedded signature</span>
-    <span class="doccomment">/// header.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">verify_meta</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">sig</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SignatureHeader</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">iter</span> <span class="op">=</span> <span class="ident">sig</span>.<span class="ident">splitn</span>(<span class="number">2</span>, <span class="string">&#39;.&#39;</span>);
-        <span class="kw">let</span> <span class="ident">sig_bytes</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">iter</span>.<span class="ident">next</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">sig_encoded</span>) =&gt; {
-                <span class="ident">base64::decode_config</span>(<span class="ident">sig_encoded</span>, <span class="ident">base64::URL_SAFE_NO_PAD</span>).<span class="ident">ok</span>()<span class="question-mark">?</span>
-            }
-            <span class="prelude-val">None</span> =&gt; <span class="kw">return</span> <span class="prelude-val">None</span>,
+<span class="kw">impl </span>PublicKey {
+    <span class="doccomment">/// Verifies the signature and returns the embedded signature
+    /// header.
+    </span><span class="kw">pub fn </span>verify_meta(<span class="kw-2">&amp;</span><span class="self">self</span>, data: <span class="kw-2">&amp;</span>[u8], sig: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;SignatureHeader&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>iter = sig.splitn(<span class="number">2</span>, <span class="string">&#39;.&#39;</span>);
+        <span class="kw">let </span>sig_bytes = <span class="kw">match </span>iter.next() {
+            <span class="prelude-val">Some</span>(sig_encoded) =&gt; {
+                base64::decode_config(sig_encoded, base64::URL_SAFE_NO_PAD).ok()<span class="question-mark">?
+            </span>}
+            <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
         };
-        <span class="kw">let</span> <span class="ident">sig</span> <span class="op">=</span> <span class="ident">ed25519_dalek::Signature::from_bytes</span>(<span class="kw-2">&amp;</span><span class="ident">sig_bytes</span>).<span class="ident">ok</span>()<span class="question-mark">?</span>;
+        <span class="kw">let </span>sig = ed25519_dalek::Signature::from_bytes(<span class="kw-2">&amp;</span>sig_bytes).ok()<span class="question-mark">?</span>;
 
-        <span class="kw">let</span> <span class="ident">header</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">iter</span>.<span class="ident">next</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">header_encoded</span>) =&gt; {
-                <span class="ident">base64::decode_config</span>(<span class="ident">header_encoded</span>, <span class="ident">base64::URL_SAFE_NO_PAD</span>).<span class="ident">ok</span>()<span class="question-mark">?</span>
-            }
-            <span class="prelude-val">None</span> =&gt; <span class="kw">return</span> <span class="prelude-val">None</span>,
+        <span class="kw">let </span>header = <span class="kw">match </span>iter.next() {
+            <span class="prelude-val">Some</span>(header_encoded) =&gt; {
+                base64::decode_config(header_encoded, base64::URL_SAFE_NO_PAD).ok()<span class="question-mark">?
+            </span>}
+            <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
         };
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">to_verify</span> <span class="op">=</span> <span class="ident">header</span>.<span class="ident">clone</span>();
-        <span class="ident">to_verify</span>.<span class="ident">push</span>(<span class="string">b&#39;\x00&#39;</span>);
-        <span class="ident">to_verify</span>.<span class="ident">extend_from_slice</span>(<span class="ident">data</span>);
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">verify</span>::<span class="op">&lt;</span><span class="ident">Sha512</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="ident">to_verify</span>, <span class="kw-2">&amp;</span><span class="ident">sig</span>).<span class="ident">is_ok</span>() {
-            <span class="ident">serde_json::from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">header</span>).<span class="ident">ok</span>()
-        } <span class="kw">else</span> {
-            <span class="prelude-val">None</span>
-        }
+        <span class="kw">let </span><span class="kw-2">mut </span>to_verify = header.clone();
+        to_verify.push(<span class="string">b&#39;\x00&#39;</span>);
+        to_verify.extend_from_slice(data);
+        <span class="kw">if </span><span class="self">self</span>.inner.verify::&lt;Sha512&gt;(<span class="kw-2">&amp;</span>to_verify, <span class="kw-2">&amp;</span>sig).is_ok() {
+            serde_json::from_slice(<span class="kw-2">&amp;</span>header).ok()
+        } <span class="kw">else </span>{
+            <span class="prelude-val">None
+        </span>}
     }
 
-    <span class="doccomment">/// Verifies a signature but discards the header.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">verify</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">sig</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">verify_meta</span>(<span class="ident">data</span>, <span class="ident">sig</span>).<span class="ident">is_some</span>()
+    <span class="doccomment">/// Verifies a signature but discards the header.
+    </span><span class="kw">pub fn </span>verify(<span class="kw-2">&amp;</span><span class="self">self</span>, data: <span class="kw-2">&amp;</span>[u8], sig: <span class="kw-2">&amp;</span>str) -&gt; bool {
+        <span class="self">self</span>.verify_meta(data, sig).is_some()
     }
 
-    <span class="doccomment">/// Verifies a signature and checks the timestamp.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">verify_timestamp</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">sig</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">max_age</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Duration</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">verify_meta</span>(<span class="ident">data</span>, <span class="ident">sig</span>)
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">header</span><span class="op">|</span> <span class="ident">max_age</span>.<span class="ident">is_none</span>() <span class="op">|</span><span class="op">|</span> <span class="op">!</span><span class="ident">header</span>.<span class="ident">expired</span>(<span class="ident">max_age</span>.<span class="ident">unwrap</span>()))
-            .<span class="ident">unwrap_or</span>(<span class="bool-val">false</span>)
+    <span class="doccomment">/// Verifies a signature and checks the timestamp.
+    </span><span class="kw">pub fn </span>verify_timestamp(<span class="kw-2">&amp;</span><span class="self">self</span>, data: <span class="kw-2">&amp;</span>[u8], sig: <span class="kw-2">&amp;</span>str, max_age: <span class="prelude-ty">Option</span>&lt;Duration&gt;) -&gt; bool {
+        <span class="self">self</span>.verify_meta(data, sig)
+            .map(|header| max_age.is_none() || !header.expired(max_age.unwrap()))
+            .unwrap_or(<span class="bool-val">false</span>)
     }
 
-    <span class="doccomment">/// Unpacks signed data and returns it with header.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">unpack_meta</span><span class="op">&lt;</span><span class="ident">D</span>: <span class="ident">DeserializeOwned</span><span class="op">&gt;</span>(
+    <span class="doccomment">/// Unpacks signed data and returns it with header.
+    </span><span class="kw">pub fn </span>unpack_meta&lt;D: DeserializeOwned&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
-        <span class="ident">signature</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(<span class="ident">SignatureHeader</span>, <span class="ident">D</span>), <span class="ident">UnpackError</span><span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">header</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">verify_meta</span>(<span class="ident">data</span>, <span class="ident">signature</span>) {
-            <span class="ident">serde_json::from_slice</span>(<span class="ident">data</span>)
-                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">data</span><span class="op">|</span> (<span class="ident">header</span>, <span class="ident">data</span>))
-                .<span class="ident">map_err</span>(<span class="ident">UnpackError::BadPayload</span>)
-        } <span class="kw">else</span> {
-            <span class="prelude-val">Err</span>(<span class="ident">UnpackError::BadSignature</span>)
+        data: <span class="kw-2">&amp;</span>[u8],
+        signature: <span class="kw-2">&amp;</span>str,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(SignatureHeader, D), UnpackError&gt; {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(header) = <span class="self">self</span>.verify_meta(data, signature) {
+            serde_json::from_slice(data)
+                .map(|data| (header, data))
+                .map_err(UnpackError::BadPayload)
+        } <span class="kw">else </span>{
+            <span class="prelude-val">Err</span>(UnpackError::BadSignature)
         }
     }
 
-    <span class="doccomment">/// Unpacks the data and verifies that it&#39;s not too old, then</span>
-    <span class="doccomment">/// throws away the wrapper.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// If no `max_age` is set, the embedded timestamp does not get validated.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">unpack</span><span class="op">&lt;</span><span class="ident">D</span>: <span class="ident">DeserializeOwned</span><span class="op">&gt;</span>(
+    <span class="doccomment">/// Unpacks the data and verifies that it&#39;s not too old, then
+    /// throws away the wrapper.
+    ///
+    /// If no `max_age` is set, the embedded timestamp does not get validated.
+    </span><span class="kw">pub fn </span>unpack&lt;D: DeserializeOwned&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
-        <span class="ident">signature</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
-        <span class="ident">max_age</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Duration</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">D</span>, <span class="ident">UnpackError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> (<span class="ident">header</span>, <span class="ident">data</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">unpack_meta</span>(<span class="ident">data</span>, <span class="ident">signature</span>)<span class="question-mark">?</span>;
-        <span class="kw">if</span> <span class="ident">max_age</span>.<span class="ident">is_none</span>() <span class="op">|</span><span class="op">|</span> <span class="op">!</span><span class="ident">header</span>.<span class="ident">expired</span>(<span class="ident">max_age</span>.<span class="ident">unwrap</span>()) {
-            <span class="prelude-val">Ok</span>(<span class="ident">data</span>)
-        } <span class="kw">else</span> {
-            <span class="prelude-val">Err</span>(<span class="ident">UnpackError::SignatureExpired</span>)
+        data: <span class="kw-2">&amp;</span>[u8],
+        signature: <span class="kw-2">&amp;</span>str,
+        max_age: <span class="prelude-ty">Option</span>&lt;Duration&gt;,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;D, UnpackError&gt; {
+        <span class="kw">let </span>(header, data) = <span class="self">self</span>.unpack_meta(data, signature)<span class="question-mark">?</span>;
+        <span class="kw">if </span>max_age.is_none() || !header.expired(max_age.unwrap()) {
+            <span class="prelude-val">Ok</span>(data)
+        } <span class="kw">else </span>{
+            <span class="prelude-val">Err</span>(UnpackError::SignatureExpired)
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">PartialEq</span> <span class="kw">for</span> <span class="ident">PublicKey</span> {
-    <span class="kw">fn</span> <span class="ident">eq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="ident">PublicKey</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">to_bytes</span>()[..] <span class="op">==</span> <span class="ident">other</span>.<span class="ident">inner</span>.<span class="ident">to_bytes</span>()[..]
+<span class="kw">impl </span>PartialEq <span class="kw">for </span>PublicKey {
+    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span>PublicKey) -&gt; bool {
+        <span class="self">self</span>.inner.to_bytes()[..] == other.inner.to_bytes()[..]
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Eq</span> <span class="kw">for</span> <span class="ident">PublicKey</span> {}
+<span class="kw">impl </span>Eq <span class="kw">for </span>PublicKey {}
 
-<span class="kw">impl</span> <span class="ident">FromStr</span> <span class="kw">for</span> <span class="ident">PublicKey</span> {
-    <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="ident">KeyParseError</span>;
+<span class="kw">impl </span>FromStr <span class="kw">for </span>PublicKey {
+    <span class="kw">type </span><span class="prelude-val">Err </span>= KeyParseError;
 
-    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">PublicKey</span>, <span class="ident">KeyParseError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">bytes</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">base64::decode_config</span>(<span class="ident">s</span>, <span class="ident">base64::URL_SAFE_NO_PAD</span>) {
-            <span class="prelude-val">Ok</span>(<span class="ident">bytes</span>) =&gt; <span class="ident">bytes</span>,
-            <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">KeyParseError::BadEncoding</span>),
+    <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;PublicKey, KeyParseError&gt; {
+        <span class="kw">let </span>bytes = <span class="kw">match </span>base64::decode_config(s, base64::URL_SAFE_NO_PAD) {
+            <span class="prelude-val">Ok</span>(bytes) =&gt; bytes,
+            <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(KeyParseError::BadEncoding),
         };
-        <span class="prelude-val">Ok</span>(<span class="ident">PublicKey</span> {
-            <span class="ident">inner</span>: <span class="ident">ed25519_dalek::PublicKey::from_bytes</span>(<span class="kw-2">&amp;</span><span class="ident">bytes</span>)
-                .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">KeyParseError::BadKey</span>)<span class="question-mark">?</span>,
+        <span class="prelude-val">Ok</span>(PublicKey {
+            inner: ed25519_dalek::PublicKey::from_bytes(<span class="kw-2">&amp;</span>bytes)
+                .map_err(|<span class="kw">_</span>| KeyParseError::BadKey)<span class="question-mark">?</span>,
         })
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">PublicKey</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>PublicKey {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">write!</span>(
-            <span class="ident">f</span>,
+            f,
             <span class="string">&quot;{}&quot;</span>,
-            <span class="ident">base64::encode_config</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">to_bytes</span>()[..], <span class="ident">base64::URL_SAFE_NO_PAD</span>)
+            base64::encode_config(<span class="kw-2">&amp;</span><span class="self">self</span>.inner.to_bytes()[..], base64::URL_SAFE_NO_PAD)
         )
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">PublicKey</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;PublicKey(\&quot;{}\&quot;)&quot;</span>, <span class="self">self</span>)
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>PublicKey {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;PublicKey(\&quot;{}\&quot;)&quot;</span>, <span class="self">self</span>)
     }
 }
 
-<span class="macro">relay_common::impl_str_serde!</span>(<span class="ident">PublicKey</span>, <span class="string">&quot;a public key&quot;</span>);
+<span class="macro">relay_common::impl_str_serde!</span>(PublicKey, <span class="string">&quot;a public key&quot;</span>);
 
-<span class="doccomment">/// Generates an relay ID.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">generate_relay_id</span>() -&gt; <span class="ident">RelayId</span> {
-    <span class="ident">Uuid::new_v4</span>()
+<span class="doccomment">/// Generates an relay ID.
+</span><span class="kw">pub fn </span>generate_relay_id() -&gt; RelayId {
+    Uuid::new_v4()
 }
 
-<span class="doccomment">/// Generates a secret + public key pair.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">generate_key_pair</span>() -&gt; (<span class="ident">SecretKey</span>, <span class="ident">PublicKey</span>) {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">csprng</span> <span class="op">=</span> <span class="ident">OsRng::new</span>().<span class="ident">unwrap</span>();
-    <span class="kw">let</span> <span class="ident">kp</span> <span class="op">=</span> <span class="ident">ed25519_dalek::Keypair::generate</span>::<span class="op">&lt;</span><span class="ident">Sha512</span>, <span class="kw">_</span><span class="op">&gt;</span>(<span class="kw-2">&amp;mut</span> <span class="ident">csprng</span>);
-    <span class="kw">let</span> <span class="ident">pk</span> <span class="op">=</span> <span class="ident">ed25519_dalek::PublicKey::from_bytes</span>(<span class="kw-2">&amp;</span><span class="ident">kp</span>.<span class="ident">public</span>.<span class="ident">as_bytes</span>()[..]).<span class="ident">unwrap</span>();
-    (<span class="ident">SecretKey</span> { <span class="ident">inner</span>: <span class="ident">kp</span> }, <span class="ident">PublicKey</span> { <span class="ident">inner</span>: <span class="ident">pk</span> })
+<span class="doccomment">/// Generates a secret + public key pair.
+</span><span class="kw">pub fn </span>generate_key_pair() -&gt; (SecretKey, PublicKey) {
+    <span class="kw">let </span><span class="kw-2">mut </span>csprng = OsRng::new().unwrap();
+    <span class="kw">let </span>kp = ed25519_dalek::Keypair::generate::&lt;Sha512, <span class="kw">_</span>&gt;(<span class="kw-2">&amp;mut </span>csprng);
+    <span class="kw">let </span>pk = ed25519_dalek::PublicKey::from_bytes(<span class="kw-2">&amp;</span>kp.public.as_bytes()[..]).unwrap();
+    (SecretKey { inner: kp }, PublicKey { inner: pk })
 }
 
-<span class="doccomment">/// An encoded and signed `RegisterState`.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This signature can be used by the upstream server to ensure that the downstream client did not</span>
-<span class="doccomment">/// tamper with the token without keeping state between requests. For more information, see</span>
-<span class="doccomment">/// `RegisterState`.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The format and contents of `SignedRegisterState` are intentionally opaque. Downstream clients</span>
-<span class="doccomment">/// do not need to interpret it, and the upstream can change its contents at any time. Parsing and</span>
-<span class="doccomment">/// validation is only performed on the upstream.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// In the current implementation, the serialized state has the format `{state}:{signature}`, where</span>
-<span class="doccomment">/// each component is:</span>
-<span class="doccomment">///  - `state`: A URL-safe base64 encoding of the JSON serialized `RegisterState`.</span>
-<span class="doccomment">///  - `signature`: A URL-safe base64 encoding of the SHA512 HMAC of the encoded state.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// To create a signed state, use `RegisterChallenge::sign`. To validate the signature and read</span>
-<span class="doccomment">/// the state, use `SignedRegisterChallenge::unpack`. In both cases, a secret for signing has to be</span>
-<span class="doccomment">/// supplied.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SignedRegisterState</span>(<span class="ident">String</span>);
+<span class="doccomment">/// An encoded and signed `RegisterState`.
+///
+/// This signature can be used by the upstream server to ensure that the downstream client did not
+/// tamper with the token without keeping state between requests. For more information, see
+/// `RegisterState`.
+///
+/// The format and contents of `SignedRegisterState` are intentionally opaque. Downstream clients
+/// do not need to interpret it, and the upstream can change its contents at any time. Parsing and
+/// validation is only performed on the upstream.
+///
+/// In the current implementation, the serialized state has the format `{state}:{signature}`, where
+/// each component is:
+///  - `state`: A URL-safe base64 encoding of the JSON serialized `RegisterState`.
+///  - `signature`: A URL-safe base64 encoding of the SHA512 HMAC of the encoded state.
+///
+/// To create a signed state, use `RegisterChallenge::sign`. To validate the signature and read
+/// the state, use `SignedRegisterChallenge::unpack`. In both cases, a secret for signing has to be
+/// supplied.
+</span><span class="attribute">#[derive(Clone, Debug, Deserialize, Serialize)]
+</span><span class="kw">pub struct </span>SignedRegisterState(String);
 
-<span class="kw">impl</span> <span class="ident">SignedRegisterState</span> {
-    <span class="doccomment">/// Creates an Hmac instance for signing the `RegisterState`.</span>
-    <span class="kw">fn</span> <span class="ident">mac</span>(<span class="ident">secret</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="ident">Hmac</span><span class="op">&lt;</span><span class="ident">Sha512</span><span class="op">&gt;</span> {
-        <span class="ident">Hmac::new_varkey</span>(<span class="ident">secret</span>).<span class="ident">expect</span>(<span class="string">&quot;HMAC takes variable keys&quot;</span>)
+<span class="kw">impl </span>SignedRegisterState {
+    <span class="doccomment">/// Creates an Hmac instance for signing the `RegisterState`.
+    </span><span class="kw">fn </span>mac(secret: <span class="kw-2">&amp;</span>[u8]) -&gt; Hmac&lt;Sha512&gt; {
+        Hmac::new_varkey(secret).expect(<span class="string">&quot;HMAC takes variable keys&quot;</span>)
     }
 
-    <span class="doccomment">/// Signs the given `RegisterState` and serializes it into a single string.</span>
-    <span class="kw">fn</span> <span class="ident">sign</span>(<span class="ident">state</span>: <span class="ident">RegisterState</span>, <span class="ident">secret</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="self">Self</span> {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="ident">serde_json::to_string</span>(<span class="kw-2">&amp;</span><span class="ident">state</span>).<span class="ident">expect</span>(<span class="string">&quot;relay register state serializes to JSON&quot;</span>);
-        <span class="kw">let</span> <span class="ident">token</span> <span class="op">=</span> <span class="ident">base64::encode_config</span>(<span class="kw-2">&amp;</span><span class="ident">json</span>, <span class="ident">base64::URL_SAFE_NO_PAD</span>);
+    <span class="doccomment">/// Signs the given `RegisterState` and serializes it into a single string.
+    </span><span class="kw">fn </span>sign(state: RegisterState, secret: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>json = serde_json::to_string(<span class="kw-2">&amp;</span>state).expect(<span class="string">&quot;relay register state serializes to JSON&quot;</span>);
+        <span class="kw">let </span>token = base64::encode_config(<span class="kw-2">&amp;</span>json, base64::URL_SAFE_NO_PAD);
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mac</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::mac</span>(<span class="ident">secret</span>);
-        <span class="ident">mac</span>.<span class="ident">input</span>(<span class="ident">token</span>.<span class="ident">as_bytes</span>());
-        <span class="kw">let</span> <span class="ident">signature</span> <span class="op">=</span> <span class="ident">base64::encode_config</span>(<span class="kw-2">&amp;</span><span class="ident">mac</span>.<span class="ident">result</span>().<span class="ident">code</span>(), <span class="ident">base64::URL_SAFE_NO_PAD</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>mac = <span class="self">Self</span>::mac(secret);
+        mac.input(token.as_bytes());
+        <span class="kw">let </span>signature = base64::encode_config(<span class="kw-2">&amp;</span>mac.result().code(), base64::URL_SAFE_NO_PAD);
 
-        <span class="self">Self</span>(<span class="macro">format!</span>(<span class="string">&quot;{}:{}&quot;</span>, <span class="ident">token</span>, <span class="ident">signature</span>))
+        <span class="self">Self</span>(<span class="macro">format!</span>(<span class="string">&quot;{}:{}&quot;</span>, token, signature))
     }
 
-    <span class="doccomment">/// Splits the signed state into the encoded state and encoded signature.</span>
-    <span class="kw">fn</span> <span class="ident">split</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (<span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="kw-2">&amp;</span><span class="ident">str</span>) {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">split</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">as_str</span>().<span class="ident">splitn</span>(<span class="number">2</span>, <span class="string">&#39;:&#39;</span>);
-        (<span class="ident">split</span>.<span class="ident">next</span>().<span class="ident">unwrap_or</span>(<span class="string">&quot;&quot;</span>), <span class="ident">split</span>.<span class="ident">next</span>().<span class="ident">unwrap_or</span>(<span class="string">&quot;&quot;</span>))
+    <span class="doccomment">/// Splits the signed state into the encoded state and encoded signature.
+    </span><span class="kw">fn </span>split(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (<span class="kw-2">&amp;</span>str, <span class="kw-2">&amp;</span>str) {
+        <span class="kw">let </span><span class="kw-2">mut </span>split = <span class="self">self</span>.as_str().splitn(<span class="number">2</span>, <span class="string">&#39;:&#39;</span>);
+        (split.next().unwrap_or(<span class="string">&quot;&quot;</span>), split.next().unwrap_or(<span class="string">&quot;&quot;</span>))
     }
 
-    <span class="doccomment">/// Returns the string representation of the token.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">str</span> {
-        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">as_str</span>()
+    <span class="doccomment">/// Returns the string representation of the token.
+    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+        <span class="self">self</span>.<span class="number">0</span>.as_str()
     }
 
-    <span class="doccomment">/// Unpacks the encoded state and validates the signature.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// If `max_age` is specified, then the timestamp in the state is validated against the current</span>
-    <span class="doccomment">/// time stamp. If the stored timestamp is too old, `UnpackError::SignatureExpired` is returned.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">unpack</span>(
+    <span class="doccomment">/// Unpacks the encoded state and validates the signature.
+    ///
+    /// If `max_age` is specified, then the timestamp in the state is validated against the current
+    /// time stamp. If the stored timestamp is too old, `UnpackError::SignatureExpired` is returned.
+    </span><span class="kw">pub fn </span>unpack(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">secret</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
-        <span class="ident">max_age</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Duration</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">RegisterState</span>, <span class="ident">UnpackError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> (<span class="ident">token</span>, <span class="ident">signature</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">split</span>();
-        <span class="kw">let</span> <span class="ident">code</span> <span class="op">=</span> <span class="ident">base64::decode_config</span>(<span class="ident">signature</span>, <span class="ident">base64::URL_SAFE_NO_PAD</span>)
-            .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">UnpackError::BadEncoding</span>)<span class="question-mark">?</span>;
+        secret: <span class="kw-2">&amp;</span>[u8],
+        max_age: <span class="prelude-ty">Option</span>&lt;Duration&gt;,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;RegisterState, UnpackError&gt; {
+        <span class="kw">let </span>(token, signature) = <span class="self">self</span>.split();
+        <span class="kw">let </span>code = base64::decode_config(signature, base64::URL_SAFE_NO_PAD)
+            .map_err(|<span class="kw">_</span>| UnpackError::BadEncoding)<span class="question-mark">?</span>;
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mac</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::mac</span>(<span class="ident">secret</span>);
-        <span class="ident">mac</span>.<span class="ident">input</span>(<span class="ident">token</span>.<span class="ident">as_bytes</span>());
-        <span class="ident">mac</span>.<span class="ident">verify</span>(<span class="kw-2">&amp;</span><span class="ident">code</span>).<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">UnpackError::BadSignature</span>)<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>mac = <span class="self">Self</span>::mac(secret);
+        mac.input(token.as_bytes());
+        mac.verify(<span class="kw-2">&amp;</span>code).map_err(|<span class="kw">_</span>| UnpackError::BadSignature)<span class="question-mark">?</span>;
 
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="ident">base64::decode_config</span>(<span class="ident">token</span>, <span class="ident">base64::URL_SAFE_NO_PAD</span>)
-            .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">UnpackError::BadEncoding</span>)<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span>
-            <span class="ident">serde_json::from_slice</span>::<span class="op">&lt;</span><span class="ident">RegisterState</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="ident">json</span>).<span class="ident">map_err</span>(<span class="ident">UnpackError::BadPayload</span>)<span class="question-mark">?</span>;
+        <span class="kw">let </span>json = base64::decode_config(token, base64::URL_SAFE_NO_PAD)
+            .map_err(|<span class="kw">_</span>| UnpackError::BadEncoding)<span class="question-mark">?</span>;
+        <span class="kw">let </span>state =
+            serde_json::from_slice::&lt;RegisterState&gt;(<span class="kw-2">&amp;</span>json).map_err(UnpackError::BadPayload)<span class="question-mark">?</span>;
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">max_age</span>) <span class="op">=</span> <span class="ident">max_age</span> {
-            <span class="kw">let</span> <span class="ident">secs</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">timestamp</span>().<span class="ident">as_secs</span>() <span class="kw">as</span> <span class="ident">i64</span>;
-            <span class="kw">if</span> <span class="ident">Utc</span>.<span class="ident">timestamp</span>(<span class="ident">secs</span>, <span class="number">0</span>) <span class="op">+</span> <span class="ident">max_age</span> <span class="op">&lt;</span> <span class="ident">Utc::now</span>() {
-                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">UnpackError::SignatureExpired</span>);
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(max_age) = max_age {
+            <span class="kw">let </span>secs = state.timestamp().as_secs() <span class="kw">as </span>i64;
+            <span class="kw">if </span>Utc.timestamp(secs, <span class="number">0</span>) + max_age &lt; Utc::now() {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(UnpackError::SignatureExpired);
             }
         }
 
-        <span class="prelude-val">Ok</span>(<span class="ident">state</span>)
+        <span class="prelude-val">Ok</span>(state)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">SignedRegisterState</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="self">self</span>.<span class="ident">as_str</span>().<span class="ident">fmt</span>(<span class="ident">f</span>)
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>SignedRegisterState {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="self">self</span>.as_str().fmt(f)
     }
 }
 
-<span class="doccomment">/// A state structure containing relevant information from `RegisterRequest`.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This struct is used to carry over information between the downstream register request and</span>
-<span class="doccomment">/// register response. In addition to identifying information, it contains a random bit to avoid</span>
-<span class="doccomment">/// replay attacks.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RegisterState</span> {
-    <span class="ident">timestamp</span>: <span class="ident">UnixTimestamp</span>,
-    <span class="ident">relay_id</span>: <span class="ident">RelayId</span>,
-    <span class="ident">public_key</span>: <span class="ident">PublicKey</span>,
-    <span class="ident">rand</span>: <span class="ident">String</span>,
+<span class="doccomment">/// A state structure containing relevant information from `RegisterRequest`.
+///
+/// This struct is used to carry over information between the downstream register request and
+/// register response. In addition to identifying information, it contains a random bit to avoid
+/// replay attacks.
+</span><span class="attribute">#[derive(Clone, Deserialize, Serialize)]
+</span><span class="kw">pub struct </span>RegisterState {
+    timestamp: UnixTimestamp,
+    relay_id: RelayId,
+    public_key: PublicKey,
+    rand: String,
 }
 
-<span class="kw">impl</span> <span class="ident">RegisterState</span> {
-    <span class="doccomment">/// Returns the timestamp at which the challenge was created.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">timestamp</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">UnixTimestamp</span> {
-        <span class="self">self</span>.<span class="ident">timestamp</span>
+<span class="kw">impl </span>RegisterState {
+    <span class="doccomment">/// Returns the timestamp at which the challenge was created.
+    </span><span class="kw">pub fn </span>timestamp(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; UnixTimestamp {
+        <span class="self">self</span>.timestamp
     }
 
-    <span class="doccomment">/// Returns the identifier of the requesting downstream Relay.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">relay_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">RelayId</span> {
-        <span class="self">self</span>.<span class="ident">relay_id</span>
+    <span class="doccomment">/// Returns the identifier of the requesting downstream Relay.
+    </span><span class="kw">pub fn </span>relay_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; RelayId {
+        <span class="self">self</span>.relay_id
     }
 
-    <span class="doccomment">/// Returns the public key of the requesting downstream Relay.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">public_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">PublicKey</span> {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">public_key</span>
+    <span class="doccomment">/// Returns the public key of the requesting downstream Relay.
+    </span><span class="kw">pub fn </span>public_key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>PublicKey {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.public_key
     }
 }
 
-<span class="doccomment">/// Generates a new random token for the register state.</span>
-<span class="kw">fn</span> <span class="ident">nonce</span>() -&gt; <span class="ident">String</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> <span class="ident">thread_rng</span>();
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bytes</span> <span class="op">=</span> <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">64</span>];
-    <span class="ident">rng</span>.<span class="ident">fill_bytes</span>(<span class="kw-2">&amp;mut</span> <span class="ident">bytes</span>);
-    <span class="ident">base64::encode_config</span>(<span class="kw-2">&amp;</span><span class="ident">bytes</span>, <span class="ident">base64::URL_SAFE_NO_PAD</span>)
+<span class="doccomment">/// Generates a new random token for the register state.
+</span><span class="kw">fn </span>nonce() -&gt; String {
+    <span class="kw">let </span><span class="kw-2">mut </span>rng = thread_rng();
+    <span class="kw">let </span><span class="kw-2">mut </span>bytes = <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="number">64</span>];
+    rng.fill_bytes(<span class="kw-2">&amp;mut </span>bytes);
+    base64::encode_config(<span class="kw-2">&amp;</span>bytes, base64::URL_SAFE_NO_PAD)
 }
 
-<span class="doccomment">/// Represents a request for registration with the upstream.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This is created if the relay signs in for the first time.  The server needs</span>
-<span class="doccomment">/// to respond to this request with a unique token that is then used to sign</span>
-<span class="doccomment">/// the response.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RegisterRequest</span> {
-    <span class="ident">relay_id</span>: <span class="ident">RelayId</span>,
-    <span class="ident">public_key</span>: <span class="ident">PublicKey</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-    <span class="ident">version</span>: <span class="ident">RelayVersion</span>,
+<span class="doccomment">/// Represents a request for registration with the upstream.
+///
+/// This is created if the relay signs in for the first time.  The server needs
+/// to respond to this request with a unique token that is then used to sign
+/// the response.
+</span><span class="attribute">#[derive(Serialize, Deserialize, Debug)]
+</span><span class="kw">pub struct </span>RegisterRequest {
+    relay_id: RelayId,
+    public_key: PublicKey,
+    <span class="attribute">#[serde(default)]
+    </span>version: RelayVersion,
 }
 
-<span class="kw">impl</span> <span class="ident">RegisterRequest</span> {
-    <span class="doccomment">/// Creates a new request to register an relay upstream.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">relay_id</span>: <span class="kw-2">&amp;</span><span class="ident">RelayId</span>, <span class="ident">public_key</span>: <span class="kw-2">&amp;</span><span class="ident">PublicKey</span>) -&gt; <span class="ident">RegisterRequest</span> {
-        <span class="ident">RegisterRequest</span> {
-            <span class="ident">relay_id</span>: <span class="kw-2">*</span><span class="ident">relay_id</span>,
-            <span class="ident">public_key</span>: <span class="ident">public_key</span>.<span class="ident">clone</span>(),
-            <span class="ident">version</span>: <span class="ident">RelayVersion::current</span>(),
+<span class="kw">impl </span>RegisterRequest {
+    <span class="doccomment">/// Creates a new request to register an relay upstream.
+    </span><span class="kw">pub fn </span>new(relay_id: <span class="kw-2">&amp;</span>RelayId, public_key: <span class="kw-2">&amp;</span>PublicKey) -&gt; RegisterRequest {
+        RegisterRequest {
+            relay_id: <span class="kw-2">*</span>relay_id,
+            public_key: public_key.clone(),
+            version: RelayVersion::current(),
         }
     }
 
-    <span class="doccomment">/// Unpacks a signed register request for bootstrapping.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This unpacks the embedded public key first, then verifies if the</span>
-    <span class="doccomment">/// self signature was made by that public key.  If all is well then</span>
-    <span class="doccomment">/// the data is returned.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">bootstrap_unpack</span>(
-        <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
-        <span class="ident">signature</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
-        <span class="ident">max_age</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Duration</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">RegisterRequest</span>, <span class="ident">UnpackError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">req</span>: <span class="ident">RegisterRequest</span> <span class="op">=</span> <span class="ident">serde_json::from_slice</span>(<span class="ident">data</span>).<span class="ident">map_err</span>(<span class="ident">UnpackError::BadPayload</span>)<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">pk</span> <span class="op">=</span> <span class="ident">req</span>.<span class="ident">public_key</span>();
-        <span class="ident">pk</span>.<span class="ident">unpack</span>(<span class="ident">data</span>, <span class="ident">signature</span>, <span class="ident">max_age</span>)
+    <span class="doccomment">/// Unpacks a signed register request for bootstrapping.
+    ///
+    /// This unpacks the embedded public key first, then verifies if the
+    /// self signature was made by that public key.  If all is well then
+    /// the data is returned.
+    </span><span class="kw">pub fn </span>bootstrap_unpack(
+        data: <span class="kw-2">&amp;</span>[u8],
+        signature: <span class="kw-2">&amp;</span>str,
+        max_age: <span class="prelude-ty">Option</span>&lt;Duration&gt;,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;RegisterRequest, UnpackError&gt; {
+        <span class="kw">let </span>req: RegisterRequest = serde_json::from_slice(data).map_err(UnpackError::BadPayload)<span class="question-mark">?</span>;
+        <span class="kw">let </span>pk = req.public_key();
+        pk.unpack(data, signature, max_age)
     }
 
-    <span class="doccomment">/// Returns the relay ID of the registering relay.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">relay_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">RelayId</span> {
-        <span class="self">self</span>.<span class="ident">relay_id</span>
+    <span class="doccomment">/// Returns the relay ID of the registering relay.
+    </span><span class="kw">pub fn </span>relay_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; RelayId {
+        <span class="self">self</span>.relay_id
     }
 
-    <span class="doccomment">/// Returns the new public key of registering relay.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">public_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">PublicKey</span> {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">public_key</span>
+    <span class="doccomment">/// Returns the new public key of registering relay.
+    </span><span class="kw">pub fn </span>public_key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>PublicKey {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.public_key
     }
 
-    <span class="doccomment">/// Creates a register challenge for this request.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">into_challenge</span>(<span class="self">self</span>, <span class="ident">secret</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="ident">RegisterChallenge</span> {
-        <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">RegisterState</span> {
-            <span class="ident">timestamp</span>: <span class="ident">UnixTimestamp::now</span>(),
-            <span class="ident">relay_id</span>: <span class="self">self</span>.<span class="ident">relay_id</span>,
-            <span class="ident">public_key</span>: <span class="self">self</span>.<span class="ident">public_key</span>,
-            <span class="ident">rand</span>: <span class="ident">nonce</span>(),
+    <span class="doccomment">/// Creates a register challenge for this request.
+    </span><span class="kw">pub fn </span>into_challenge(<span class="self">self</span>, secret: <span class="kw-2">&amp;</span>[u8]) -&gt; RegisterChallenge {
+        <span class="kw">let </span>state = RegisterState {
+            timestamp: UnixTimestamp::now(),
+            relay_id: <span class="self">self</span>.relay_id,
+            public_key: <span class="self">self</span>.public_key,
+            rand: nonce(),
         };
 
-        <span class="ident">RegisterChallenge</span> {
-            <span class="ident">relay_id</span>: <span class="self">self</span>.<span class="ident">relay_id</span>,
-            <span class="ident">token</span>: <span class="ident">SignedRegisterState::sign</span>(<span class="ident">state</span>, <span class="ident">secret</span>),
+        RegisterChallenge {
+            relay_id: <span class="self">self</span>.relay_id,
+            token: SignedRegisterState::sign(state, secret),
         }
     }
 }
 
-<span class="doccomment">/// Represents the response the server is supposed to send to a register request.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RegisterChallenge</span> {
-    <span class="ident">relay_id</span>: <span class="ident">RelayId</span>,
-    <span class="ident">token</span>: <span class="ident">SignedRegisterState</span>,
+<span class="doccomment">/// Represents the response the server is supposed to send to a register request.
+</span><span class="attribute">#[derive(Serialize, Deserialize, Debug)]
+</span><span class="kw">pub struct </span>RegisterChallenge {
+    relay_id: RelayId,
+    token: SignedRegisterState,
 }
 
-<span class="kw">impl</span> <span class="ident">RegisterChallenge</span> {
-    <span class="doccomment">/// Returns the relay ID of the registering relay.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">relay_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">RelayId</span> {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">relay_id</span>
+<span class="kw">impl </span>RegisterChallenge {
+    <span class="doccomment">/// Returns the relay ID of the registering relay.
+    </span><span class="kw">pub fn </span>relay_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>RelayId {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.relay_id
     }
 
-    <span class="doccomment">/// Returns the token that needs signing.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">token</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">str</span> {
-        <span class="self">self</span>.<span class="ident">token</span>.<span class="ident">as_str</span>()
+    <span class="doccomment">/// Returns the token that needs signing.
+    </span><span class="kw">pub fn </span>token(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+        <span class="self">self</span>.token.as_str()
     }
 
-    <span class="doccomment">/// Creates a register response.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">into_response</span>(<span class="self">self</span>) -&gt; <span class="ident">RegisterResponse</span> {
-        <span class="ident">RegisterResponse</span> {
-            <span class="ident">relay_id</span>: <span class="self">self</span>.<span class="ident">relay_id</span>,
-            <span class="ident">token</span>: <span class="self">self</span>.<span class="ident">token</span>,
-            <span class="ident">version</span>: <span class="ident">RelayVersion::current</span>(),
+    <span class="doccomment">/// Creates a register response.
+    </span><span class="kw">pub fn </span>into_response(<span class="self">self</span>) -&gt; RegisterResponse {
+        RegisterResponse {
+            relay_id: <span class="self">self</span>.relay_id,
+            token: <span class="self">self</span>.token,
+            version: RelayVersion::current(),
         }
     }
 }
 
-<span class="doccomment">/// Represents a response to a register challenge.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The response contains the same data as the register challenge. By signing this payload</span>
-<span class="doccomment">/// successfully, this Relay authenticates with the upstream.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RegisterResponse</span> {
-    <span class="ident">relay_id</span>: <span class="ident">RelayId</span>,
-    <span class="ident">token</span>: <span class="ident">SignedRegisterState</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-    <span class="ident">version</span>: <span class="ident">RelayVersion</span>,
+<span class="doccomment">/// Represents a response to a register challenge.
+///
+/// The response contains the same data as the register challenge. By signing this payload
+/// successfully, this Relay authenticates with the upstream.
+</span><span class="attribute">#[derive(Serialize, Deserialize, Debug)]
+</span><span class="kw">pub struct </span>RegisterResponse {
+    relay_id: RelayId,
+    token: SignedRegisterState,
+    <span class="attribute">#[serde(default)]
+    </span>version: RelayVersion,
 }
 
-<span class="kw">impl</span> <span class="ident">RegisterResponse</span> {
-    <span class="doccomment">/// Unpacks the register response and validates signatures.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">unpack</span>(
-        <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
-        <span class="ident">signature</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
-        <span class="ident">secret</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
-        <span class="ident">max_age</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Duration</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(<span class="self">Self</span>, <span class="ident">RegisterState</span>), <span class="ident">UnpackError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">response</span>: <span class="self">Self</span> <span class="op">=</span> <span class="ident">serde_json::from_slice</span>(<span class="ident">data</span>).<span class="ident">map_err</span>(<span class="ident">UnpackError::BadPayload</span>)<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">response</span>.<span class="ident">token</span>.<span class="ident">unpack</span>(<span class="ident">secret</span>, <span class="ident">max_age</span>)<span class="question-mark">?</span>;
+<span class="kw">impl </span>RegisterResponse {
+    <span class="doccomment">/// Unpacks the register response and validates signatures.
+    </span><span class="kw">pub fn </span>unpack(
+        data: <span class="kw-2">&amp;</span>[u8],
+        signature: <span class="kw-2">&amp;</span>str,
+        secret: <span class="kw-2">&amp;</span>[u8],
+        max_age: <span class="prelude-ty">Option</span>&lt;Duration&gt;,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(<span class="self">Self</span>, RegisterState), UnpackError&gt; {
+        <span class="kw">let </span>response: <span class="self">Self </span>= serde_json::from_slice(data).map_err(UnpackError::BadPayload)<span class="question-mark">?</span>;
+        <span class="kw">let </span>state = response.token.unpack(secret, max_age)<span class="question-mark">?</span>;
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">header</span>) <span class="op">=</span> <span class="ident">state</span>.<span class="ident">public_key</span>().<span class="ident">verify_meta</span>(<span class="ident">data</span>, <span class="ident">signature</span>) {
-            <span class="kw">if</span> <span class="ident">max_age</span>.<span class="ident">map_or</span>(<span class="bool-val">false</span>, <span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">header</span>.<span class="ident">expired</span>(<span class="ident">m</span>)) {
-                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">UnpackError::SignatureExpired</span>);
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(header) = state.public_key().verify_meta(data, signature) {
+            <span class="kw">if </span>max_age.map_or(<span class="bool-val">false</span>, |m| header.expired(m)) {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(UnpackError::SignatureExpired);
             }
-        } <span class="kw">else</span> {
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">UnpackError::BadSignature</span>);
+        } <span class="kw">else </span>{
+            <span class="kw">return </span><span class="prelude-val">Err</span>(UnpackError::BadSignature);
         }
 
-        <span class="prelude-val">Ok</span>((<span class="ident">response</span>, <span class="ident">state</span>))
+        <span class="prelude-val">Ok</span>((response, state))
     }
 
-    <span class="doccomment">/// Returns the relay ID of the registering relay.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">relay_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">RelayId</span> {
-        <span class="self">self</span>.<span class="ident">relay_id</span>
+    <span class="doccomment">/// Returns the relay ID of the registering relay.
+    </span><span class="kw">pub fn </span>relay_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; RelayId {
+        <span class="self">self</span>.relay_id
     }
 
-    <span class="doccomment">/// Returns the token that needs signing.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">token</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">str</span> {
-        <span class="self">self</span>.<span class="ident">token</span>.<span class="ident">as_str</span>()
+    <span class="doccomment">/// Returns the token that needs signing.
+    </span><span class="kw">pub fn </span>token(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+        <span class="self">self</span>.token.as_str()
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">version</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">RelayVersion</span> {
-        <span class="self">self</span>.<span class="ident">version</span>
+    <span class="kw">pub fn </span>version(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; RelayVersion {
+        <span class="self">self</span>.version
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_keys</span>() {
-        <span class="kw">let</span> <span class="ident">sk</span>: <span class="ident">SecretKey</span> <span class="op">=</span>
-        <span class="string">&quot;OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oUk5pHZsdnfXNiMWiMLtSE86J3N9Peo5CBP1YQHDUkApQ&quot;</span>
-            .<span class="ident">parse</span>()
-            .<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="ident">pk</span>: <span class="ident">PublicKey</span> <span class="op">=</span> <span class="string">&quot;JOaR2bHZ31zYjFojC7UhPOidzfT3qOQgT9WEBw1JAKU&quot;</span>
-            .<span class="ident">parse</span>()
-            .<span class="ident">unwrap</span>();
-
-        <span class="macro">assert_eq!</span>(
-            <span class="ident">sk</span>.<span class="ident">to_string</span>(),
-            <span class="string">&quot;OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oU&quot;</span>
-        );
-        <span class="macro">assert_eq!</span>(
-        <span class="macro">format!</span>(<span class="string">&quot;{:#}&quot;</span>, <span class="ident">sk</span>),
-        <span class="string">&quot;OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oUk5pHZsdnfXNiMWiMLtSE86J3N9Peo5CBP1YQHDUkApQ&quot;</span>
-    );
-        <span class="macro">assert_eq!</span>(
-            <span class="ident">pk</span>.<span class="ident">to_string</span>(),
-            <span class="string">&quot;JOaR2bHZ31zYjFojC7UhPOidzfT3qOQgT9WEBw1JAKU&quot;</span>
-        );
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_keys() {
+        <span class="kw">let </span>sk: SecretKey =
+        <span class="string">&quot;OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oUk5pHZsdnfXNiMWiMLtSE86J3N9Peo5CBP1YQHDUkApQ&quot;
+            </span>.parse()
+            .unwrap();
+        <span class="kw">let </span>pk: PublicKey = <span class="string">&quot;JOaR2bHZ31zYjFojC7UhPOidzfT3qOQgT9WEBw1JAKU&quot;
+            </span>.parse()
+            .unwrap();
 
         <span class="macro">assert_eq!</span>(
-            <span class="string">&quot;bad data&quot;</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">SecretKey</span><span class="op">&gt;</span>(),
-            <span class="prelude-val">Err</span>(<span class="ident">KeyParseError::BadEncoding</span>)
-        );
-        <span class="macro">assert_eq!</span>(<span class="string">&quot;OvXF&quot;</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">SecretKey</span><span class="op">&gt;</span>(), <span class="prelude-val">Err</span>(<span class="ident">KeyParseError::BadKey</span>));
+            sk.to_string(),
+            <span class="string">&quot;OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oU&quot;
+        </span>);
+        <span class="macro">assert_eq!</span>(
+        <span class="macro">format!</span>(<span class="string">&quot;{:#}&quot;</span>, sk),
+        <span class="string">&quot;OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oUk5pHZsdnfXNiMWiMLtSE86J3N9Peo5CBP1YQHDUkApQ&quot;
+    </span>);
+        <span class="macro">assert_eq!</span>(
+            pk.to_string(),
+            <span class="string">&quot;JOaR2bHZ31zYjFojC7UhPOidzfT3qOQgT9WEBw1JAKU&quot;
+        </span>);
 
         <span class="macro">assert_eq!</span>(
-            <span class="string">&quot;bad data&quot;</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">PublicKey</span><span class="op">&gt;</span>(),
-            <span class="prelude-val">Err</span>(<span class="ident">KeyParseError::BadEncoding</span>)
+            <span class="string">&quot;bad data&quot;</span>.parse::&lt;SecretKey&gt;(),
+            <span class="prelude-val">Err</span>(KeyParseError::BadEncoding)
         );
-        <span class="macro">assert_eq!</span>(<span class="string">&quot;OvXF&quot;</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">PublicKey</span><span class="op">&gt;</span>(), <span class="prelude-val">Err</span>(<span class="ident">KeyParseError::BadKey</span>));
+        <span class="macro">assert_eq!</span>(<span class="string">&quot;OvXF&quot;</span>.parse::&lt;SecretKey&gt;(), <span class="prelude-val">Err</span>(KeyParseError::BadKey));
+
+        <span class="macro">assert_eq!</span>(
+            <span class="string">&quot;bad data&quot;</span>.parse::&lt;PublicKey&gt;(),
+            <span class="prelude-val">Err</span>(KeyParseError::BadEncoding)
+        );
+        <span class="macro">assert_eq!</span>(<span class="string">&quot;OvXF&quot;</span>.parse::&lt;PublicKey&gt;(), <span class="prelude-val">Err</span>(KeyParseError::BadKey));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_serializing</span>() {
-        <span class="kw">let</span> <span class="ident">sk</span>: <span class="ident">SecretKey</span> <span class="op">=</span>
-        <span class="string">&quot;OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oUk5pHZsdnfXNiMWiMLtSE86J3N9Peo5CBP1YQHDUkApQ&quot;</span>
-            .<span class="ident">parse</span>()
-            .<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="ident">pk</span>: <span class="ident">PublicKey</span> <span class="op">=</span> <span class="string">&quot;JOaR2bHZ31zYjFojC7UhPOidzfT3qOQgT9WEBw1JAKU&quot;</span>
-            .<span class="ident">parse</span>()
-            .<span class="ident">unwrap</span>();
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_serializing() {
+        <span class="kw">let </span>sk: SecretKey =
+        <span class="string">&quot;OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oUk5pHZsdnfXNiMWiMLtSE86J3N9Peo5CBP1YQHDUkApQ&quot;
+            </span>.parse()
+            .unwrap();
+        <span class="kw">let </span>pk: PublicKey = <span class="string">&quot;JOaR2bHZ31zYjFojC7UhPOidzfT3qOQgT9WEBw1JAKU&quot;
+            </span>.parse()
+            .unwrap();
 
-        <span class="kw">let</span> <span class="ident">sk_json</span> <span class="op">=</span> <span class="ident">serde_json::to_string</span>(<span class="kw-2">&amp;</span><span class="ident">sk</span>).<span class="ident">unwrap</span>();
-        <span class="macro">assert_eq!</span>(<span class="ident">sk_json</span>, <span class="string">&quot;\&quot;OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oU\&quot;&quot;</span>);
+        <span class="kw">let </span>sk_json = serde_json::to_string(<span class="kw-2">&amp;</span>sk).unwrap();
+        <span class="macro">assert_eq!</span>(sk_json, <span class="string">&quot;\&quot;OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oU\&quot;&quot;</span>);
 
-        <span class="kw">let</span> <span class="ident">pk_json</span> <span class="op">=</span> <span class="ident">serde_json::to_string</span>(<span class="kw-2">&amp;</span><span class="ident">pk</span>).<span class="ident">unwrap</span>();
-        <span class="macro">assert_eq!</span>(<span class="ident">pk_json</span>, <span class="string">&quot;\&quot;JOaR2bHZ31zYjFojC7UhPOidzfT3qOQgT9WEBw1JAKU\&quot;&quot;</span>);
+        <span class="kw">let </span>pk_json = serde_json::to_string(<span class="kw-2">&amp;</span>pk).unwrap();
+        <span class="macro">assert_eq!</span>(pk_json, <span class="string">&quot;\&quot;JOaR2bHZ31zYjFojC7UhPOidzfT3qOQgT9WEBw1JAKU\&quot;&quot;</span>);
 
-        <span class="macro">assert_eq!</span>(<span class="ident">serde_json::from_str</span>::<span class="op">&lt;</span><span class="ident">SecretKey</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="ident">sk_json</span>).<span class="ident">unwrap</span>(), <span class="ident">sk</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">serde_json::from_str</span>::<span class="op">&lt;</span><span class="ident">PublicKey</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="ident">pk_json</span>).<span class="ident">unwrap</span>(), <span class="ident">pk</span>);
+        <span class="macro">assert_eq!</span>(serde_json::from_str::&lt;SecretKey&gt;(<span class="kw-2">&amp;</span>sk_json).unwrap(), sk);
+        <span class="macro">assert_eq!</span>(serde_json::from_str::&lt;PublicKey&gt;(<span class="kw-2">&amp;</span>pk_json).unwrap(), pk);
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_signatures</span>() {
-        <span class="kw">let</span> (<span class="ident">sk</span>, <span class="ident">pk</span>) <span class="op">=</span> <span class="ident">generate_key_pair</span>();
-        <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="string">b&quot;Hello World!&quot;</span>;
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_signatures() {
+        <span class="kw">let </span>(sk, pk) = generate_key_pair();
+        <span class="kw">let </span>data = <span class="string">b&quot;Hello World!&quot;</span>;
 
-        <span class="kw">let</span> <span class="ident">sig</span> <span class="op">=</span> <span class="ident">sk</span>.<span class="ident">sign</span>(<span class="ident">data</span>);
-        <span class="macro">assert!</span>(<span class="ident">pk</span>.<span class="ident">verify</span>(<span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="ident">sig</span>));
+        <span class="kw">let </span>sig = sk.sign(data);
+        <span class="macro">assert!</span>(pk.verify(data, <span class="kw-2">&amp;</span>sig));
 
-        <span class="kw">let</span> <span class="ident">bad_sig</span> <span class="op">=</span>
+        <span class="kw">let </span>bad_sig =
         <span class="string">&quot;jgubwSf2wb2wuiRpgt2H9_bdDSMr88hXLp5zVuhbr65EGkSxOfT5ILIWr623twLgLd0bDgHg6xzOaUCX7XvUCw&quot;</span>;
-        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">pk</span>.<span class="ident">verify</span>(<span class="ident">data</span>, <span class="ident">bad_sig</span>));
+        <span class="macro">assert!</span>(!pk.verify(data, bad_sig));
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_registration</span>() {
-        <span class="kw">let</span> <span class="ident">max_age</span> <span class="op">=</span> <span class="ident">Duration::minutes</span>(<span class="number">15</span>);
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_registration() {
+        <span class="kw">let </span>max_age = Duration::minutes(<span class="number">15</span>);
 
-        <span class="comment">// initial setup</span>
-        <span class="kw">let</span> <span class="ident">relay_id</span> <span class="op">=</span> <span class="ident">generate_relay_id</span>();
-        <span class="kw">let</span> (<span class="ident">sk</span>, <span class="ident">pk</span>) <span class="op">=</span> <span class="ident">generate_key_pair</span>();
+        <span class="comment">// initial setup
+        </span><span class="kw">let </span>relay_id = generate_relay_id();
+        <span class="kw">let </span>(sk, pk) = generate_key_pair();
 
-        <span class="comment">// create a register request</span>
-        <span class="kw">let</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">RegisterRequest::new</span>(<span class="kw-2">&amp;</span><span class="ident">relay_id</span>, <span class="kw-2">&amp;</span><span class="ident">pk</span>);
+        <span class="comment">// create a register request
+        </span><span class="kw">let </span>request = RegisterRequest::new(<span class="kw-2">&amp;</span>relay_id, <span class="kw-2">&amp;</span>pk);
 
-        <span class="comment">// sign it</span>
-        <span class="kw">let</span> (<span class="ident">request_bytes</span>, <span class="ident">request_sig</span>) <span class="op">=</span> <span class="ident">sk</span>.<span class="ident">pack</span>(<span class="kw-2">&amp;</span><span class="ident">request</span>);
+        <span class="comment">// sign it
+        </span><span class="kw">let </span>(request_bytes, request_sig) = sk.pack(<span class="kw-2">&amp;</span>request);
 
-        <span class="comment">// attempt to get the data through bootstrap unpacking.</span>
-        <span class="kw">let</span> <span class="ident">request</span> <span class="op">=</span>
-            <span class="ident">RegisterRequest::bootstrap_unpack</span>(<span class="kw-2">&amp;</span><span class="ident">request_bytes</span>, <span class="kw-2">&amp;</span><span class="ident">request_sig</span>, <span class="prelude-val">Some</span>(<span class="ident">max_age</span>)).<span class="ident">unwrap</span>();
-        <span class="macro">assert_eq!</span>(<span class="ident">request</span>.<span class="ident">relay_id</span>(), <span class="ident">relay_id</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">request</span>.<span class="ident">public_key</span>(), <span class="kw-2">&amp;</span><span class="ident">pk</span>);
+        <span class="comment">// attempt to get the data through bootstrap unpacking.
+        </span><span class="kw">let </span>request =
+            RegisterRequest::bootstrap_unpack(<span class="kw-2">&amp;</span>request_bytes, <span class="kw-2">&amp;</span>request_sig, <span class="prelude-val">Some</span>(max_age)).unwrap();
+        <span class="macro">assert_eq!</span>(request.relay_id(), relay_id);
+        <span class="macro">assert_eq!</span>(request.public_key(), <span class="kw-2">&amp;</span>pk);
 
-        <span class="kw">let</span> <span class="ident">upstream_secret</span> <span class="op">=</span> <span class="string">b&quot;secret&quot;</span>;
+        <span class="kw">let </span>upstream_secret = <span class="string">b&quot;secret&quot;</span>;
 
-        <span class="comment">// create a challenge</span>
-        <span class="kw">let</span> <span class="ident">challenge</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">into_challenge</span>(<span class="ident">upstream_secret</span>);
-        <span class="kw">let</span> <span class="ident">challenge_token</span> <span class="op">=</span> <span class="ident">challenge</span>.<span class="ident">token</span>().<span class="ident">to_owned</span>();
-        <span class="macro">assert_eq!</span>(<span class="ident">challenge</span>.<span class="ident">relay_id</span>(), <span class="kw-2">&amp;</span><span class="ident">relay_id</span>);
-        <span class="macro">assert!</span>(<span class="ident">challenge</span>.<span class="ident">token</span>().<span class="ident">len</span>() <span class="op">&gt;</span> <span class="number">40</span>);
+        <span class="comment">// create a challenge
+        </span><span class="kw">let </span>challenge = request.into_challenge(upstream_secret);
+        <span class="kw">let </span>challenge_token = challenge.token().to_owned();
+        <span class="macro">assert_eq!</span>(challenge.relay_id(), <span class="kw-2">&amp;</span>relay_id);
+        <span class="macro">assert!</span>(challenge.token().len() &gt; <span class="number">40</span>);
 
-        <span class="comment">// check the challenge contains the expected info</span>
-        <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">SignedRegisterState</span>(<span class="ident">challenge_token</span>.<span class="ident">clone</span>());
-        <span class="kw">let</span> <span class="ident">register_state</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">unpack</span>(<span class="ident">upstream_secret</span>, <span class="prelude-val">None</span>).<span class="ident">unwrap</span>();
-        <span class="macro">assert_eq!</span>(<span class="ident">register_state</span>.<span class="ident">public_key</span>, <span class="ident">pk</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">register_state</span>.<span class="ident">relay_id</span>, <span class="ident">relay_id</span>);
+        <span class="comment">// check the challenge contains the expected info
+        </span><span class="kw">let </span>state = SignedRegisterState(challenge_token.clone());
+        <span class="kw">let </span>register_state = state.unpack(upstream_secret, <span class="prelude-val">None</span>).unwrap();
+        <span class="macro">assert_eq!</span>(register_state.public_key, pk);
+        <span class="macro">assert_eq!</span>(register_state.relay_id, relay_id);
 
-        <span class="comment">// create a response from the challenge</span>
-        <span class="kw">let</span> <span class="ident">response</span> <span class="op">=</span> <span class="ident">challenge</span>.<span class="ident">into_response</span>();
+        <span class="comment">// create a response from the challenge
+        </span><span class="kw">let </span>response = challenge.into_response();
 
-        <span class="comment">// sign and unsign it</span>
-        <span class="kw">let</span> (<span class="ident">response_bytes</span>, <span class="ident">response_sig</span>) <span class="op">=</span> <span class="ident">sk</span>.<span class="ident">pack</span>(<span class="kw-2">&amp;</span><span class="ident">response</span>);
-        <span class="kw">let</span> (<span class="ident">response</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="ident">RegisterResponse::unpack</span>(
-            <span class="kw-2">&amp;</span><span class="ident">response_bytes</span>,
-            <span class="kw-2">&amp;</span><span class="ident">response_sig</span>,
-            <span class="ident">upstream_secret</span>,
-            <span class="prelude-val">Some</span>(<span class="ident">max_age</span>),
+        <span class="comment">// sign and unsign it
+        </span><span class="kw">let </span>(response_bytes, response_sig) = sk.pack(<span class="kw-2">&amp;</span>response);
+        <span class="kw">let </span>(response, <span class="kw">_</span>) = RegisterResponse::unpack(
+            <span class="kw-2">&amp;</span>response_bytes,
+            <span class="kw-2">&amp;</span>response_sig,
+            upstream_secret,
+            <span class="prelude-val">Some</span>(max_age),
         )
-        .<span class="ident">unwrap</span>();
+        .unwrap();
 
-        <span class="macro">assert_eq!</span>(<span class="ident">response</span>.<span class="ident">relay_id</span>(), <span class="ident">relay_id</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">response</span>.<span class="ident">token</span>(), <span class="ident">challenge_token</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">response</span>.<span class="ident">version</span>, <span class="ident">LATEST_VERSION</span>);
+        <span class="macro">assert_eq!</span>(response.relay_id(), relay_id);
+        <span class="macro">assert_eq!</span>(response.token(), challenge_token);
+        <span class="macro">assert_eq!</span>(response.version, LATEST_VERSION);
     }
 
-    <span class="doccomment">/// This is a pseudo-test to easily generate the strings used by test_auth.py</span>
-    <span class="doccomment">/// You can copy the output to the top of the test_auth.py when there are changes in the</span>
-    <span class="doccomment">/// exchanged authentication structures.</span>
-    <span class="doccomment">/// It follows test_registration but instead of asserting it prints the strings</span>
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_generate_strings_for_test_auth_py</span>() {
-        <span class="kw">let</span> <span class="ident">max_age</span> <span class="op">=</span> <span class="ident">Duration::minutes</span>(<span class="number">15</span>);
+    <span class="doccomment">/// This is a pseudo-test to easily generate the strings used by test_auth.py
+    /// You can copy the output to the top of the test_auth.py when there are changes in the
+    /// exchanged authentication structures.
+    /// It follows test_registration but instead of asserting it prints the strings
+    </span><span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_generate_strings_for_test_auth_py() {
+        <span class="kw">let </span>max_age = Duration::minutes(<span class="number">15</span>);
         <span class="macro">println!</span>(<span class="string">&quot;Generating test data for test_auth.py...&quot;</span>);
 
-        <span class="comment">// initial setup</span>
-        <span class="kw">let</span> <span class="ident">relay_id</span> <span class="op">=</span> <span class="ident">generate_relay_id</span>();
-        <span class="macro">println!</span>(<span class="string">&quot;RELAY_ID = b\&quot;{}\&quot;&quot;</span>, <span class="ident">relay_id</span>);
-        <span class="kw">let</span> (<span class="ident">sk</span>, <span class="ident">pk</span>) <span class="op">=</span> <span class="ident">generate_key_pair</span>();
-        <span class="macro">println!</span>(<span class="string">&quot;RELAY_KEY = b\&quot;{}\&quot;&quot;</span>, <span class="ident">pk</span>);
+        <span class="comment">// initial setup
+        </span><span class="kw">let </span>relay_id = generate_relay_id();
+        <span class="macro">println!</span>(<span class="string">&quot;RELAY_ID = b\&quot;{}\&quot;&quot;</span>, relay_id);
+        <span class="kw">let </span>(sk, pk) = generate_key_pair();
+        <span class="macro">println!</span>(<span class="string">&quot;RELAY_KEY = b\&quot;{}\&quot;&quot;</span>, pk);
 
-        <span class="comment">// create a register request</span>
-        <span class="kw">let</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">RegisterRequest::new</span>(<span class="kw-2">&amp;</span><span class="ident">relay_id</span>, <span class="kw-2">&amp;</span><span class="ident">pk</span>);
-        <span class="macro">println!</span>(<span class="string">&quot;REQUEST = b&#39;{}&#39;&quot;</span>, <span class="ident">serde_json::to_string</span>(<span class="kw-2">&amp;</span><span class="ident">request</span>).<span class="ident">unwrap</span>());
+        <span class="comment">// create a register request
+        </span><span class="kw">let </span>request = RegisterRequest::new(<span class="kw-2">&amp;</span>relay_id, <span class="kw-2">&amp;</span>pk);
+        <span class="macro">println!</span>(<span class="string">&quot;REQUEST = b&#39;{}&#39;&quot;</span>, serde_json::to_string(<span class="kw-2">&amp;</span>request).unwrap());
 
-        <span class="comment">// sign it</span>
-        <span class="kw">let</span> (<span class="ident">request_bytes</span>, <span class="ident">request_sig</span>) <span class="op">=</span> <span class="ident">sk</span>.<span class="ident">pack</span>(<span class="kw-2">&amp;</span><span class="ident">request</span>);
-        <span class="macro">println!</span>(<span class="string">&quot;REQUEST_SIG = \&quot;{}\&quot;&quot;</span>, <span class="ident">request_sig</span>);
+        <span class="comment">// sign it
+        </span><span class="kw">let </span>(request_bytes, request_sig) = sk.pack(<span class="kw-2">&amp;</span>request);
+        <span class="macro">println!</span>(<span class="string">&quot;REQUEST_SIG = \&quot;{}\&quot;&quot;</span>, request_sig);
 
-        <span class="comment">// attempt to get the data through bootstrap unpacking.</span>
-        <span class="kw">let</span> <span class="ident">request</span> <span class="op">=</span>
-            <span class="ident">RegisterRequest::bootstrap_unpack</span>(<span class="kw-2">&amp;</span><span class="ident">request_bytes</span>, <span class="kw-2">&amp;</span><span class="ident">request_sig</span>, <span class="prelude-val">Some</span>(<span class="ident">max_age</span>)).<span class="ident">unwrap</span>();
+        <span class="comment">// attempt to get the data through bootstrap unpacking.
+        </span><span class="kw">let </span>request =
+            RegisterRequest::bootstrap_unpack(<span class="kw-2">&amp;</span>request_bytes, <span class="kw-2">&amp;</span>request_sig, <span class="prelude-val">Some</span>(max_age)).unwrap();
 
-        <span class="kw">let</span> <span class="ident">upstream_secret</span> <span class="op">=</span> <span class="string">b&quot;secret&quot;</span>;
+        <span class="kw">let </span>upstream_secret = <span class="string">b&quot;secret&quot;</span>;
 
-        <span class="comment">// create a challenge</span>
-        <span class="kw">let</span> <span class="ident">challenge</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">into_challenge</span>(<span class="ident">upstream_secret</span>);
-        <span class="kw">let</span> <span class="ident">challenge_token</span> <span class="op">=</span> <span class="ident">challenge</span>.<span class="ident">token</span>().<span class="ident">to_owned</span>();
-        <span class="macro">println!</span>(<span class="string">&quot;TOKEN = \&quot;{}\&quot;&quot;</span>, <span class="ident">challenge_token</span>);
+        <span class="comment">// create a challenge
+        </span><span class="kw">let </span>challenge = request.into_challenge(upstream_secret);
+        <span class="kw">let </span>challenge_token = challenge.token().to_owned();
+        <span class="macro">println!</span>(<span class="string">&quot;TOKEN = \&quot;{}\&quot;&quot;</span>, challenge_token);
 
-        <span class="comment">// create a response from the challenge</span>
-        <span class="kw">let</span> <span class="ident">response</span> <span class="op">=</span> <span class="ident">challenge</span>.<span class="ident">into_response</span>();
-        <span class="kw">let</span> <span class="ident">serialized_response</span> <span class="op">=</span> <span class="ident">serde_json::to_string</span>(<span class="kw-2">&amp;</span><span class="ident">response</span>).<span class="ident">unwrap</span>();
-        <span class="kw">let</span> (<span class="kw">_</span>, <span class="ident">response_sig</span>) <span class="op">=</span> <span class="ident">sk</span>.<span class="ident">pack</span>(<span class="kw-2">&amp;</span><span class="ident">response</span>);
+        <span class="comment">// create a response from the challenge
+        </span><span class="kw">let </span>response = challenge.into_response();
+        <span class="kw">let </span>serialized_response = serde_json::to_string(<span class="kw-2">&amp;</span>response).unwrap();
+        <span class="kw">let </span>(<span class="kw">_</span>, response_sig) = sk.pack(<span class="kw-2">&amp;</span>response);
 
-        <span class="macro">println!</span>(<span class="string">&quot;RESPONSE = b&#39;{}&#39;&quot;</span>, <span class="ident">serialized_response</span>);
-        <span class="macro">println!</span>(<span class="string">&quot;RESPONSE_SIG = \&quot;{}\&quot;&quot;</span>, <span class="ident">response_sig</span>);
+        <span class="macro">println!</span>(<span class="string">&quot;RESPONSE = b&#39;{}&#39;&quot;</span>, serialized_response);
+        <span class="macro">println!</span>(<span class="string">&quot;RESPONSE_SIG = \&quot;{}\&quot;&quot;</span>, response_sig);
 
-        <span class="macro">println!</span>(<span class="string">&quot;RELAY_VERSION = \&quot;{}\&quot;&quot;</span>, <span class="kw-2">&amp;</span><span class="ident">LATEST_VERSION</span>);
+        <span class="macro">println!</span>(<span class="string">&quot;RELAY_VERSION = \&quot;{}\&quot;&quot;</span>, <span class="kw-2">&amp;</span>LATEST_VERSION);
     }
 
-    <span class="doccomment">/// Test we can still deserialize an old response that does not contain the version</span>
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_deserialize_old_response</span>() {
-        <span class="kw">let</span> <span class="ident">serialized_challenge</span> <span class="op">=</span> <span class="string">&quot;{\&quot;relay_id\&quot;:\&quot;6b7d15b8-cee2-4354-9fee-dae7ef43e434\&quot;,\&quot;token\&quot;:\&quot;eyJ0aW1lc3RhbXAiOjE1OTg5Njc0MzQsInJlbGF5X2lkIjoiNmI3ZDE1YjgtY2VlMi00MzU0LTlmZWUtZGFlN2VmNDNlNDM0IiwicHVibGljX2tleSI6ImtNcEdieWRIWlN2b2h6ZU1sZ2hjV3dIZDhNa3JlS0d6bF9uY2RrWlNPTWciLCJyYW5kIjoiLUViNG9Hal80dUZYOUNRRzFBVmdqTjRmdGxaNU9DSFlNOFl2d1podmlyVXhUY0tFSWYtQzhHaldsZmgwQTNlMzYxWE01dVh0RHhvN00tbWhZeXpWUWcifQ:KJUDXlwvibKNQmex-_Cu1U0FArlmoDkyqP7bYIDGrLXudfjGfCjH-UjNsUHWVDnbM28YdQ-R2MBSyF51aRLQcw\&quot;}&quot;</span>;
-        <span class="kw">let</span> <span class="ident">result</span>: <span class="ident">RegisterResponse</span> <span class="op">=</span> <span class="ident">serde_json::from_str</span>(<span class="ident">serialized_challenge</span>).<span class="ident">unwrap</span>();
+    <span class="doccomment">/// Test we can still deserialize an old response that does not contain the version
+    </span><span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_deserialize_old_response() {
+        <span class="kw">let </span>serialized_challenge = <span class="string">&quot;{\&quot;relay_id\&quot;:\&quot;6b7d15b8-cee2-4354-9fee-dae7ef43e434\&quot;,\&quot;token\&quot;:\&quot;eyJ0aW1lc3RhbXAiOjE1OTg5Njc0MzQsInJlbGF5X2lkIjoiNmI3ZDE1YjgtY2VlMi00MzU0LTlmZWUtZGFlN2VmNDNlNDM0IiwicHVibGljX2tleSI6ImtNcEdieWRIWlN2b2h6ZU1sZ2hjV3dIZDhNa3JlS0d6bF9uY2RrWlNPTWciLCJyYW5kIjoiLUViNG9Hal80dUZYOUNRRzFBVmdqTjRmdGxaNU9DSFlNOFl2d1podmlyVXhUY0tFSWYtQzhHaldsZmgwQTNlMzYxWE01dVh0RHhvN00tbWhZeXpWUWcifQ:KJUDXlwvibKNQmex-_Cu1U0FArlmoDkyqP7bYIDGrLXudfjGfCjH-UjNsUHWVDnbM28YdQ-R2MBSyF51aRLQcw\&quot;}&quot;</span>;
+        <span class="kw">let </span>result: RegisterResponse = serde_json::from_str(serialized_challenge).unwrap();
         <span class="macro">assert_eq!</span>(
-            <span class="ident">result</span>.<span class="ident">relay_id</span>,
-            <span class="ident">Uuid::parse_str</span>(<span class="string">&quot;6b7d15b8-cee2-4354-9fee-dae7ef43e434&quot;</span>).<span class="ident">unwrap</span>()
+            result.relay_id,
+            Uuid::parse_str(<span class="string">&quot;6b7d15b8-cee2-4354-9fee-dae7ef43e434&quot;</span>).unwrap()
         )
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_relay_version_current</span>() {
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_relay_version_current() {
         <span class="macro">assert_eq!</span>(
             <span class="macro">env!</span>(<span class="string">&quot;CARGO_PKG_VERSION&quot;</span>),
-            <span class="ident">RelayVersion::current</span>().<span class="ident">to_string</span>()
+            RelayVersion::current().to_string()
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_relay_version_oldest</span>() {
-        <span class="comment">// Regression test against unintentional changes.</span>
-        <span class="macro">assert_eq!</span>(<span class="string">&quot;0.0.0&quot;</span>, <span class="ident">RelayVersion::oldest</span>().<span class="ident">to_string</span>());
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_relay_version_oldest() {
+        <span class="comment">// Regression test against unintentional changes.
+        </span><span class="macro">assert_eq!</span>(<span class="string">&quot;0.0.0&quot;</span>, RelayVersion::oldest().to_string());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_relay_version_parse</span>() {
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_relay_version_parse() {
         <span class="macro">assert_eq!</span>(
-            <span class="ident">RelayVersion::new</span>(<span class="number">20</span>, <span class="number">7</span>, <span class="number">0</span>),
-            <span class="string">&quot;20.7.0-beta.0&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()
+            RelayVersion::new(<span class="number">20</span>, <span class="number">7</span>, <span class="number">0</span>),
+            <span class="string">&quot;20.7.0-beta.0&quot;</span>.parse().unwrap()
         );
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_relay_version_oldest_supported</span>() {
-        <span class="macro">assert!</span>(<span class="ident">RelayVersion::oldest</span>().<span class="ident">supported</span>());
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_relay_version_oldest_supported() {
+        <span class="macro">assert!</span>(RelayVersion::oldest().supported());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_relay_version_any_supported</span>() {
-        <span class="comment">// Every version must be supported at the moment.</span>
-        <span class="comment">// This test can be changed when dropping support for older versions.</span>
-        <span class="macro">assert!</span>(<span class="ident">RelayVersion::default</span>().<span class="ident">supported</span>());
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_relay_version_any_supported() {
+        <span class="comment">// Every version must be supported at the moment.
+        // This test can be changed when dropping support for older versions.
+        </span><span class="macro">assert!</span>(RelayVersion::default().supported());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_relay_version_from_str</span>() {
-        <span class="macro">assert_eq!</span>(<span class="ident">RelayVersion::new</span>(<span class="number">20</span>, <span class="number">7</span>, <span class="number">0</span>), <span class="string">&quot;20.7.0&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>());
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_relay_version_from_str() {
+        <span class="macro">assert_eq!</span>(RelayVersion::new(<span class="number">20</span>, <span class="number">7</span>, <span class="number">0</span>), <span class="string">&quot;20.7.0&quot;</span>.parse().unwrap());
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_auth" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_auth" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

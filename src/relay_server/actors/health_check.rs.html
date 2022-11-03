@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/health_check.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>health_check.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/health_check.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>health_check.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_server/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -139,144 +139,144 @@
 <span id="137">137</span>
 <span id="138">138</span>
 <span id="139">139</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::sync::atomic</span>::{<span class="ident">AtomicBool</span>, <span class="ident">Ordering</span>};
-<span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
+</pre><pre class="rust"><code><span class="kw">use </span>std::sync::atomic::{AtomicBool, Ordering};
+<span class="kw">use </span>std::sync::Arc;
 
-<span class="kw">use</span> <span class="ident">actix::SystemService</span>;
+<span class="kw">use </span>actix::SystemService;
 
-<span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">RelayMode</span>};
-<span class="kw">use</span> <span class="ident">relay_metrics::AcceptsMetrics</span>;
-<span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
-<span class="kw">use</span> <span class="ident">relay_system</span>::{
-    <span class="ident">compat</span>, <span class="ident">Addr</span>, <span class="ident">AsyncResponse</span>, <span class="ident">Controller</span>, <span class="ident">FromMessage</span>, <span class="ident">Interface</span>, <span class="ident">Sender</span>, <span class="ident">Service</span>,
+<span class="kw">use </span>relay_config::{Config, RelayMode};
+<span class="kw">use </span>relay_metrics::AcceptsMetrics;
+<span class="kw">use </span>relay_statsd::metric;
+<span class="kw">use </span>relay_system::{
+    compat, Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service,
 };
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::upstream</span>::{<span class="ident">IsAuthenticated</span>, <span class="ident">IsNetworkOutage</span>, <span class="ident">UpstreamRelay</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service</span>::{<span class="ident">Registry</span>, <span class="ident">REGISTRY</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd::RelayGauges</span>;
+<span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
+<span class="kw">use </span><span class="kw">crate</span>::service::{Registry, REGISTRY};
+<span class="kw">use </span><span class="kw">crate</span>::statsd::RelayGauges;
 
-<span class="doccomment">/// Checks whether Relay is alive and healthy based on its variant.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">IsHealthy</span> {
-    <span class="doccomment">/// Check if the Relay is alive at all.</span>
-    <span class="ident">Liveness</span>,
-    <span class="doccomment">/// Check if the Relay is in a state where the load balancer should route traffic to it (i.e.</span>
-    <span class="doccomment">/// it&#39;s both live/alive and not too busy).</span>
-    <span class="ident">Readiness</span>,
+<span class="doccomment">/// Checks whether Relay is alive and healthy based on its variant.
+</span><span class="attribute">#[derive(Clone, Copy, Debug)]
+</span><span class="kw">pub enum </span>IsHealthy {
+    <span class="doccomment">/// Check if the Relay is alive at all.
+    </span>Liveness,
+    <span class="doccomment">/// Check if the Relay is in a state where the load balancer should route traffic to it (i.e.
+    /// it&#39;s both live/alive and not too busy).
+    </span>Readiness,
 }
 
-<span class="doccomment">/// Service interface for the [`IsHealthy`] message.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">HealthCheck</span>(<span class="ident">IsHealthy</span>, <span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>);
+<span class="doccomment">/// Service interface for the [`IsHealthy`] message.
+</span><span class="kw">pub struct </span>HealthCheck(IsHealthy, Sender&lt;bool&gt;);
 
-<span class="kw">impl</span> <span class="ident">HealthCheck</span> {
-    <span class="doccomment">/// Returns the [`Addr`] of the [`HealthCheck`] service.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Prior to using this, the service must be started using [`HealthCheckService::start`].</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// # Panics</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Panics if the service was not started using [`HealthCheckService::start`] prior to this</span>
-    <span class="doccomment">/// being used.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_registry</span>() -&gt; <span class="ident">Addr</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="ident">REGISTRY</span>.<span class="ident">get</span>().<span class="ident">unwrap</span>().<span class="ident">health_check</span>.<span class="ident">clone</span>()
+<span class="kw">impl </span>HealthCheck {
+    <span class="doccomment">/// Returns the [`Addr`] of the [`HealthCheck`] service.
+    ///
+    /// Prior to using this, the service must be started using [`HealthCheckService::start`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if the service was not started using [`HealthCheckService::start`] prior to this
+    /// being used.
+    </span><span class="kw">pub fn </span>from_registry() -&gt; Addr&lt;<span class="self">Self</span>&gt; {
+        REGISTRY.get().unwrap().health_check.clone()
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Interface</span> <span class="kw">for</span> <span class="ident">HealthCheck</span> {}
+<span class="kw">impl </span>Interface <span class="kw">for </span>HealthCheck {}
 
-<span class="kw">impl</span> <span class="ident">FromMessage</span><span class="op">&lt;</span><span class="ident">IsHealthy</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">HealthCheck</span> {
-    <span class="kw">type</span> <span class="ident">Response</span> <span class="op">=</span> <span class="ident">AsyncResponse</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>;
+<span class="kw">impl </span>FromMessage&lt;IsHealthy&gt; <span class="kw">for </span>HealthCheck {
+    <span class="kw">type </span>Response = AsyncResponse&lt;bool&gt;;
 
-    <span class="kw">fn</span> <span class="ident">from_message</span>(<span class="ident">message</span>: <span class="ident">IsHealthy</span>, <span class="ident">sender</span>: <span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span>(<span class="ident">message</span>, <span class="ident">sender</span>)
+    <span class="kw">fn </span>from_message(message: IsHealthy, sender: Sender&lt;bool&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>(message, sender)
     }
 }
 
-<span class="doccomment">/// Service implementing the [`HealthCheck`] interface.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">HealthCheckService</span> {
-    <span class="ident">is_shutting_down</span>: <span class="ident">AtomicBool</span>,
-    <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Service implementing the [`HealthCheck`] interface.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>HealthCheckService {
+    is_shutting_down: AtomicBool,
+    config: Arc&lt;Config&gt;,
 }
 
-<span class="kw">impl</span> <span class="ident">HealthCheckService</span> {
-    <span class="doccomment">/// Creates a new instance of the HealthCheck service.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The service does not run. To run the service, use [`start`](Self::start).</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">HealthCheckService</span> {
-            <span class="ident">is_shutting_down</span>: <span class="ident">AtomicBool::new</span>(<span class="bool-val">false</span>),
-            <span class="ident">config</span>,
+<span class="kw">impl </span>HealthCheckService {
+    <span class="doccomment">/// Creates a new instance of the HealthCheck service.
+    ///
+    /// The service does not run. To run the service, use [`start`](Self::start).
+    </span><span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;) -&gt; <span class="self">Self </span>{
+        HealthCheckService {
+            is_shutting_down: AtomicBool::new(<span class="bool-val">false</span>),
+            config,
         }
     }
 
-    <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">handle_is_healthy</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">message</span>: <span class="ident">IsHealthy</span>) -&gt; <span class="ident">bool</span> {
-        <span class="kw">let</span> <span class="ident">upstream</span> <span class="op">=</span> <span class="ident">UpstreamRelay::from_registry</span>();
+    <span class="kw">async fn </span>handle_is_healthy(<span class="kw-2">&amp;</span><span class="self">self</span>, message: IsHealthy) -&gt; bool {
+        <span class="kw">let </span>upstream = UpstreamRelay::from_registry();
 
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">relay_mode</span>() <span class="op">==</span> <span class="ident">RelayMode::Managed</span> {
-            <span class="kw">let</span> <span class="ident">fut</span> <span class="op">=</span> <span class="ident">compat::send</span>(<span class="ident">upstream</span>.<span class="ident">clone</span>(), <span class="ident">IsNetworkOutage</span>);
-            <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
-                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">is_outage</span>) <span class="op">=</span> <span class="ident">fut</span>.<span class="kw">await</span> {
-                    <span class="macro">metric!</span>(<span class="ident">gauge</span>(<span class="ident">RelayGauges::NetworkOutage</span>) <span class="op">=</span> <span class="kw">if</span> <span class="ident">is_outage</span> { <span class="number">1</span> } <span class="kw">else</span> { <span class="number">0</span> });
+        <span class="kw">if </span><span class="self">self</span>.config.relay_mode() == RelayMode::Managed {
+            <span class="kw">let </span>fut = compat::send(upstream.clone(), IsNetworkOutage);
+            tokio::spawn(<span class="kw">async move </span>{
+                <span class="kw">if let </span><span class="prelude-val">Ok</span>(is_outage) = fut.<span class="kw">await </span>{
+                    <span class="macro">metric!</span>(gauge(RelayGauges::NetworkOutage) = u64::from(is_outage));
                 }
             });
         }
 
-        <span class="kw">match</span> <span class="ident">message</span> {
-            <span class="ident">IsHealthy::Liveness</span> =&gt; <span class="bool-val">true</span>,
-            <span class="ident">IsHealthy::Readiness</span> =&gt; {
-                <span class="kw">if</span> <span class="self">self</span>.<span class="ident">is_shutting_down</span>.<span class="ident">load</span>(<span class="ident">Ordering::Relaxed</span>) {
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
+        <span class="kw">match </span>message {
+            IsHealthy::Liveness =&gt; <span class="bool-val">true</span>,
+            IsHealthy::Readiness =&gt; {
+                <span class="kw">if </span><span class="self">self</span>.is_shutting_down.load(Ordering::Relaxed) {
+                    <span class="kw">return </span><span class="bool-val">false</span>;
                 }
 
-                <span class="kw">if</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">requires_auth</span>()
-                    <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">compat::send</span>(<span class="ident">upstream</span>, <span class="ident">IsAuthenticated</span>)
-                        .<span class="kw">await</span>
-                        .<span class="ident">unwrap_or</span>(<span class="bool-val">false</span>)
+                <span class="kw">if </span><span class="self">self</span>.config.requires_auth()
+                    &amp;&amp; !compat::send(upstream, IsAuthenticated)
+                        .<span class="kw">await
+                        </span>.unwrap_or(<span class="bool-val">false</span>)
                 {
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
+                    <span class="kw">return </span><span class="bool-val">false</span>;
                 }
 
-                <span class="ident">Registry::aggregator</span>()
-                    .<span class="ident">send</span>(<span class="ident">AcceptsMetrics</span>)
-                    .<span class="kw">await</span>
-                    .<span class="ident">unwrap_or_default</span>()
+                Registry::aggregator()
+                    .send(AcceptsMetrics)
+                    .<span class="kw">await
+                    </span>.unwrap_or_default()
             }
         }
     }
 
-    <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">handle_message</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">message</span>: <span class="ident">HealthCheck</span>) {
-        <span class="kw">let</span> <span class="ident">HealthCheck</span>(<span class="ident">message</span>, <span class="ident">sender</span>) <span class="op">=</span> <span class="ident">message</span>;
-        <span class="kw">let</span> <span class="ident">response</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">handle_is_healthy</span>(<span class="ident">message</span>).<span class="kw">await</span>;
-        <span class="ident">sender</span>.<span class="ident">send</span>(<span class="ident">response</span>);
+    <span class="kw">async fn </span>handle_message(<span class="kw-2">&amp;</span><span class="self">self</span>, message: HealthCheck) {
+        <span class="kw">let </span>HealthCheck(message, sender) = message;
+        <span class="kw">let </span>response = <span class="self">self</span>.handle_is_healthy(message).<span class="kw">await</span>;
+        sender.send(response);
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Service</span> <span class="kw">for</span> <span class="ident">HealthCheckService</span> {
-    <span class="kw">type</span> <span class="ident">Interface</span> <span class="op">=</span> <span class="ident">HealthCheck</span>;
+<span class="kw">impl </span>Service <span class="kw">for </span>HealthCheckService {
+    <span class="kw">type </span>Interface = HealthCheck;
 
-    <span class="kw">fn</span> <span class="ident">spawn_handler</span>(<span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">rx</span>: <span class="ident">relay_system::Receiver</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Interface</span><span class="op">&gt;</span>) {
-        <span class="kw">let</span> <span class="ident">service</span> <span class="op">=</span> <span class="ident">Arc::new</span>(<span class="self">self</span>);
+    <span class="kw">fn </span>spawn_handler(<span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+        <span class="kw">let </span>service = Arc::new(<span class="self">self</span>);
 
-        <span class="kw">let</span> <span class="ident">main_service</span> <span class="op">=</span> <span class="ident">service</span>.<span class="ident">clone</span>();
-        <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
-            <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">message</span>) <span class="op">=</span> <span class="ident">rx</span>.<span class="ident">recv</span>().<span class="kw">await</span> {
-                <span class="kw">let</span> <span class="ident">service</span> <span class="op">=</span> <span class="ident">main_service</span>.<span class="ident">clone</span>();
-                <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> { <span class="ident">service</span>.<span class="ident">handle_message</span>(<span class="ident">message</span>).<span class="kw">await</span> });
+        <span class="kw">let </span>main_service = service.clone();
+        tokio::spawn(<span class="kw">async move </span>{
+            <span class="kw">while let </span><span class="prelude-val">Some</span>(message) = rx.recv().<span class="kw">await </span>{
+                <span class="kw">let </span>service = main_service.clone();
+                tokio::spawn(<span class="kw">async move </span>{ service.handle_message(message).<span class="kw">await </span>});
             }
         });
 
-        <span class="comment">// Handle the shutdown signals</span>
-        <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">shutdown_rx</span> <span class="op">=</span> <span class="ident">Controller::subscribe_v2</span>().<span class="kw">await</span>;
+        <span class="comment">// Handle the shutdown signals
+        </span>tokio::spawn(<span class="kw">async move </span>{
+            <span class="kw">let </span><span class="kw-2">mut </span>shutdown_rx = Controller::subscribe_v2().<span class="kw">await</span>;
 
-            <span class="kw">while</span> <span class="ident">shutdown_rx</span>.<span class="ident">changed</span>().<span class="kw">await</span>.<span class="ident">is_ok</span>() {
-                <span class="kw">if</span> <span class="ident">shutdown_rx</span>.<span class="ident">borrow_and_update</span>().<span class="ident">is_some</span>() {
-                    <span class="ident">service</span>.<span class="ident">is_shutting_down</span>.<span class="ident">store</span>(<span class="bool-val">true</span>, <span class="ident">Ordering::Relaxed</span>);
+            <span class="kw">while </span>shutdown_rx.changed().<span class="kw">await</span>.is_ok() {
+                <span class="kw">if </span>shutdown_rx.borrow_and_update().is_some() {
+                    service.is_shutting_down.store(<span class="bool-val">true</span>, Ordering::Relaxed);
                 }
             }
         });
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/protocol/tags.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>tags.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/protocol/tags.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>tags.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../relay_general/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_general/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
@@ -203,91 +203,91 @@
 <span id="201">201</span>
 <span id="202">202</span>
 <span id="203">203</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">AsPair</span>, <span class="ident">LenientString</span>, <span class="ident">PairList</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Array</span>, <span class="ident">FromValue</span>, <span class="ident">Value</span>};
+</pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::protocol::{AsPair, LenientString, PairList};
+<span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Array, FromValue, Value};
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>)]</span>
-<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TagEntry</span>(
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">max_chars</span> <span class="op">=</span> <span class="string">&quot;tag_key&quot;</span>, <span class="ident">allow_chars</span> <span class="op">=</span> <span class="string">&quot;a-zA-Z0-9_.:-&quot;</span>)]</span> <span class="kw">pub</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">max_chars</span> <span class="op">=</span> <span class="string">&quot;tag_value&quot;</span>, <span class="ident">deny_chars</span> <span class="op">=</span> <span class="string">&quot;\n&quot;</span>)]</span> <span class="kw">pub</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+<span class="attribute">#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
+#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+</span><span class="kw">pub struct </span>TagEntry(
+    <span class="attribute">#[metastructure(max_chars = <span class="string">&quot;tag_key&quot;</span>, allow_chars = <span class="string">&quot;a-zA-Z0-9_.:-&quot;</span>)] </span><span class="kw">pub </span>Annotated&lt;String&gt;,
+    <span class="attribute">#[metastructure(max_chars = <span class="string">&quot;tag_value&quot;</span>, deny_chars = <span class="string">&quot;\n&quot;</span>)] </span><span class="kw">pub </span>Annotated&lt;String&gt;,
 );
 
-<span class="kw">impl</span> <span class="ident">AsPair</span> <span class="kw">for</span> <span class="ident">TagEntry</span> {
-    <span class="kw">type</span> <span class="ident">Key</span> <span class="op">=</span> <span class="ident">String</span>;
-    <span class="kw">type</span> <span class="ident">Value</span> <span class="op">=</span> <span class="ident">String</span>;
+<span class="kw">impl </span>AsPair <span class="kw">for </span>TagEntry {
+    <span class="kw">type </span>Key = String;
+    <span class="kw">type </span>Value = String;
 
-    <span class="kw">fn</span> <span class="ident">from_pair</span>(<span class="ident">pair</span>: (<span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Key</span><span class="op">&gt;</span>, <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span><span class="op">&gt;</span>)) -&gt; <span class="self">Self</span> {
-        <span class="ident">TagEntry</span>(<span class="ident">pair</span>.<span class="number">0</span>, <span class="ident">pair</span>.<span class="number">1</span>)
+    <span class="kw">fn </span>from_pair(pair: (Annotated&lt;<span class="self">Self</span>::Key&gt;, Annotated&lt;<span class="self">Self</span>::Value&gt;)) -&gt; <span class="self">Self </span>{
+        TagEntry(pair.<span class="number">0</span>, pair.<span class="number">1</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">into_pair</span>(<span class="self">self</span>) -&gt; (<span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Key</span><span class="op">&gt;</span>, <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span><span class="op">&gt;</span>) {
+    <span class="kw">fn </span>into_pair(<span class="self">self</span>) -&gt; (Annotated&lt;<span class="self">Self</span>::Key&gt;, Annotated&lt;<span class="self">Self</span>::Value&gt;) {
         (<span class="self">self</span>.<span class="number">0</span>, <span class="self">self</span>.<span class="number">1</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">as_pair</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (<span class="kw-2">&amp;</span><span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Key</span><span class="op">&gt;</span>, <span class="kw-2">&amp;</span><span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span><span class="op">&gt;</span>) {
+    <span class="kw">fn </span>as_pair(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (<span class="kw-2">&amp;</span>Annotated&lt;<span class="self">Self</span>::Key&gt;, <span class="kw-2">&amp;</span>Annotated&lt;<span class="self">Self</span>::Value&gt;) {
         (<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">1</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">as_pair_mut</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; (<span class="kw-2">&amp;mut</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Key</span><span class="op">&gt;</span>, <span class="kw-2">&amp;mut</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span><span class="op">&gt;</span>) {
-        (<span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="number">0</span>, <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="number">1</span>)
+    <span class="kw">fn </span>as_pair_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; (<span class="kw-2">&amp;mut </span>Annotated&lt;<span class="self">Self</span>::Key&gt;, <span class="kw-2">&amp;mut </span>Annotated&lt;<span class="self">Self</span>::Value&gt;) {
+        (<span class="kw-2">&amp;mut </span><span class="self">self</span>.<span class="number">0</span>, <span class="kw-2">&amp;mut </span><span class="self">self</span>.<span class="number">1</span>)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">FromValue</span> <span class="kw">for</span> <span class="ident">TagEntry</span> {
-    <span class="kw">fn</span> <span class="ident">from_value</span>(<span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="kw">type</span> <span class="ident">TagTuple</span> <span class="op">=</span> (<span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">LenientString</span><span class="op">&gt;</span>, <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">LenientString</span><span class="op">&gt;</span>);
-        <span class="ident">TagTuple::from_value</span>(<span class="ident">value</span>).<span class="ident">map_value</span>(<span class="op">|</span>(<span class="ident">key</span>, <span class="ident">value</span>)<span class="op">|</span> {
-            <span class="ident">TagEntry</span>(
-                <span class="ident">key</span>.<span class="ident">map_value</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">into_inner</span>().<span class="ident">replace</span>(<span class="string">&#39; &#39;</span>, <span class="string">&quot;-&quot;</span>).<span class="ident">trim</span>().<span class="ident">to_string</span>()),
-                <span class="ident">value</span>.<span class="ident">map_value</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">into_inner</span>().<span class="ident">trim</span>().<span class="ident">to_string</span>()),
+<span class="kw">impl </span>FromValue <span class="kw">for </span>TagEntry {
+    <span class="kw">fn </span>from_value(value: Annotated&lt;Value&gt;) -&gt; Annotated&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">type </span>TagTuple = (Annotated&lt;LenientString&gt;, Annotated&lt;LenientString&gt;);
+        TagTuple::from_value(value).map_value(|(key, value)| {
+            TagEntry(
+                key.map_value(|x| x.into_inner().replace(<span class="string">&#39; &#39;</span>, <span class="string">&quot;-&quot;</span>).trim().to_string()),
+                value.map_value(|x| x.into_inner().trim().to_string()),
             )
         })
     }
 }
 
-<span class="doccomment">/// Manual key/value tag pairs.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>)]</span>
-<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Tags</span>(<span class="kw">pub</span> <span class="ident">PairList</span><span class="op">&lt;</span><span class="ident">TagEntry</span><span class="op">&gt;</span>);
+<span class="doccomment">/// Manual key/value tag pairs.
+</span><span class="attribute">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+</span><span class="kw">pub struct </span>Tags(<span class="kw">pub </span>PairList&lt;TagEntry&gt;);
 
-<span class="kw">impl</span> <span class="ident">Tags</span> {
-    <span class="doccomment">/// Returns a reference to the value of the tag, if it exists.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// If the tag with the specified key exists multiple times, the first instance is returned. If</span>
-    <span class="doccomment">/// no tag with the given key exists or the tag entry is erroneous, `None` is returned`.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// To retrieve the [`Annotated`] wrapper of the tag value, use [`PairList::get`] instead.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">key</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">get_value</span>(<span class="ident">key</span>).<span class="ident">map</span>(<span class="ident">String::as_str</span>)
+<span class="kw">impl </span>Tags {
+    <span class="doccomment">/// Returns a reference to the value of the tag, if it exists.
+    ///
+    /// If the tag with the specified key exists multiple times, the first instance is returned. If
+    /// no tag with the given key exists or the tag entry is erroneous, `None` is returned`.
+    ///
+    /// To retrieve the [`Annotated`] wrapper of the tag value, use [`PairList::get`] instead.
+    </span><span class="kw">pub fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, key: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
+        <span class="self">self</span>.<span class="number">0</span>.get_value(key).map(String::as_str)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">std::ops::Deref</span> <span class="kw">for</span> <span class="ident">Tags</span> {
-    <span class="kw">type</span> <span class="ident">Target</span> <span class="op">=</span> <span class="ident">Array</span><span class="op">&lt;</span><span class="ident">TagEntry</span><span class="op">&gt;</span>;
+<span class="kw">impl </span>std::ops::Deref <span class="kw">for </span>Tags {
+    <span class="kw">type </span>Target = Array&lt;TagEntry&gt;;
 
-    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident"><span class="self">Self</span>::Target</span> {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>
-    }
+    <span class="kw">fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Target {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0
+    </span>}
 }
 
-<span class="kw">impl</span> <span class="ident">std::ops::DerefMut</span> <span class="kw">for</span> <span class="ident">Tags</span> {
-    <span class="kw">fn</span> <span class="ident">deref_mut</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Target</span> {
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="number">0</span>
-    }
+<span class="kw">impl </span>std::ops::DerefMut <span class="kw">for </span>Tags {
+    <span class="kw">fn </span>deref_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Target {
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>.<span class="number">0
+    </span>}
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">similar_asserts::assert_eq</span>;
+<span class="attribute">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>similar_asserts::assert_eq;
 
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol::Event</span>;
+    <span class="kw">use </span><span class="kw">crate</span>::protocol::Event;
 
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_tags_from_object</span>() {
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_tags_from_object() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;blah&quot;: &quot;blub&quot;,
   &quot;bool&quot;: true,
   &quot;foo bar&quot;: &quot;baz&quot;,
@@ -295,35 +295,35 @@
   &quot;bam&quot;: null
 }&quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">arr</span> <span class="op">=</span> <span class="macro">vec!</span>[
-            <span class="ident">Annotated::new</span>(<span class="ident">TagEntry</span>(
-                <span class="ident">Annotated::new</span>(<span class="string">&quot;bam&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">Annotated::empty</span>(),
+        <span class="kw">let </span>arr = <span class="macro">vec!</span>[
+            Annotated::new(TagEntry(
+                Annotated::new(<span class="string">&quot;bam&quot;</span>.to_string()),
+                Annotated::empty(),
             )),
-            <span class="ident">Annotated::new</span>(<span class="ident">TagEntry</span>(
-                <span class="ident">Annotated::new</span>(<span class="string">&quot;blah&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">Annotated::new</span>(<span class="string">&quot;blub&quot;</span>.<span class="ident">to_string</span>()),
+            Annotated::new(TagEntry(
+                Annotated::new(<span class="string">&quot;blah&quot;</span>.to_string()),
+                Annotated::new(<span class="string">&quot;blub&quot;</span>.to_string()),
             )),
-            <span class="ident">Annotated::new</span>(<span class="ident">TagEntry</span>(
-                <span class="ident">Annotated::new</span>(<span class="string">&quot;bool&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">Annotated::new</span>(<span class="string">&quot;True&quot;</span>.<span class="ident">to_string</span>()),
+            Annotated::new(TagEntry(
+                Annotated::new(<span class="string">&quot;bool&quot;</span>.to_string()),
+                Annotated::new(<span class="string">&quot;True&quot;</span>.to_string()),
             )),
-            <span class="ident">Annotated::new</span>(<span class="ident">TagEntry</span>(
-                <span class="ident">Annotated::new</span>(<span class="string">&quot;foo-bar&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">Annotated::new</span>(<span class="string">&quot;baz&quot;</span>.<span class="ident">to_string</span>()),
+            Annotated::new(TagEntry(
+                Annotated::new(<span class="string">&quot;foo-bar&quot;</span>.to_string()),
+                Annotated::new(<span class="string">&quot;baz&quot;</span>.to_string()),
             )),
-            <span class="ident">Annotated::new</span>(<span class="ident">TagEntry</span>(
-                <span class="ident">Annotated::new</span>(<span class="string">&quot;non-string&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">Annotated::new</span>(<span class="string">&quot;42&quot;</span>.<span class="ident">to_string</span>()),
+            Annotated::new(TagEntry(
+                Annotated::new(<span class="string">&quot;non-string&quot;</span>.to_string()),
+                Annotated::new(<span class="string">&quot;42&quot;</span>.to_string()),
             )),
         ];
-        <span class="kw">let</span> <span class="ident">tags</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Tags</span>(<span class="ident">arr</span>.<span class="ident">into</span>()));
-        <span class="macro">assert_eq!</span>(<span class="ident">tags</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+        <span class="kw">let </span>tags = Annotated::new(Tags(arr.into()));
+        <span class="macro">assert_eq!</span>(tags, Annotated::from_json(json).unwrap());
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_tags_from_array</span>() {
-        <span class="kw">let</span> <span class="ident">input</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_tags_from_array() {
+        <span class="kw">let </span>input = <span class="string">r#&quot;{
   &quot;tags&quot;: [
     [
       &quot;bool&quot;,
@@ -348,7 +348,7 @@
   ]
 }&quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">output</span> <span class="op">=</span> <span class="string">r#&quot;{
+        <span class="kw">let </span>output = <span class="string">r#&quot;{
   &quot;tags&quot;: [
     [
       &quot;bool&quot;,
@@ -373,38 +373,38 @@
   ]
 }&quot;#</span>;
 
-        <span class="kw">let</span> <span class="ident">arr</span> <span class="op">=</span> <span class="macro">vec!</span>[
-            <span class="ident">Annotated::new</span>(<span class="ident">TagEntry</span>(
-                <span class="ident">Annotated::new</span>(<span class="string">&quot;bool&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">Annotated::new</span>(<span class="string">&quot;True&quot;</span>.<span class="ident">to_string</span>()),
+        <span class="kw">let </span>arr = <span class="macro">vec!</span>[
+            Annotated::new(TagEntry(
+                Annotated::new(<span class="string">&quot;bool&quot;</span>.to_string()),
+                Annotated::new(<span class="string">&quot;True&quot;</span>.to_string()),
             )),
-            <span class="ident">Annotated::new</span>(<span class="ident">TagEntry</span>(
-                <span class="ident">Annotated::new</span>(<span class="string">&quot;foo-bar&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">Annotated::new</span>(<span class="string">&quot;baz&quot;</span>.<span class="ident">to_string</span>()),
+            Annotated::new(TagEntry(
+                Annotated::new(<span class="string">&quot;foo-bar&quot;</span>.to_string()),
+                Annotated::new(<span class="string">&quot;baz&quot;</span>.to_string()),
             )),
-            <span class="ident">Annotated::new</span>(<span class="ident">TagEntry</span>(
-                <span class="ident">Annotated::new</span>(<span class="string">&quot;23&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">Annotated::new</span>(<span class="string">&quot;42&quot;</span>.<span class="ident">to_string</span>()),
+            Annotated::new(TagEntry(
+                Annotated::new(<span class="string">&quot;23&quot;</span>.to_string()),
+                Annotated::new(<span class="string">&quot;42&quot;</span>.to_string()),
             )),
-            <span class="ident">Annotated::new</span>(<span class="ident">TagEntry</span>(
-                <span class="ident">Annotated::new</span>(<span class="string">&quot;blah&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">Annotated::new</span>(<span class="string">&quot;blub&quot;</span>.<span class="ident">to_string</span>()),
+            Annotated::new(TagEntry(
+                Annotated::new(<span class="string">&quot;blah&quot;</span>.to_string()),
+                Annotated::new(<span class="string">&quot;blub&quot;</span>.to_string()),
             )),
-            <span class="ident">Annotated::new</span>(<span class="ident">TagEntry</span>(
-                <span class="ident">Annotated::new</span>(<span class="string">&quot;bam&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">Annotated::empty</span>(),
+            Annotated::new(TagEntry(
+                Annotated::new(<span class="string">&quot;bam&quot;</span>.to_string()),
+                Annotated::empty(),
             )),
         ];
 
-        <span class="kw">let</span> <span class="ident">tags</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Tags</span>(<span class="ident">arr</span>.<span class="ident">into</span>()));
-        <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-            <span class="ident">tags</span>,
-            ..<span class="ident">Default::default</span>()
+        <span class="kw">let </span>tags = Annotated::new(Tags(arr.into()));
+        <span class="kw">let </span>event = Annotated::new(Event {
+            tags,
+            ..Default::default()
         });
 
-        <span class="macro">assert_eq!</span>(<span class="ident">event</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">input</span>).<span class="ident">unwrap</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">event</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>(), <span class="ident">output</span>);
+        <span class="macro">assert_eq!</span>(event, Annotated::from_json(input).unwrap());
+        <span class="macro">assert_eq!</span>(event.to_json_pretty().unwrap(), output);
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0 (a55dd71d5 2022-09-19)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>
