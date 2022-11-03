@@ -10,7 +10,9 @@ use std::path::PathBuf;
 use relay_general::pii::{PiiConfig, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::Event;
-use relay_general::store::{StoreConfig, StoreProcessor};
+use relay_general::store::{
+    light_normalize_event, LightNormalizationConfig, StoreConfig, StoreProcessor,
+};
 use relay_general::types::Annotated;
 
 use anyhow::{format_err, Context, Result};
@@ -83,6 +85,7 @@ impl Cli {
         }
 
         if self.store {
+            light_normalize_event(&mut event, &LightNormalizationConfig::default()).unwrap();
             let mut processor = StoreProcessor::new(StoreConfig::default(), None);
             process_value(&mut event, &mut processor, ProcessingState::root())
                 .map_err(|e| format_err!("{}", e))
