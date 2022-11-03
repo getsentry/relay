@@ -137,7 +137,7 @@ impl FromStr for UpstreamDescriptor<'static> {
 
     fn from_str(s: &str) -> Result<UpstreamDescriptor<'static>, UpstreamParseError> {
         let url = Url::parse(s).map_err(|_| UpstreamParseError::BadUrl)?;
-        if url.path() != "/" || !(url.query() == None || url.query() == Some("")) {
+        if url.path() != "/" || !(url.query().is_none() || url.query() == Some("")) {
             return Err(UpstreamParseError::NonOriginUrl);
         }
 
