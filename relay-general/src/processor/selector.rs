@@ -18,7 +18,7 @@ pub enum InvalidSelectorError {
     InvalidWildcard,
 
     #[fail(display = "invalid selector: {}", _0)]
-    ParseError(Error<Rule>),
+    ParseError(Box<Error<Rule>>),
 
     #[fail(display = "invalid selector: invalid index")]
     InvalidIndex,
@@ -223,7 +223,7 @@ impl FromStr for SelectorSpec {
 
         handle_selector(
             SelectorParser::parse(Rule::RootSelector, s)
-                .map_err(InvalidSelectorError::ParseError)?
+                .map_err(|e| InvalidSelectorError::ParseError(Box::new(e)))?
                 .next()
                 .unwrap()
                 .into_inner()
