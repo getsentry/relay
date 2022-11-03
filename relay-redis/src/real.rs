@@ -84,8 +84,8 @@ impl PooledClient {
     /// Returns a pooled connection to this client.
     pub fn connection(&mut self) -> Connection<'_> {
         let inner = match self.inner {
-            PooledClientInner::Cluster(ref mut client) => ConnectionInner::Cluster(&mut **client),
-            PooledClientInner::Single(ref mut client) => ConnectionInner::Single(&mut **client),
+            PooledClientInner::Cluster(ref mut client) => ConnectionInner::Cluster(client),
+            PooledClientInner::Single(ref mut client) => ConnectionInner::Single(client),
         };
 
         Connection { inner }
