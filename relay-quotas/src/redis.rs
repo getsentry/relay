@@ -183,7 +183,6 @@ impl RedisRateLimiter {
         over_accept_once: bool,
     ) -> Result<RateLimits, RateLimitingError> {
         let timestamp = UnixTimestamp::now();
-
         let mut invocation = self.script.prepare_invoke();
         let mut tracked_quotas = Vec::new();
         let mut rate_limits = RateLimits::new();
@@ -196,7 +195,7 @@ impl RedisRateLimiter {
                 // increment any keys, as one quota has reached capacity (this is how regular quotas
                 // behave as well).
                 let retry_after = self.retry_after(REJECT_ALL_SECS);
-                rate_limits.add(RateLimit::from_quota(quota, &*item_scoping, retry_after));
+                rate_limits.add(RateLimit::from_quota(quota, &item_scoping, retry_after));
             } else if let Some(quota) = RedisQuota::new(quota, item_scoping, timestamp) {
                 // Remaining quotas are expected to be trackable in Redis.
                 let key = quota.key();
@@ -236,7 +235,7 @@ impl RedisRateLimiter {
         for (quota, is_rejected) in tracked_quotas.iter().zip(rejections) {
             if is_rejected {
                 let retry_after = self.retry_after((quota.expiry() - timestamp).as_secs());
-                rate_limits.add(RateLimit::from_quota(quota, &*item_scoping, retry_after));
+                rate_limits.add(RateLimit::from_quota(quota, &item_scoping, retry_after));
             }
         }
 
@@ -657,7 +656,7 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::blacklisted_name, clippy::let_unit_value)]
+    #[allow(clippy::disallowed_names, clippy::let_unit_value)]
     fn test_is_rate_limited_script() {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)

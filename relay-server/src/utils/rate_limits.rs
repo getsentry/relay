@@ -399,8 +399,9 @@ where
 
     /// Returns a dedicated data category for indexing if metrics are to be extracted.
     ///
-    /// This returns `None` for most data categories. Only if metrics extraction is enabled for
-    /// transactions, we treat them differently:
+    /// This is similar to [`DataCategory::index_category`], with an additional check if metrics
+    /// extraction is enabled for this category. At this point, this is only true for transactions:
+    ///
     ///  - `DataCategory::Transaction` counts the transaction metrics. If quotas with this category
     ///    are exhausted, both the event and metrics are dropped.
     ///  - `DataCategory::TransactionIndexed` counts ingested and stored events. If quotas with this
@@ -411,9 +412,7 @@ where
         }
 
         match self.config?.transaction_metrics {
-            Some(ErrorBoundary::Ok(ref c)) if c.is_enabled() => {
-                Some(DataCategory::TransactionIndexed)
-            }
+            Some(ErrorBoundary::Ok(ref c)) if c.is_enabled() => category.index_category(),
             _ => None,
         }
     }

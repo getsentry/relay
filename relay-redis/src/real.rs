@@ -84,8 +84,8 @@ impl PooledClient {
     /// Returns a pooled connection to this client.
     pub fn connection(&mut self) -> Connection<'_> {
         let inner = match self.inner {
-            PooledClientInner::Cluster(ref mut client) => ConnectionInner::Cluster(&mut **client),
-            PooledClientInner::Single(ref mut client) => ConnectionInner::Single(&mut **client),
+            PooledClientInner::Cluster(ref mut client) => ConnectionInner::Cluster(client),
+            PooledClientInner::Single(ref mut client) => ConnectionInner::Single(client),
         };
 
         Connection { inner }
@@ -135,7 +135,7 @@ impl RedisPool {
         let pool = Pool::builder()
             .max_size(opts.max_connections)
             .test_on_check_out(false)
-            .build(redis::cluster::ClusterClient::open(servers).map_err(RedisError::Redis)?)
+            .build(redis::cluster::ClusterClient::new(servers).map_err(RedisError::Redis)?)
             .map_err(RedisError::Pool)?;
 
         let inner = RedisPoolInner::Cluster(pool);
