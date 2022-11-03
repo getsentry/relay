@@ -199,12 +199,14 @@ impl<S: 'static> Middleware<S> for SentryMiddleware {
         let root_scope = hub.push_scope();
         hub.configure_scope(move |scope| {
             scope.add_event_processor(move |mut event| {
+                fragile::stack_token!(tok);
+
                 let mut cached_data = cached_data.lock().unwrap();
                 if cached_data.is_none() && req.is_valid() {
                     let with_pii = client
                         .as_ref()
                         .map_or(false, |x| x.options().send_default_pii);
-                    *cached_data = Some(extract_request(req.get(), with_pii));
+                    *cached_data = Some(extract_request(req.get(tok), with_pii));
                 }
 
                 if let Some((ref transaction, ref req)) = *cached_data {
