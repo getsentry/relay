@@ -123,6 +123,10 @@
 <span id="121">121</span>
 <span id="122">122</span>
 <span id="123">123</span>
+<span id="124">124</span>
+<span id="125">125</span>
+<span id="126">126</span>
+<span id="127">127</span>
 </pre><pre class="rust"><code><span class="attribute">#![doc(
     html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
     html_favicon_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;
@@ -135,7 +139,9 @@
 <span class="kw">use </span>relay_general::pii::{PiiConfig, PiiProcessor};
 <span class="kw">use </span>relay_general::processor::{process_value, ProcessingState};
 <span class="kw">use </span>relay_general::protocol::Event;
-<span class="kw">use </span>relay_general::store::{StoreConfig, StoreProcessor};
+<span class="kw">use </span>relay_general::store::{
+    light_normalize_event, LightNormalizationConfig, StoreConfig, StoreProcessor,
+};
 <span class="kw">use </span>relay_general::types::Annotated;
 
 <span class="kw">use </span>anyhow::{format_err, Context, <span class="prelude-ty">Result</span>};
@@ -208,6 +214,8 @@
         }
 
         <span class="kw">if </span><span class="self">self</span>.store {
+            light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>LightNormalizationConfig::default())
+                .map_err(|e| <span class="macro">format_err!</span>(<span class="string">&quot;{}&quot;</span>, e))<span class="question-mark">?</span>;
             <span class="kw">let </span><span class="kw-2">mut </span>processor = StoreProcessor::new(StoreConfig::default(), <span class="prelude-val">None</span>);
             process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root())
                 .map_err(|e| <span class="macro">format_err!</span>(<span class="string">&quot;{}&quot;</span>, e))
