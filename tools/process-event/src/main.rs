@@ -85,7 +85,8 @@ impl Cli {
         }
 
         if self.store {
-            light_normalize_event(&mut event, &LightNormalizationConfig::default()).unwrap();
+            light_normalize_event(&mut event, &LightNormalizationConfig::default())
+                .map_err(|e| format_err!("{}", e))?;
             let mut processor = StoreProcessor::new(StoreConfig::default(), None);
             process_value(&mut event, &mut processor, ProcessingState::root())
                 .map_err(|e| format_err!("{}", e))
