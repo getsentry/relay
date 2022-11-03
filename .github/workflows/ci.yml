@@ -103,7 +103,7 @@ jobs:
           args: --workspace --all-targets --no-deps -- -D warnings
 
   test:
-    timeout-minutes: 20
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -139,7 +139,7 @@ jobs:
           args: --workspace
 
   test_all:
-    timeout-minutes: 20
+    timeout-minutes: 15
     name: Test All Features (ubuntu-latest)
     runs-on: ubuntu-latest
 
@@ -228,7 +228,7 @@ jobs:
   test_integration:
     name: Integration Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
