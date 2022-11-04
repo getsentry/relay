@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use relay_common::{UnixTimestamp, Uuid};
 use relay_general::protocol::{SessionAttributes, SessionErrored, SessionLike, SessionStatus};
-use relay_metrics::{DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue};
+use relay_metrics::{DurationUnit, Metric, MetricName, MetricNamespace, MetricUnit, MetricValue};
 
 use super::utils::with_tag;
 
@@ -86,7 +86,7 @@ pub fn extract_session_metrics<T: SessionLike>(
     if session.total_count() > 0 {
         target.push(Metric::new_mri(
             METRIC_NAMESPACE,
-            "session",
+            MetricName::unchecked("session"),
             MetricUnit::None,
             MetricValue::Counter(session.total_count() as f64),
             timestamp,
@@ -99,7 +99,7 @@ pub fn extract_session_metrics<T: SessionLike>(
         target.push(match errors {
             SessionErrored::Individual(session_id) => Metric::new_mri(
                 METRIC_NAMESPACE,
-                "error",
+                MetricName::unchecked("error"),
                 MetricUnit::None,
                 MetricValue::set_from_display(session_id),
                 timestamp,
@@ -107,7 +107,7 @@ pub fn extract_session_metrics<T: SessionLike>(
             ),
             SessionErrored::Aggregated(count) => Metric::new_mri(
                 METRIC_NAMESPACE,
-                "session",
+                MetricName::unchecked("session"),
                 MetricUnit::None,
                 MetricValue::Counter(count as f64),
                 timestamp,
@@ -118,7 +118,7 @@ pub fn extract_session_metrics<T: SessionLike>(
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
             target.push(Metric::new_mri(
                 METRIC_NAMESPACE,
-                "user",
+                MetricName::unchecked("user"),
                 MetricUnit::None,
                 MetricValue::set_from_str(distinct_id),
                 timestamp,
@@ -131,7 +131,7 @@ pub fn extract_session_metrics<T: SessionLike>(
         // |users| - |users{session.status:errored}|
         target.push(Metric::new_mri(
             METRIC_NAMESPACE,
-            "user",
+            MetricName::unchecked("user"),
             MetricUnit::None,
             MetricValue::set_from_str(distinct_id),
             timestamp,
@@ -144,7 +144,7 @@ pub fn extract_session_metrics<T: SessionLike>(
     if session.abnormal_count() > 0 {
         target.push(Metric::new_mri(
             METRIC_NAMESPACE,
-            "session",
+            MetricName::unchecked("session"),
             MetricUnit::None,
             MetricValue::Counter(session.abnormal_count() as f64),
             timestamp,
@@ -154,7 +154,7 @@ pub fn extract_session_metrics<T: SessionLike>(
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
             target.push(Metric::new_mri(
                 METRIC_NAMESPACE,
-                "user",
+                MetricName::unchecked("user"),
                 MetricUnit::None,
                 MetricValue::set_from_str(distinct_id),
                 timestamp,
@@ -166,7 +166,7 @@ pub fn extract_session_metrics<T: SessionLike>(
     if session.crashed_count() > 0 {
         target.push(Metric::new_mri(
             METRIC_NAMESPACE,
-            "session",
+            MetricName::unchecked("session"),
             MetricUnit::None,
             MetricValue::Counter(session.crashed_count() as f64),
             timestamp,
@@ -176,7 +176,7 @@ pub fn extract_session_metrics<T: SessionLike>(
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
             target.push(Metric::new_mri(
                 METRIC_NAMESPACE,
-                "user",
+                MetricName::unchecked("user"),
                 MetricUnit::None,
                 MetricValue::set_from_str(distinct_id),
                 timestamp,
@@ -190,7 +190,7 @@ pub fn extract_session_metrics<T: SessionLike>(
         if status == SessionStatus::Exited {
             target.push(Metric::new_mri(
                 METRIC_NAMESPACE,
-                "duration",
+                MetricName::unchecked("duration"),
                 MetricUnit::Duration(DurationUnit::Second),
                 MetricValue::Distribution(duration),
                 timestamp,

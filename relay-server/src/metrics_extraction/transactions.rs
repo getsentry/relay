@@ -9,6 +9,7 @@ use relay_general::protocol::{
 };
 use relay_general::store;
 use relay_general::types::Annotated;
+use relay_metrics::MetricName;
 use relay_metrics::{DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -414,9 +415,17 @@ fn extract_transaction_metrics_inner(
                 tags_for_measurement.insert("measurement_rating".to_owned(), rating);
             }
 
+            let metric_name = match MetricName::create(format!("measurements.{}", name).as_str()) {
+                Ok(name) => name,
+                Err(_) => {
+                    relay_log::error!("Found invalid measurement name {:?}, should have been caught by normalization", name);
+                    continue;
+                }
+            };
+
             metrics.push(Metric::new_mri(
                 METRIC_NAMESPACE,
-                format!("measurements.{}", name),
+                metric_name,
                 measurement.unit.value().copied().unwrap_or_default(),
                 MetricValue::Distribution(value),
                 unix_timestamp,
@@ -448,9 +457,19 @@ fn extract_transaction_metrics_inner(
 
                     let unit = measurement.unit.value();
 
+                    let metric_name = match MetricName::create(
+                        format!("breakdowns.{}.{}", breakdown, measurement_name).as_str(),
+                    ) {
+                        Ok(name) => name,
+                        Err(_) => {
+                            relay_log::error!("Found invalid measurement name {:?}, should have been caught by normalization", measurement_name);
+                            continue;
+                        }
+                    };
+
                     metrics.push(Metric::new_mri(
                         METRIC_NAMESPACE,
-                        format!("breakdowns.{}.{}", breakdown, measurement_name),
+                        metric_name,
                         unit.copied().unwrap_or(MetricUnit::None),
                         MetricValue::Distribution(value),
                         unix_timestamp,
@@ -475,7 +494,7 @@ fn extract_transaction_metrics_inner(
     // Duration
     metrics.push(Metric::new_mri(
         METRIC_NAMESPACE,
-        "duration",
+        MetricName::unchecked("duration"),
         MetricUnit::Duration(DurationUnit::MilliSecond),
         MetricValue::Distribution(duration_millis),
         unix_timestamp,
@@ -487,7 +506,7 @@ fn extract_transaction_metrics_inner(
         if let Some(value) = get_eventuser_tag(user) {
             metrics.push(Metric::new_mri(
                 METRIC_NAMESPACE,
-                "user",
+                MetricName::unchecked("user"),
                 MetricUnit::None,
                 MetricValue::set_from_str(&value),
                 unix_timestamp,
@@ -583,7 +602,7 @@ mod tests {
         self, BreakdownsConfig, LightNormalizationConfig, MeasurementsConfig,
     };
     use relay_general::types::Annotated;
-    use relay_metrics::DurationUnit;
+    use relay_metrics::{DurationUnit, MetricName};
 
     use crate::metrics_extraction::TaggingRule;
 
@@ -1370,7 +1389,7 @@ mod tests {
             metrics,
             &[Metric::new_mri(
                 METRIC_NAMESPACE,
-                "measurements.lcp",
+                MetricName::unchecked("measurements.lcp"),
                 MetricUnit::Duration(DurationUnit::MilliSecond),
                 MetricValue::Distribution(41.0),
                 UnixTimestamp::from_secs(1619420402),

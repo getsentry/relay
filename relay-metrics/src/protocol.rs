@@ -149,18 +149,50 @@ impl fmt::Display for ParseMetricError {
     }
 }
 
-/// Validates a metric name. This is the statsd name, i.e. without type or unit.
+/// A valid metric name. This is the statsd name, i.e. without namespace, type or unit.
 ///
 /// Metric names cannot be empty, must begin with a letter and can consist of ASCII alphanumerics,
 /// underscores, slashes and periods.
-fn is_valid_name(name: &str) -> bool {
-    let mut iter = name.as_bytes().iter();
-    if let Some(first_byte) = iter.next() {
-        if first_byte.is_ascii_alphabetic() {
-            return iter.all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'/'));
+#[derive(Debug)]
+pub struct MetricName<'a>(&'a str);
+
+impl<'a> MetricName<'a> {
+    /// Create a validated metric name. Returns Err if the given name contains invalid characters.
+    pub fn create(name: &'a str) -> Result<Self, ParseMetricError> {
+        if Self::is_valid(name) {
+            Ok(Self(name))
+        } else {
+            Err(ParseMetricError(()))
         }
     }
-    false
+
+    /// Convenience method for names which are provided as string literals.
+    ///
+    /// For these cases, the name is not validated.
+    pub fn unchecked(name: &'static str) -> Self {
+        Self(name)
+    }
+
+    /// Returns the metric name as &str.
+    pub fn as_str(&self) -> &str {
+        self.0
+    }
+
+    fn is_valid(name: &str) -> bool {
+        let mut iter = name.as_bytes().iter();
+        if let Some(first_byte) = iter.next() {
+            if first_byte.is_ascii_alphabetic() {
+                return iter.all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_'));
+            }
+        }
+        false
+    }
+}
+
+impl<'a> fmt::Display for MetricName<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.0)
+    }
 }
 
 /// The namespace of a metric.
@@ -226,7 +258,7 @@ pub struct MetricResourceIdentifier<'a> {
     /// the value `"custom"`.
     pub namespace: MetricNamespace,
     /// The actual name, such as `duration` as part of `d:transactions/duration@ms`
-    pub name: &'a str,
+    pub name: MetricName<'a>,
     /// The metric unit.
     pub unit: MetricUnit,
 }
@@ -238,12 +270,12 @@ impl<'a> MetricResourceIdentifier<'a> {
         let ty = raw_ty.parse()?;
 
         let (raw_namespace, rest) = rest.split_once('/').ok_or(ParseMetricError(()))?;
-        let (name, unit) = parse_name_unit(rest).ok_or(ParseMetricError(()))?;
+        let (raw_name, unit) = parse_name_unit(rest).ok_or(ParseMetricError(()))?;
 
         Ok(Self {
             ty,
             namespace: raw_namespace.parse()?,
-            name,
+            name: MetricName::create(raw_name)?,
             unit,
         })
     }
@@ -288,9 +320,6 @@ pub(crate) fn validate_tag_value(tag_value: &mut String) {
 fn parse_name_unit(string: &str) -> Option<(&str, MetricUnit)> {
     let mut components = string.split('@');
     let name = components.next()?;
-    if !is_valid_name(name) {
-        return None;
-    }
 
     let unit = match components.next() {
         Some(s) => s.parse().ok()?,
@@ -488,7 +517,7 @@ impl Metric {
     /// ensures that just the name determines correct bucketing of metrics with name collisions.
     pub fn new_mri(
         namespace: MetricNamespace,
-        name: impl AsRef<str>,
+        name: MetricName,
         unit: MetricUnit,
         value: MetricValue,
         timestamp: UnixTimestamp,
@@ -497,7 +526,7 @@ impl Metric {
         Self {
             name: MetricResourceIdentifier {
                 ty: value.ty(),
-                name: name.as_ref(),
+                name,
                 namespace,
                 unit,
             }
@@ -518,13 +547,13 @@ impl Metric {
         let name_value_str = components.next()?;
         let ty = components.next().and_then(|s| s.parse().ok())?;
         let (name_and_namespace, unit, value) = parse_name_unit_value(name_value_str, ty)?;
-        let (raw_namespace, name) = name_and_namespace
+        let (raw_namespace, raw_name) = name_and_namespace
             .split_once('/')
             .unwrap_or(("custom", string));
 
         let mut metric = Self::new_mri(
             raw_namespace.parse().ok()?,
-            name,
+            MetricName::create(raw_name).ok()?,
             unit,
             value,
             timestamp,
@@ -802,23 +831,6 @@ mod tests {
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp);
         assert!(metric.is_err());
-    }
-
-    #[test]
-    fn test_invalid_mri() {
-        let timestamp = UnixTimestamp::from_secs(4711);
-        let metric = Metric::new_mri(
-            MetricNamespace::Transactions,
-            "measurement-custom",
-            MetricUnit::None,
-            MetricValue::Counter(1.0),
-            timestamp,
-            Default::default(),
-        );
-
-        // If we can construct an mri, we should also be able to parse it back:
-        let result = MetricResourceIdentifier::parse(&metric.name);
-        assert!(result.is_ok(), "{:?}", result);
     }
 
     #[test]

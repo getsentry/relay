@@ -46,7 +46,7 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
                     return None;
                 }
 
-                if mri.name == "duration" {
+                if mri.name.as_str() == "duration" {
                     // The "duration" metric is extracted exactly once for every processed
                     // transaction, so we can use it to count the number of transactions.
                     let count = metric.len();
