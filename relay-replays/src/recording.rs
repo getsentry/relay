@@ -142,9 +142,7 @@ impl RecordingProcessor<'_> {
                     self.recurse_snapshot_node(&mut addition.node)
                 }
             }
-            IncrementalSourceDataVariant::Input(input) => {
-                input.text = self.strip_pii(&mut input.text)
-            }
+            IncrementalSourceDataVariant::Input(input) => self.strip_pii(&mut input.text),
             _ => {}
         }
     }
@@ -158,7 +156,7 @@ impl RecordingProcessor<'_> {
             }
             NodeVariant::T2(element) => self.recurse_element(element),
             NodeVariant::Rest(text) => {
-                text.text_content = self.strip_pii(&mut text.text_content);
+                self.strip_pii(&mut text.text_content);
             }
             _ => {}
         }
@@ -168,7 +166,7 @@ impl RecordingProcessor<'_> {
         match &mut event.data {
             CustomEventDataVariant::Breadcrumb(breadcrumb) => match &mut breadcrumb.payload.message
             {
-                Some(message) => breadcrumb.payload.message = Some(self.strip_pii(message)),
+                Some(message) => self.strip_pii(message),
                 None => {}
             },
             CustomEventDataVariant::PerformanceSpan(_) => {}
@@ -193,19 +191,10 @@ impl RecordingProcessor<'_> {
         }
     }
 
-    fn strip_pii(&mut self, value: &mut String) -> String {
-        match self.pii_processor.process_string(
-            value,
-            &mut Meta::default(),
-            ProcessingState::root(),
-        ) {
-            Ok(_) => value.to_string(),
-            // TODO: This branch should not be applicable to us.  We're not stripping PII from an
-            // Option and we're not providing types other than String.  We could unwrap instead of
-            // matching on Err if we're really confident.  We could also propagate an error up the
-            // call stack to be safe.  For now we fail silently...
-            Err(_) => value.to_string(),
-        }
+    fn strip_pii(&mut self, value: &mut String) {
+        self.pii_processor
+            .process_string(value, &mut Meta::default(), ProcessingState::root())
+            .unwrap();
     }
 }
 
