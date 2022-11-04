@@ -344,12 +344,11 @@ struct PerformanceSpan {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct PerformanceSpanPayload {
     op: String,
     description: String, // TODO: needs to be pii stripped (uri params)
-    #[serde(rename = "startTimestamp")]
     start_timestamp: f64,
-    #[serde(rename = "endTimestamp")]
     end_timestamp: f64,
     #[serde(skip_serializing_if = "Option::is_none")]
     data: Option<Value>,
@@ -369,14 +368,15 @@ struct PerformanceSpanPayload {
 /// -> COMMENT = 5
 
 #[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct Node {
-    #[serde(rename = "rootId", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     root_id: Option<u32>,
-    #[serde(rename = "isShadowHost", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     is_shadow_host: Option<bool>,
-    #[serde(rename = "isShadow", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     is_shadow: Option<bool>,
-    #[serde(rename = "compatMode", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     compat_mode: Option<String>,
     #[serde(flatten)]
     variant: NodeVariant,
@@ -433,41 +433,39 @@ struct DocumentNode {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct DocumentTypeNode {
-    id: u32,
     #[serde(rename = "type")]
     ty: u8,
-    #[serde(rename = "publicId")]
+    id: u32,
     public_id: String,
-    #[serde(rename = "systemId")]
     system_id: String,
     name: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct ElementNode {
     id: u32,
     #[serde(rename = "type")]
     ty: u8,
     attributes: HashMap<String, String>,
-    #[serde(rename = "tagName")]
     tag_name: String,
-    #[serde(rename = "childNodes")]
     child_nodes: Vec<Node>,
     #[serde(rename = "isSVG", skip_serializing_if = "Option::is_none")]
     is_svg: Option<bool>,
-    #[serde(rename = "needBlock", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     need_block: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct TextNode {
     id: u32,
     #[serde(rename = "type")]
     ty: u8,
-    #[serde(rename = "textContent")]
     text_content: String,
-    #[serde(rename = "isStyle", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     is_style: Option<bool>,
 }
 
@@ -525,30 +523,30 @@ impl<'de> serde::Deserialize<'de> for IncrementalSourceDataVariant {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct InputIncrementalSourceData {
     source: u8,
     id: u32,
     text: String,
-    #[serde(rename = "isChecked")]
     is_checked: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct MutationIncrementalSourceData {
     source: u8,
     texts: Vec<Value>,
     attributes: Vec<Value>,
     removes: Vec<Value>,
     adds: Vec<MutationAdditionIncrementalSourceData>,
-    #[serde(rename = "isAttachIframe", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     is_attach_iframe: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct MutationAdditionIncrementalSourceData {
-    #[serde(rename = "parentId")]
     parent_id: u32,
-    #[serde(rename = "nextId")]
     next_id: Option<u32>,
     node: Node,
 }
