@@ -10,6 +10,7 @@
 
 - Implement response context schema. ([#1529](https://github.com/getsentry/relay/pull/1529))
 - Support dedicated quotas for storing transaction payloads ("indexed transactions") via the `transaction_indexed` data category if metrics extraction is enabled. ([#1537](https://github.com/getsentry/relay/pull/1537), [#1555](https://github.com/getsentry/relay/pull/1555))
+- Report outcomes for dynamic sampling with the correct indexed transaction data category to restore correct totals. ([#1561](https://github.com/getsentry/relay/pull/1561))
 
 ## 22.10.0
 

@@ -224,35 +224,27 @@ impl Producers {
     pub fn create(config: &Arc<Config>) -> Result<Self, ServerError> {
         let mut reused_producers = BTreeMap::new();
         let producers = Producers {
-            attachments: make_producer(&**config, &mut reused_producers, KafkaTopic::Attachments)?,
-            events: make_producer(&**config, &mut reused_producers, KafkaTopic::Events)?,
-            transactions: make_producer(
-                &**config,
-                &mut reused_producers,
-                KafkaTopic::Transactions,
-            )?,
-            sessions: make_producer(&**config, &mut reused_producers, KafkaTopic::Sessions)?,
+            attachments: make_producer(config, &mut reused_producers, KafkaTopic::Attachments)?,
+            events: make_producer(config, &mut reused_producers, KafkaTopic::Events)?,
+            transactions: make_producer(config, &mut reused_producers, KafkaTopic::Transactions)?,
+            sessions: make_producer(config, &mut reused_producers, KafkaTopic::Sessions)?,
             metrics_sessions: make_producer(
-                &**config,
+                config,
                 &mut reused_producers,
                 KafkaTopic::MetricsSessions,
             )?,
             metrics_transactions: make_producer(
-                &**config,
+                config,
                 &mut reused_producers,
                 KafkaTopic::MetricsTransactions,
             )?,
-            profiles: make_producer(&**config, &mut reused_producers, KafkaTopic::Profiles)?,
+            profiles: make_producer(config, &mut reused_producers, KafkaTopic::Profiles)?,
             replay_recordings: make_producer(
-                &**config,
+                config,
                 &mut reused_producers,
                 KafkaTopic::ReplayRecordings,
             )?,
-            replay_events: make_producer(
-                &**config,
-                &mut reused_producers,
-                KafkaTopic::ReplayEvents,
-            )?,
+            replay_events: make_producer(config, &mut reused_producers, KafkaTopic::ReplayEvents)?,
         };
         Ok(producers)
     }
