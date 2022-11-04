@@ -217,6 +217,7 @@ impl fmt::Display for MetricNamespace {
 /// (excl. timestamp and tags).
 ///
 /// For more information see [`Metric::name`].
+#[derive(Debug)]
 pub struct MetricResourceIdentifier<'a> {
     /// The metric type.
     pub ty: MetricType,
@@ -801,6 +802,23 @@ mod tests {
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp);
         assert!(metric.is_err());
+    }
+
+    #[test]
+    fn test_invalid_mri() {
+        let timestamp = UnixTimestamp::from_secs(4711);
+        let metric = Metric::new_mri(
+            MetricNamespace::Transactions,
+            "measurement-custom",
+            MetricUnit::None,
+            MetricValue::Counter(1.0),
+            timestamp,
+            Default::default(),
+        );
+
+        // If we can construct an mri, we should also be able to parse it back:
+        let result = MetricResourceIdentifier::parse(&metric.name);
+        assert!(result.is_ok(), "{:?}", result);
     }
 
     #[test]
