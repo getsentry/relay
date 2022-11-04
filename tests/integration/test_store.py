@@ -680,7 +680,7 @@ def test_processing_quota_transaction_indexing(
             "scopeId": six.text_type(key_id),
             "categories": ["transaction_indexed"],
             "limit": 1,
-            "window": 300,
+            "window": 86400,
             "reasonCode": "get_lost",
         },
         {
@@ -689,7 +689,7 @@ def test_processing_quota_transaction_indexing(
             "scopeId": six.text_type(key_id),
             "categories": ["transaction"],
             "limit": 2,
-            "window": 300,
+            "window": 86400,
             "reasonCode": "get_lost",
         },
     ]
