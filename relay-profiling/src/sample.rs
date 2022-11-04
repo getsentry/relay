@@ -28,6 +28,8 @@ struct Frame {
     instruction_addr: Option<Addr>,
     #[serde(alias = "line", skip_serializing_if = "Option::is_none")]
     lineno: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    module: Option<String>,
 }
 
 impl Frame {
