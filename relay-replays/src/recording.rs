@@ -1,10 +1,10 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::io::{self, BufRead, Read, Write};
 
-use relay_general::pii::PiiConfig;
-use relay_general::pii::PiiProcessor;
-use relay_general::processor::{ProcessingState, Processor};
+use relay_general::pii::{DataScrubbingConfig, PiiProcessor};
+use relay_general::processor::{FieldAttrs, Pii, ProcessingState, Processor, ValueType};
 use relay_general::types::Meta;
 
 use flate2::read::ZlibDecoder;
@@ -14,11 +14,7 @@ use serde::de::Error as DError;
 use serde::{Deserialize, Serialize};
 use serde_json::{Error, Value};
 
-pub fn process_recording(
-    bytes: &[u8],
-    pii_config1: Option<&PiiConfig>,
-    pii_config2: Option<&PiiConfig>,
-) -> Result<Vec<u8>, String> {
+pub fn process_recording(bytes: &[u8]) -> Result<Vec<u8>, String> {
     // Split recording headers and body.
     let cursor = io::Cursor::new(bytes);
     let mut split_iter = cursor
@@ -35,7 +31,7 @@ pub fn process_recording(
     let mut events = loads(body).map_err(|e| e.to_string())?;
 
     // Processing.
-    strip_pii(&mut events, pii_config1, pii_config2);
+    strip_pii(&mut events);
 
     // Serialization.
     let out_bytes = dumps(events).map_err(|e| e.to_string())?;
@@ -60,26 +56,15 @@ fn dumps(rrweb: Vec<Event>) -> Result<Vec<u8>, RecordingParseError> {
     Ok(result)
 }
 
-fn strip_pii(
-    events: &mut Vec<Event>,
-    pii_config1: Option<&PiiConfig>,
-    pii_config2: Option<&PiiConfig>,
-) {
-    // TODO: Both configs can be passed to the recording processor and run sequentially during
-    // iteration.  This would avoid iterating over the data structure twice.  Need some help with
-    // lifetimes here.  It is beyond my scope of understanding.
+fn strip_pii(events: &mut Vec<Event>) {
+    let mut scrub_config = DataScrubbingConfig::default();
+    scrub_config.scrub_data = true;
+    scrub_config.scrub_defaults = true;
 
-    if let Some(config) = pii_config1 {
-        let pii_processor = PiiProcessor::new(config.compiled());
-        let mut processor = RecordingProcessor::new(pii_processor);
-        processor.mask_pii(events);
-    }
-
-    if let Some(config) = pii_config2 {
-        let pii_processor = PiiProcessor::new(config.compiled());
-        let mut processor = RecordingProcessor::new(pii_processor);
-        processor.mask_pii(events);
-    }
+    let pii_config = scrub_config.pii_config().unwrap().as_ref().unwrap().clone();
+    let pii_processor = PiiProcessor::new(pii_config.compiled());
+    let mut processor = RecordingProcessor::new(pii_processor);
+    processor.mask_pii(events);
 }
 
 // Error
@@ -192,8 +177,11 @@ impl RecordingProcessor<'_> {
     }
 
     fn strip_pii(&mut self, value: &mut String) {
+        let field_attrs = Cow::Owned(FieldAttrs::new().pii(Pii::True));
+        let processing_state =
+            ProcessingState::new_root(Some(field_attrs), Some(ValueType::String));
         self.pii_processor
-            .process_string(value, &mut Meta::default(), ProcessingState::root())
+            .process_string(value, &mut Meta::default(), &processing_state)
             .unwrap();
     }
 }
@@ -557,31 +545,13 @@ mod tests {
     #[test]
     fn test_process_recording_no_config() {
         let payload = include_bytes!("../tests/fixtures/rrweb-binary.txt");
-        recording::process_recording(payload, None, None).unwrap();
+        recording::process_recording(payload).unwrap();
     }
 
     #[test]
     fn test_process_recording_has_config() {
-        // TODO: Use a better config.
-        let raw_config = PiiConfig::from_json(
-            r##"
-            {
-                "rules": {
-                    "remove_bad_headers": {
-                        "type": "redact_pair",
-                        "keyPattern": "(?i)cookie|secret[-_]?key"
-                    }
-                },
-                "applications": {
-                    "$string": ["@ip"],
-                    "$object.**": ["remove_bad_headers"]
-                }
-            }
-            "##,
-        );
-
         let payload = include_bytes!("../tests/fixtures/rrweb-binary.txt");
-        recording::process_recording(payload, raw_config.ok().as_ref(), None).unwrap();
+        recording::process_recording(payload).unwrap();
     }
 
     #[test]

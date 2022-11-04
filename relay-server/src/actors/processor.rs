@@ -1085,16 +1085,6 @@ impl EnvelopeProcessorService {
         let envelope = &mut state.envelope;
         let client_addr = envelope.meta().client_addr();
 
-        // TODO: single function combines pii configs into one.
-        let pii_config1 = state.project_state.config().pii_config.as_ref();
-        let pii_config2 = state
-            .project_state
-            .config()
-            .datascrubbing_settings
-            .pii_config()
-            .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?
-            .as_ref();
-
         state.envelope.retain_items(|item| match item.ty() {
             ItemType::ReplayEvent => {
                 if !replays_enabled {
@@ -1121,11 +1111,8 @@ impl EnvelopeProcessorService {
             }
             ItemType::ReplayRecording => {
                 if replays_enabled {
-                    let parsed_recording = relay_replays::recording::process_recording(
-                        &item.payload(),
-                        pii_config1,
-                        pii_config2,
-                    );
+                    let parsed_recording =
+                        relay_replays::recording::process_recording(&item.payload());
                     match parsed_recording {
                         Ok(recording) => {
                             item.set_payload(ContentType::OctetStream, recording.as_slice());
