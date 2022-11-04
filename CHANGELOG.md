@@ -8,7 +8,7 @@
 
 **Bug Fixes**:
 
-- Validate the distrubution name in the event. ([#1556](https://github.com/getsentry/relay/pull/1556))
+- Validate the distribution name in the event. ([#1556](https://github.com/getsentry/relay/pull/1556))
 
 **Internal**:
 
