@@ -2328,6 +2328,31 @@
 <span id="2326">2326</span>
 <span id="2327">2327</span>
 <span id="2328">2328</span>
+<span id="2329">2329</span>
+<span id="2330">2330</span>
+<span id="2331">2331</span>
+<span id="2332">2332</span>
+<span id="2333">2333</span>
+<span id="2334">2334</span>
+<span id="2335">2335</span>
+<span id="2336">2336</span>
+<span id="2337">2337</span>
+<span id="2338">2338</span>
+<span id="2339">2339</span>
+<span id="2340">2340</span>
+<span id="2341">2341</span>
+<span id="2342">2342</span>
+<span id="2343">2343</span>
+<span id="2344">2344</span>
+<span id="2345">2345</span>
+<span id="2346">2346</span>
+<span id="2347">2347</span>
+<span id="2348">2348</span>
+<span id="2349">2349</span>
+<span id="2350">2350</span>
+<span id="2351">2351</span>
+<span id="2352">2352</span>
+<span id="2353">2353</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::DefaultHasher;
 <span class="kw">use </span>std::hash::{Hash, Hasher};
 <span class="kw">use </span>std::mem;
@@ -2420,20 +2445,19 @@
     VALID_PLATFORMS.contains(<span class="kw-2">&amp;</span>platform)
 }
 
-<span class="kw">pub fn </span>normalize_dist(dist: <span class="kw-2">&amp;mut </span><span class="prelude-ty">Option</span>&lt;String&gt;) {
-    <span class="kw">let </span><span class="kw-2">mut </span>erase = <span class="bool-val">false</span>;
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(val) = dist {
-        <span class="kw">if </span>val.is_empty() {
-            erase = <span class="bool-val">true</span>;
+<span class="kw">pub fn </span>normalize_dist(distribution: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;) -&gt; ProcessingResult {
+    distribution.apply(|dist, meta| {
+        <span class="kw">let </span>trimmed = dist.trim();
+        <span class="kw">if </span>trimmed.is_empty() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::DeleteValueHard);
+        } <span class="kw">else if </span>bytecount::num_chars(trimmed.as_bytes()) &gt; MaxChars::Distribution.limit() {
+            meta.add_error(Error::new(ErrorKind::ValueTooLong));
+            <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::DeleteValueSoft);
+        } <span class="kw">else if </span>trimmed != dist {
+            <span class="kw-2">*</span>dist = trimmed.to_string();
         }
-        <span class="kw">let </span>trimmed = val.trim();
-        <span class="kw">if </span>trimmed != val {
-            <span class="kw-2">*</span>val = trimmed.to_string()
-        }
-    }
-    <span class="kw">if </span>erase {
-        <span class="kw-2">*</span>dist = <span class="prelude-val">None</span>;
-    }
+        <span class="prelude-val">Ok</span>(())
+    })
 }
 
 <span class="doccomment">/// Compute additional measurements derived from existing ones.
@@ -2877,8 +2901,8 @@
 }
 
 <span class="doccomment">/// Ensures that the `release` and `dist` fields match up.
-</span><span class="kw">fn </span>normalize_release_dist(event: <span class="kw-2">&amp;mut </span>Event) {
-    normalize_dist(event.dist.value_mut());
+</span><span class="kw">fn </span>normalize_release_dist(event: <span class="kw-2">&amp;mut </span>Event) -&gt; ProcessingResult {
+    normalize_dist(<span class="kw-2">&amp;mut </span>event.dist)
 }
 
 <span class="kw">fn </span>is_security_report(event: <span class="kw-2">&amp;</span>Event) -&gt; bool {
@@ -3047,7 +3071,7 @@
 
         <span class="comment">// Default required attributes, even if they have errors
         </span>normalize_logentry(<span class="kw-2">&amp;mut </span>event.logentry, meta)<span class="question-mark">?</span>;
-        normalize_release_dist(event); <span class="comment">// dist is a tag extracted along with other metrics from transactions
+        normalize_release_dist(event)<span class="question-mark">?</span>; <span class="comment">// dist is a tag extracted along with other metrics from transactions
         </span>normalize_timestamps(
             event,
             meta,
@@ -4046,6 +4070,32 @@
     }
 
     <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_too_long_distribution() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
+  &quot;event_id&quot;: &quot;52df9022835246eeb317dbd739ccd059&quot;,
+  &quot;fingerprint&quot;: [
+    &quot;{{ default }}&quot;
+  ],
+  &quot;platform&quot;: &quot;other&quot;,
+  &quot;dist&quot;: &quot;52df9022835246eeb317dbd739ccd059-52df9022835246eeb317dbd739ccd059-52df9022835246eeb317dbd739ccd059&quot;
+}&quot;#</span>;
+
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
+
+        <span class="kw">let </span><span class="kw-2">mut </span>processor = NormalizeProcessor::default();
+        <span class="kw">let </span>config = LightNormalizationConfig::default();
+        light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap();
+        process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
+
+        <span class="kw">let </span>dist = <span class="kw-2">&amp;</span>event.value().unwrap().dist;
+        <span class="kw">let </span>result = <span class="kw-2">&amp;</span>Annotated::&lt;String&gt;::from_error(
+            Error::new(ErrorKind::ValueTooLong),
+            <span class="prelude-val">Some</span>(Value::String(<span class="string">&quot;52df9022835246eeb317dbd739ccd059-52df9022835246eeb317dbd739ccd059-52df9022835246eeb317dbd739ccd059&quot;</span>.to_string()))
+        );
+        <span class="macro">assert_eq!</span>(dist, result);
+    }
+
+    <span class="attribute">#[test]
     </span><span class="kw">fn </span>test_regression_backfills_abs_path_even_when_moving_stacktrace() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
             exceptions: Annotated::new(Values::new(<span class="macro">vec!</span>[Annotated::new(Exception {
@@ -4296,31 +4346,31 @@
 
     <span class="attribute">#[test]
     </span><span class="kw">fn </span>test_normalize_dist_none() {
-        <span class="kw">let </span><span class="kw-2">mut </span>dist = <span class="prelude-val">None</span>;
-        normalize_dist(<span class="kw-2">&amp;mut </span>dist);
-        <span class="macro">assert_eq!</span>(dist, <span class="prelude-val">None</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>dist = Annotated::default();
+        normalize_dist(<span class="kw-2">&amp;mut </span>dist).unwrap();
+        <span class="macro">assert_eq!</span>(dist.value(), <span class="prelude-val">None</span>);
     }
 
     <span class="attribute">#[test]
     </span><span class="kw">fn </span>test_normalize_dist_empty() {
-        <span class="kw">let </span><span class="kw-2">mut </span>dist = <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>.to_owned());
-        normalize_dist(<span class="kw-2">&amp;mut </span>dist);
-        <span class="macro">assert_eq!</span>(dist, <span class="prelude-val">None</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>dist = Annotated::new(<span class="string">&quot;&quot;</span>.to_string());
+        normalize_dist(<span class="kw-2">&amp;mut </span>dist).unwrap();
+        <span class="macro">assert_eq!</span>(dist.value(), <span class="prelude-val">None</span>);
     }
 
     <span class="attribute">#[test]
     </span><span class="kw">fn </span>test_normalize_dist_trim() {
-        <span class="kw">let </span><span class="kw-2">mut </span>dist = <span class="prelude-val">Some</span>(<span class="string">&quot; foo  &quot;</span>.to_owned());
-        normalize_dist(<span class="kw-2">&amp;mut </span>dist);
-        <span class="macro">assert_eq!</span>(dist.unwrap(), <span class="string">&quot;foo&quot;</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>dist = Annotated::new(<span class="string">&quot; foo  &quot;</span>.to_string());
+        normalize_dist(<span class="kw-2">&amp;mut </span>dist).unwrap();
+        <span class="macro">assert_eq!</span>(dist.value(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">&quot;foo&quot;</span>.to_string()));
     }
 
     <span class="attribute">#[test]
     </span><span class="kw">fn </span>test_normalize_dist_whitespace() {
-        <span class="kw">let </span><span class="kw-2">mut </span>dist = <span class="prelude-val">Some</span>(<span class="string">&quot; &quot;</span>.to_owned());
-        normalize_dist(<span class="kw-2">&amp;mut </span>dist);
-        <span class="macro">assert_eq!</span>(dist.unwrap(), <span class="string">&quot;&quot;</span>); <span class="comment">// Not sure if this is what we want
-    </span>}
+        <span class="kw">let </span><span class="kw-2">mut </span>dist = Annotated::new(<span class="string">&quot; &quot;</span>.to_owned());
+        normalize_dist(<span class="kw-2">&amp;mut </span>dist).unwrap();
+        <span class="macro">assert_eq!</span>(dist.value(), <span class="prelude-val">None</span>);
+    }
 
     <span class="attribute">#[test]
     </span><span class="kw">fn </span>test_computed_measurements() {

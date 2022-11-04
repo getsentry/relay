@@ -815,7 +815,6 @@
 <span id="813">813</span>
 <span id="814">814</span>
 <span id="815">815</span>
-<span id="816">816</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -1183,8 +1182,7 @@
     /// an application. For example, the dist can be the build number of an XCode build or the
     /// version code of an Android build.
     </span><span class="attribute">#[metastructure(
-        max_chars = <span class="string">&quot;tag_value&quot;</span>,  <span class="comment">// dist ends in tag
-        </span>allow_chars = <span class="string">&quot;a-zA-Z0-9_.-&quot;</span>,
+        allow_chars = <span class="string">&quot;a-zA-Z0-9_.-&quot;</span>,
         trim_whitespace = <span class="string">&quot;true&quot;</span>,
         required = <span class="string">&quot;false&quot;</span>,
         nonempty = <span class="string">&quot;true&quot;

@@ -1103,6 +1103,7 @@
 <span id="1101">1101</span>
 <span id="1102">1102</span>
 <span id="1103">1103</span>
+<span id="1104">1104</span>
 </pre><pre class="rust"><code><span class="attribute">#![recursion_limit = <span class="string">&quot;256&quot;</span>]
 #![deny(unused_must_use)]
 #![doc(
@@ -1634,6 +1635,7 @@
         <span class="string">&quot;tag_key&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::TagKey),
         <span class="string">&quot;tag_value&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::TagValue),
         <span class="string">&quot;environment&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Environment),
+        <span class="string">&quot;distribution&quot; </span>=&gt; <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::MaxChars::Distribution),
         <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">&quot;invalid max_chars variant &#39;{}&#39;&quot;</span>, name),
     }
 }

@@ -839,6 +839,9 @@
 <span id="837">837</span>
 <span id="838">838</span>
 <span id="839">839</span>
+<span id="840">840</span>
+<span id="841">841</span>
+<span id="842">842</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::ops::RangeInclusive;
@@ -942,6 +945,7 @@
     TagKey,
     TagValue,
     Environment,
+    Distribution,
     Hard(usize),
     Soft(usize),
 }
@@ -964,6 +968,7 @@
             MaxChars::TagKey =&gt; <span class="number">32</span>,
             MaxChars::TagValue =&gt; <span class="number">200</span>,
             MaxChars::Environment =&gt; <span class="number">64</span>,
+            MaxChars::Distribution =&gt; <span class="number">64</span>,
             MaxChars::Soft(len) | MaxChars::Hard(len) =&gt; len,
         }
     }
@@ -984,6 +989,7 @@
             MaxChars::TagKey =&gt; <span class="number">0</span>,
             MaxChars::TagValue =&gt; <span class="number">0</span>,
             MaxChars::Environment =&gt; <span class="number">0</span>,
+            MaxChars::Distribution =&gt; <span class="number">0</span>,
             MaxChars::Soft(<span class="kw">_</span>) =&gt; <span class="number">10</span>,
             MaxChars::Hard(<span class="kw">_</span>) =&gt; <span class="number">0</span>,
         }
