@@ -481,11 +481,13 @@ fn normalize_event_tags(event: &mut Event) -> ProcessingResult {
 
     let server_name = std::mem::take(&mut event.server_name);
     if server_name.value().is_some() {
+        #[allow(clippy::unnecessary_to_owned)]
         tags.insert("server_name".to_string(), server_name);
     }
 
     let site = std::mem::take(&mut event.site);
     if site.value().is_some() {
+        #[allow(clippy::unnecessary_to_owned)]
         tags.insert("site".to_string(), site);
     }
 
