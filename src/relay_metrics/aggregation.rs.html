@@ -3177,6 +3177,11 @@
 <span id="3175">3175</span>
 <span id="3176">3176</span>
 <span id="3177">3177</span>
+<span id="3178">3178</span>
+<span id="3179">3179</span>
+<span id="3180">3180</span>
+<span id="3181">3181</span>
+<span id="3182">3182</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::cmp::max;
 <span class="kw">use </span>std::collections::{btree_map, hash_map::Entry, BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::fmt;
@@ -3968,7 +3973,7 @@
 
         <span class="comment">// If the bucket key can&#39;t even fit into the remaining length, move the entire bucket into
         // the right-hand side.
-        </span><span class="kw">let </span>own_size = <span class="self">self</span>.estimated_own_size();
+        </span><span class="kw">let </span>own_size = <span class="self">self</span>.estimated_base_size();
         <span class="kw">if </span>size &lt; (own_size + AVG_VALUE_SIZE) {
             <span class="comment">// split_at must not be zero
             </span><span class="kw">return </span>(<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="self">self</span>));
@@ -4008,7 +4013,7 @@
     ///
     /// Note that this does not match the exact size of the serialized payload. Instead, the size is
     /// approximated through tags and a static overhead.
-    </span><span class="kw">fn </span>estimated_own_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+    </span><span class="kw">fn </span>estimated_base_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
         <span class="number">50 </span>+ <span class="self">self</span>.name.len() + tags_cost(<span class="kw-2">&amp;</span><span class="self">self</span>.tags)
     }
 
@@ -4018,7 +4023,7 @@
     /// approximated through the number of contained values, assuming an average size of serialized
     /// values.
     </span><span class="kw">fn </span>estimated_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-        <span class="self">self</span>.estimated_own_size() + <span class="self">self</span>.value.len() * AVG_VALUE_SIZE
+        <span class="self">self</span>.estimated_base_size() + <span class="self">self</span>.value.len() * AVG_VALUE_SIZE
     }
 }
 
@@ -4502,8 +4507,11 @@
         }
 
         <span class="kw">if </span>current_batch.is_empty() {
-            <span class="self">self</span>.next_bucket = <span class="prelude-val">None</span>; <span class="comment">// fuse
-            </span><span class="prelude-val">None
+            <span class="comment">// There is still leftover data not returned by the iterator after it has ended.
+            </span><span class="kw">if </span><span class="self">self</span>.next_bucket.take().is_some() {
+                <span class="macro">relay_log::error!</span>(<span class="string">&quot;CappedBucketIter swallowed bucket&quot;</span>);
+            }
+            <span class="prelude-val">None
         </span>} <span class="kw">else </span>{
             <span class="prelude-val">Some</span>(current_batch)
         }
@@ -5052,7 +5060,6 @@
     {
         <span class="kw">let </span>capped_batches =
             CappedBucketIter::new(buckets.into_iter(), <span class="self">self</span>.config.max_flush_bytes);
-
         <span class="kw">let </span>num_batches = capped_batches
             .map(|batch| {
                 <span class="macro">relay_statsd::metric!</span>(
@@ -6328,8 +6335,11 @@
 
         <span class="kw">let </span>buckets = Bucket::parse_all(json.as_bytes()).unwrap();
 
-        <span class="kw">let </span>iter = CappedBucketIter::new(buckets.into_iter(), max_flush_bytes);
-        <span class="kw">let </span>batches = iter.take(expected_elements + <span class="number">1</span>).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+        <span class="kw">let </span><span class="kw-2">mut </span>iter = CappedBucketIter::new(buckets.into_iter(), max_flush_bytes);
+        <span class="kw">let </span>batches = iter
+            .by_ref()
+            .take(expected_elements + <span class="number">1</span>)
+            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
         <span class="macro">assert!</span>(
             batches.len() &lt;= expected_elements,
             <span class="string">&quot;Cannot have more buckets than individual values&quot;
