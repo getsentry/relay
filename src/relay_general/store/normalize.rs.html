@@ -2836,14 +2836,14 @@
 
     <span class="kw">let </span>server_name = std::mem::take(<span class="kw-2">&amp;mut </span>event.server_name);
     <span class="kw">if </span>server_name.value().is_some() {
-        <span class="attribute">#[allow(clippy::unnecessary_to_owned)]
-        </span>tags.insert(<span class="string">&quot;server_name&quot;</span>.to_string(), server_name);
+        <span class="kw">let </span>tag_name = <span class="string">&quot;server_name&quot;</span>.to_string();
+        tags.insert(tag_name, server_name);
     }
 
     <span class="kw">let </span>site = std::mem::take(<span class="kw-2">&amp;mut </span>event.site);
     <span class="kw">if </span>site.value().is_some() {
-        <span class="attribute">#[allow(clippy::unnecessary_to_owned)]
-        </span>tags.insert(<span class="string">&quot;site&quot;</span>.to_string(), site);
+        <span class="kw">let </span>tag_name = <span class="string">&quot;site&quot;</span>.to_string();
+        tags.insert(tag_name, site);
     }
 
     <span class="prelude-val">Ok</span>(())
