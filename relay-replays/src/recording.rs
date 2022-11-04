@@ -324,7 +324,7 @@ struct PerformanceSpan {
 #[serde(rename_all = "camelCase")]
 struct PerformanceSpanPayload {
     op: String,
-    description: String, // TODO: needs to be pii stripped (uri params)
+    description: String,
     start_timestamp: f64,
     end_timestamp: f64,
     #[serde(skip_serializing_if = "Option::is_none")]
