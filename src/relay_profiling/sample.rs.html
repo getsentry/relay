@@ -431,6 +431,12 @@
 <span id="431">431</span>
 <span id="432">432</span>
 <span id="433">433</span>
+<span id="434">434</span>
+<span id="435">435</span>
+<span id="436">436</span>
+<span id="437">437</span>
+<span id="438">438</span>
+<span id="439">439</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
@@ -447,16 +453,22 @@
 
 <span class="attribute">#[derive(Debug, Serialize, Deserialize, Clone)]
 </span><span class="kw">struct </span>Frame {
-    <span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
-    </span>instruction_addr: <span class="prelude-ty">Option</span>&lt;Addr&gt;,
-    <span class="attribute">#[serde(alias = <span class="string">&quot;name&quot;</span>, default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
-    </span>function: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="attribute">#[serde(alias = <span class="string">&quot;line&quot;</span>, default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
-    </span>lineno: <span class="prelude-ty">Option</span>&lt;u32&gt;,
-    <span class="attribute">#[serde(alias = <span class="string">&quot;column&quot;</span>, default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>abs_path: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    <span class="attribute">#[serde(alias = <span class="string">&quot;column&quot;</span>, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span>colno: <span class="prelude-ty">Option</span>&lt;u32&gt;,
-    <span class="attribute">#[serde(alias = <span class="string">&quot;file&quot;</span>, default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attribute">#[serde(alias = <span class="string">&quot;file&quot;</span>, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span>filename: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    <span class="attribute">#[serde(alias = <span class="string">&quot;name&quot;</span>, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>function: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    <span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>in_app: <span class="prelude-ty">Option</span>&lt;bool&gt;,
+    <span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>instruction_addr: <span class="prelude-ty">Option</span>&lt;Addr&gt;,
+    <span class="attribute">#[serde(alias = <span class="string">&quot;line&quot;</span>, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>lineno: <span class="prelude-ty">Option</span>&lt;u32&gt;,
+    <span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>module: <span class="prelude-ty">Option</span>&lt;String&gt;,
 }
 
 <span class="kw">impl </span>Frame {
