@@ -365,7 +365,6 @@ pub struct Event {
     /// an application. For example, the dist can be the build number of an XCode build or the
     /// version code of an Android build.
     #[metastructure(
-        max_chars = "distribution",
         allow_chars = "a-zA-Z0-9_.-",
         trim_whitespace = "true",
         required = "false",
