@@ -5,6 +5,7 @@ use relay_log::LogError;
 use relay_statsd::{metric, CounterMetric, HistogramMetric};
 
 /// Kafka producer context that logs producer errors.
+#[derive(Debug)]
 pub struct CaptureErrorContext;
 
 impl ClientContext for CaptureErrorContext {}

@@ -25,7 +25,7 @@ serde_yaml = "0.8.13"
 
 [features]
 default = []
-processing = [
+producer = [
   "relay-statsd",
   "rdkafka",
   "rdkafka-sys",

@@ -26,7 +26,7 @@ use relay_config::{Config, EmitOutcomes};
 use relay_filter::FilterStatKey;
 use relay_general::protocol::{ClientReport, DiscardedEvent, EventId};
 #[cfg(feature = "processing")]
-use relay_kafka::{config::KafkaTopic, Producer, ProducerError};
+use relay_kafka::{KafkaTopic, Producer, ProducerError};
 use relay_log::LogError;
 use relay_quotas::{ReasonCode, Scoping};
 use relay_sampling::RuleId;

@@ -3469,8 +3469,6 @@ dependencies = [
  "native-tls",
  "once_cell",
  "parking_lot 0.12.1",
- "rdkafka",
- "rdkafka-sys",
  "regex",
  "relay-auth",
  "relay-aws-extension",

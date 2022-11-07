@@ -13,7 +13,7 @@ use serde::{ser::Error, Serialize};
 use relay_common::{ProjectId, UnixTimestamp, Uuid};
 use relay_config::Config;
 use relay_general::protocol::{self, EventId, SessionAggregates, SessionStatus, SessionUpdate};
-use relay_kafka::{config::KafkaTopic, Message, Producer, ProducerError};
+use relay_kafka::{KafkaTopic, Message, Producer, ProducerError};
 use relay_log::LogError;
 use relay_metrics::{Bucket, BucketValue, MetricNamespace, MetricResourceIdentifier};
 use relay_quotas::Scoping;

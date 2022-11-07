@@ -40,6 +40,7 @@
 //!  - [`relay-ffi-macros`]: Macros for error handling in FFI bindings.
 //!  - [`relay-filter`]: Inbound data filters.
 //!  - [`relay-general`]: Event protocol, normalization and data scrubbing.
+//!  - [`relay-kafka`]: Kafka-related functionality.
 //!  - [`relay-log`]: Error reporting and logging.
 //!  - [`relay-metrics`]: Metrics protocol and processing.
 //!  - [`relay-quotas`]: Sentry quotas and rate limiting.
@@ -71,6 +72,7 @@
 //! [`relay-ffi-macros`]: ../relay_ffi_macros/index.html
 //! [`relay-filter`]: ../relay_filter/index.html
 //! [`relay-general`]: ../relay_general/index.html
+//! [`relay-kafka`]: ../relay_kafka/index.html
 //! [`relay-log`]: ../relay_log/index.html
 //! [`relay-metrics`]: ../relay_metrics/index.html
 //! [`relay-quotas`]: ../relay_quotas/index.html

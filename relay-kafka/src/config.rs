@@ -1,8 +1,18 @@
 use std::collections::BTreeMap;
 
+use failure::Fail;
 use serde::{Deserialize, Serialize};
 
-use crate::ConfigError;
+/// Kafka configuration errors.
+#[derive(Fail, Debug)]
+pub enum ConfigError {
+    /// The user referenced a kafka config name that does not exist.
+    #[fail(display = "unknown kafka config name")]
+    UnknownKafkaConfigName,
+    /// The user did not configure 0 shard
+    #[fail(display = "invalid kafka shard configuration: must have shard with index 0")]
+    InvalidShard,
+}
 
 /// Define the topics over which Relay communicates with Sentry.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -1,24 +1,133 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::collections::BTreeMap;
+use std::fmt;
+use std::sync::Arc;
 
-use rdkafka::{producer::BaseRecord, ClientConfig};
+use failure::Fail;
+use rdkafka::producer::BaseRecord;
+use rdkafka::ClientConfig;
 
 use relay_statsd::metric;
 
-use crate::{
-    config::{KafkaConfig, KafkaParams},
-    utils::{CaptureErrorContext, KafkaHistograms, ThreadedProducer},
-    Message, ProducerError,
-};
+use crate::config::{KafkaConfig, KafkaParams};
 
-/// Temporary map used to deduplicate kafka producers
+mod utils;
+use utils::{CaptureErrorContext, KafkaHistograms, ThreadedProducer};
+
+/// Temporary map used to deduplicate kafka producers.
 type ReusedProducersMap<'a> = BTreeMap<Option<&'a str>, Arc<ThreadedProducer>>;
 
+/// Kafka producer errors.
+#[derive(Fail, Debug)]
+pub enum ProducerError {
+    /// Failed to send a kafka message.
+    #[fail(display = "failed to send kafka message")]
+    SendFailed(#[cause] rdkafka::error::KafkaError),
+
+    /// Failed to create a kafka producer because of the invalid configuration.
+    #[fail(display = "failed to create kafka producer: invalid kafka config")]
+    InvalidConfig(#[cause] rdkafka::error::KafkaError),
+
+    /// Failed to serialize the message.
+    #[fail(display = "failed to serialize kafka message")]
+    InvalidMsgPack(#[cause] rmp_serde::encode::Error),
+
+    /// Failed to serialize the json message using serde.
+    #[fail(display = "failed to serialize json message")]
+    InvalidJson(#[cause] serde_json::Error),
+
+    /// Configuration is wrong and it cannot be used to identify the number of a shard.
+    #[fail(display = "invalid kafka shard")]
+    InvalidShard,
+}
+
+/// Describes the type which can be sent using kafka producer provided by this crate.
+pub trait Message {
+    /// Returns the partitioning key for this kafka message determining.
+    fn key(&self) -> [u8; 16];
+
+    /// Returns the type of the message.
+    fn variant(&self) -> &'static str;
+
+    /// Serializes the message into its binary format.
+    ///
+    /// # Errors
+    /// Returns the [`ProducerError::InvalidMsgPack`] or [`ProducerError::InvalidJson`] if the
+    /// serialization failed.
+    fn serialize(&self) -> Result<Vec<u8>, ProducerError>;
+}
+
+/// Single kafka producer config with assigned topic.
+pub struct Single {
+    /// Kafka topic name.
+    topic_name: String,
+    /// Real kafka producer.
+    producer: Arc<ThreadedProducer>,
+}
+
+impl fmt::Debug for Single {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Single")
+            .field("topic_name", &self.topic_name)
+            .field("producer", &"<ThreadedProducer>")
+            .finish()
+    }
+}
+
+/// Sharded producer configuration.
+pub struct ShardedProducer {
+    /// The maximum number of shards for this producer.
+    shards: u64,
+    /// The actual Kafka producer assigned to the range of logical shards, where the `u64` in the map is
+    /// the inclusive beginning of the range.
+    producers: BTreeMap<u64, (String, Arc<ThreadedProducer>)>,
+}
+
+impl ShardedProducer {
+    /// Returns topic name and the Kafka producer based on the provided sharding key.
+    /// Returns error [`ProducerError::InvalidShard`] if the shard range for the provided sharding
+    /// key could not be found.
+    ///
+    /// # Errors
+    /// Returns [`ProducerError::InvalidShard`] error if the provided `sharding_key` could not be
+    /// placed in any configured shard ranges.
+    pub fn get_producer(
+        &self,
+        sharding_key: u64,
+    ) -> Result<(&str, &ThreadedProducer), ProducerError> {
+        let shard = sharding_key % self.shards;
+        let (topic_name, producer) = self
+            .producers
+            .iter()
+            .take_while(|(k, _)| *k <= &shard)
+            .last()
+            .map(|(_, v)| v)
+            .ok_or(ProducerError::InvalidShard)?;
+
+        Ok((topic_name, producer))
+    }
+}
+
+impl fmt::Debug for ShardedProducer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let producers = &self
+            .producers
+            .iter()
+            .map(|(shard, (topic, _))| (shard, topic))
+            .collect::<BTreeMap<_, _>>();
+        f.debug_struct("ShardedProducer")
+            .field("shards", &self.shards)
+            .field("producers", producers)
+            .finish()
+    }
+}
+
 /// This object containes the Kafka producer variants for single and sharded configurations.
+#[derive(Debug)]
 pub enum Producer {
-    Single {
-        topic_name: String,
-        producer: Arc<ThreadedProducer>,
-    },
+    /// Configuration variant for the single kafka producer.
+    Single(Single),
+    /// Configuration variant for sharded kafka producer, when one topic has different producers
+    /// dedicated to the range of the shards.
     Sharded(ShardedProducer),
 }
 
@@ -40,10 +149,10 @@ impl Producer {
                 params,
             }) => {
                 if let Some(producer) = reused_producers.get(config_name) {
-                    return Ok(Producer::Single {
+                    return Ok(Self::Single(Single {
                         topic_name: (*topic_name).to_string(),
                         producer: Arc::clone(producer),
-                    });
+                    }));
                 }
 
                 for config_p in *params {
@@ -57,10 +166,10 @@ impl Producer {
                 );
 
                 reused_producers.insert(*config_name, Arc::clone(&producer));
-                Ok(Self::Single {
+                Ok(Self::Single(Single {
                     topic_name: (*topic_name).to_string(),
                     producer,
-                })
+                }))
             }
             KafkaConfig::Sharded { shards, configs } => {
                 let mut producers = BTreeMap::new();
@@ -116,10 +225,10 @@ impl Producer {
         payload: &[u8],
     ) -> Result<(), ProducerError> {
         let (topic_name, producer) = match self {
-            Self::Single {
+            Self::Single(Single {
                 topic_name,
                 producer,
-            } => (topic_name.as_str(), producer.as_ref()),
+            }) => (topic_name.as_str(), producer.as_ref()),
 
             Self::Sharded(sharded) => sharded.get_producer(organization_id)?,
         };
@@ -132,39 +241,5 @@ impl Producer {
             );
             ProducerError::SendFailed(kafka_error)
         })
-    }
-}
-
-/// Sharded producer configuration.
-pub struct ShardedProducer {
-    /// The maximum number of shards for this producer.
-    shards: u64,
-    /// The actual Kafka producer assigned to the range of logical shards, where the `u64` in the map is
-    /// the inclusive beginning of the range.
-    producers: BTreeMap<u64, (String, Arc<ThreadedProducer>)>,
-}
-
-impl ShardedProducer {
-    /// Returns topic name and the Kafka producer based on the provided sharding key.
-    /// Returns error [`ProducerError::InvalidShard`] if the shard range for the provided sharding
-    /// key could not be found.
-    ///
-    /// # Errors
-    /// Returns [`ProducerError::InvalidShard`] error if the provided `sharding_key` could not be
-    /// placed in any configured shard ranges.
-    pub fn get_producer(
-        &self,
-        sharding_key: u64,
-    ) -> Result<(&str, &ThreadedProducer), ProducerError> {
-        let shard = sharding_key % self.shards;
-        let (topic_name, producer) = self
-            .producers
-            .iter()
-            .take_while(|(k, _)| *k <= &shard)
-            .last()
-            .map(|(_, v)| v)
-            .ok_or(ProducerError::InvalidShard)?;
-
-        Ok((topic_name, producer))
     }
 }

@@ -17,8 +17,7 @@ use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize, Serializ
 use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
 use relay_common::{Dsn, Uuid};
 use relay_kafka::{
-    config::{KafkaConfig, KafkaConfigParam, KafkaTopic, TopicAssignments},
-    ConfigError as KafkaConfigError,
+    ConfigError as KafkaConfigError, KafkaConfig, KafkaConfigParam, KafkaTopic, TopicAssignments,
 };
 use relay_metrics::AggregatorConfig;
 use relay_redis::RedisConfig;
