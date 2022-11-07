@@ -2131,6 +2131,44 @@ mod tests {
     }
 
     #[test]
+    fn test_filter_invalid_measurement_name() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "my_custom-measurement_1": {"value": 123},
+                "my_custom_measurement_2": {"value": 789}
+            }
+        }
+        "#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let config: MeasurementsConfig = serde_json::from_value(json!({
+            "maxCustomMeasurements": 1,
+        }))
+        .unwrap();
+
+        normalize_measurements(&mut event, Some(&config));
+
+        // Only one custom measurement is contained, one has an invalid name.
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "measurements": {
+            "my_custom_measurement_2": {
+              "value": 789.0,
+              "unit": "none",
+            },
+          },
+        }
+        "###);
+    }
+
+    #[test]
     fn test_light_normalization_is_idempotent() {
         // get an event, light normalize it. the result of that must be the same as light normalizing it once more
         let start = Utc.ymd(2000, 1, 1).and_hms(0, 0, 0);
