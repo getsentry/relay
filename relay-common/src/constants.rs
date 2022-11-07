@@ -665,9 +665,70 @@ impl schemars::JsonSchema for MetricUnit {
     }
 }
 
+/// An error parsing a [`MetricName`] or one of its variants.
+#[derive(Clone, Copy, Debug)]
+pub struct ParseMetricNameError(());
+
+/// A valid metric name. This is the statsd name, i.e. without namespace, type or unit.
+///
+/// Metric names cannot be empty, must begin with a letter and can consist of ASCII alphanumerics,
+/// underscores, slashes and periods.
+#[derive(Debug)]
+pub struct MetricName<'a>(&'a str);
+
+impl<'a> MetricName<'a> {
+    /// Create a validated metric name. Returns Err if the given name contains invalid characters.
+    pub fn create(name: &'a str) -> Result<Self, ParseMetricNameError> {
+        if Self::is_valid(name) {
+            Ok(Self(name))
+        } else {
+            Err(ParseMetricNameError(()))
+        }
+    }
+
+    /// Convenience method for names which are provided as string literals.
+    ///
+    /// For these cases, the name is not validated.
+    pub fn unchecked(name: &'static str) -> Self {
+        Self(name)
+    }
+
+    /// Returns the metric name as &str.
+    pub fn as_str(&self) -> &str {
+        self.0
+    }
+
+    fn is_valid(name: &str) -> bool {
+        let mut iter = name.as_bytes().iter();
+        if let Some(first_byte) = iter.next() {
+            if first_byte.is_ascii_alphabetic() {
+                return iter.all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_'));
+            }
+        }
+        false
+    }
+}
+
+impl<'a> fmt::Display for MetricName<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.0)
+    }
+}
+
+#[cfg(feature = "jsonschema")]
+impl<'a> schemars::JsonSchema for MetricName<'a> {
+    fn schema_name() -> String {
+        std::any::type_name::<Self>().to_owned()
+    }
+
+    fn json_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+        String::json_schema(gen)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::CustomUnit;
+    use crate::{CustomUnit, MetricName};
 
     #[test]
     fn test_custom_unit_parse() {
@@ -678,6 +739,15 @@ mod tests {
         );
         assert!(matches!(
             CustomUnit::parse("this_is_a_unit_that_is_too_long"),
+            Err(_)
+        ));
+    }
+
+    #[test]
+    fn test_metric_name_parse() {
+        assert_eq!("foo", MetricName::create("foo").unwrap().as_str());
+        assert!(matches!(
+            CustomUnit::parse("dashed-are-not-allowed"),
             Err(_)
         ));
     }

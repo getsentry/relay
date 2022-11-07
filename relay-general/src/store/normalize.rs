@@ -10,7 +10,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use relay_common::{DurationUnit, FractionUnit, MetricUnit};
+use relay_common::{DurationUnit, FractionUnit, MetricName, MetricUnit};
 
 use super::{schema, transactions, BreakdownsConfig};
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
@@ -260,6 +260,10 @@ fn remove_invalid_measurements(
             Some(m) => m,
             None => return false,
         };
+        if MetricName::create(name).is_err() {
+            return false;
+        }
+
         // TODO(jjbayer): Should we actually normalize the unit into the event?
         let unit = measurement.unit.value().unwrap_or(&MetricUnit::None);
 

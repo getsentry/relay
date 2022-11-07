@@ -149,52 +149,6 @@ impl fmt::Display for ParseMetricError {
     }
 }
 
-/// A valid metric name. This is the statsd name, i.e. without namespace, type or unit.
-///
-/// Metric names cannot be empty, must begin with a letter and can consist of ASCII alphanumerics,
-/// underscores, slashes and periods.
-#[derive(Debug)]
-pub struct MetricName<'a>(&'a str);
-
-impl<'a> MetricName<'a> {
-    /// Create a validated metric name. Returns Err if the given name contains invalid characters.
-    pub fn create(name: &'a str) -> Result<Self, ParseMetricError> {
-        if Self::is_valid(name) {
-            Ok(Self(name))
-        } else {
-            Err(ParseMetricError(()))
-        }
-    }
-
-    /// Convenience method for names which are provided as string literals.
-    ///
-    /// For these cases, the name is not validated.
-    pub fn unchecked(name: &'static str) -> Self {
-        Self(name)
-    }
-
-    /// Returns the metric name as &str.
-    pub fn as_str(&self) -> &str {
-        self.0
-    }
-
-    fn is_valid(name: &str) -> bool {
-        let mut iter = name.as_bytes().iter();
-        if let Some(first_byte) = iter.next() {
-            if first_byte.is_ascii_alphabetic() {
-                return iter.all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_'));
-            }
-        }
-        false
-    }
-}
-
-impl<'a> fmt::Display for MetricName<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.0)
-    }
-}
-
 /// The namespace of a metric.
 ///
 /// Namespaces allow to identify the product entity that the metric got extracted from, and/or
