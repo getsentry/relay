@@ -415,7 +415,8 @@ fn extract_transaction_metrics_inner(
                 tags_for_measurement.insert("measurement_rating".to_owned(), rating);
             }
 
-            let metric_name = match MetricName::create(format!("measurements.{}", name).as_str()) {
+            let metric_name = format!("measurements.{}", name);
+            let metric_name = match MetricName::create(metric_name.as_str()) {
                 Ok(name) => name,
                 Err(_) => {
                     relay_log::error!("Found invalid measurement name {:?}, should have been caught by normalization", name);
@@ -457,9 +458,8 @@ fn extract_transaction_metrics_inner(
 
                     let unit = measurement.unit.value();
 
-                    let metric_name = match MetricName::create(
-                        format!("breakdowns.{}.{}", breakdown, measurement_name).as_str(),
-                    ) {
+                    let metric_name = format!("breakdowns.{}.{}", breakdown, measurement_name);
+                    let metric_name = match MetricName::create(metric_name.as_str()) {
                         Ok(name) => name,
                         Err(_) => {
                             relay_log::error!("Found invalid measurement name {:?}, should have been caught by normalization", measurement_name);
