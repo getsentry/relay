@@ -437,7 +437,7 @@ def test_session_quotas(mini_sentry, relay_with_processing, sessions_consumer):
     project_config["config"]["eventRetention"] = 17
     project_config["config"]["quotas"] = [
         {
-            "id": "test_rate_limiting_{}".format(uuid.uuid4().hex),
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
             "categories": ["session"],
             "scope": "key",
             "scopeId": six.text_type(project_config["publicKeys"][0]["numericId"]),

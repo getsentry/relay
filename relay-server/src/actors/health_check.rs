@@ -76,7 +76,7 @@ impl HealthCheckService {
             let fut = compat::send(upstream.clone(), IsNetworkOutage);
             tokio::spawn(async move {
                 if let Ok(is_outage) = fut.await {
-                    metric!(gauge(RelayGauges::NetworkOutage) = if is_outage { 1 } else { 0 });
+                    metric!(gauge(RelayGauges::NetworkOutage) = u64::from(is_outage));
                 }
             });
         }

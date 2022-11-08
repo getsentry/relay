@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use relay_general::protocol::EventId;
 
+use crate::measurements::Measurement;
 use crate::transaction_metadata::TransactionMetadata;
 use crate::utils::{deserialize_number_from_string, is_zero};
 use crate::ProfileError;
@@ -58,6 +59,9 @@ struct AndroidProfile {
 
     #[serde(default = "AndroidProfile::default")]
     profile: AndroidTraceLog,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    measurements: Option<HashMap<String, Measurement>>,
 }
 
 impl AndroidProfile {

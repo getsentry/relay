@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use relay_general::protocol::{Addr, EventId};
 
 use crate::error::ProfileError;
+use crate::measurements::Measurement;
 use crate::native_debug_image::NativeDebugImage;
 use crate::transaction_metadata::TransactionMetadata;
 use crate::utils::deserialize_number_from_string;
@@ -13,16 +14,22 @@ use crate::Platform;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Frame {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    instruction_addr: Option<Addr>,
-    #[serde(alias = "name", default, skip_serializing_if = "Option::is_none")]
-    function: Option<String>,
-    #[serde(alias = "line", default, skip_serializing_if = "Option::is_none")]
-    lineno: Option<u32>,
-    #[serde(alias = "column", default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    abs_path: Option<String>,
+    #[serde(alias = "column", skip_serializing_if = "Option::is_none")]
     colno: Option<u32>,
-    #[serde(alias = "file", default, skip_serializing_if = "Option::is_none")]
+    #[serde(alias = "file", skip_serializing_if = "Option::is_none")]
     filename: Option<String>,
+    #[serde(alias = "name", skip_serializing_if = "Option::is_none")]
+    function: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    in_app: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    instruction_addr: Option<Addr>,
+    #[serde(alias = "line", skip_serializing_if = "Option::is_none")]
+    lineno: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    module: Option<String>,
 }
 
 impl Frame {
@@ -151,6 +158,9 @@ struct SampleProfile {
 
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     transactions: Vec<TransactionMetadata>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    measurements: Option<HashMap<String, Measurement>>,
 }
 
 impl SampleProfile {
@@ -322,6 +332,7 @@ mod tests {
             },
             transactions: Vec::new(),
             release: "1.0 (9999)".to_string(),
+            measurements: None,
         }
     }
 

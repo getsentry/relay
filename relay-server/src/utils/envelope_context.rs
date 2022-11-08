@@ -83,6 +83,16 @@ impl EnvelopeContext {
         self
     }
 
+    /// Record that event metrics have been extracted.
+    ///
+    /// This is usually done automatically as part of `EnvelopeContext::new` or `update`. However,
+    /// if the context needs to be updated in-flight without recomputing the entire summary, this
+    /// method can record that metric extraction for the event item has occurred.
+    pub fn set_event_metrics_extracted(&mut self) -> &mut Self {
+        self.summary.event_metrics_extracted = true;
+        self
+    }
+
     /// Re-scopes this context to the given scoping.
     pub fn scope(&mut self, scoping: Scoping) -> &mut Self {
         self.scoping = scoping;
@@ -119,6 +129,19 @@ impl EnvelopeContext {
         }
     }
 
+    /// Returns the data category of the event item in the envelope.
+    ///
+    /// If metrics have been extracted from the event item, this will return the indexing category.
+    /// Outcomes for metrics (the base data category) will be logged by the metrics aggregator.
+    fn event_category(&self) -> Option<DataCategory> {
+        let category = self.summary.event_category?;
+
+        match category.index_category() {
+            Some(index_category) if self.summary.event_metrics_extracted => Some(index_category),
+            _ => Some(category),
+        }
+    }
+
     /// Records rejection outcomes for all items stored in this context.
     ///
     /// This does not send outcomes for empty envelopes or request-only contexts.
@@ -131,7 +154,7 @@ impl EnvelopeContext {
         // TODO: This could be optimized with Capture::should_capture
         TestStore::from_registry().send(Capture::rejected(self.event_id, &outcome));
 
-        if let Some(category) = self.summary.event_category {
+        if let Some(category) = self.event_category() {
             self.track_outcome(outcome.clone(), category, 1);
         }
 

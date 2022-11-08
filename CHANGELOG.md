@@ -5,10 +5,18 @@
 **Features**:
 
 - Add PII scrubber for replay recordings. ([#1545](https://github.com/getsentry/relay/pull/1545))
+- Support decaying rules. Decaying rules are regular sampling rules, but they are only applicable in a specific time range. ([#1544](https://github.com/getsentry/relay/pull/1544))
+
+**Bug Fixes**:
+
+- Validate the distribution name in the event. ([#1556](https://github.com/getsentry/relay/pull/1556))
 
 **Internal**:
 
 - Implement response context schema. ([#1529](https://github.com/getsentry/relay/pull/1529))
+- Support dedicated quotas for storing transaction payloads ("indexed transactions") via the `transaction_indexed` data category if metrics extraction is enabled. ([#1537](https://github.com/getsentry/relay/pull/1537), [#1555](https://github.com/getsentry/relay/pull/1555))
+- Report outcomes for dynamic sampling with the correct indexed transaction data category to restore correct totals. ([#1561](https://github.com/getsentry/relay/pull/1561))
+- Add fields to the Frame object for the sample format. ([#1562](https://github.com/getsentry/relay/pull/1562))
 
 ## 22.10.0
 
@@ -37,6 +45,7 @@
 - Support checking quotas in the Redis rate limiter without incrementing them. ([#1519](https://github.com/getsentry/relay/pull/1519))
 - Update the internal service architecture for metrics aggregator service. ([#1508](https://github.com/getsentry/relay/pull/1508))
 - Add data category for indexed transactions. This will come to represent stored transactions, while the existing category will represent transaction metrics. ([#1535](https://github.com/getsentry/relay/pull/1535))
+- Adjust replay parser to be less strict and allow for larger segment-ids. ([#1551](https://github.com/getsentry/relay/pull/1551))
 
 ## 22.9.0
 

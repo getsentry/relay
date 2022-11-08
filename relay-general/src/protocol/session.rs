@@ -168,11 +168,7 @@ impl SessionLike for SessionUpdate {
     }
 
     fn total_count(&self) -> u32 {
-        if self.init {
-            1
-        } else {
-            0
-        }
+        u32::from(self.init)
     }
 
     fn abnormal_count(&self) -> u32 {

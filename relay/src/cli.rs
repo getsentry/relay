@@ -25,14 +25,14 @@ pub fn execute() -> Result<(), Error> {
     // Commands that do not need to load the config:
     if let Some(matches) = matches.subcommand_matches("config") {
         if let Some(matches) = matches.subcommand_matches("init") {
-            return init_config(&config_path, matches);
+            return init_config(config_path, matches);
         }
     } else if let Some(matches) = matches.subcommand_matches("generate-completions") {
         return generate_completions(matches);
     }
 
     // Commands that need a loaded config:
-    let mut config = match Config::from_path(&config_path) {
+    let mut config = match Config::from_path(config_path) {
         Ok(config) => config,
         Err(e)
             if matches.value_of("config").is_none()

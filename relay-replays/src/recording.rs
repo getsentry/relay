@@ -533,7 +533,6 @@ mod tests {
     use crate::recording;
     use crate::recording::Event;
     use assert_json_diff::assert_json_eq;
-    use relay_general::pii::PiiConfig;
     use serde_json::{Error, Value};
 
     fn loads(bytes: &[u8]) -> Result<Vec<Event>, Error> {

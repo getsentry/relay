@@ -25,7 +25,6 @@
 //!     },
 //! }
 //! ```
-use std::collections::HashMap;
 use std::fmt::Write;
 use std::net::IpAddr;
 
@@ -64,15 +63,15 @@ struct ReplayInput {
     ty: String,
     replay_id: String,
     event_id: String,
-    segment_id: u8,
+    segment_id: u16,
     timestamp: f64,
     replay_start_timestamp: Option<f64>,
     contexts: Option<Contexts>,
-    dist: Option<String>,
-    platform: Option<String>,
-    environment: Option<String>,
-    release: Option<String>,
-    tags: Option<HashMap<String, String>>,
+    dist: Option<Value>,
+    platform: Option<Value>,
+    environment: Option<Value>,
+    release: Option<Value>,
+    tags: Option<Value>,
     sdk: Option<VersionedMeta>,
     #[serde(default)]
     urls: Vec<String>,
@@ -149,8 +148,8 @@ struct VersionedMeta {
 #[derive(Debug, Default, Deserialize, Serialize)]
 struct User {
     id: Option<Value>,
-    username: Option<String>,
-    email: Option<String>,
+    username: Option<Value>,
+    email: Option<Value>,
     ip_address: Option<String>,
 }
 
