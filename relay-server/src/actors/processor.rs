@@ -1110,9 +1110,12 @@ impl EnvelopeProcessorService {
                 }
             }
             ItemType::ReplayRecording => {
-                if replays_enabled {
+                // XXX: Temporarily, only the Sentry org will be allowed to parse replays while
+                // we measure the impact of this change.
+                if replays_enabled && state.project_state.organization_id == Some(1) {
                     let parsed_recording =
                         relay_replays::recording::process_recording(&item.payload());
+
                     match parsed_recording {
                         Ok(recording) => {
                             item.set_payload(ContentType::OctetStream, recording.as_slice());
