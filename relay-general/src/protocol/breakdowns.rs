@@ -16,7 +16,7 @@ impl Breakdowns {
             && name.starts_with(|c| matches!(c, 'a'..='z' | 'A'..='Z'))
             && name
                 .chars()
-                .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '.'))
+                .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '.'))
     }
 }
 
@@ -34,7 +34,7 @@ impl FromValue for Breakdowns {
                         return Some((name.into(), object));
                     } else {
                         processing_errors.push(Error::invalid(format!(
-                            "breakdown name '{}' can contain only characters a-z0-9.-_",
+                            "breakdown name '{}' can contain only characters a-z0-9._",
                             name
                         )));
                     }
