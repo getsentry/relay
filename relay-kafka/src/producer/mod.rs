@@ -9,9 +9,10 @@ use rdkafka::ClientConfig;
 use relay_statsd::metric;
 
 use crate::config::{KafkaConfig, KafkaParams};
+use crate::statsd::KafkaHistograms;
 
 mod utils;
-use utils::{CaptureErrorContext, KafkaHistograms, ThreadedProducer};
+use utils::{CaptureErrorContext, ThreadedProducer};
 
 /// Temporary map used to deduplicate kafka producers.
 type ReusedProducersMap<'a> = BTreeMap<Option<&'a str>, Arc<ThreadedProducer>>;
