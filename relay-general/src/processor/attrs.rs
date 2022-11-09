@@ -30,6 +30,7 @@ pub enum ValueType {
     // Roots
     Event,
     Attachments,
+    Replay,
 
     // Protocol types
     Exception,
@@ -69,6 +70,7 @@ derive_fromstr_and_display!(ValueType, UnknownValueTypeError, {
     ValueType::Object => "object",
     ValueType::Event => "event",
     ValueType::Attachments => "attachments",
+    ValueType::Replay => "replay",
     ValueType::Exception => "error" | "exception",
     ValueType::Stacktrace => "stack" | "stacktrace",
     ValueType::Frame => "frame",

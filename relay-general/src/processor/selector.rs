@@ -106,6 +106,7 @@ impl SelectorPathItem {
                         // your new value type.
                         ValueType::Event
                         | ValueType::Attachments
+                        | ValueType::Replay
                         | ValueType::Exception
                         | ValueType::Stacktrace
                         | ValueType::Frame

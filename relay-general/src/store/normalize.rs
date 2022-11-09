@@ -17,7 +17,7 @@ use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     self, AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId,
     EventType, Exception, Frame, HeaderName, HeaderValue, Headers, IpAddr, Level, LogEntry,
-    Measurement, Measurements, Request, SpanStatus, Stacktrace, Tags, TraceContext, User,
+    Measurement, Measurements, Replay, Request, SpanStatus, Stacktrace, Tags, TraceContext, User,
     VALID_PLATFORMS,
 };
 use crate::store::{ClockDriftProcessor, GeoIpLookup, StoreConfig};
@@ -784,6 +784,32 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         // Normalize connected attributes and interfaces
         self.normalize_spans(event);
         self.normalize_trace_context(event);
+
+        Ok(())
+    }
+
+    fn process_replay(
+        &mut self,
+        replay: &mut Replay,
+        _meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        replay.process_child_values(self, state)?;
+
+        // Validate basic attributes
+        replay.platform.apply(|platform, _| {
+            if is_valid_platform(platform) {
+                Ok(())
+            } else {
+                Err(ProcessingAction::DeleteValueSoft)
+            }
+        })?;
+
+        // Default required attributes, even if they have errors
+        replay.platform.get_or_insert_with(|| "other".to_string());
+        if replay.sdk.value().is_none() {
+            replay.sdk.set_value(self.get_sdk_info());
+        }
 
         Ok(())
     }

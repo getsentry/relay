@@ -72,6 +72,7 @@ pub trait Processor: Sized {
     process_method!(process_timestamp, crate::protocol::Timestamp);
 
     process_method!(process_event, crate::protocol::Event);
+    process_method!(process_replay, crate::protocol::Replay);
     process_method!(process_exception, crate::protocol::Exception);
     process_method!(process_raw_stacktrace, crate::protocol::RawStacktrace);
     process_method!(process_stacktrace, crate::protocol::Stacktrace);
