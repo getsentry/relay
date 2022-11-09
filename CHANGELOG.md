@@ -6,6 +6,7 @@
 
 - Add PII scrubber for replay recordings. ([#1545](https://github.com/getsentry/relay/pull/1545))
 - Support decaying rules. Decaying rules are regular sampling rules, but they are only applicable in a specific time range. ([#1544](https://github.com/getsentry/relay/pull/1544))
+- Disallow `-` in measurement and breakdown names. These items are converted to metrics, which do not allow `-` in their name. ([#1571](https://github.com/getsentry/relay/pull/1571))
 
 **Bug Fixes**:
 

@@ -51,7 +51,8 @@ ENV RELAY_FEATURES=${RELAY_FEATURES}
 COPY . .
 
 # Build with the modern compiler toolchain enabled
-RUN scl enable devtoolset-10 llvm-toolset-7.0 -- \
+RUN echo -e "[net]\ngit-fetch-with-cli = true" > $CARGO_HOME/config \
+    && scl enable devtoolset-10 llvm-toolset-7.0 -- \
     make build-linux-release \
     TARGET=${BUILD_TARGET} \
     RELAY_FEATURES=${RELAY_FEATURES}
