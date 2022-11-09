@@ -87,7 +87,7 @@
             &amp;&amp; name.starts_with(|c| <span class="macro">matches!</span>(c, <span class="string">&#39;a&#39;</span>..=<span class="string">&#39;z&#39; </span>| <span class="string">&#39;A&#39;</span>..=<span class="string">&#39;Z&#39;</span>))
             &amp;&amp; name
                 .chars()
-                .all(|c| <span class="macro">matches!</span>(c, <span class="string">&#39;a&#39;</span>..=<span class="string">&#39;z&#39; </span>| <span class="string">&#39;A&#39;</span>..=<span class="string">&#39;Z&#39; </span>| <span class="string">&#39;0&#39;</span>..=<span class="string">&#39;9&#39; </span>| <span class="string">&#39;-&#39; </span>| <span class="string">&#39;_&#39; </span>| <span class="string">&#39;.&#39;</span>))
+                .all(|c| <span class="macro">matches!</span>(c, <span class="string">&#39;a&#39;</span>..=<span class="string">&#39;z&#39; </span>| <span class="string">&#39;A&#39;</span>..=<span class="string">&#39;Z&#39; </span>| <span class="string">&#39;0&#39;</span>..=<span class="string">&#39;9&#39; </span>| <span class="string">&#39;_&#39; </span>| <span class="string">&#39;.&#39;</span>))
     }
 }
 
@@ -105,7 +105,7 @@
                         <span class="kw">return </span><span class="prelude-val">Some</span>((name.into(), object));
                     } <span class="kw">else </span>{
                         processing_errors.push(Error::invalid(<span class="macro">format!</span>(
-                            <span class="string">&quot;breakdown name &#39;{}&#39; can contain only characters a-z0-9.-_&quot;</span>,
+                            <span class="string">&quot;breakdown name &#39;{}&#39; can contain only characters a-z0-9._&quot;</span>,
                             name
                         )));
                     }

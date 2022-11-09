@@ -418,7 +418,7 @@
                         <span class="kw">return </span><span class="prelude-val">Some</span>((name.to_lowercase(), object));
                     } <span class="kw">else </span>{
                         processing_errors.push(Error::invalid(<span class="macro">format!</span>(
-                            <span class="string">&quot;measurement name &#39;{}&#39; can contain only characters a-z0-9.-_&quot;</span>,
+                            <span class="string">&quot;measurement name &#39;{}&#39; can contain only characters a-z0-9._&quot;</span>,
                             name
                         )));
                     }
@@ -456,7 +456,7 @@
     name.starts_with(|c| <span class="macro">matches!</span>(c, <span class="string">&#39;a&#39;</span>..=<span class="string">&#39;z&#39; </span>| <span class="string">&#39;A&#39;</span>..=<span class="string">&#39;Z&#39;</span>))
         &amp;&amp; name
             .chars()
-            .all(|c| <span class="macro">matches!</span>(c, <span class="string">&#39;a&#39;</span>..=<span class="string">&#39;z&#39; </span>| <span class="string">&#39;A&#39;</span>..=<span class="string">&#39;Z&#39; </span>| <span class="string">&#39;0&#39;</span>..=<span class="string">&#39;9&#39; </span>| <span class="string">&#39;-&#39; </span>| <span class="string">&#39;_&#39; </span>| <span class="string">&#39;.&#39;</span>))
+            .all(|c| <span class="macro">matches!</span>(c, <span class="string">&#39;a&#39;</span>..=<span class="string">&#39;z&#39; </span>| <span class="string">&#39;A&#39;</span>..=<span class="string">&#39;Z&#39; </span>| <span class="string">&#39;0&#39;</span>..=<span class="string">&#39;9&#39; </span>| <span class="string">&#39;_&#39; </span>| <span class="string">&#39;.&#39;</span>))
 }
 
 <span class="attribute">#[cfg(test)]
@@ -502,9 +502,6 @@
       &quot;value&quot;: 420.69,
       &quot;unit&quot;: &quot;millisecond&quot;
     },
-    &quot;lcp_final.element-size123&quot;: {
-      &quot;value&quot;: 1.0
-    },
     &quot;missing_value&quot;: null
   },
   &quot;_meta&quot;: {
@@ -520,7 +517,13 @@
           [
             &quot;invalid_data&quot;,
             {
-              &quot;reason&quot;: &quot;measurement name &#39;Total Blocking Time&#39; can contain only characters a-z0-9.-_&quot;
+              &quot;reason&quot;: &quot;measurement name &#39;lcp_final.element-Size123&#39; can contain only characters a-z0-9._&quot;
+            }
+          ],
+          [
+            &quot;invalid_data&quot;,
+            {
+              &quot;reason&quot;: &quot;measurement name &#39;Total Blocking Time&#39; can contain only characters a-z0-9._&quot;
             }
           ]
         ]
@@ -574,13 +577,6 @@
                 }),
             );
             measurements.insert(
-                <span class="string">&quot;lcp_final.element-size123&quot;</span>.to_owned(),
-                Annotated::new(Measurement {
-                    value: Annotated::new(<span class="number">1f64</span>),
-                    unit: Annotated::empty(),
-                }),
-            );
-            measurements.insert(
                 <span class="string">&quot;fid&quot;</span>.to_owned(),
                 Annotated::new(Measurement {
                     value: Annotated::new(<span class="number">2020f64</span>),
@@ -618,7 +614,11 @@
         measurements_meta.add_error(Error::invalid(<span class="string">&quot;measurement name &#39;&#39; cannot be empty&quot;</span>));
 
         measurements_meta.add_error(Error::invalid(
-            <span class="string">&quot;measurement name &#39;Total Blocking Time&#39; can contain only characters a-z0-9.-_&quot;</span>,
+            <span class="string">&quot;measurement name &#39;lcp_final.element-Size123&#39; can contain only characters a-z0-9._&quot;</span>,
+        ));
+
+        measurements_meta.add_error(Error::invalid(
+            <span class="string">&quot;measurement name &#39;Total Blocking Time&#39; can contain only characters a-z0-9._&quot;</span>,
         ));
 
         <span class="kw">let </span>event = Annotated::new(Event {
