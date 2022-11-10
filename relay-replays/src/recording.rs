@@ -5,7 +5,7 @@ use std::io::{self, BufRead, Read, Write};
 
 use relay_general::pii::{DataScrubbingConfig, PiiProcessor};
 use relay_general::processor::{FieldAttrs, Pii, ProcessingState, Processor, ValueType};
-use relay_general::types::Meta;
+use relay_general::types::{Meta, ProcessingAction};
 
 use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
@@ -14,27 +14,27 @@ use serde::de::Error as DError;
 use serde::{Deserialize, Serialize};
 use serde_json::{Error, Value};
 
-pub fn process_recording(bytes: &[u8]) -> Result<Vec<u8>, String> {
+pub fn process_recording(bytes: &[u8]) -> Result<Vec<u8>, RecordingParseError> {
     // Split recording headers and body.
     let cursor = io::Cursor::new(bytes);
     let mut split_iter = cursor
         .split(b'\n')
-        .map(|r| r.map_err(|e| e.to_string()).unwrap());
-    let header = split_iter
-        .next()
-        .ok_or("no headers found. was data provided?")?;
-    let body = split_iter
-        .next()
-        .ok_or("no data found. are the headers missing?")?;
+        .map(|r| r.map_err(|e| RecordingParseError::Message(e.to_string())));
+    let header = split_iter.next().ok_or_else(|| {
+        RecordingParseError::Message("no headers found. was data provided?".to_string())
+    })??;
+    let body = split_iter.next().ok_or_else(|| {
+        RecordingParseError::Message("no data found. are the headers missing?".to_string())
+    })??;
 
     // Deserialization.
-    let mut events = loads(body).map_err(|e| e.to_string())?;
+    let mut events = loads(body)?;
 
     // Processing.
-    strip_pii(&mut events);
+    strip_pii(&mut events).map_err(RecordingParseError::ProcessingAction)?;
 
     // Serialization.
-    let out_bytes = dumps(events).map_err(|e| e.to_string())?;
+    let out_bytes = dumps(events)?;
     Ok([header, vec![b'\n'], out_bytes].concat())
 }
 
@@ -56,7 +56,7 @@ fn dumps(rrweb: Vec<Event>) -> Result<Vec<u8>, RecordingParseError> {
     Ok(result)
 }
 
-fn strip_pii(events: &mut Vec<Event>) {
+fn strip_pii(events: &mut Vec<Event>) -> Result<(), ProcessingAction> {
     let mut scrub_config = DataScrubbingConfig::default();
     scrub_config.scrub_data = true;
     scrub_config.scrub_defaults = true;
@@ -64,15 +64,19 @@ fn strip_pii(events: &mut Vec<Event>) {
     let pii_config = scrub_config.pii_config().unwrap().as_ref().unwrap().clone();
     let pii_processor = PiiProcessor::new(pii_config.compiled());
     let mut processor = RecordingProcessor::new(pii_processor);
-    processor.mask_pii(events);
+    processor.mask_pii(events)?;
+
+    Ok(())
 }
 
 // Error
 
 #[derive(Debug)]
-enum RecordingParseError {
+pub enum RecordingParseError {
     SerdeError(Error),
     IoError(std::io::Error),
+    Message(String),
+    ProcessingAction(ProcessingAction),
 }
 
 impl Display for RecordingParseError {
@@ -80,6 +84,8 @@ impl Display for RecordingParseError {
         match self {
             RecordingParseError::SerdeError(serde_error) => write!(f, "{}", serde_error),
             RecordingParseError::IoError(io_error) => write!(f, "{}", io_error),
+            RecordingParseError::Message(message) => write!(f, "{}", message),
+            RecordingParseError::ProcessingAction(action) => write!(f, "{}", action),
         }
     }
 }
@@ -109,80 +115,101 @@ impl RecordingProcessor<'_> {
         RecordingProcessor { pii_processor }
     }
 
-    fn mask_pii(&mut self, events: &mut Vec<Event>) {
+    fn mask_pii(&mut self, events: &mut Vec<Event>) -> Result<(), ProcessingAction> {
         for event in events {
             match event {
-                Event::T2(variant) => self.recurse_snapshot_node(&mut variant.data.node),
-                Event::T3(variant) => self.recurse_incremental_source(&mut variant.data),
-                Event::T5(variant) => self.recurse_custom_event(variant),
+                Event::T2(variant) => self.recurse_snapshot_node(&mut variant.data.node)?,
+                Event::T3(variant) => self.recurse_incremental_source(&mut variant.data)?,
+                Event::T5(variant) => self.recurse_custom_event(variant)?,
                 _ => {}
-            }
+            };
         }
+        Ok(())
     }
 
-    fn recurse_incremental_source(&mut self, variant: &mut IncrementalSourceDataVariant) {
+    fn recurse_incremental_source(
+        &mut self,
+        variant: &mut IncrementalSourceDataVariant,
+    ) -> Result<(), ProcessingAction> {
         match variant {
             IncrementalSourceDataVariant::Mutation(mutation) => {
                 for addition in &mut mutation.adds {
-                    self.recurse_snapshot_node(&mut addition.node)
+                    match self.recurse_snapshot_node(&mut addition.node) {
+                        Ok(_) => {}
+                        Err(e) => return Err(e),
+                    }
                 }
             }
-            IncrementalSourceDataVariant::Input(input) => self.strip_pii(&mut input.text),
+            IncrementalSourceDataVariant::Input(input) => self.strip_pii(&mut input.text)?,
             _ => {}
         }
+
+        Ok(())
     }
 
-    fn recurse_snapshot_node(&mut self, node: &mut Node) {
+    fn recurse_snapshot_node(&mut self, node: &mut Node) -> Result<(), ProcessingAction> {
         match &mut node.variant {
             NodeVariant::T0(document) => {
                 for node in &mut document.child_nodes {
-                    self.recurse_snapshot_node(node)
+                    self.recurse_snapshot_node(node)?
                 }
             }
-            NodeVariant::T2(element) => self.recurse_element(element),
+            NodeVariant::T2(element) => self.recurse_element(element)?,
             NodeVariant::Rest(text) => {
-                self.strip_pii(&mut text.text_content);
+                self.strip_pii(&mut text.text_content)?;
             }
             _ => {}
         }
+
+        Ok(())
     }
 
-    fn recurse_custom_event(&mut self, event: &mut CustomEvent) {
+    fn recurse_custom_event(&mut self, event: &mut CustomEvent) -> Result<(), ProcessingAction> {
         match &mut event.data {
             CustomEventDataVariant::Breadcrumb(breadcrumb) => match &mut breadcrumb.payload.message
             {
-                Some(message) => self.strip_pii(message),
+                Some(message) => self.strip_pii(message)?,
                 None => {}
             },
             CustomEventDataVariant::PerformanceSpan(_) => {}
         }
+
+        Ok(())
     }
 
-    fn recurse_element(&mut self, element: &mut ElementNode) {
+    fn recurse_element(&mut self, element: &mut ElementNode) -> Result<(), ProcessingAction> {
         match element.tag_name.as_str() {
             "script" | "style" => {}
             "img" | "source" => {
                 let attrs = &mut element.attributes;
                 attrs.insert("src".to_string(), "#".to_string());
-                self.recurse_element_children(element)
+                self.recurse_element_children(element)?
             }
-            _ => self.recurse_element_children(element),
+            _ => self.recurse_element_children(element)?,
         }
+
+        Ok(())
     }
 
-    fn recurse_element_children(&mut self, element: &mut ElementNode) {
+    fn recurse_element_children(
+        &mut self,
+        element: &mut ElementNode,
+    ) -> Result<(), ProcessingAction> {
         for node in &mut element.child_nodes {
-            self.recurse_snapshot_node(node)
+            self.recurse_snapshot_node(node)?
         }
+
+        Ok(())
     }
 
-    fn strip_pii(&mut self, value: &mut String) {
+    fn strip_pii(&mut self, value: &mut String) -> Result<(), ProcessingAction> {
         let field_attrs = Cow::Owned(FieldAttrs::new().pii(Pii::True));
         let processing_state =
             ProcessingState::new_root(Some(field_attrs), Some(ValueType::String));
         self.pii_processor
-            .process_string(value, &mut Meta::default(), &processing_state)
-            .unwrap();
+            .process_string(value, &mut Meta::default(), &processing_state)?;
+
+        Ok(())
     }
 }
 
@@ -558,7 +585,7 @@ mod tests {
         let payload = include_bytes!("../tests/fixtures/rrweb-pii.json");
         let mut events: Vec<Event> = serde_json::from_slice(payload).unwrap();
 
-        recording::strip_pii(&mut events);
+        recording::strip_pii(&mut events).unwrap();
 
         let aa = events.pop().unwrap();
         if let recording::Event::T3(bb) = aa {

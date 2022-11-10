@@ -1079,7 +1079,7 @@ impl EnvelopeProcessorService {
     }
 
     /// Remove replays if the feature flag is not enabled
-    fn process_replays(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+    fn process_replays(&self, state: &mut ProcessEnvelopeState) {
         let replays_enabled = state.project_state.has_feature(Feature::Replays);
         let context = &state.envelope_context;
         let envelope = &mut state.envelope;
@@ -1132,7 +1132,6 @@ impl EnvelopeProcessorService {
             }
             _ => true,
         });
-        Ok(())
     }
 
     /// Creates and initializes the processing state.
@@ -2010,7 +2009,7 @@ impl EnvelopeProcessorService {
         self.process_client_reports(state);
         self.process_user_reports(state);
         self.process_profiles(state);
-        self.process_replays(state)?;
+        self.process_replays(state);
 
         if state.creates_event() {
             // Some envelopes only create events in processing relays; for example, unreal events.
