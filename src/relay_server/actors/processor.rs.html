@@ -2900,6 +2900,10 @@
 <span id="2898">2898</span>
 <span id="2899">2899</span>
 <span id="2900">2900</span>
+<span id="2901">2901</span>
+<span id="2902">2902</span>
+<span id="2903">2903</span>
+<span id="2904">2904</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::cmp::max;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
@@ -4958,23 +4962,27 @@
             || {
                 <span class="kw">match </span><span class="self">self</span>.process_state(<span class="kw-2">&amp;mut </span>state) {
                     <span class="prelude-val">Ok</span>(()) =&gt; {
-                        <span class="kw">if </span>!state.extracted_metrics.is_empty() {
-                            <span class="kw">let </span>project_cache = ProjectCache::from_registry();
-                            project_cache
-                                .do_send(InsertMetrics::new(project_key, state.extracted_metrics));
-                        }
-
                         <span class="comment">// The envelope could be modified or even emptied during processing, which
                         // requires recomputation of the context.
                         </span>state.envelope_context.update(<span class="kw-2">&amp;</span>state.envelope);
 
                         <span class="kw">let </span>envelope_response = <span class="kw">if </span>state.envelope.is_empty() {
-                            <span class="comment">// Individual rate limits have already been issued
-                            </span>state.envelope_context.reject(Outcome::RateLimited(<span class="prelude-val">None</span>));
+                            <span class="kw">if </span>state.extracted_metrics.is_empty() {
+                                <span class="comment">// Individual rate limits have already been issued
+                                </span>state.envelope_context.reject(Outcome::RateLimited(<span class="prelude-val">None</span>));
+                            } <span class="kw">else </span>{
+                                state.envelope_context.accept();
+                            }
                             <span class="prelude-val">None
                         </span>} <span class="kw">else </span>{
                             <span class="prelude-val">Some</span>((state.envelope, state.envelope_context))
                         };
+
+                        <span class="kw">if </span>!state.extracted_metrics.is_empty() {
+                            <span class="kw">let </span>project_cache = ProjectCache::from_registry();
+                            project_cache
+                                .do_send(InsertMetrics::new(project_key, state.extracted_metrics));
+                        }
 
                         <span class="prelude-val">Ok</span>(ProcessEnvelopeResponse {
                             envelope: envelope_response,
