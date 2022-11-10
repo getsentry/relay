@@ -554,6 +554,29 @@ mod tests {
     }
 
     #[test]
+    fn test_pii_removal() {
+        let payload = include_bytes!("../tests/fixtures/rrweb-pii.json");
+        let mut events: Vec<Event> = serde_json::from_slice(payload).unwrap();
+
+        recording::strip_pii(&mut events);
+
+        let aa = events.pop().unwrap();
+        if let recording::Event::T3(bb) = aa {
+            if let recording::IncrementalSourceDataVariant::Mutation(mut cc) = bb.data {
+                let dd = cc.adds.pop().unwrap();
+                if let recording::NodeVariant::T2(mut ee) = dd.node.variant {
+                    let ff = ee.child_nodes.pop().unwrap();
+                    if let recording::NodeVariant::Rest(gg) = ff.variant {
+                        assert!(gg.text_content != "4917-4845-8989-7107".to_string());
+                        return;
+                    }
+                }
+            }
+        }
+        assert!(false);
+    }
+
+    #[test]
     fn test_rrweb_snapshot_parsing() {
         let payload = include_bytes!("../tests/fixtures/rrweb.json");
 
