@@ -186,9 +186,9 @@ checksum = "08f9b8508dccb7687a1d6c4ce66b2b0ecef467c94667de27d8d7fe1f8d2a9cdc"
 
 [[package]]
 name = "anylog"
-version = "0.6.1"
+version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6bc1da9efdf690bb9d25615b925bf1e468b66bbaca45c591b6714393d54e4730"
+checksum = "9a16c6307b6697265897d39135d69d92c47a6ee2af665f1b232c817cee2e12f1"
 dependencies = [
  "chrono",
  "lazy_static",
