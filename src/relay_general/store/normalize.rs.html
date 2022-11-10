@@ -2347,12 +2347,6 @@
 <span id="2345">2345</span>
 <span id="2346">2346</span>
 <span id="2347">2347</span>
-<span id="2348">2348</span>
-<span id="2349">2349</span>
-<span id="2350">2350</span>
-<span id="2351">2351</span>
-<span id="2352">2352</span>
-<span id="2353">2353</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::DefaultHasher;
 <span class="kw">use </span>std::hash::{Hash, Hasher};
 <span class="kw">use </span>std::mem;
@@ -2683,12 +2677,6 @@
 
         <span class="kw">let </span>stated_unit = measurement.unit.value().copied();
         <span class="kw">let </span>default_unit = get_metric_measurement_unit(name);
-        <span class="kw">if let </span>(<span class="prelude-val">Some</span>(default_), <span class="prelude-val">Some</span>(stated)) = (default_unit, stated_unit) {
-            <span class="kw">if </span>default_ != stated {
-                <span class="macro">relay_log::error!</span>(<span class="string">&quot;unit mismatch on measurements.{}: {}&quot;</span>, name, stated);
-            }
-        }
-
         measurement
             .unit
             .set_value(<span class="prelude-val">Some</span>(stated_unit.or(default_unit).unwrap_or_default()))
