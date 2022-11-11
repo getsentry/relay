@@ -1889,7 +1889,38 @@ mod tests {
         light_normalize_event(&mut event, &config).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-        insta::assert_snapshot!(event.to_json_pretty().unwrap())
+        insta::assert_json_snapshot!(SerializableAnnotated(&event), {".received" => "[received]"}, @r###"
+        {
+          "event_id": "74ad1301f4df489ead37d757295442b1",
+          "level": "error",
+          "type": "default",
+          "logentry": null,
+          "logger": "",
+          "platform": "python",
+          "timestamp": 1668148328.308933,
+          "received": "[received]",
+          "_meta": {
+            "logentry": {
+              "": {
+                "err": [
+                  [
+                    "invalid_data",
+                    {
+                      "reason": "no message present"
+                    }
+                  ]
+                ],
+                "val": {
+                  "formatted": null,
+                  "message": null,
+                  "params": [
+                    "bogus"
+                  ]
+                }
+              }
+            }
+          }
+        }"###)
     }
 
     #[test]
