@@ -3,9 +3,7 @@
 // #[cfg(feature = "jsonschema")]
 // use schemars::schema::Schema;
 
-use crate::protocol::{
-    ClientSdkInfo, Contexts, EventId, LenientString, Request, Tags, Timestamp, User,
-};
+use crate::protocol::{ClientSdkInfo, Contexts, LenientString, Request, Tags, Timestamp, User};
 use crate::types::{Annotated, Array};
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -154,5 +152,18 @@ mod test {
         });
 
         assert_eq!(replay, Annotated::from_json(json).unwrap());
+    }
+
+    #[test]
+    fn test_lenient_release() {
+        let input = r#"{"release":42}"#;
+        let output = r#"{"release":"42"}"#;
+        let event = Annotated::new(Replay {
+            release: Annotated::new("42".to_string().into()),
+            ..Default::default()
+        });
+
+        assert_eq!(event, Annotated::from_json(input).unwrap());
+        assert_eq!(output, event.to_json().unwrap());
     }
 }
