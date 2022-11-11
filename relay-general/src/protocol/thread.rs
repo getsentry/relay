@@ -119,8 +119,11 @@ pub struct Thread {
     /// A flag indicating whether the thread crashed. Defaults to `false`.
     pub crashed: Annotated<bool>,
 
-    /// A flag indicating whether the thread was in the foreground.  Defaults to `false`.
+    /// A flag indicating whether the thread was in the foreground. Defaults to `false`.
     pub current: Annotated<bool>,
+
+    /// A flag indicating whether the thread was responsible for rendering the user interface.
+    pub ui: Annotated<bool>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
@@ -165,6 +168,7 @@ mod tests {
   "name": "myname",
   "crashed": true,
   "current": true,
+  "ui": true,
   "other": "value"
 }"#;
         let thread = Annotated::new(Thread {
@@ -174,6 +178,7 @@ mod tests {
             raw_stacktrace: Annotated::empty(),
             crashed: Annotated::new(true),
             current: Annotated::new(true),
+            ui: Annotated::new(true),
             other: {
                 let mut map = Map::new();
                 map.insert(
