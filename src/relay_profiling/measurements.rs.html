@@ -15,22 +15,40 @@
 <span id="15">15</span>
 <span id="16">16</span>
 <span id="17">17</span>
+<span id="18">18</span>
+<span id="19">19</span>
+<span id="20">20</span>
+<span id="21">21</span>
+<span id="22">22</span>
+<span id="23">23</span>
+<span id="24">24</span>
+<span id="25">25</span>
+<span id="26">26</span>
 </pre><pre class="rust"><code><span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="kw">use </span><span class="kw">crate</span>::utils::deserialize_number_from_string;
 
 <span class="attribute">#[derive(Debug, Serialize, Deserialize, Clone)]
 </span><span class="kw">pub struct </span>Measurement {
-    unit: String,
+    unit: MeasurementUnit,
     values: Vec&lt;MeasurementValue&gt;,
 }
 
 <span class="attribute">#[derive(Debug, Serialize, Deserialize, Clone)]
 </span><span class="kw">pub struct </span>MeasurementValue {
-    <span class="comment">// nanoseconds elapsed since the start of the profile (wall clock)
+    <span class="comment">// nanoseconds elapsed since the start of the profile
     </span><span class="attribute">#[serde(deserialize_with = <span class="string">&quot;deserialize_number_from_string&quot;</span>)]
     </span>elapsed_since_start_ns: u64,
     value: f64,
+}
+
+<span class="attribute">#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = <span class="string">&quot;lowercase&quot;</span>)]
+</span><span class="kw">pub enum </span>MeasurementUnit {
+    <span class="attribute">#[serde(alias = <span class="string">&quot;ns&quot;</span>)]
+    </span>Nanosecond,
+    <span class="attribute">#[serde(alias = <span class="string">&quot;hz&quot;</span>)]
+    </span>Hertz,
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_profiling" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>
