@@ -9,7 +9,8 @@
 use once_cell::sync::Lazy;
 use uaparser::{Parser, UserAgentParser};
 
-use crate::protocol::{Event, Headers};
+use crate::protocol::{Event, Headers, Request};
+use crate::types::Annotated;
 
 #[doc(inline)]
 pub use uaparser::{Device, UserAgent, OS};
@@ -54,6 +55,12 @@ pub fn init_parser() {
 /// otherwise.
 pub fn get_user_agent(event: &Event) -> Option<&str> {
     let request = event.request.value()?;
+    let headers = request.headers.value()?;
+    get_user_agent_from_headers(headers)
+}
+
+pub fn get_user_agent_generic(request: &Annotated<Request>) -> Option<&str> {
+    let request = request.value()?;
     let headers = request.headers.value()?;
     get_user_agent_from_headers(headers)
 }

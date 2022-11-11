@@ -1,0 +1,22 @@
+{"run_id":"1668199528-795160000","line":343,"new":{"module_name":"relay_general__store__normalize__user_agent__tests","snapshot_name":"user_agent_does_not_override_prefilled","metadata":{"source":"relay-general/src/store/normalize/user_agent.rs","assertion_line":343,"expression":"event.contexts"},"snapshot":"{\n  \"browser\": {\n    \"name\": \"Chrome Mobile\",\n    \"version\": \"18.0.1025\",\n    \"type\": \"browser\"\n  },\n  \"client_os\": {\n    \"name\": \"Android\",\n    \"version\": \"4.0.4\",\n    \"type\": \"os\"\n  },\n  \"device\": {\n    \"family\": \"Samsung Galaxy Nexus\",\n    \"model\": \"Galaxy Nexus\",\n    \"brand\": \"Samsung\",\n    \"type\": \"device\"\n  },\n  \"os\": {\n    \"name\": \"OS_FAMILY\",\n    \"version\": \"OS_VERSION\",\n    \"type\": \"os\"\n  }\n}"},"old":{"module_name":"relay_general__store__normalize__user_agent__tests","metadata":{},"snapshot":"{\n  \"browser\": {\n    \"name\": \"BR_FAMILY\",\n    \"version\": \"BR_VERSION\",\n    \"type\": \"browser\"\n  },\n  \"client_os\": {\n    \"name\": \"Android\",\n    \"version\": \"4.0.4\",\n    \"type\": \"os\"\n  },\n  \"device\": {\n    \"family\": \"DEV_FAMILY\",\n    \"model\": \"DEV_MODEL\",\n    \"brand\": \"DEV_BRAND\",\n    \"type\": \"device\"\n  },\n  \"os\": {\n    \"name\": \"OS_FAMILY\",\n    \"version\": \"OS_VERSION\",\n    \"type\": \"os\"\n  }\n}"}}
+{"run_id":"1668199753-826151000","line":348,"new":null,"old":null}
+{"run_id":"1668199753-826151000","line":286,"new":null,"old":null}
+{"run_id":"1668199753-826151000","line":237,"new":null,"old":null}
+{"run_id":"1668199753-826151000","line":204,"new":null,"old":null}
+{"run_id":"1668199753-826151000","line":302,"new":null,"old":null}
+{"run_id":"1668199753-826151000","line":263,"new":null,"old":null}
+{"run_id":"1668199753-826151000","line":221,"new":null,"old":null}
+{"run_id":"1668199791-140173000","line":337,"new":null,"old":null}
+{"run_id":"1668199791-140173000","line":291,"new":null,"old":null}
+{"run_id":"1668199791-140173000","line":275,"new":null,"old":null}
+{"run_id":"1668199791-140173000","line":226,"new":null,"old":null}
+{"run_id":"1668199791-140173000","line":252,"new":null,"old":null}
+{"run_id":"1668199791-140173000","line":210,"new":null,"old":null}
+{"run_id":"1668199791-140173000","line":193,"new":null,"old":null}
+{"run_id":"1668199974-854714000","line":337,"new":null,"old":null}
+{"run_id":"1668199974-854714000","line":275,"new":null,"old":null}
+{"run_id":"1668199974-854714000","line":226,"new":null,"old":null}
+{"run_id":"1668199974-854714000","line":291,"new":null,"old":null}
+{"run_id":"1668199974-854714000","line":252,"new":null,"old":null}
+{"run_id":"1668199974-854714000","line":210,"new":null,"old":null}
+{"run_id":"1668199974-854714000","line":193,"new":null,"old":null}

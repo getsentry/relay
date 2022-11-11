@@ -8,70 +8,102 @@ use std::fmt::Write;
 
 use crate::protocol::{BrowserContext, Context, Contexts, DeviceContext, Event, OsContext};
 use crate::types::Annotated;
-use crate::user_agent::{get_user_agent, parse_device, parse_os, parse_user_agent};
+use crate::user_agent::{get_user_agent_generic, parse_device, parse_os, parse_user_agent};
 
 pub fn normalize_user_agent(event: &mut Event) {
-    let user_agent = match get_user_agent(event) {
+    let user_agent = match get_user_agent_generic(&event.request) {
         Some(ua) => ua,
         None => return,
     };
 
-    let device = parse_device(user_agent);
-    let os = parse_os(user_agent);
-    let ua = parse_user_agent(user_agent);
+    if let Some(contexts) = event.contexts.value_mut() {
+        // If a contexts object exists we modify in place.
+        normalize_user_agent_generic(contexts, &event.platform, user_agent);
+    } else {
+        // If a contexts object does not exist we create a new one and attempt to populate
+        // it.  If we didn't write any data to our new contexts instance we can throw it out
+        // and leave the existing contexts value as "None".
+        let mut contexts = Contexts::new();
+        normalize_user_agent_generic(&mut contexts, &event.platform, user_agent);
 
-    if !is_known(ua.family.as_str())
-        && !is_known(device.family.as_str())
-        && !is_known(os.family.as_str())
-    {
-        return; // no useful information in the user agent
+        if !contexts.is_empty() {
+            event.contexts.set_value(Some(contexts));
+        }
+    }
+}
+
+pub fn normalize_user_agent_generic(
+    contexts: &mut Contexts,
+    platform: &Annotated<String>,
+    user_agent: &str,
+) {
+    if !contexts.contains_key(BrowserContext::default_key()) {
+        if let Some(browser_context) = user_agent_as_browser_context(user_agent) {
+            contexts.add(Context::Browser(Box::new(browser_context)));
+        }
     }
 
-    let contexts = event.contexts.get_or_insert_with(|| Contexts::new());
-
-    if is_known(ua.family.as_str()) && !contexts.contains_key(BrowserContext::default_key()) {
-        let version = get_version(&ua.major, &ua.minor, &ua.patch);
-        contexts.add(Context::Browser(Box::new(BrowserContext {
-            name: Annotated::from(ua.family),
-            version: Annotated::from(version),
-            ..BrowserContext::default()
-        })));
+    if !contexts.contains_key(DeviceContext::default_key()) {
+        if let Some(device_context) = user_agent_as_device_context(user_agent) {
+            contexts.add(Context::Device(Box::new(device_context)));
+        }
     }
 
-    if is_known(device.family.as_str()) && !contexts.contains_key(DeviceContext::default_key()) {
-        contexts.add(Context::Device(Box::new(DeviceContext {
-            family: Annotated::from(device.family),
-            model: Annotated::from(device.model),
-            brand: Annotated::from(device.brand),
-            ..DeviceContext::default()
-        })));
-    }
-
-    // avoid conflicts with OS-context sent by a serverside SDK by using `contexts.client_os`
-    // instead of `contexts.os`. This is then preferred by the UI to show alongside device and
-    // browser context.
-    //
-    // Why not move the existing `contexts.os` into a different key on conflicts? Because we still
-    // want to index (derive tags from) the SDK-sent context.
-    let os_context_key = match event.platform.as_str() {
+    let os_context_key = match platform.as_str() {
         Some("javascript") => OsContext::default_key(),
         _ => "client_os",
     };
-
-    if is_known(os.family.as_str()) && !contexts.contains_key(os_context_key) {
-        let version = get_version(&os.major, &os.minor, &os.patch);
-        contexts.insert(
-            os_context_key.to_owned(),
-            Annotated::new(
-                Context::Os(Box::new(OsContext {
-                    name: Annotated::from(os.family),
-                    version: Annotated::from(version),
-                    ..OsContext::default()
-                }))
-                .into(),
-            ),
-        );
+    if !contexts.contains_key(os_context_key) {
+        if let Some(os_context) = user_agent_as_os_context(user_agent) {
+            contexts.insert(
+                os_context_key.to_owned(),
+                Annotated::new(Context::Os(Box::new(os_context)).into()),
+            );
+        }
     }
+}
+
+fn user_agent_as_browser_context(user_agent: &str) -> Option<BrowserContext> {
+    let browser = parse_user_agent(user_agent);
+
+    if !is_known(browser.family.as_str()) {
+        return None;
+    }
+
+    Some(BrowserContext {
+        name: Annotated::from(browser.family),
+        version: Annotated::from(get_version(&browser.major, &browser.minor, &browser.patch)),
+        ..BrowserContext::default()
+    })
+}
+
+fn user_agent_as_device_context(user_agent: &str) -> Option<DeviceContext> {
+    let device = parse_device(user_agent);
+
+    if !is_known(device.family.as_str()) {
+        return None;
+    }
+
+    Some(DeviceContext {
+        family: Annotated::from(device.family),
+        model: Annotated::from(device.model),
+        brand: Annotated::from(device.brand),
+        ..DeviceContext::default()
+    })
+}
+
+fn user_agent_as_os_context(user_agent: &str) -> Option<OsContext> {
+    let os = parse_os(user_agent);
+
+    if !is_known(os.family.as_str()) {
+        return None;
+    }
+
+    Some(OsContext {
+        name: Annotated::from(os.family),
+        version: Annotated::from(get_version(&os.major, &os.minor, &os.patch)),
+        ..OsContext::default()
+    })
 }
 
 fn is_known(family: &str) -> bool {
