@@ -2347,6 +2347,64 @@
 <span id="2345">2345</span>
 <span id="2346">2346</span>
 <span id="2347">2347</span>
+<span id="2348">2348</span>
+<span id="2349">2349</span>
+<span id="2350">2350</span>
+<span id="2351">2351</span>
+<span id="2352">2352</span>
+<span id="2353">2353</span>
+<span id="2354">2354</span>
+<span id="2355">2355</span>
+<span id="2356">2356</span>
+<span id="2357">2357</span>
+<span id="2358">2358</span>
+<span id="2359">2359</span>
+<span id="2360">2360</span>
+<span id="2361">2361</span>
+<span id="2362">2362</span>
+<span id="2363">2363</span>
+<span id="2364">2364</span>
+<span id="2365">2365</span>
+<span id="2366">2366</span>
+<span id="2367">2367</span>
+<span id="2368">2368</span>
+<span id="2369">2369</span>
+<span id="2370">2370</span>
+<span id="2371">2371</span>
+<span id="2372">2372</span>
+<span id="2373">2373</span>
+<span id="2374">2374</span>
+<span id="2375">2375</span>
+<span id="2376">2376</span>
+<span id="2377">2377</span>
+<span id="2378">2378</span>
+<span id="2379">2379</span>
+<span id="2380">2380</span>
+<span id="2381">2381</span>
+<span id="2382">2382</span>
+<span id="2383">2383</span>
+<span id="2384">2384</span>
+<span id="2385">2385</span>
+<span id="2386">2386</span>
+<span id="2387">2387</span>
+<span id="2388">2388</span>
+<span id="2389">2389</span>
+<span id="2390">2390</span>
+<span id="2391">2391</span>
+<span id="2392">2392</span>
+<span id="2393">2393</span>
+<span id="2394">2394</span>
+<span id="2395">2395</span>
+<span id="2396">2396</span>
+<span id="2397">2397</span>
+<span id="2398">2398</span>
+<span id="2399">2399</span>
+<span id="2400">2400</span>
+<span id="2401">2401</span>
+<span id="2402">2402</span>
+<span id="2403">2403</span>
+<span id="2404">2404</span>
+<span id="2405">2405</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::DefaultHasher;
 <span class="kw">use </span>std::hash::{Hash, Hasher};
 <span class="kw">use </span>std::mem;
@@ -2998,8 +3056,8 @@
     }
 }
 
-<span class="kw">fn </span>normalize_logentry(logentry: <span class="kw-2">&amp;mut </span>Annotated&lt;LogEntry&gt;, meta: <span class="kw-2">&amp;mut </span>Meta) -&gt; ProcessingResult {
-    logentry.apply(|le, <span class="kw">_</span>| logentry::normalize_logentry(le, meta))
+<span class="kw">fn </span>normalize_logentry(logentry: <span class="kw-2">&amp;mut </span>Annotated&lt;LogEntry&gt;, _meta: <span class="kw-2">&amp;mut </span>Meta) -&gt; ProcessingResult {
+    logentry.apply(|le, meta| logentry::normalize_logentry(le, meta))
 }
 
 <span class="attribute">#[derive(Default, Debug)]
@@ -4212,6 +4270,64 @@
           },
         }
         &quot;###</span>);
+    }
+
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_logentry_error() {
+        <span class="kw">let </span>json = <span class="string">r###&quot;
+{
+    &quot;event_id&quot;: &quot;74ad1301f4df489ead37d757295442b1&quot;,
+    &quot;timestamp&quot;: 1668148328.308933,
+    &quot;received&quot;: 1668148328.308933,
+    &quot;level&quot;: &quot;error&quot;,
+    &quot;platform&quot;: &quot;python&quot;,
+    &quot;logentry&quot;: {
+        &quot;params&quot;: [
+            &quot;bogus&quot;
+        ],
+        &quot;formatted&quot;: 42
+    }
+}
+&quot;###</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::from_json(json).unwrap();
+
+        <span class="kw">let </span><span class="kw-2">mut </span>processor = NormalizeProcessor::default();
+        <span class="kw">let </span>config = LightNormalizationConfig::default();
+        light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap();
+        process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
+
+        <span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>event), {<span class="string">&quot;.received&quot; </span>=&gt; <span class="string">&quot;[received]&quot;</span>}, @<span class="string">r###&quot;
+        {
+          &quot;event_id&quot;: &quot;74ad1301f4df489ead37d757295442b1&quot;,
+          &quot;level&quot;: &quot;error&quot;,
+          &quot;type&quot;: &quot;default&quot;,
+          &quot;logentry&quot;: null,
+          &quot;logger&quot;: &quot;&quot;,
+          &quot;platform&quot;: &quot;python&quot;,
+          &quot;timestamp&quot;: 1668148328.308933,
+          &quot;received&quot;: &quot;[received]&quot;,
+          &quot;_meta&quot;: {
+            &quot;logentry&quot;: {
+              &quot;&quot;: {
+                &quot;err&quot;: [
+                  [
+                    &quot;invalid_data&quot;,
+                    {
+                      &quot;reason&quot;: &quot;no message present&quot;
+                    }
+                  ]
+                ],
+                &quot;val&quot;: {
+                  &quot;formatted&quot;: null,
+                  &quot;message&quot;: null,
+                  &quot;params&quot;: [
+                    &quot;bogus&quot;
+                  ]
+                }
+              }
+            }
+          }
+        }&quot;###</span>)
     }
 
     <span class="attribute">#[test]
