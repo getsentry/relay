@@ -37,7 +37,7 @@ pub struct AppContext {
     pub app_memory: Annotated<u64>,
 
     /// A flag indicating whether the app is in foreground or not. An app is in foreground when it's visible to the user.
-    pub app_in_foreground: Annotated<bool>,
+    pub in_foreground: Annotated<bool>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
@@ -67,7 +67,7 @@ mod tests {
   "app_version": "1.0",
   "app_build": "100001",
   "app_memory": 22883948,
-  "app_in_foreground": true,
+  "in_foreground": true,
   "other": "value",
   "type": "app"
 }"#;
@@ -80,7 +80,7 @@ mod tests {
             app_version: Annotated::new("1.0".to_string()),
             app_build: Annotated::new("100001".to_string().into()),
             app_memory: Annotated::new(22883948),
-            app_in_foreground: Annotated::new(true),
+            in_foreground: Annotated::new(true),
             other: {
                 let mut map = Object::new();
                 map.insert(

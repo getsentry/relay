@@ -422,14 +422,6 @@ expression: "relay_general::protocol::event_json_schema()"
                 "null"
               ]
             },
-            "app_in_foreground": {
-              "description": " A flag indicating whether the app is in foreground or not. An app is in foreground when it's visible to the user.",
-              "default": null,
-              "type": [
-                "boolean",
-                "null"
-              ]
-            },
             "app_memory": {
               "description": " Amount of memory used by the application in bytes.",
               "default": null,
@@ -477,6 +469,14 @@ expression: "relay_general::protocol::event_json_schema()"
               "default": null,
               "type": [
                 "string",
+                "null"
+              ]
+            },
+            "in_foreground": {
+              "description": " A flag indicating whether the app is in foreground or not. An app is in foreground when it's visible to the user.",
+              "default": null,
+              "type": [
+                "boolean",
                 "null"
               ]
             }
