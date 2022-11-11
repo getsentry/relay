@@ -25,8 +25,8 @@ use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     self, Breadcrumb, ClientReport, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
-    LenientString, Metrics, RelayInfo, SecurityReportType, SessionAggregates, SessionAttributes,
-    SessionUpdate, Timestamp, UserReport, Values,
+    LenientString, Metrics, RelayInfo, Replay, SecurityReportType, SessionAggregates,
+    SessionAttributes, SessionUpdate, Timestamp, UserReport, Values,
 };
 use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig};
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
@@ -1079,7 +1079,7 @@ impl EnvelopeProcessorService {
     }
 
     /// Remove replays if the feature flag is not enabled
-    fn process_replays(&self, state: &mut ProcessEnvelopeState) {
+    fn process_replays(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let replays_enabled = state.project_state.has_feature(Feature::Replays);
         let context = &state.envelope_context;
         let envelope = &mut state.envelope;
@@ -1091,27 +1091,26 @@ impl EnvelopeProcessorService {
                     return false;
                 }
 
-                let parsed_replay =
-                    relay_replays::normalize_replay_event(&item.payload(), client_addr);
-                match parsed_replay {
-                    Ok(replay) => {
-                        item.set_payload(ContentType::Json, &replay[..]);
-                        true
-                    }
-                    Err(error) => {
-                        relay_log::warn!("failed to parse replay event: {}", LogError(&error));
-                        context.track_outcome(
-                            Outcome::Invalid(DiscardReason::InvalidReplayEvent),
-                            DataCategory::Replay,
-                            1,
-                        );
-                        false
-                    }
+                let mut replay = Annotated::<Replay>::from_json_bytes(&item.payload())
+                    .map_err(ProcessingError::InvalidJson)
+                    .unwrap();
+
+                let mut replay_value = replay.value_mut();
+                if let Some(addr) = client_addr {
+                    replay_value.unwrap().set_user_ip_address(addr);
                 }
+
+                replay_value.parse_user_agent();
+
+                let x = replay.to_json();
+
+                replays_enabled
             }
             ItemType::ReplayRecording => replays_enabled,
             _ => true,
         });
+
+        Ok(())
     }
 
     /// Creates and initializes the processing state.
@@ -1989,7 +1988,7 @@ impl EnvelopeProcessorService {
         self.process_client_reports(state);
         self.process_user_reports(state);
         self.process_profiles(state);
-        self.process_replays(state);
+        self.process_replays(state)?;
 
         if state.creates_event() {
             // Some envelopes only create events in processing relays; for example, unreal events.

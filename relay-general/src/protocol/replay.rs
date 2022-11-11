@@ -1,10 +1,9 @@
-// #[cfg(feature = "jsonschema")]
-// use schemars::gen::SchemaGenerator;
-// #[cfg(feature = "jsonschema")]
-// use schemars::schema::Schema;
-
-use crate::protocol::{ClientSdkInfo, Contexts, LenientString, Request, Tags, Timestamp, User};
+use crate::protocol::{
+    ClientSdkInfo, Contexts, IpAddr, LenientString, Request, Tags, Timestamp, User,
+};
 use crate::types::{Annotated, Array};
+use crate::user_agent;
+use std::net::IpAddr as RealIpAddr;
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
@@ -64,6 +63,19 @@ pub struct Replay {
 }
 
 impl Replay {
+    pub fn set_user_ip_address(&mut self, ip_address: RealIpAddr) {
+        if let Some(user) = self.user.value_mut() {
+            if user.ip_address.value().is_none() {
+                user.ip_address
+                    .set_value(Some(IpAddr(ip_address.to_string())));
+            }
+        };
+    }
+
+    pub fn set_contexts(&mut self) {
+        if let Some(ua) = user_agent::get_user_agent_generic(&self.request) {};
+    }
+
     pub fn get_tag_value(&self, tag_key: &str) -> Option<&str> {
         if let Some(tags) = self.tags.value() {
             tags.get(tag_key)
