@@ -67,8 +67,8 @@ serde = { version = "1.0.114", features = ["derive"] }
 serde_json = "1.0.55"
 serde_urlencoded = "0.7.0"
 smallvec = { version = "1.4.0", features = ["serde"] }
-symbolic-common = { version = "8.7.2", optional = true, default-features=false }
-symbolic-unreal = { version = "8.7.2", optional = true, default-features=false, features=["serde"] }
+symbolic-common = { version = "10.1.2", optional = true, default-features=false }
+symbolic-unreal = { version = "10.1.2", optional = true, default-features=false, features=["serde"] }
 take_mut = "0.2.2"
 tokio = { version = "1.0", features = ["rt-multi-thread", "sync", "macros"] }
 tokio-timer = "0.2.13"

@@ -10,6 +10,7 @@
 **Bug Fixes**:
 
 - Validate the distribution name in the event. ([#1556](https://github.com/getsentry/relay/pull/1556))
+- Use correct meta object for logentry in light normalization. ([#1577](https://github.com/getsentry/relay/pull/1577))
 
 **Internal**:
 
