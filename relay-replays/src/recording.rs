@@ -594,7 +594,7 @@ mod tests {
                 if let recording::NodeVariant::T2(mut ee) = dd.node.variant {
                     let ff = ee.child_nodes.pop().unwrap();
                     if let recording::NodeVariant::Rest(gg) = ff.variant {
-                        assert!(gg.text_content != "4917-4845-8989-7107".to_string());
+                        assert!(gg.text_content.as_str() == "[Filtered]");
                         return;
                     }
                 }
