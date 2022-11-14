@@ -32,6 +32,7 @@
 mod config;
 #[cfg(feature = "producer")]
 mod producer;
+#[cfg(feature = "producer")]
 mod statsd;
 
 pub use config::*;
