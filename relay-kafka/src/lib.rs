@@ -6,24 +6,7 @@
 //!
 //! # Usage
 //!
-//! ```no_run
-//!     use relay_kafka::{KafkaClient, KafkaTopic};
-//!
-//!     # let params = relay_kafka::KafkaParams{
-//!     #     topic_name: "test",
-//!     #     config_name: None,
-//!     #     params: &[relay_kafka::KafkaConfigParam{name: "test".into(), value: "test".into()}]
-//!     # };
-//!     # let kafka_config_events = relay_kafka::KafkaConfig::Single{ params };
-//!
-//!     # struct M {}
-//!     # impl relay_kafka::Message for M {
-//!     #   fn key(&self) -> [u8; 16] { todo!() }
-//!     #   fn variant(&self) -> &'static str { "test" }
-//!     #   fn serialize(&self) -> Result<Vec<u8>, relay_kafka::ClientError> { todo!() }
-//!     # }
-//!     #
-//!     # let kafka_message = M{};
+//! ```compile_fail
 //!
 //!     // Get the builder.
 //!     let mut builder = KafkaClient::builder();
@@ -32,7 +15,7 @@
 //!     builder = builder.add_kafka_topic_config(KafkaTopic::Events, &kafka_config_events).unwrap();
 //!
 //!     // And add potentially another topic config.
-//!     // builder.add_kafka_topic_config(&kafka_config_metrics)?;
+//!     builder.add_kafka_topic_config(&kafka_config_metrics)?;
 //!
 //!     // build the client
 //!     let kafka_client = builder.build();
