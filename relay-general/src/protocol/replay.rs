@@ -126,8 +126,8 @@ impl Replay {
 }
 
 mod test {
-    use super::*;
-    use crate::protocol::TagEntry;
+    use crate::protocol::{Replay, TagEntry, Tags};
+    use crate::types::Annotated;
     use crate::types::ErrorKind;
     use crate::types::{Map, Meta};
     use chrono::{TimeZone, Utc};

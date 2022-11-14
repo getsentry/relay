@@ -15,7 +15,7 @@ def generate_replay_sdk_event():
         "dist": "1.12",
         "platform": "Python",
         "environment": "production",
-        "release": "version@1.3",
+        "release": 42,
         "tags": {"transaction": "/organizations/:orgId/performance/:eventSlug/"},
         "sdk": {"name": "name", "version": "veresion"},
         "user": {
@@ -27,7 +27,7 @@ def generate_replay_sdk_event():
         "request": {
             "url": None,
             "headers": {
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Safari/605.1.15"
+                "user-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Safari/605.1.15"
             },
         },
         "contexts": {
@@ -70,19 +70,13 @@ def test_replay_event_with_processing(
     assert parsed_replay["dist"] == replay["dist"]
     assert parsed_replay["platform"] == replay["platform"]
     assert parsed_replay["environment"] == replay["environment"]
-    assert parsed_replay["release"] == replay["release"]
-    assert parsed_replay["tags"]["transaction"] == replay["tags"]["transaction"]
+    assert parsed_replay["release"] == str(replay["release"])
     assert parsed_replay["sdk"]["name"] == replay["sdk"]["name"]
     assert parsed_replay["sdk"]["version"] == replay["sdk"]["version"]
     assert parsed_replay["user"]["id"] == replay["user"]["id"]
     assert parsed_replay["user"]["username"] == replay["user"]["username"]
     assert parsed_replay["user"]["email"] == replay["user"]["email"]
     assert parsed_replay["user"]["ip_address"] == replay["user"]["ip_address"]
-    assert parsed_replay["request"]["url"] == replay["request"]["url"]
-    assert (
-        parsed_replay["request"]["headers"]["User-Agent"]
-        == replay["request"]["headers"]["User-Agent"]
-    )
 
     # Round to account for float imprecision. Not a big deal. Decimals
     # are dropped in Clickhouse.
@@ -91,11 +85,22 @@ def test_replay_event_with_processing(
     )
     assert int(parsed_replay["timestamp"]) == int(replay["timestamp"])
 
+    # Assert the tags and requests objects were normalized to lists of doubles.
+    assert parsed_replay["tags"] == [["transaction", replay["tags"]["transaction"]]]
+    assert parsed_replay["request"] == {
+        "headers": [["User-Agent", replay["request"]["headers"]["user-Agent"]]]
+    }
+
     # Assert contexts object was pulled out.
     assert parsed_replay["contexts"] == {
-        "browser": {"name": "Safari", "version": "15.5",},
-        "device": {"brand": "Apple", "family": "Mac", "model": "Mac",},
-        "os": {"name": "Mac OS X", "version": "10.15.7",},
+        "browser": {"name": "Safari", "version": "15.5", "type": "browser"},
+        "device": {"brand": "Apple", "family": "Mac", "model": "Mac", "type": "device"},
+        "client_os": {"name": "Mac OS X", "version": "10.15.7", "type": "os"},
+        "trace": {
+            "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+            "span_id": "fa90fdead5f74052",
+            "type": "trace",
+        },
     }
 
 
