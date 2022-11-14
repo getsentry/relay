@@ -186,10 +186,7 @@ impl KafkaClientBuilder {
     /// # Errors
     /// Returns [`ClientError::InvalidConfig`] error if the provided configuration is wrong and
     /// the producer could not be created.
-    pub fn add_kafka_topic_config<'a>(
-        mut self,
-        config: &'a KafkaConfig,
-    ) -> Result<Self, ClientError> {
+    pub fn add_kafka_topic_config(mut self, config: &KafkaConfig) -> Result<Self, ClientError> {
         let mut client_config = ClientConfig::new();
         match config {
             KafkaConfig::Single { topic, params } => {
