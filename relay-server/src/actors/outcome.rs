@@ -694,7 +694,7 @@ impl KafkaOutcomesProducer {
                 .kafka_config(*topic)
                 .map_err(|_| ServerErrorKind::KafkaError)?;
             client_builder = client_builder
-                .add_kafka_topic_config(kafka_config)
+                .add_kafka_topic_config(*topic, kafka_config)
                 .map_err(|_| ServerErrorKind::KafkaError)?;
         }
         Ok(Self {

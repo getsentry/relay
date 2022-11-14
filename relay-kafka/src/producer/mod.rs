@@ -156,9 +156,9 @@ impl KafkaClient {
         variant: &str,
         payload: &[u8],
     ) -> Result<(), ClientError> {
-        let producer = self.producers.get(&topic).ok_or({
+        let producer = self.producers.get(&topic).ok_or_else(|| {
             relay_log::error!(
-                "Attempted to send message to {:?} using kafka producer which was not configured.",
+                "Attempted to send message to {:?} using an unconfigured kafka producer.",
                 topic
             );
             ClientError::InvalidTopicName
@@ -167,7 +167,7 @@ impl KafkaClient {
     }
 }
 
-/// Helper structures responsable for building the actual [`KafkaClient`].
+/// Helper structure responsable for building the actual [`KafkaClient`].
 #[derive(Default)]
 pub struct KafkaClientBuilder {
     reused_producers: BTreeMap<Option<String>, Arc<ThreadedProducer>>,
@@ -186,10 +186,14 @@ impl KafkaClientBuilder {
     /// # Errors
     /// Returns [`ClientError::InvalidConfig`] error if the provided configuration is wrong and
     /// the producer could not be created.
-    pub fn add_kafka_topic_config(mut self, config: &KafkaConfig) -> Result<Self, ClientError> {
+    pub fn add_kafka_topic_config(
+        mut self,
+        topic: KafkaTopic,
+        config: &KafkaConfig,
+    ) -> Result<Self, ClientError> {
         let mut client_config = ClientConfig::new();
         match config {
-            KafkaConfig::Single { topic, params } => {
+            KafkaConfig::Single { params } => {
                 let KafkaParams {
                     topic_name,
                     config_name,
@@ -200,7 +204,7 @@ impl KafkaClientBuilder {
 
                 if let Some(producer) = self.reused_producers.get(&config_name) {
                     self.producers.insert(
-                        *topic,
+                        topic,
                         Producer::Single(SingleProducer {
                             topic_name: (*topic_name).to_string(),
                             producer: Arc::clone(producer),
@@ -222,7 +226,7 @@ impl KafkaClientBuilder {
                 self.reused_producers
                     .insert(config_name, Arc::clone(&producer));
                 self.producers.insert(
-                    *topic,
+                    topic,
                     Producer::Single(SingleProducer {
                         topic_name: (*topic_name).to_string(),
                         producer,
@@ -230,11 +234,7 @@ impl KafkaClientBuilder {
                 );
                 Ok(self)
             }
-            KafkaConfig::Sharded {
-                shards,
-                configs,
-                topic,
-            } => {
+            KafkaConfig::Sharded { shards, configs } => {
                 let mut producers = BTreeMap::new();
                 for (shard, kafka_params) in configs {
                     let config_name = kafka_params.config_name.map(str::to_string);
@@ -259,7 +259,7 @@ impl KafkaClientBuilder {
                     producers.insert(*shard, (kafka_params.topic_name.to_string(), producer));
                 }
                 self.producers.insert(
-                    *topic,
+                    topic,
                     Producer::Sharded(ShardedProducer {
                         shards: *shards,
                         producers,

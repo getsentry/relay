@@ -204,16 +204,12 @@ pub struct Sharded {
 pub enum KafkaConfig<'a> {
     /// Single config with Kafka parameters.
     Single {
-        /// Kafka topic name.
-        topic: KafkaTopic,
         /// Kafka parameters to create the kafka producer.
         params: KafkaParams<'a>,
     },
 
     /// The list of the Kafka configs with related shard configs.
     Sharded {
-        /// Kafka topic name.
-        topic: KafkaTopic,
         /// The maximum number of logical shards for this set of configs.
         shards: u64,
         /// The list of the sharded Kafka configs.
@@ -245,13 +241,11 @@ impl TopicAssignment {
     /// Returns [`ConfigError`] if the configuration for the current topic assignement is invalid.
     pub fn kafka_config<'a>(
         &'a self,
-        topic: KafkaTopic,
         default_config: &'a Vec<KafkaConfigParam>,
         secondary_configs: &'a BTreeMap<String, Vec<KafkaConfigParam>>,
     ) -> Result<KafkaConfig<'_>, ConfigError> {
         let kafka_config = match self {
             Self::Primary(topic_name) => KafkaConfig::Single {
-                topic,
                 params: KafkaParams {
                     topic_name,
                     config_name: None,
@@ -262,7 +256,6 @@ impl TopicAssignment {
                 topic_name,
                 kafka_config_name,
             }) => KafkaConfig::Single {
-                topic,
                 params: KafkaParams {
                     config_name: Some(kafka_config_name),
                     topic_name,
@@ -288,7 +281,6 @@ impl TopicAssignment {
                     kafka_params.insert(*shard, config);
                 }
                 KafkaConfig::Sharded {
-                    topic,
                     shards: *shards,
                     configs: kafka_params,
                 }
@@ -377,12 +369,12 @@ metrics:
         assert!(matches!(metrics, TopicAssignment::Sharded { .. }));
 
         let events_config = metrics
-            .kafka_config(KafkaTopic::MetricsTransactions, &def_config, &second_config)
+            .kafka_config(&def_config, &second_config)
             .expect("Kafka config for metrics topic");
         assert!(matches!(events_config, KafkaConfig::Sharded { .. }));
 
         let events_config = events
-            .kafka_config(KafkaTopic::Events, &def_config, &second_config)
+            .kafka_config(&def_config, &second_config)
             .expect("Kafka config for events topic");
         assert!(matches!(events_config, KafkaConfig::Single { .. }));
 
