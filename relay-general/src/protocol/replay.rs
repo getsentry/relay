@@ -1,6 +1,7 @@
 use crate::protocol::{
     ClientSdkInfo, Contexts, IpAddr, LenientString, Request, Tags, Timestamp, User,
 };
+use crate::store::user_agent::normalize_user_agent_generic;
 use crate::types::{Annotated, Array};
 use crate::user_agent;
 use std::net::IpAddr as RealIpAddr;
@@ -63,17 +64,36 @@ pub struct Replay {
 }
 
 impl Replay {
-    pub fn set_user_ip_address(&mut self, ip_address: RealIpAddr) {
-        if let Some(user) = self.user.value_mut() {
-            if user.ip_address.value().is_none() {
-                user.ip_address
-                    .set_value(Some(IpAddr(ip_address.to_string())));
+    pub fn normalize_ip_address(&mut self, ip_address: Option<RealIpAddr>) {
+        if let Some(addr) = ip_address {
+            if let Some(user) = self.user.value_mut() {
+                if user.ip_address.value().is_none() {
+                    user.ip_address.set_value(Some(IpAddr(addr.to_string())));
+                }
             }
         };
     }
 
-    pub fn set_contexts(&mut self) {
-        if let Some(ua) = user_agent::get_user_agent_generic(&self.request) {};
+    pub fn normalize_user_agent(&mut self) {
+        let user_agent = match user_agent::get_user_agent_generic(&self.request) {
+            Some(ua) => ua,
+            None => return,
+        };
+
+        if let Some(contexts) = self.contexts.value_mut() {
+            // If a contexts object exists we modify in place.
+            normalize_user_agent_generic(contexts, &self.platform, user_agent);
+        } else {
+            // If a contexts object does not exist we create a new one and attempt to populate
+            // it.  If we didn't write any data to our new contexts instance we can throw it out
+            // and leave the existing contexts value as "None".
+            let mut contexts = Contexts::new();
+            normalize_user_agent_generic(&mut contexts, &self.platform, user_agent);
+
+            if !contexts.is_empty() {
+                self.contexts.set_value(Some(contexts));
+            }
+        }
     }
 
     pub fn get_tag_value(&self, tag_key: &str) -> Option<&str> {

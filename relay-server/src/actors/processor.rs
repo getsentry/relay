@@ -1091,19 +1091,22 @@ impl EnvelopeProcessorService {
                     return false;
                 }
 
-                let mut replay = Annotated::<Replay>::from_json_bytes(&item.payload())
-                    .map_err(ProcessingError::InvalidJson)
-                    .unwrap();
+                let result = Annotated::<Replay>::from_json_bytes(&item.payload())
+                    .map_err(ProcessingError::InvalidJson);
 
-                let mut replay_value = replay.value_mut();
-                if let Some(addr) = client_addr {
-                    replay_value.unwrap().set_user_ip_address(addr);
+                match result {
+                    Ok(mut replay) => {
+                        if let Some(replay_value) = replay.value_mut() {
+                            replay_value.normalize_user_agent();
+                            replay_value.normalize_ip_address(client_addr);
+                            item.set_payload(
+                                ContentType::Json,
+                                replay.to_json().unwrap().as_bytes(),
+                            );
+                        };
+                    }
+                    Err(_) => return false,
                 }
-
-                replay_value.parse_user_agent();
-
-                let x = replay.to_json();
-
                 replays_enabled
             }
             ItemType::ReplayRecording => replays_enabled,
