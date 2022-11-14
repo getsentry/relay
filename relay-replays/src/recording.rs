@@ -205,7 +205,7 @@ impl RecordingProcessor<'_> {
     fn strip_pii(&mut self, value: &mut String) -> Result<(), ProcessingAction> {
         let field_attrs = Cow::Owned(FieldAttrs::new().pii(Pii::True));
         let processing_state =
-            ProcessingState::new_root(Some(field_attrs), Some(ValueType::String));
+            ProcessingState::root().enter_static("", Some(field_attrs), Some(ValueType::String));
         self.pii_processor
             .process_string(value, &mut Meta::default(), &processing_state)?;
 
