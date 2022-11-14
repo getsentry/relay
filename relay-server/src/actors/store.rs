@@ -13,7 +13,7 @@ use serde::{ser::Error, Serialize};
 use relay_common::{ProjectId, UnixTimestamp, Uuid};
 use relay_config::Config;
 use relay_general::protocol::{self, EventId, SessionAggregates, SessionStatus, SessionUpdate};
-use relay_kafka::{KafkaTopic, Message, Producer, ProducerError};
+use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 use relay_log::LogError;
 use relay_metrics::{Bucket, BucketValue, MetricNamespace, MetricResourceIdentifier};
 use relay_quotas::Scoping;
@@ -33,7 +33,7 @@ const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
 #[derive(Fail, Debug)]
 pub enum StoreError {
     #[fail(display = "failed to send the message to kafka")]
-    SendFailed(#[cause] ProducerError),
+    SendFailed(#[cause] ClientError),
     #[fail(display = "failed to store event because event id was missing")]
     NoEventId,
 }
@@ -47,107 +47,28 @@ fn make_distinct_id(s: &str) -> Uuid {
         .unwrap_or_else(|_| Uuid::new_v5(namespace, s.as_bytes()))
 }
 
-struct Producers {
-    events: Producer,
-    attachments: Producer,
-    transactions: Producer,
-    sessions: Producer,
-    metrics_sessions: Producer,
-    metrics_transactions: Producer,
-    profiles: Producer,
-    replay_events: Producer,
-    replay_recordings: Producer,
+struct Producer {
+    client: KafkaClient,
 }
 
-impl Producers {
-    /// Get a producer by KafkaTopic value.
-    pub fn get(&self, kafka_topic: KafkaTopic) -> Option<&Producer> {
-        match kafka_topic {
-            KafkaTopic::Attachments => Some(&self.attachments),
-            KafkaTopic::Events => Some(&self.events),
-            KafkaTopic::Transactions => Some(&self.transactions),
-            KafkaTopic::Outcomes | KafkaTopic::OutcomesBilling => {
-                // should be unreachable
-                relay_log::error!("attempted to send data to outcomes topic from store forwarder. there is another actor for that.");
-                None
-            }
-            KafkaTopic::Sessions => Some(&self.sessions),
-            KafkaTopic::MetricsSessions => Some(&self.metrics_sessions),
-            KafkaTopic::MetricsTransactions => Some(&self.metrics_transactions),
-            KafkaTopic::Profiles => Some(&self.profiles),
-            KafkaTopic::ReplayEvents => Some(&self.replay_events),
-            KafkaTopic::ReplayRecordings => Some(&self.replay_recordings),
-        }
-    }
-
+impl Producer {
     pub fn create(config: &Arc<Config>) -> Result<Self, ServerError> {
-        let mut reused_producers = BTreeMap::new();
-        let producers = Producers {
-            attachments: Producer::create(
-                &config
-                    .kafka_config(KafkaTopic::Attachments)
-                    .map_err(|_| ServerErrorKind::KafkaError)?,
-                &mut reused_producers,
-            )
-            .map_err(|_| ServerErrorKind::KafkaError)?,
-            events: Producer::create(
-                &config
-                    .kafka_config(KafkaTopic::Events)
-                    .map_err(|_| ServerErrorKind::KafkaError)?,
-                &mut reused_producers,
-            )
-            .map_err(|_| ServerErrorKind::KafkaError)?,
-            transactions: Producer::create(
-                &config
-                    .kafka_config(KafkaTopic::Transactions)
-                    .map_err(|_| ServerErrorKind::KafkaError)?,
-                &mut reused_producers,
-            )
-            .map_err(|_| ServerErrorKind::KafkaError)?,
-            sessions: Producer::create(
-                &config
-                    .kafka_config(KafkaTopic::Sessions)
-                    .map_err(|_| ServerErrorKind::KafkaError)?,
-                &mut reused_producers,
-            )
-            .map_err(|_| ServerErrorKind::KafkaError)?,
-            metrics_sessions: Producer::create(
-                &config
-                    .kafka_config(KafkaTopic::MetricsSessions)
-                    .map_err(|_| ServerErrorKind::KafkaError)?,
-                &mut reused_producers,
-            )
-            .map_err(|_| ServerErrorKind::KafkaError)?,
-            metrics_transactions: Producer::create(
-                &config
-                    .kafka_config(KafkaTopic::MetricsTransactions)
-                    .map_err(|_| ServerErrorKind::KafkaError)?,
-                &mut reused_producers,
-            )
-            .map_err(|_| ServerErrorKind::KafkaError)?,
-            profiles: Producer::create(
-                &config
-                    .kafka_config(KafkaTopic::Profiles)
-                    .map_err(|_| ServerErrorKind::KafkaError)?,
-                &mut reused_producers,
-            )
-            .map_err(|_| ServerErrorKind::KafkaError)?,
-            replay_recordings: Producer::create(
-                &config
-                    .kafka_config(KafkaTopic::ReplayRecordings)
-                    .map_err(|_| ServerErrorKind::KafkaError)?,
-                &mut reused_producers,
-            )
-            .map_err(|_| ServerErrorKind::KafkaError)?,
-            replay_events: Producer::create(
-                &config
-                    .kafka_config(KafkaTopic::ReplayEvents)
-                    .map_err(|_| ServerErrorKind::KafkaError)?,
-                &mut reused_producers,
-            )
-            .map_err(|_| ServerErrorKind::KafkaError)?,
-        };
-        Ok(producers)
+        let mut client_builder = KafkaClient::builder();
+
+        for topic in KafkaTopic::iter()
+            .filter(|t| **t != KafkaTopic::Outcomes || **t != KafkaTopic::OutcomesBilling)
+        {
+            let kafka_config = &config
+                .kafka_config(*topic)
+                .map_err(|_| ServerErrorKind::KafkaError)?;
+            client_builder = client_builder
+                .add_kafka_topic_config(kafka_config)
+                .map_err(|_| ServerErrorKind::KafkaError)?
+        }
+
+        Ok(Self {
+            client: client_builder.build(),
+        })
     }
 }
 
@@ -176,13 +97,13 @@ impl FromMessage<StoreEnvelope> for Store {
 /// Service implementing the [`Store`] interface.
 pub struct StoreService {
     config: Arc<Config>,
-    producers: Producers,
+    producer: Producer,
 }
 
 impl StoreService {
     pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
-        let producers = Producers::create(&config)?;
-        Ok(Self { config, producers })
+        let producer = Producer::create(&config)?;
+        Ok(Self { config, producer })
     }
 
     fn handle_message(&self, message: Store) {
@@ -344,11 +265,10 @@ impl StoreService {
         organization_id: u64,
         message: KafkaMessage,
     ) -> Result<(), StoreError> {
-        if let Some(producer) = self.producers.get(topic) {
-            producer
-                .send_message(organization_id, &message)
-                .map_err(StoreError::SendFailed)?;
-        }
+        self.producer
+            .client
+            .send_message(topic, organization_id, &message)
+            .map_err(StoreError::SendFailed)?;
 
         Ok(())
     }
@@ -1037,18 +957,18 @@ impl Message for KafkaMessage {
     }
 
     /// Serializes the message into its binary format.
-    fn serialize(&self) -> Result<Vec<u8>, ProducerError> {
+    fn serialize(&self) -> Result<Vec<u8>, ClientError> {
         match self {
             KafkaMessage::Session(message) => {
-                serde_json::to_vec(message).map_err(ProducerError::InvalidJson)
+                serde_json::to_vec(message).map_err(ClientError::InvalidJson)
             }
             KafkaMessage::Metric(message) => {
-                serde_json::to_vec(message).map_err(ProducerError::InvalidJson)
+                serde_json::to_vec(message).map_err(ClientError::InvalidJson)
             }
             KafkaMessage::ReplayEvent(message) => {
-                serde_json::to_vec(message).map_err(ProducerError::InvalidJson)
+                serde_json::to_vec(message).map_err(ClientError::InvalidJson)
             }
-            _ => rmp_serde::to_vec_named(&self).map_err(ProducerError::InvalidMsgPack),
+            _ => rmp_serde::to_vec_named(&self).map_err(ClientError::InvalidMsgPack),
         }
     }
 }

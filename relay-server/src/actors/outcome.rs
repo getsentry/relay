@@ -26,7 +26,7 @@ use relay_config::{Config, EmitOutcomes};
 use relay_filter::FilterStatKey;
 use relay_general::protocol::{ClientReport, DiscardedEvent, EventId};
 #[cfg(feature = "processing")]
-use relay_kafka::{KafkaTopic, Producer, ProducerError};
+use relay_kafka::{ClientError, KafkaClient, KafkaTopic};
 use relay_log::LogError;
 use relay_quotas::{ReasonCode, Scoping};
 use relay_sampling::RuleId;
@@ -495,7 +495,7 @@ impl FromMessage<Self> for TrackRawOutcome {
 pub enum OutcomeError {
     #[fail(display = "failed to send kafka message")]
     #[cfg(feature = "processing")]
-    SendFailed(ProducerError),
+    SendFailed(ClientError),
     #[fail(display = "json serialization error")]
     #[cfg(feature = "processing")]
     SerializationError(serde_json::Error),
@@ -677,8 +677,7 @@ impl Service for ClientReportOutcomeProducer {
 /// producer instance internally.
 #[cfg(feature = "processing")]
 struct KafkaOutcomesProducer {
-    default: Producer,
-    billing: Producer,
+    client: KafkaClient,
 }
 
 #[cfg(feature = "processing")]
@@ -688,38 +687,19 @@ impl KafkaOutcomesProducer {
     /// If the given Kafka configuration parameters are invalid, or an error happens during
     /// connecting during the broker, an error is returned.
     pub fn create(config: &Config) -> Result<Self, ServerError> {
-        let mut reused_producers = BTreeMap::new();
-        let producers = KafkaOutcomesProducer {
-            default: Producer::create(
-                &config
-                    .kafka_config(KafkaTopic::Outcomes)
-                    .map_err(|_| ServerErrorKind::KafkaError)?,
-                &mut reused_producers,
-            )
-            .map_err(|_| ServerErrorKind::KafkaError)?,
-            billing: Producer::create(
-                &config
-                    .kafka_config(KafkaTopic::OutcomesBilling)
-                    .map_err(|_| ServerErrorKind::KafkaError)?,
-                &mut reused_producers,
-            )
-            .map_err(|_| ServerErrorKind::KafkaError)?,
-        };
+        let mut client_builder = KafkaClient::builder();
 
-        Ok(producers)
-    }
-
-    /// Returns the producer for default outcomes.
-    pub fn default(&self) -> &Producer {
-        &self.default
-    }
-
-    /// Returns the producer for billing outcomes.
-    ///
-    /// Note that this may return the same producer instance as [`default`](Self::default) depending
-    /// on the configuration.
-    pub fn billing(&self) -> &Producer {
-        &self.billing
+        for topic in &[KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
+            let kafka_config = &config
+                .kafka_config(*topic)
+                .map_err(|_| ServerErrorKind::KafkaError)?;
+            client_builder = client_builder
+                .add_kafka_topic_config(kafka_config)
+                .map_err(|_| ServerErrorKind::KafkaError)?;
+        }
+        Ok(Self {
+            client: client_builder.build(),
+        })
     }
 }
 
@@ -840,13 +820,14 @@ impl OutcomeProducerService {
         let key = message.event_id.unwrap_or_else(EventId::new).0;
 
         // Dispatch to the correct topic and cluster based on the kind of outcome.
-        let (_topic, producer) = if message.is_billing() {
-            (KafkaTopic::OutcomesBilling, producer.billing())
+        let topic = if message.is_billing() {
+            KafkaTopic::OutcomesBilling
         } else {
-            (KafkaTopic::Outcomes, producer.default())
+            KafkaTopic::Outcomes
         };
 
-        let result = producer.send(
+        let result = producer.client.send(
+            topic,
             organization_id,
             key.as_bytes(),
             "outcome",
