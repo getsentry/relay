@@ -600,7 +600,7 @@ mod tests {
                 }
             }
         }
-        assert!(false);
+        unreachable!();
     }
 
     #[test]
