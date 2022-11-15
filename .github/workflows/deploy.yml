@@ -131,7 +131,11 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: run
-          args: -p document-metrics -- -o relay_metrics.json relay-*/src/statsd.rs
+          args: -p document-metrics -- -o relay_metrics.json
+            relay-kafka/src/statsd.rs
+            relay-metrics/src/statsd.rs
+            relay-server/src/statsd.rs
+            relay-system/src/statsd.rs
 
       - name: Deploy
         if: github.ref == 'refs/heads/master'
