@@ -262,6 +262,8 @@
 <span id="262">262</span>
 <span id="263">263</span>
 <span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Replay processing and normalization module.
 //!
 //! Replays are multi-part values sent from Sentry integrations spanning arbitrary time-periods.
@@ -291,6 +293,8 @@
 //! ```
 </span><span class="kw">use </span>std::fmt::Write;
 <span class="kw">use </span>std::net::IpAddr;
+
+<span class="kw">pub mod </span>recording;
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>serde_json::{Error, Value};

@@ -2904,6 +2904,26 @@
 <span id="2902">2902</span>
 <span id="2903">2903</span>
 <span id="2904">2904</span>
+<span id="2905">2905</span>
+<span id="2906">2906</span>
+<span id="2907">2907</span>
+<span id="2908">2908</span>
+<span id="2909">2909</span>
+<span id="2910">2910</span>
+<span id="2911">2911</span>
+<span id="2912">2912</span>
+<span id="2913">2913</span>
+<span id="2914">2914</span>
+<span id="2915">2915</span>
+<span id="2916">2916</span>
+<span id="2917">2917</span>
+<span id="2918">2918</span>
+<span id="2919">2919</span>
+<span id="2920">2920</span>
+<span id="2921">2921</span>
+<span id="2922">2922</span>
+<span id="2923">2923</span>
+<span id="2924">2924</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::cmp::max;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
@@ -4015,7 +4035,27 @@
                     </span>}
                 }
             }
-            ItemType::ReplayRecording =&gt; replays_enabled,
+            ItemType::ReplayRecording =&gt; {
+                <span class="comment">// XXX: Temporarily, only the Sentry org will be allowed to parse replays while
+                // we measure the impact of this change.
+                </span><span class="kw">if </span>replays_enabled &amp;&amp; state.project_state.organization_id == <span class="prelude-val">Some</span>(<span class="number">1</span>) {
+                    <span class="kw">let </span>parsed_recording =
+                        relay_replays::recording::process_recording(<span class="kw-2">&amp;</span>item.payload());
+
+                    <span class="kw">match </span>parsed_recording {
+                        <span class="prelude-val">Ok</span>(recording) =&gt; {
+                            item.set_payload(ContentType::OctetStream, recording.as_slice());
+                        }
+                        <span class="prelude-val">Err</span>(e) =&gt; {
+                            <span class="macro">relay_log::warn!</span>(<span class="string">&quot;failed to parse replay event: {}&quot;</span>, e);
+                        }
+                    }
+                }
+
+                <span class="comment">// XXX: For now replays that could not be parsed are still accepted while we
+                // determine the impact of the recording parser.
+                </span>replays_enabled
+            }
             <span class="kw">_ </span>=&gt; <span class="bool-val">true</span>,
         });
     }
