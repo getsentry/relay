@@ -15,10 +15,8 @@ default = []
 ssl = ["native-tls", "actix-web/tls"]
 processing = [
     "minidump",
-    "rdkafka",
-    "rdkafka-sys",
-    "rdkafka-sys/cmake-build",
     "relay-config/processing",
+    "relay-kafka/producer",
     "relay-quotas/redis",
     "relay-redis/impl",
     "symbolic-unreal",
@@ -46,8 +44,6 @@ minidump = { version = "0.10.0", optional = true }
 native-tls = { version = "0.2.4", optional = true }
 once_cell = "1.13.1"
 parking_lot = "0.12.1"
-rdkafka = { version = "0.24", optional = true }
-rdkafka-sys = { version = "2.1.0", optional = true }
 regex = "1.5.5"
 relay-auth = { path = "../relay-auth" }
 relay-aws-extension = { path = "../relay-aws-extension" }
@@ -55,6 +51,7 @@ relay-common = { path = "../relay-common" }
 relay-config = { path = "../relay-config" }
 relay-filter = { path = "../relay-filter" }
 relay-general = { path = "../relay-general" }
+relay-kafka = { path = "../relay-kafka", optional = true }
 relay-log = { path = "../relay-log" }
 relay-metrics = { path = "../relay-metrics" }
 relay-profiling = { path = "../relay-profiling" }

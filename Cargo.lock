@@ -3214,6 +3214,7 @@ dependencies = [
  "num_cpus",
  "relay-auth",
  "relay-common",
+ "relay-kafka",
  "relay-log",
  "relay-metrics",
  "relay-redis",
@@ -3312,6 +3313,21 @@ dependencies = [
  "quote 1.0.18",
  "syn 1.0.96",
  "synstructure",
+]
+
+[[package]]
+name = "relay-kafka"
+version = "22.10.0"
+dependencies = [
+ "failure",
+ "rdkafka",
+ "rdkafka-sys",
+ "relay-log",
+ "relay-statsd",
+ "rmp-serde",
+ "serde",
+ "serde_json",
+ "serde_yaml",
 ]
 
 [[package]]
@@ -3452,8 +3468,6 @@ dependencies = [
  "native-tls",
  "once_cell",
  "parking_lot 0.12.1",
- "rdkafka",
- "rdkafka-sys",
  "regex",
  "relay-auth",
  "relay-aws-extension",
@@ -3461,6 +3475,7 @@ dependencies = [
  "relay-config",
  "relay-filter",
  "relay-general",
+ "relay-kafka",
  "relay-log",
  "relay-metrics",
  "relay-profiling",

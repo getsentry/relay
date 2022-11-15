@@ -6,15 +6,14 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use bytes::Bytes;
-use failure::{Fail, ResultExt};
+use failure::Fail;
 use once_cell::sync::OnceCell;
-use rdkafka::{error::KafkaError, producer::BaseRecord, ClientConfig};
-use rmp_serde::encode::Error as RmpError;
 use serde::{ser::Error, Serialize};
 
 use relay_common::{ProjectId, UnixTimestamp, Uuid};
-use relay_config::{Config, KafkaConfig, KafkaParams, KafkaTopic};
+use relay_config::Config;
 use relay_general::protocol::{self, EventId, SessionAggregates, SessionStatus, SessionUpdate};
+use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 use relay_log::LogError;
 use relay_metrics::{Bucket, BucketValue, MetricNamespace, MetricResourceIdentifier};
 use relay_quotas::Scoping;
@@ -23,8 +22,7 @@ use relay_system::{AsyncResponse, FromMessage, Interface, Sender, Service};
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::service::{ServerError, ServerErrorKind};
-use crate::statsd::{RelayCounters, RelayHistograms};
-use crate::utils::{CaptureErrorContext, ThreadedProducer};
+use crate::statsd::RelayCounters;
 
 /// The maximum number of individual session updates generated for each aggregate item.
 const MAX_EXPLODED_SESSIONS: usize = 100;
@@ -34,20 +32,11 @@ const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
 
 #[derive(Fail, Debug)]
 pub enum StoreError {
-    #[fail(display = "failed to send kafka message")]
-    SendFailed(#[cause] KafkaError),
-    #[fail(display = "failed to serialize kafka message")]
-    InvalidMsgPack(#[cause] RmpError),
-    #[fail(display = "failed to serialize json message")]
-    InvalidJson(#[cause] serde_json::Error),
-    #[fail(display = "failed to find the shard range")]
-    InvalidKafkaShardRange,
+    #[fail(display = "failed to send the message to kafka")]
+    SendFailed(#[cause] ClientError),
     #[fail(display = "failed to store event because event id was missing")]
     NoEventId,
 }
-
-/// Temporary map used to deduplicate kafka producers
-type ReusedProducersMap<'a> = BTreeMap<Option<&'a str>, Arc<ThreadedProducer>>;
 
 fn make_distinct_id(s: &str) -> Uuid {
     static NAMESPACE: OnceCell<Uuid> = OnceCell::new();
@@ -58,195 +47,28 @@ fn make_distinct_id(s: &str) -> Uuid {
         .unwrap_or_else(|_| Uuid::new_v5(namespace, s.as_bytes()))
 }
 
-pub fn make_producer<'a>(
-    config: &'a Config,
-    reused_producers: &mut ReusedProducersMap<'a>,
-    kafka_topic: KafkaTopic,
-) -> Result<Producer, ServerError> {
-    let mut client_config = ClientConfig::new();
-    match config
-        .kafka_config(kafka_topic)
-        .context(ServerErrorKind::KafkaError)?
-    {
-        KafkaConfig::Single(KafkaParams {
-            topic_name,
-            config_name,
-            params,
-        }) => {
-            if let Some(producer) = reused_producers.get(&config_name) {
-                return Ok(Producer::Single {
-                    topic_name: topic_name.to_string(),
-                    producer: Arc::clone(producer),
-                });
-            }
-
-            for config_p in params {
-                client_config.set(config_p.name.as_str(), config_p.value.as_str());
-            }
-
-            let producer = Arc::new(
-                client_config
-                    .create_with_context(CaptureErrorContext)
-                    .context(ServerErrorKind::KafkaError)?,
-            );
-
-            reused_producers.insert(config_name, Arc::clone(&producer));
-            Ok(Producer::Single {
-                topic_name: topic_name.to_string(),
-                producer,
-            })
-        }
-        KafkaConfig::Sharded { shards, configs } => {
-            let mut producers = BTreeMap::new();
-            for (shard, kafka_params) in configs {
-                if let Some(producer) = reused_producers.get(&kafka_params.config_name) {
-                    let cached_producer = Arc::clone(producer);
-                    producers.insert(
-                        shard,
-                        (kafka_params.topic_name.to_string(), cached_producer),
-                    );
-                    continue;
-                }
-                for config_p in kafka_params.params {
-                    client_config.set(config_p.name.as_str(), config_p.value.as_str());
-                }
-                let producer = Arc::new(
-                    client_config
-                        .create_with_context(CaptureErrorContext)
-                        .context(ServerErrorKind::KafkaError)?,
-                );
-                reused_producers.insert(kafka_params.config_name, Arc::clone(&producer));
-                producers.insert(shard, (kafka_params.topic_name.to_string(), producer));
-            }
-            Ok(Producer::Sharded(ShardedProducer { shards, producers }))
-        }
-    }
-}
-
-/// This object containes the Kafka producer variants for single and sharded configurations.
-pub enum Producer {
-    Single {
-        topic_name: String,
-        producer: Arc<ThreadedProducer>,
-    },
-    Sharded(ShardedProducer),
-}
-
-/// Sharded producer configuration.
-pub struct ShardedProducer {
-    /// The maximum number of shards for this producer.
-    shards: u64,
-    /// The actual Kafka producer assigned to the range of logical shards, where the `u64` in the map is
-    /// the inclusive beginning of the range.
-    producers: BTreeMap<u64, (String, Arc<ThreadedProducer>)>,
-}
-
-impl ShardedProducer {
-    /// Returns topic name and the Kafka producer based on the provided sharding key.
-    /// Returns error [`StoreError::InvalidKafkaShardRange`] if the shard range for the provided sharding
-    /// key could not be found.
-    pub fn get_producer(&self, sharding_key: u64) -> Result<(&str, &ThreadedProducer), StoreError> {
-        let shard = sharding_key % self.shards;
-        let (topic_name, producer) = self
-            .producers
-            .iter()
-            .take_while(|(k, _)| *k <= &shard)
-            .last()
-            .map(|(_, v)| v)
-            .ok_or(StoreError::InvalidKafkaShardRange)?;
-
-        Ok((topic_name, producer))
-    }
+struct Producer {
+    client: KafkaClient,
 }
 
 impl Producer {
-    /// Sends the message to Kafka using correct producer for the current topic.
-    fn send(&self, organization_id: u64, message: KafkaMessage) -> Result<(), StoreError> {
-        let serialized = message.serialize()?;
-        metric!(
-            histogram(RelayHistograms::KafkaMessageSize) = serialized.len() as u64,
-            variant = message.variant()
-        );
-        let key = message.key();
-        let (topic_name, producer) = match self {
-            Self::Single {
-                topic_name,
-                producer,
-            } => (topic_name.as_str(), producer.as_ref()),
-
-            Self::Sharded(sharded) => sharded.get_producer(organization_id)?,
-        };
-        let record = BaseRecord::to(topic_name).key(&key).payload(&serialized);
-
-        producer.send(record).map_err(|(kafka_error, _message)| {
-            relay_log::with_scope(
-                |scope| scope.set_tag("variant", message.variant()),
-                || relay_log::error!("error sending kafka message: {}", kafka_error),
-            );
-            StoreError::SendFailed(kafka_error)
-        })
-    }
-}
-
-struct Producers {
-    events: Producer,
-    attachments: Producer,
-    transactions: Producer,
-    sessions: Producer,
-    metrics_sessions: Producer,
-    metrics_transactions: Producer,
-    profiles: Producer,
-    replay_events: Producer,
-    replay_recordings: Producer,
-}
-
-impl Producers {
-    /// Get a producer by KafkaTopic value.
-    pub fn get(&self, kafka_topic: KafkaTopic) -> Option<&Producer> {
-        match kafka_topic {
-            KafkaTopic::Attachments => Some(&self.attachments),
-            KafkaTopic::Events => Some(&self.events),
-            KafkaTopic::Transactions => Some(&self.transactions),
-            KafkaTopic::Outcomes | KafkaTopic::OutcomesBilling => {
-                // should be unreachable
-                relay_log::error!("attempted to send data to outcomes topic from store forwarder. there is another actor for that.");
-                None
-            }
-            KafkaTopic::Sessions => Some(&self.sessions),
-            KafkaTopic::MetricsSessions => Some(&self.metrics_sessions),
-            KafkaTopic::MetricsTransactions => Some(&self.metrics_transactions),
-            KafkaTopic::Profiles => Some(&self.profiles),
-            KafkaTopic::ReplayEvents => Some(&self.replay_events),
-            KafkaTopic::ReplayRecordings => Some(&self.replay_recordings),
-        }
-    }
-
     pub fn create(config: &Arc<Config>) -> Result<Self, ServerError> {
-        let mut reused_producers = BTreeMap::new();
-        let producers = Producers {
-            attachments: make_producer(config, &mut reused_producers, KafkaTopic::Attachments)?,
-            events: make_producer(config, &mut reused_producers, KafkaTopic::Events)?,
-            transactions: make_producer(config, &mut reused_producers, KafkaTopic::Transactions)?,
-            sessions: make_producer(config, &mut reused_producers, KafkaTopic::Sessions)?,
-            metrics_sessions: make_producer(
-                config,
-                &mut reused_producers,
-                KafkaTopic::MetricsSessions,
-            )?,
-            metrics_transactions: make_producer(
-                config,
-                &mut reused_producers,
-                KafkaTopic::MetricsTransactions,
-            )?,
-            profiles: make_producer(config, &mut reused_producers, KafkaTopic::Profiles)?,
-            replay_recordings: make_producer(
-                config,
-                &mut reused_producers,
-                KafkaTopic::ReplayRecordings,
-            )?,
-            replay_events: make_producer(config, &mut reused_producers, KafkaTopic::ReplayEvents)?,
-        };
-        Ok(producers)
+        let mut client_builder = KafkaClient::builder();
+
+        for topic in KafkaTopic::iter()
+            .filter(|t| **t != KafkaTopic::Outcomes || **t != KafkaTopic::OutcomesBilling)
+        {
+            let kafka_config = &config
+                .kafka_config(*topic)
+                .map_err(|_| ServerErrorKind::KafkaError)?;
+            client_builder = client_builder
+                .add_kafka_topic_config(*topic, kafka_config)
+                .map_err(|_| ServerErrorKind::KafkaError)?
+        }
+
+        Ok(Self {
+            client: client_builder.build(),
+        })
     }
 }
 
@@ -275,13 +97,13 @@ impl FromMessage<StoreEnvelope> for Store {
 /// Service implementing the [`Store`] interface.
 pub struct StoreService {
     config: Arc<Config>,
-    producers: Producers,
+    producer: Producer,
 }
 
 impl StoreService {
     pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
-        let producers = Producers::create(&config)?;
-        Ok(Self { config, producers })
+        let producer = Producer::create(&config)?;
+        Ok(Self { config, producer })
     }
 
     fn handle_message(&self, message: Store) {
@@ -443,9 +265,10 @@ impl StoreService {
         organization_id: u64,
         message: KafkaMessage,
     ) -> Result<(), StoreError> {
-        if let Some(producer) = self.producers.get(topic) {
-            producer.send(organization_id, message)?;
-        }
+        self.producer
+            .client
+            .send_message(topic, organization_id, &message)
+            .map_err(StoreError::SendFailed)?;
 
         Ok(())
     }
@@ -1095,7 +918,7 @@ enum KafkaMessage {
     ReplayRecordingChunk(ReplayRecordingChunkKafkaMessage),
 }
 
-impl KafkaMessage {
+impl Message for KafkaMessage {
     fn variant(&self) -> &'static str {
         match self {
             KafkaMessage::Event(_) => "event",
@@ -1134,18 +957,18 @@ impl KafkaMessage {
     }
 
     /// Serializes the message into its binary format.
-    fn serialize(&self) -> Result<Vec<u8>, StoreError> {
+    fn serialize(&self) -> Result<Vec<u8>, ClientError> {
         match self {
             KafkaMessage::Session(message) => {
-                serde_json::to_vec(message).map_err(StoreError::InvalidJson)
+                serde_json::to_vec(message).map_err(ClientError::InvalidJson)
             }
             KafkaMessage::Metric(message) => {
-                serde_json::to_vec(message).map_err(StoreError::InvalidJson)
+                serde_json::to_vec(message).map_err(ClientError::InvalidJson)
             }
             KafkaMessage::ReplayEvent(message) => {
-                serde_json::to_vec(message).map_err(StoreError::InvalidJson)
+                serde_json::to_vec(message).map_err(ClientError::InvalidJson)
             }
-            _ => rmp_serde::to_vec_named(&self).map_err(StoreError::InvalidMsgPack),
+            _ => rmp_serde::to_vec_named(&self).map_err(ClientError::InvalidMsgPack),
         }
     }
 }

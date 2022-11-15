@@ -18,17 +18,15 @@ use actix_web::http::Method;
 use chrono::{DateTime, SecondsFormat, Utc};
 #[cfg(feature = "processing")]
 use failure::Fail;
-#[cfg(feature = "processing")]
-use rdkafka::producer::BaseRecord;
 use relay_system::{Interface, NoResponse};
 use serde::{Deserialize, Serialize};
 
 use relay_common::{DataCategory, ProjectId, UnixTimestamp};
-#[cfg(feature = "processing")]
-use relay_config::KafkaTopic;
 use relay_config::{Config, EmitOutcomes};
 use relay_filter::FilterStatKey;
 use relay_general::protocol::{ClientReport, DiscardedEvent, EventId};
+#[cfg(feature = "processing")]
+use relay_kafka::{ClientError, KafkaClient, KafkaTopic};
 use relay_log::LogError;
 use relay_quotas::{ReasonCode, Scoping};
 use relay_sampling::RuleId;
@@ -36,9 +34,9 @@ use relay_statsd::metric;
 use relay_system::{compat, Addr, FromMessage, Service};
 
 use crate::actors::envelopes::{EnvelopeManager, SendClientReports};
-#[cfg(feature = "processing")]
-use crate::actors::store::{self, Producer};
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
+#[cfg(feature = "processing")]
+use crate::service::ServerErrorKind;
 use crate::service::REGISTRY;
 use crate::statsd::RelayCounters;
 use crate::utils::SleepHandle;
@@ -497,10 +495,7 @@ impl FromMessage<Self> for TrackRawOutcome {
 pub enum OutcomeError {
     #[fail(display = "failed to send kafka message")]
     #[cfg(feature = "processing")]
-    SendFailed(rdkafka::error::KafkaError),
-    #[fail(display = "failed to get Kafka producer")]
-    #[cfg(feature = "processing")]
-    InvalidKafkaProducer(#[cause] store::StoreError),
+    SendFailed(ClientError),
     #[fail(display = "json serialization error")]
     #[cfg(feature = "processing")]
     SerializationError(serde_json::Error),
@@ -682,8 +677,7 @@ impl Service for ClientReportOutcomeProducer {
 /// producer instance internally.
 #[cfg(feature = "processing")]
 struct KafkaOutcomesProducer {
-    default: Producer,
-    billing: Producer,
+    client: KafkaClient,
 }
 
 #[cfg(feature = "processing")]
@@ -693,30 +687,19 @@ impl KafkaOutcomesProducer {
     /// If the given Kafka configuration parameters are invalid, or an error happens during
     /// connecting during the broker, an error is returned.
     pub fn create(config: &Config) -> Result<Self, ServerError> {
-        let mut reused_producers = BTreeMap::new();
-        let producers = KafkaOutcomesProducer {
-            default: store::make_producer(config, &mut reused_producers, KafkaTopic::Outcomes)?,
-            billing: store::make_producer(
-                config,
-                &mut reused_producers,
-                KafkaTopic::OutcomesBilling,
-            )?,
-        };
+        let mut client_builder = KafkaClient::builder();
 
-        Ok(producers)
-    }
-
-    /// Returns the producer for default outcomes.
-    pub fn default(&self) -> &Producer {
-        &self.default
-    }
-
-    /// Returns the producer for billing outcomes.
-    ///
-    /// Note that this may return the same producer instance as [`default`](Self::default) depending
-    /// on the configuration.
-    pub fn billing(&self) -> &Producer {
-        &self.billing
+        for topic in &[KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
+            let kafka_config = &config
+                .kafka_config(*topic)
+                .map_err(|_| ServerErrorKind::KafkaError)?;
+            client_builder = client_builder
+                .add_kafka_topic_config(*topic, kafka_config)
+                .map_err(|_| ServerErrorKind::KafkaError)?;
+        }
+        Ok(Self {
+            client: client_builder.build(),
+        })
     }
 }
 
@@ -837,38 +820,23 @@ impl OutcomeProducerService {
         let key = message.event_id.unwrap_or_else(EventId::new).0;
 
         // Dispatch to the correct topic and cluster based on the kind of outcome.
-        let (_topic, producer) = if message.is_billing() {
-            (KafkaTopic::OutcomesBilling, producer.billing())
+        let topic = if message.is_billing() {
+            KafkaTopic::OutcomesBilling
         } else {
-            (KafkaTopic::Outcomes, producer.default())
+            KafkaTopic::Outcomes
         };
 
-        let result = match producer {
-            Producer::Single {
-                topic_name,
-                producer,
-            } => {
-                let record = BaseRecord::to(topic_name)
-                    .payload(&payload)
-                    .key(key.as_bytes().as_ref());
-
-                producer.send(record)
-            }
-
-            Producer::Sharded(sharded) => {
-                let (topic_name, producer) = sharded
-                    .get_producer(organization_id)
-                    .map_err(OutcomeError::InvalidKafkaProducer)?;
-                let record = BaseRecord::to(topic_name)
-                    .payload(&payload)
-                    .key(key.as_bytes().as_ref());
-                producer.send(record)
-            }
-        };
+        let result = producer.client.send(
+            topic,
+            organization_id,
+            key.as_bytes(),
+            "outcome",
+            payload.as_bytes(),
+        );
 
         match result {
             Ok(_) => Ok(()),
-            Err((kafka_error, _message)) => Err(OutcomeError::SendFailed(kafka_error)),
+            Err(kafka_error) => Err(OutcomeError::SendFailed(kafka_error)),
         }
     }
 
