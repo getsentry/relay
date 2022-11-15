@@ -320,4 +320,81 @@ mod tests {
         );
         assert_eq!(result, SamplingResult::Drop(RuleId(1)));
     }
+
+    #[test]
+    /// The first matching rule applies, even if it is a transaction rule.
+    fn test_first_rule_applies() {
+        let sampling_config = serde_json::json!(
+            {
+                "rules": [
+                    {
+                        "sampleRate": 1,
+                        "type": "transaction",
+                        "condition": {
+                            "op": "or",
+                            "inner": [
+                            {
+                                "op": "glob",
+                                "name": "event.transaction",
+                                "value": [
+                                "my-important-transaction",
+                                ],
+                                "options": {
+                                "ignoreCase": true
+                                }
+                            }
+                            ]
+                        },
+                        "active": true,
+                        "id": 1002
+                        },
+                    {
+                        "sampleRate": 0,
+                        "type": "trace",
+                        "active": true,
+                        "condition": {
+                            "op": "and",
+                            "inner": []
+                        },
+                        "id": 1000
+                    }
+                ]
+            }
+        );
+
+        let sampling_config = serde_json::from_value::<SamplingConfig>(sampling_config).ok();
+
+        let project_state = ProjectState {
+            project_id: None,
+            disabled: false,
+            public_keys: SmallVec::new(),
+            slug: None,
+            config: ProjectConfig {
+                dynamic_sampling: sampling_config,
+                ..ProjectConfig::default()
+            },
+            organization_id: None,
+            last_change: None,
+            last_fetch: Instant::now(),
+            invalid: false,
+        };
+
+        let envelope = new_envelope(true);
+
+        let mut event = Event::default();
+        event
+            .transaction
+            .set_value(Some("my-important-transaction".to_owned()));
+
+        let keep_event = should_keep_event(
+            envelope.sampling_context(),
+            Some(&event),
+            None,
+            &project_state,
+            Some(&project_state),
+            true,
+        );
+
+        assert_eq!(keep_event, SamplingResult::Keep);
+    }
 }
