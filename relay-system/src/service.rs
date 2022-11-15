@@ -378,7 +378,7 @@ impl<I: Interface> Receiver<I> {
     /// This method returns `None` if the channel has been closed and there are
     /// no remaining messages in the channel's buffer. This indicates that no
     /// further values can ever be received from this `Receiver`. The channel is
-    /// closed when all senders have been dropped, or when [`close`] is called.
+    /// closed when all senders have been dropped.
     ///
     /// If there are no messages in the channel's buffer, but the channel has
     /// not yet been closed, this method will sleep until a message is sent or
