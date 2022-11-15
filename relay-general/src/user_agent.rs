@@ -54,9 +54,7 @@ pub fn init_parser() {
 /// Returns `Some` if the event's request interface contains a `user-agent` header. Returns `None`
 /// otherwise.
 pub fn get_user_agent(event: &Event) -> Option<&str> {
-    let request = event.request.value()?;
-    let headers = request.headers.value()?;
-    get_user_agent_from_headers(headers)
+    get_user_agent_generic(&event.request)
 }
 
 pub fn get_user_agent_generic(request: &Annotated<Request>) -> Option<&str> {
