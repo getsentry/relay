@@ -2,9 +2,18 @@ use std::fmt;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use std::task::Context;
+use std::time::Duration;
 
 use tokio::sync::{mpsc, oneshot};
+use tokio::time::MissedTickBehavior;
+
+use crate::statsd::SystemGauges;
+
+/// Interval for recording backlog metrics on service channels.
+const BACKLOG_INTERVAL: Duration = Duration::from_secs(1);
 
 /// A message interface for [services](Service).
 ///
@@ -305,12 +314,14 @@ pub trait FromMessage<M>: Interface {
 /// long as the service is running. It can be freely cloned.
 pub struct Addr<I: Interface> {
     tx: mpsc::UnboundedSender<I>,
+    backlog: Arc<AtomicU64>,
 }
 
 impl<I: Interface> fmt::Debug for Addr<I> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Addr")
             .field("open", &!self.tx.is_closed())
+            .field("backlog", &self.backlog.load(Ordering::Relaxed))
             .finish()
     }
 }
@@ -321,6 +332,7 @@ impl<I: Interface> Clone for Addr<I> {
     fn clone(&self) -> Self {
         Self {
             tx: self.tx.clone(),
+            backlog: self.backlog.clone(),
         }
     }
 }
@@ -341,6 +353,7 @@ impl<I: Interface> Addr<I> {
         I: FromMessage<M>,
     {
         let (tx, rx) = I::Response::channel();
+        self.backlog.fetch_add(1, Ordering::SeqCst);
         self.tx.send(I::from_message(message, tx)).ok(); // it's ok to drop, the response will fail
         rx
     }
@@ -352,15 +365,78 @@ impl<I: Interface> Addr<I> {
 ///
 /// Instances are created automatically when [spawning](Service::spawn_handler) a service, or can be
 /// created through [`channel`]. The channel closes when all associated [`Addr`]s are dropped.
-pub type Receiver<I> = mpsc::UnboundedReceiver<I>;
+pub struct Receiver<I: Interface> {
+    rx: mpsc::UnboundedReceiver<I>,
+    name: &'static str,
+    interval: tokio::time::Interval,
+    backlog: Arc<AtomicU64>,
+}
+
+impl<I: Interface> Receiver<I> {
+    /// Receives the next value for this receiver.
+    ///
+    /// This method returns `None` if the channel has been closed and there are
+    /// no remaining messages in the channel's buffer. This indicates that no
+    /// further values can ever be received from this `Receiver`. The channel is
+    /// closed when all senders have been dropped, or when [`close`] is called.
+    ///
+    /// If there are no messages in the channel's buffer, but the channel has
+    /// not yet been closed, this method will sleep until a message is sent or
+    /// the channel is closed.
+    pub async fn recv(&mut self) -> Option<I> {
+        loop {
+            tokio::select! {
+                biased;
+
+                _ = self.interval.tick() => {
+                    let backlog = self.backlog.load(Ordering::Relaxed);
+                    relay_statsd::metric!(
+                        gauge(SystemGauges::ServiceBackPressure) = backlog,
+                        service = self.name
+                    );
+                },
+                message = self.rx.recv() => {
+                    self.backlog.fetch_sub(1, Ordering::SeqCst);
+                    return message;
+                },
+            }
+        }
+    }
+}
+
+impl<I: Interface> fmt::Debug for Receiver<I> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Receiver")
+            .field("name", &self.name)
+            .field("backlog", &self.backlog.load(Ordering::Relaxed))
+            .finish()
+    }
+}
 
 /// Creates an unbounded channel for communicating with a [`Service`].
 ///
 /// The `Addr` as the sending part provides public access to the service, while the `Receiver`
 /// should remain internal to the service.
-pub fn channel<I: Interface>() -> (Addr<I>, Receiver<I>) {
+pub fn channel<I: Interface>(name: &'static str) -> (Addr<I>, Receiver<I>) {
+    let backlog = Arc::new(AtomicU64::new(0));
     let (tx, rx) = mpsc::unbounded_channel();
-    (Addr { tx }, rx)
+
+    let addr = Addr {
+        tx,
+        backlog: backlog.clone(),
+    };
+
+    let mut interval = tokio::time::interval(BACKLOG_INTERVAL);
+    interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+
+    let receiver = Receiver {
+        rx,
+        name,
+        interval,
+        backlog,
+    };
+
+    (addr, receiver)
 }
 
 /// An asynchronous unit responding to messages.
@@ -426,8 +502,16 @@ pub trait Service: Sized {
 
     /// Starts the service in the current runtime and returns an address for it.
     fn start(self) -> Addr<Self::Interface> {
-        let (addr, rx) = channel();
+        let (addr, rx) = channel(Self::name());
         self.spawn_handler(rx);
         addr
+    }
+
+    /// Returns a unique name for this service implementation.
+    ///
+    /// This is used for internal diagnostics and uses the fully qualified type name of the service
+    /// implementor by default.
+    fn name() -> &'static str {
+        std::any::type_name::<Self>()
     }
 }

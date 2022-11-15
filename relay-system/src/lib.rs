@@ -17,6 +17,7 @@
 pub mod compat;
 mod controller;
 mod service;
+mod statsd;
 
 pub use self::controller::*;
 pub use self::service::*;

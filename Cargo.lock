@@ -3543,6 +3543,7 @@ dependencies = [
  "futures 0.3.21",
  "once_cell",
  "relay-log",
+ "relay-statsd",
  "tokio 0.1.22",
  "tokio 1.19.2",
 ]
