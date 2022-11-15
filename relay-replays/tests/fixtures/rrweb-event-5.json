@@ -1,0 +1,20 @@
+{
+    "type": 5,
+    "timestamp": 1658770772.902,
+    "data": {
+        "tag": "performanceSpan",
+        "payload": {
+            "op": "memory",
+            "description": "memory",
+            "startTimestamp": 1658770772.902,
+            "endTimestamp": 1658770772.902,
+            "data": {
+                "memory": {
+                    "jsHeapSizeLimit": 4294705152,
+                    "totalJSHeapSize": 10204109,
+                    "usedJSHeapSize": 9131621
+                }
+            }
+        }
+    }
+}

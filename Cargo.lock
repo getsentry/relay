@@ -196,6 +196,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "assert-json-diff"
+version = "2.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47e4f2b81832e72834d7518d8487a0396a28cc408186a2e8854c0f98011faf12"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "async-compression"
 version = "0.3.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2833,7 +2843,7 @@ dependencies = [
  "rand_isaac",
  "rand_jitter",
  "rand_os",
- "rand_pcg",
+ "rand_pcg 0.1.2",
  "rand_xorshift",
  "winapi 0.3.9",
 ]
@@ -2985,6 +2995,15 @@ checksum = "abf9b09b01790cfe0364f52bf32995ea3c39f4d2dd011eac241d2914146d0b44"
 dependencies = [
  "autocfg 0.1.8",
  "rand_core 0.4.2",
+]
+
+[[package]]
+name = "rand_pcg"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "59cad018caf63deb318e5a4586d99a24424a364f40f1e5778c29aca23f4fc73e"
+dependencies = [
+ "rand_core 0.6.3",
 ]
 
 [[package]]
@@ -3413,9 +3432,11 @@ dependencies = [
 name = "relay-replays"
 version = "22.10.0"
 dependencies = [
+ "assert-json-diff",
+ "flate2",
  "insta",
- "rand 0.6.5",
- "rand_pcg",
+ "rand 0.8.5",
+ "rand_pcg 0.3.1",
  "relay-common",
  "relay-filter",
  "relay-general",
@@ -3432,7 +3453,7 @@ dependencies = [
  "chrono",
  "insta",
  "rand 0.6.5",
- "rand_pcg",
+ "rand_pcg 0.1.2",
  "relay-common",
  "relay-filter",
  "relay-general",
