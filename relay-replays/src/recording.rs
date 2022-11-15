@@ -16,16 +16,13 @@ use serde_json::{Error, Value};
 
 pub fn process_recording(bytes: &[u8]) -> Result<Vec<u8>, RecordingParseError> {
     // Split recording headers and body.
-    let cursor = io::Cursor::new(bytes);
-    let mut split_iter = cursor
-        .split(b'\n')
-        .map(|r| r.map_err(|e| RecordingParseError::Message(e.to_string())));
-    let header = split_iter.next().ok_or_else(|| {
+    let mut x = bytes.split(|b| b == &b'\n');
+    let header = x.next().ok_or_else(|| {
         RecordingParseError::Message("no headers found. was data provided?".to_string())
-    })??;
-    let body = split_iter.next().ok_or_else(|| {
+    })?;
+    let body = x.next().ok_or_else(|| {
         RecordingParseError::Message("no data found. are the headers missing?".to_string())
-    })??;
+    })?;
 
     // Deserialization.
     let mut events = loads(body)?;
@@ -35,11 +32,11 @@ pub fn process_recording(bytes: &[u8]) -> Result<Vec<u8>, RecordingParseError> {
 
     // Serialization.
     let out_bytes = dumps(events)?;
-    Ok([header, vec![b'\n'], out_bytes].concat())
+    Ok([header.into(), vec![b'\n'], out_bytes].concat())
 }
 
-fn loads(zipped_input: Vec<u8>) -> Result<Vec<Event>, RecordingParseError> {
-    let mut decoder = ZlibDecoder::new(zipped_input.as_slice());
+fn loads(zipped_input: &[u8]) -> Result<Vec<Event>, RecordingParseError> {
+    let mut decoder = ZlibDecoder::new(zipped_input);
     let mut buffer = String::new();
     decoder.read_to_string(&mut buffer)?;
 
@@ -61,7 +58,7 @@ fn strip_pii(events: &mut Vec<Event>) -> Result<(), ProcessingAction> {
     scrub_config.scrub_data = true;
     scrub_config.scrub_defaults = true;
 
-    let pii_config = scrub_config.pii_config().unwrap().as_ref().unwrap().clone();
+    let pii_config = scrub_config.pii_config().unwrap().as_ref().unwrap();
     let pii_processor = PiiProcessor::new(pii_config.compiled());
     let mut processor = RecordingProcessor::new(pii_processor);
     processor.mask_pii(events)?;
