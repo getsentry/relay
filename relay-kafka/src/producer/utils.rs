@@ -4,9 +4,10 @@ use rdkafka::ClientContext;
 use relay_log::LogError;
 use relay_statsd::metric;
 
-use crate::statsd::RelayCounters;
+use crate::statsd::KafkaCounters;
 
-/// Kafka producer context that logs producer errors
+/// Kafka producer context that logs producer errors.
+#[derive(Debug)]
 pub struct CaptureErrorContext;
 
 impl ClientContext for CaptureErrorContext {}
@@ -23,9 +24,11 @@ impl ProducerContext for CaptureErrorContext {
                 LogError(error)
             );
 
-            metric!(counter(RelayCounters::ProcessingProduceError) += 1);
+            metric!(counter(KafkaCounters::ProcessingProduceError) += 1);
         }
     }
 }
 
+/// The wrapper type around the kafka [`rdkafka::producer::ThreadedProducer`] with our own
+/// [`CaptureErrorContext`] context.
 pub type ThreadedProducer = rdkafka::producer::ThreadedProducer<CaptureErrorContext>;

@@ -16,9 +16,11 @@ relay-log = { path = "../relay-log" }
 serde = { version = "1.0.114", features = ["derive"] }
 serde_json = "1.0.55"
 relay-filter = { path = "../relay-filter" }
-rand = "0.6.5"
-rand_pcg = "0.1.2"
+rand = "0.8.5"
+rand_pcg = "0.3.1"
 unicase = "2.6.0"
+flate2 = "1.0.19"
 
 [dev-dependencies]
 insta = { version = "1.1.0", features = ["ron"] }
+assert-json-diff = "2.0.2"

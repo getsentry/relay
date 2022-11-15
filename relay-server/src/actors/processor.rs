@@ -1109,7 +1109,27 @@ impl EnvelopeProcessorService {
                 }
                 replays_enabled
             }
-            ItemType::ReplayRecording => replays_enabled,
+            ItemType::ReplayRecording => {
+                // XXX: Temporarily, only the Sentry org will be allowed to parse replays while
+                // we measure the impact of this change.
+                if replays_enabled && state.project_state.organization_id == Some(1) {
+                    let parsed_recording =
+                        relay_replays::recording::process_recording(&item.payload());
+
+                    match parsed_recording {
+                        Ok(recording) => {
+                            item.set_payload(ContentType::OctetStream, recording.as_slice());
+                        }
+                        Err(e) => {
+                            relay_log::warn!("failed to parse replay event: {}", e);
+                        }
+                    }
+                }
+
+                // XXX: For now replays that could not be parsed are still accepted while we
+                // determine the impact of the recording parser.
+                replays_enabled
+            }
             _ => true,
         });
 
@@ -2058,23 +2078,27 @@ impl EnvelopeProcessorService {
             || {
                 match self.process_state(&mut state) {
                     Ok(()) => {
-                        if !state.extracted_metrics.is_empty() {
-                            let project_cache = ProjectCache::from_registry();
-                            project_cache
-                                .do_send(InsertMetrics::new(project_key, state.extracted_metrics));
-                        }
-
                         // The envelope could be modified or even emptied during processing, which
                         // requires recomputation of the context.
                         state.envelope_context.update(&state.envelope);
 
                         let envelope_response = if state.envelope.is_empty() {
-                            // Individual rate limits have already been issued
-                            state.envelope_context.reject(Outcome::RateLimited(None));
+                            if state.extracted_metrics.is_empty() {
+                                // Individual rate limits have already been issued
+                                state.envelope_context.reject(Outcome::RateLimited(None));
+                            } else {
+                                state.envelope_context.accept();
+                            }
                             None
                         } else {
                             Some((state.envelope, state.envelope_context))
                         };
+
+                        if !state.extracted_metrics.is_empty() {
+                            let project_cache = ProjectCache::from_registry();
+                            project_cache
+                                .do_send(InsertMetrics::new(project_key, state.extracted_metrics));
+                        }
 
                         Ok(ProcessEnvelopeResponse {
                             envelope: envelope_response,

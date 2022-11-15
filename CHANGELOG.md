@@ -4,11 +4,14 @@
 
 **Features**:
 
+- Add PII scrubber for replay recordings. ([#1545](https://github.com/getsentry/relay/pull/1545))
 - Support decaying rules. Decaying rules are regular sampling rules, but they are only applicable in a specific time range. ([#1544](https://github.com/getsentry/relay/pull/1544))
+- Disallow `-` in measurement and breakdown names. These items are converted to metrics, which do not allow `-` in their name. ([#1571](https://github.com/getsentry/relay/pull/1571))
 
 **Bug Fixes**:
 
 - Validate the distribution name in the event. ([#1556](https://github.com/getsentry/relay/pull/1556))
+- Use correct meta object for logentry in light normalization. ([#1577](https://github.com/getsentry/relay/pull/1577))
 
 **Internal**:
 
@@ -16,6 +19,7 @@
 - Support dedicated quotas for storing transaction payloads ("indexed transactions") via the `transaction_indexed` data category if metrics extraction is enabled. ([#1537](https://github.com/getsentry/relay/pull/1537), [#1555](https://github.com/getsentry/relay/pull/1555))
 - Report outcomes for dynamic sampling with the correct indexed transaction data category to restore correct totals. ([#1561](https://github.com/getsentry/relay/pull/1561))
 - Add fields to the Frame object for the sample format. ([#1562](https://github.com/getsentry/relay/pull/1562))
+- Move kafka related code into separate `relay-kafka` crate. ([#1563](https://github.com/getsentry/relay/pull/1563))
 
 ## 22.10.0
 

@@ -328,12 +328,6 @@ fn normalize_units(measurements: &mut Measurements) {
 
         let stated_unit = measurement.unit.value().copied();
         let default_unit = get_metric_measurement_unit(name);
-        if let (Some(default_), Some(stated)) = (default_unit, stated_unit) {
-            if default_ != stated {
-                relay_log::error!("unit mismatch on measurements.{}: {}", name, stated);
-            }
-        }
-
         measurement
             .unit
             .set_value(Some(stated_unit.or(default_unit).unwrap_or_default()))
@@ -655,8 +649,8 @@ fn normalize_ip_addresses(event: &mut Event, client_ip: Option<&IpAddr>) {
     }
 }
 
-fn normalize_logentry(logentry: &mut Annotated<LogEntry>, meta: &mut Meta) -> ProcessingResult {
-    logentry.apply(|le, _| logentry::normalize_logentry(le, meta))
+fn normalize_logentry(logentry: &mut Annotated<LogEntry>, _meta: &mut Meta) -> ProcessingResult {
+    logentry.apply(|le, meta| logentry::normalize_logentry(le, meta))
 }
 
 #[derive(Default, Debug)]
@@ -1895,6 +1889,64 @@ mod tests {
           },
         }
         "###);
+    }
+
+    #[test]
+    fn test_logentry_error() {
+        let json = r###"
+{
+    "event_id": "74ad1301f4df489ead37d757295442b1",
+    "timestamp": 1668148328.308933,
+    "received": 1668148328.308933,
+    "level": "error",
+    "platform": "python",
+    "logentry": {
+        "params": [
+            "bogus"
+        ],
+        "formatted": 42
+    }
+}
+"###;
+        let mut event = Annotated::from_json(json).unwrap();
+
+        let mut processor = NormalizeProcessor::default();
+        let config = LightNormalizationConfig::default();
+        light_normalize_event(&mut event, &config).unwrap();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&event), {".received" => "[received]"}, @r###"
+        {
+          "event_id": "74ad1301f4df489ead37d757295442b1",
+          "level": "error",
+          "type": "default",
+          "logentry": null,
+          "logger": "",
+          "platform": "python",
+          "timestamp": 1668148328.308933,
+          "received": "[received]",
+          "_meta": {
+            "logentry": {
+              "": {
+                "err": [
+                  [
+                    "invalid_data",
+                    {
+                      "reason": "no message present"
+                    }
+                  ]
+                ],
+                "val": {
+                  "formatted": null,
+                  "message": null,
+                  "params": [
+                    "bogus"
+                  ]
+                }
+              }
+            }
+          }
+        }"###)
     }
 
     #[test]
