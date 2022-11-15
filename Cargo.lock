@@ -3317,7 +3317,7 @@ dependencies = [
 
 [[package]]
 name = "relay-kafka"
-version = "22.9.0"
+version = "22.10.0"
 dependencies = [
  "failure",
  "rdkafka",

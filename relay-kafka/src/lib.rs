@@ -7,6 +7,7 @@
 //! # Usage
 //!
 //! ```compile_fail
+//!     use relay_kafka::{KafkaClient, KafkaTopic};
 //!
 //!     // Get the builder.
 //!     let mut builder = KafkaClient::builder();

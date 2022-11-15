@@ -44,7 +44,7 @@ pub enum KafkaTopic {
 impl KafkaTopic {
     /// Returns iterator over the variants of [`KafkaTopic`].
     /// It will have to be adjusted if the new variants are added.
-    pub fn iter() -> std::slice::Iter<'static, KafkaTopic> {
+    pub fn iter() -> std::slice::Iter<'static, Self> {
         use KafkaTopic::*;
         static TOPICS: [KafkaTopic; 11] = [
             Events,
@@ -217,7 +217,7 @@ pub enum KafkaConfig<'a> {
     },
 }
 
-/// Sharded Kafka config
+/// Sharded Kafka config.
 #[derive(Debug)]
 pub struct KafkaParams<'a> {
     /// The topic name to use.
