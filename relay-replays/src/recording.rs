@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::Display;
-use std::io::{self, BufRead, Read, Write};
+use std::io::{Read, Write};
 
 use relay_general::pii::{DataScrubbingConfig, PiiProcessor};
 use relay_general::processor::{FieldAttrs, Pii, ProcessingState, Processor, ValueType};
