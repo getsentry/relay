@@ -597,22 +597,6 @@
 <span id="595">595</span>
 <span id="596">596</span>
 <span id="597">597</span>
-<span id="598">598</span>
-<span id="599">599</span>
-<span id="600">600</span>
-<span id="601">601</span>
-<span id="602">602</span>
-<span id="603">603</span>
-<span id="604">604</span>
-<span id="605">605</span>
-<span id="606">606</span>
-<span id="607">607</span>
-<span id="608">608</span>
-<span id="609">609</span>
-<span id="610">610</span>
-<span id="611">611</span>
-<span id="612">612</span>
-<span id="613">613</span>
 </pre><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -743,10 +727,6 @@
     ///   - `status-code`: The status code of the request when available, otherwise &quot;-&quot;.
     </span>UpstreamRetries,
 
-    <span class="doccomment">/// Size of emitted kafka message in bytes, tagged by message type.
-    </span><span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-    </span>KafkaMessageSize,
-
     <span class="doccomment">/// Size of envelopes sent over HTTP in bytes.
     </span>UpstreamQueryBodySize,
 
@@ -848,8 +828,6 @@
             </span>}
             RelayHistograms::UpstreamMessageQueueSize =&gt; <span class="string">&quot;http_queue.size&quot;</span>,
             RelayHistograms::UpstreamRetries =&gt; <span class="string">&quot;upstream.retries&quot;</span>,
-            <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-            </span>RelayHistograms::KafkaMessageSize =&gt; <span class="string">&quot;kafka.message_size&quot;</span>,
             RelayHistograms::UpstreamQueryBodySize =&gt; <span class="string">&quot;upstream.query.body_size&quot;</span>,
             RelayHistograms::UpstreamEnvelopeBodySize =&gt; <span class="string">&quot;upstream.envelope.body_size&quot;</span>,
             RelayHistograms::DynamicSamplingChanges =&gt; <span class="string">&quot;dynamic_sampling.changes&quot;</span>,
@@ -1140,14 +1118,6 @@
     ///  - `session`: A release health session update, sent to `ingest-sessions`.
     </span><span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
     </span>ProcessingMessageProduced,
-    <span class="doccomment">/// Number of producer errors occurred after an envelope was already enqueued for sending to
-    /// Kafka.
-    ///
-    /// These errors include, for example, _&quot;MessageTooLarge&quot;_ errors when the broker does not
-    /// accept the requests over a certain size, which is usually due to invalid or inconsistent
-    /// broker/producer configurations.
-    </span><span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-    </span>ProcessingProduceError,
     <span class="doccomment">/// Number of events that hit any of the store-like endpoints: Envelope, Store, Security,
     /// Minidump, Unreal.
     ///
@@ -1214,8 +1184,6 @@
             RelayCounters::ServerStarting =&gt; <span class="string">&quot;server.starting&quot;</span>,
             <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
             </span>RelayCounters::ProcessingMessageProduced =&gt; <span class="string">&quot;processing.event.produced&quot;</span>,
-            <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-            </span>RelayCounters::ProcessingProduceError =&gt; <span class="string">&quot;processing.produce.error&quot;</span>,
             RelayCounters::EventProtocol =&gt; <span class="string">&quot;event.protocol&quot;</span>,
             RelayCounters::EventTransactionSource =&gt; <span class="string">&quot;event.transaction_source&quot;</span>,
             RelayCounters::Requests =&gt; <span class="string">&quot;requests&quot;</span>,
