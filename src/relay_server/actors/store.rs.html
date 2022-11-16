@@ -981,6 +981,9 @@
 <span id="979">979</span>
 <span id="980">980</span>
 <span id="981">981</span>
+<span id="982">982</span>
+<span id="983">983</span>
+<span id="984">984</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -1622,7 +1625,10 @@
         <span class="comment">// This skips chunks for empty replay recordings. The consumer does not require chunks for
         // empty replay recordings. `chunks` will be `0` in this case.
         </span><span class="kw">while </span>offset &lt; size {
-            <span class="kw">let </span>max_chunk_size = <span class="self">self</span>.config.attachment_chunk_size();
+            <span class="comment">// XXX: Max chunk size has 200 bytes reserved for metadata. Typically we see the
+            // metadata consume 160 bytes but it does vary +/- a few bytes. The extra 40 bytes
+            // serve as padding.
+            </span><span class="kw">let </span>max_chunk_size = <span class="self">self</span>.config.attachment_chunk_size() - <span class="number">200</span>;
             <span class="kw">let </span>chunk_size = std::cmp::min(max_chunk_size, size - offset);
 
             <span class="kw">let </span>replay_recording_chunk_message =
