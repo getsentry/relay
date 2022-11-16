@@ -518,7 +518,6 @@ pub trait Service: Sized {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
 
     struct MockMessage;
@@ -598,9 +597,9 @@ mod tests {
         assert_eq!(
             captures,
             [
-                "service.back_pressure:2|g|#service:mock", // 1 * INTERVAL
-                "service.back_pressure:1|g|#service:mock", // 2 * INTERVAL
-                "service.back_pressure:0|g|#service:mock", // 4 * INTERVAL
+                "service.back_pressure:2|g|#service:mock", // 2 * INTERVAL
+                "service.back_pressure:1|g|#service:mock", // 4 * INTERVAL
+                "service.back_pressure:0|g|#service:mock", // 6 * INTERVAL
             ]
         );
     }
