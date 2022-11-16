@@ -2139,6 +2139,10 @@ impl EnvelopeProcessorService {
                 };
             }
             Err(error) => {
+                relay_statsd::metric!(
+                    counter(RelayCounters::HandleProcessEnvelopeError) += 1,
+                    internal_error = error.is_internal()
+                );
                 // Errors are only logged for what we consider infrastructure or implementation
                 // bugs. In other cases, we "expect" errors and log them as debug level.
                 if error.is_internal() {

@@ -564,6 +564,8 @@ pub enum RelayCounters {
     MetricBucketsParsingFailed,
     /// Count extraction of transaction names. Tag with the decision to drop / replace / use original.
     MetricsTransactionNameExtracted,
+    /// Count of errors resulting from processing an envelope.
+    HandleProcessEnvelopeError,
 }
 
 impl CounterMetric for RelayCounters {
@@ -592,6 +594,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EvictingStaleProjectCaches => "project_cache.eviction",
             RelayCounters::MetricBucketsParsingFailed => "metrics.buckets.parsing_failed",
             RelayCounters::MetricsTransactionNameExtracted => "metrics.transaction_name",
+            RelayCounters::HandleProcessEnvelopeError => "processing.handle_process_envelope_error",
         }
     }
 }
