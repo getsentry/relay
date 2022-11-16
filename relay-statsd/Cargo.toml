@@ -14,3 +14,7 @@ cadence = "0.26.0"
 parking_lot = "0.12.1"
 rand = "0.7.3"
 relay-log = { path = "../relay-log" }
+
+[features]
+default = []
+test = []
