@@ -314,14 +314,14 @@ pub trait FromMessage<M>: Interface {
 /// long as the service is running. It can be freely cloned.
 pub struct Addr<I: Interface> {
     tx: mpsc::UnboundedSender<I>,
-    backlog: Arc<AtomicU64>,
+    queue_size: Arc<AtomicU64>,
 }
 
 impl<I: Interface> fmt::Debug for Addr<I> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Addr")
             .field("open", &!self.tx.is_closed())
-            .field("backlog", &self.backlog.load(Ordering::Relaxed))
+            .field("queue_size", &self.queue_size.load(Ordering::Relaxed))
             .finish()
     }
 }
@@ -332,7 +332,7 @@ impl<I: Interface> Clone for Addr<I> {
     fn clone(&self) -> Self {
         Self {
             tx: self.tx.clone(),
-            backlog: self.backlog.clone(),
+            queue_size: self.queue_size.clone(),
         }
     }
 }
@@ -353,7 +353,7 @@ impl<I: Interface> Addr<I> {
         I: FromMessage<M>,
     {
         let (tx, rx) = I::Response::channel();
-        self.backlog.fetch_add(1, Ordering::SeqCst);
+        self.queue_size.fetch_add(1, Ordering::SeqCst);
         self.tx.send(I::from_message(message, tx)).ok(); // it's ok to drop, the response will fail
         rx
     }
@@ -369,7 +369,7 @@ pub struct Receiver<I: Interface> {
     rx: mpsc::UnboundedReceiver<I>,
     name: &'static str,
     interval: tokio::time::Interval,
-    backlog: Arc<AtomicU64>,
+    queue_size: Arc<AtomicU64>,
 }
 
 impl<I: Interface> Receiver<I> {
@@ -389,14 +389,14 @@ impl<I: Interface> Receiver<I> {
                 biased;
 
                 _ = self.interval.tick() => {
-                    let backlog = self.backlog.load(Ordering::Relaxed);
+                    let backlog = self.queue_size.load(Ordering::Relaxed);
                     relay_statsd::metric!(
                         gauge(SystemGauges::ServiceBackPressure) = backlog,
                         service = self.name
                     );
                 },
                 message = self.rx.recv() => {
-                    self.backlog.fetch_sub(1, Ordering::SeqCst);
+                    self.queue_size.fetch_sub(1, Ordering::SeqCst);
                     return message;
                 },
             }
@@ -408,7 +408,7 @@ impl<I: Interface> fmt::Debug for Receiver<I> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Receiver")
             .field("name", &self.name)
-            .field("backlog", &self.backlog.load(Ordering::Relaxed))
+            .field("queue_size", &self.queue_size.load(Ordering::Relaxed))
             .finish()
     }
 }
@@ -418,12 +418,12 @@ impl<I: Interface> fmt::Debug for Receiver<I> {
 /// The `Addr` as the sending part provides public access to the service, while the `Receiver`
 /// should remain internal to the service.
 pub fn channel<I: Interface>(name: &'static str) -> (Addr<I>, Receiver<I>) {
-    let backlog = Arc::new(AtomicU64::new(0));
+    let queue_size = Arc::new(AtomicU64::new(0));
     let (tx, rx) = mpsc::unbounded_channel();
 
     let addr = Addr {
         tx,
-        backlog: backlog.clone(),
+        queue_size: queue_size.clone(),
     };
 
     let mut interval = tokio::time::interval(BACKLOG_INTERVAL);
@@ -433,7 +433,7 @@ pub fn channel<I: Interface>(name: &'static str) -> (Addr<I>, Receiver<I>) {
         rx,
         name,
         interval,
-        backlog,
+        queue_size,
     };
 
     (addr, receiver)
