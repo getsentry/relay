@@ -540,8 +540,9 @@ mod tests {
 
         fn spawn_handler(self, mut rx: Receiver<Self::Interface>) {
             tokio::spawn(async move {
-                tokio::time::sleep(BACKLOG_INTERVAL * 1.5).await;
-                while rx.recv().await.is_some() {}
+                while rx.recv().await.is_some() {
+                    tokio::time::sleep(BACKLOG_INTERVAL * 2).await;
+                }
             });
         }
 
@@ -560,7 +561,7 @@ mod tests {
         let _guard = rt.enter();
         tokio::time::pause();
 
-        // Mock service waits 1.5 * BACKLOG_INTERVAL and then consumes immediately.
+        // Mock service takes 2 * BACKLOG_INTERVAL for every message
         let addr = MockService.start();
 
         // Advance the timer by a tiny offset to trigger the first metric emission.
@@ -575,7 +576,7 @@ mod tests {
         // Send messages and advance to 0.5 * INTERVAL. No metrics expected at this point.
         let captures = relay_statsd::with_capturing_test_client(|| {
             rt.block_on(async {
-                addr.send(MockMessage);
+                addr.send(MockMessage); // will be pulled immediately
                 addr.send(MockMessage);
                 addr.send(MockMessage);
 
@@ -585,23 +586,22 @@ mod tests {
 
         assert!(captures.is_empty());
 
-        // Advance to 1 * INTERVAL. Backpressure metrics expected, the service is still pending.
+        // Advance to 6.5 * INTERVAL. The service should pull the first message immediately, another
+        // message every 2 INTERVALS. The messages are fully handled after 6 INTERVALS, but we
+        // cannot observe that since the last message exits the queue at 4.
         let captures = relay_statsd::with_capturing_test_client(|| {
             rt.block_on(async {
-                tokio::time::sleep(BACKLOG_INTERVAL / 2).await;
+                tokio::time::sleep(BACKLOG_INTERVAL * 6).await;
             })
         });
 
-        assert_eq!(captures, ["service.back_pressure:3|g|#service:mock"]);
-
-        // Advance to 2 * INTERVAL. The service should now flush the messages and we should see an
-        // empty queue.
-        let captures = relay_statsd::with_capturing_test_client(|| {
-            rt.block_on(async {
-                tokio::time::sleep(BACKLOG_INTERVAL).await;
-            })
-        });
-
-        assert!(captures.is_empty());
+        assert_eq!(
+            captures,
+            [
+                "service.back_pressure:2|g|#service:mock", // 1 * INTERVAL
+                "service.back_pressure:1|g|#service:mock", // 2 * INTERVAL
+                "service.back_pressure:0|g|#service:mock", // 4 * INTERVAL
+            ]
+        );
     }
 }
