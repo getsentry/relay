@@ -108,7 +108,12 @@ pub fn should_keep_event(
             Err(sampling_result) => return sampling_result,
         };
 
-    for (rule, uuid) in matching_trace_rule.into_iter().chain(matching_event_rule) {
+    // NOTE: Event rules take precedence over trace rules. If the event rule has a lower sample rate
+    // than the trace rule, this means that traces will be incomplete.
+    // We could guarantee consistent traces if trace rules took precedence over event rules,
+    // but we need the current behavior to allow health check rules
+    // to take precedence over the overall base rate, which is set on the trace.
+    if let Some((rule, uuid)) = matching_event_rule.or(matching_trace_rule) {
         let adjusted_sample_rate = if let Some(sampling_context) = sampling_context {
             sampling_context.adjusted_sample_rate(rule.sample_rate)
         } else {
@@ -119,6 +124,8 @@ pub fn should_keep_event(
 
         if random_number >= adjusted_sample_rate {
             return SamplingResult::Drop(rule.id);
+        } else {
+            return SamplingResult::Keep;
         }
     }
 
@@ -322,11 +329,22 @@ mod tests {
     }
 
     #[test]
-    /// The first matching rule applies, even if it is a transaction rule.
-    fn test_first_rule_applies() {
+    /// When there's a mixture of event rules and trace rules, the event rules
+    /// take precedence.
+    fn test_event_rule_precedence() {
         let sampling_config = serde_json::json!(
             {
                 "rules": [
+                    {
+                        "sampleRate": 0,
+                        "type": "trace",
+                        "active": true,
+                        "condition": {
+                            "op": "and",
+                            "inner": []
+                        },
+                        "id": 1000
+                    },
                     {
                         "sampleRate": 1,
                         "type": "transaction",
@@ -337,26 +355,16 @@ mod tests {
                                 "op": "glob",
                                 "name": "event.transaction",
                                 "value": [
-                                "my-important-transaction",
+                                    "my-important-transaction",
                                 ],
                                 "options": {
-                                "ignoreCase": true
+                                    "ignoreCase": true
                                 }
                             }
                             ]
                         },
                         "active": true,
                         "id": 1002
-                        },
-                    {
-                        "sampleRate": 0,
-                        "type": "trace",
-                        "active": true,
-                        "condition": {
-                            "op": "and",
-                            "inner": []
-                        },
-                        "id": 1000
                     }
                 ]
             }
@@ -382,6 +390,8 @@ mod tests {
         let envelope = new_envelope(true);
 
         let mut event = Event::default();
+        event.ty.set_value(Some(EventType::Transaction));
+        event.id.set_value(Some(EventId(Uuid::new_v4())));
         event
             .transaction
             .set_value(Some("my-important-transaction".to_owned()));
