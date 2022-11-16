@@ -629,7 +629,6 @@
 <span id="629">629</span>
 <span id="630">630</span>
 <span id="631">631</span>
-<span id="632">632</span>
 </pre><pre class="rust"><code><span class="doccomment">//! A high-level StatsD metric client built on cadence.
 //!
 //! ## Defining Metrics
@@ -694,8 +693,7 @@
 <span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>cadence::{
-    BufferedUdpMetricSink, Metric, MetricBuilder, QueuingMetricSink, SpyMetricSink, StatsdClient,
-    UdpMetricSink,
+    BufferedUdpMetricSink, Metric, MetricBuilder, QueuingMetricSink, StatsdClient, UdpMetricSink,
 };
 <span class="kw">use </span>parking_lot::RwLock;
 <span class="kw">use </span>rand::distributions::{Distribution, Uniform};
@@ -796,8 +794,9 @@
 }
 
 <span class="doccomment">/// Set a test client for the period of the called function (only affects the current thread).
+</span><span class="attribute">#[cfg(feature = <span class="string">&quot;test&quot;</span>)]
 </span><span class="kw">pub fn </span>with_capturing_test_client(f: <span class="kw">impl </span>FnOnce()) -&gt; Vec&lt;String&gt; {
-    <span class="kw">let </span>(rx, sink) = SpyMetricSink::new();
+    <span class="kw">let </span>(rx, sink) = cadence::SpyMetricSink::new();
     <span class="kw">let </span>test_client = MetricsClient {
         statsd_client: StatsdClient::from_sink(<span class="string">&quot;&quot;</span>, sink),
         default_tags: Default::default(),
@@ -1205,7 +1204,6 @@
 
 <span class="attribute">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-
     <span class="kw">use </span>cadence::{NopMetricSink, StatsdClient};
 
     <span class="kw">use crate</span>::{set_client, with_capturing_test_client, with_client, GaugeMetric, MetricsClient};
@@ -1240,7 +1238,7 @@
         });
 
         <span class="macro">assert_eq!</span>(
-            captures.as_slice(),
+            captures,
             [
                 <span class="string">&quot;foo:123|g|#server:server1,host:host1&quot;</span>,
                 <span class="string">&quot;bar:456|g|#server:server2,host:host2&quot;

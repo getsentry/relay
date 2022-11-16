@@ -22,6 +22,7 @@
 <span id="20">20</span>
 <span id="21">21</span>
 <span id="22">22</span>
+<span id="23">23</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Foundational system components for Relay&#39;s services.
 //!
 //! Actors require an actix system to run. The system can be started using the [`Controller`] actor,
@@ -41,6 +42,7 @@
 </span><span class="kw">pub mod </span>compat;
 <span class="kw">mod </span>controller;
 <span class="kw">mod </span>service;
+<span class="kw">mod </span>statsd;
 
 <span class="kw">pub use </span><span class="self">self</span>::controller::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::service::<span class="kw-2">*</span>;
