@@ -27,6 +27,7 @@ tokio = { version = "1.0", features = ["macros", "time"] }
 criterion = "0.3"
 futures01 = { version = "0.1.28", package = "futures" }
 insta = "1.19.0"
+relay-statsd = { path = "../relay-statsd", features = ["test"] }
 relay-test = { path = "../relay-test" }
 
 [[bench]]

@@ -62,8 +62,7 @@ use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
 use cadence::{
-    BufferedUdpMetricSink, Metric, MetricBuilder, QueuingMetricSink, SpyMetricSink, StatsdClient,
-    UdpMetricSink,
+    BufferedUdpMetricSink, Metric, MetricBuilder, QueuingMetricSink, StatsdClient, UdpMetricSink,
 };
 use parking_lot::RwLock;
 use rand::distributions::{Distribution, Uniform};
@@ -164,8 +163,9 @@ pub fn set_client(client: MetricsClient) {
 }
 
 /// Set a test client for the period of the called function (only affects the current thread).
+#[cfg(feature = "test")]
 pub fn with_capturing_test_client(f: impl FnOnce()) -> Vec<String> {
-    let (rx, sink) = SpyMetricSink::new();
+    let (rx, sink) = cadence::SpyMetricSink::new();
     let test_client = MetricsClient {
         statsd_client: StatsdClient::from_sink("", sink),
         default_tags: Default::default(),
@@ -573,7 +573,6 @@ macro_rules! metric {
 
 #[cfg(test)]
 mod tests {
-
     use cadence::{NopMetricSink, StatsdClient};
 
     use crate::{set_client, with_capturing_test_client, with_client, GaugeMetric, MetricsClient};
@@ -608,7 +607,7 @@ mod tests {
         });
 
         assert_eq!(
-            captures.as_slice(),
+            captures,
             [
                 "foo:123|g|#server:server1,host:host1",
                 "bar:456|g|#server:server2,host:host2"
