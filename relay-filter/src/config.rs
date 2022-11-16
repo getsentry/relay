@@ -283,7 +283,7 @@ mod tests {
                 disallowed_sources: vec!["https://*".to_string()],
             },
             error_messages: ErrorMessagesFilterConfig {
-                patterns: GlobPatterns::new(vec!["Panic".to_string()]),
+                patterns: GlobPatterns::new(vec![Some("Panic".to_string())]),
             },
             legacy_browsers: LegacyBrowsersFilterConfig {
                 is_enabled: false,
@@ -291,7 +291,7 @@ mod tests {
             },
             localhost: FilterConfig { is_enabled: true },
             releases: ReleasesFilterConfig {
-                releases: GlobPatterns::new(vec!["1.2.3".to_string()]),
+                releases: GlobPatterns::new(vec![Some("1.2.3".to_string())]),
             },
         };
 

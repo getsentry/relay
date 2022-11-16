@@ -13,11 +13,11 @@ use crate::{ErrorMessagesFilterConfig, FilterStatKey, GlobPatterns};
 pub fn matches(event: &Event, patterns: &GlobPatterns) -> bool {
     if let Some(logentry) = event.logentry.value() {
         if let Some(message) = logentry.formatted.value() {
-            if patterns.is_match(message.as_ref()) {
+            if patterns.is_match(Some(message.as_ref())) {
                 return true;
             }
         } else if let Some(message) = logentry.message.value() {
-            if patterns.is_match(message.as_ref()) {
+            if patterns.is_match(Some(message.as_ref())) {
                 return true;
             }
         }
@@ -34,7 +34,7 @@ pub fn matches(event: &Event, patterns: &GlobPatterns) -> bool {
                         (ty, "") => Cow::Borrowed(ty),
                         (ty, value) => Cow::Owned(format!("{}: {}", ty, value)),
                     };
-                    if patterns.is_match(message.as_ref()) {
+                    if patterns.is_match(Some(message.as_ref())) {
                         return true;
                     }
                 }
@@ -71,18 +71,18 @@ mod tests {
             // with globs
             ErrorMessagesFilterConfig {
                 patterns: GlobPatterns::new(vec![
-                    "filteredexception*".to_string(),
-                    "*this is a filtered exception.".to_string(),
-                    "".to_string(),
-                    "this is".to_string(),
+                    Some("filteredexception*".to_string()),
+                    Some("*this is a filtered exception.".to_string()),
+                    Some("".to_string()),
+                    Some("this is".to_string()),
                 ]),
             },
             // without globs
             ErrorMessagesFilterConfig {
                 patterns: GlobPatterns::new(vec![
-                    "filteredexception: this is a filtered exception.".to_string(),
-                    "filteredexception".to_string(),
-                    "this is a filtered exception.".to_string(),
+                    Some("filteredexception: this is a filtered exception.".to_string()),
+                    Some("filteredexception".to_string()),
+                    Some("this is a filtered exception.".to_string()),
                 ]),
             },
         ];

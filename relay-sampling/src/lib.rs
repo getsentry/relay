@@ -155,10 +155,12 @@ impl GlobCondition {
     where
         T: FieldValueProvider,
     {
-        value_provider
-            .get_value(self.name.as_str())
-            .as_str()
-            .map_or(false, |fv| self.value.is_match(fv))
+        match value_provider.get_value(self.name.as_str()) {
+            // TODO: use more explicit type to represent null filters.
+            Value::Null() => self.value.is_match(None),
+            Value::String(fv) => self.value.is_match(Some(fv)),
+            _ => false,
+        }
     }
 }
 

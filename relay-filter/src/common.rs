@@ -6,20 +6,24 @@ use regex::bytes::{Regex, RegexBuilder};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// Returns `true` if any of the patterns match the given message.
-fn is_match(globs: &[Regex], message: &[u8]) -> bool {
-    globs.iter().any(|regex| regex.is_match(message.as_ref()))
+fn is_match(globs: &[Option<Regex>], message: Option<&[u8]>) -> bool {
+    globs.iter().any(|regex| match (regex.as_ref(), message) {
+        (Some(regex), Some(message)) => regex.is_match(message),
+        (None, None) => true,
+        _ => false,
+    })
 }
 
 /// A list of patterns for glob matching.
 #[derive(Clone, Default)]
 pub struct GlobPatterns {
-    patterns: Vec<String>,
-    globs: OnceCell<Vec<Regex>>,
+    patterns: Vec<Option<String>>,
+    globs: OnceCell<Vec<Option<Regex>>>,
 }
 
 impl GlobPatterns {
     /// Creates a new
-    pub fn new(patterns: Vec<String>) -> Self {
+    pub fn new(patterns: Vec<Option<String>>) -> Self {
         Self {
             patterns,
             globs: OnceCell::new(),
@@ -34,38 +38,39 @@ impl GlobPatterns {
     }
 
     /// Returns `true` if any of the patterns match the given message.
-    pub fn is_match<S>(&self, message: S) -> bool
+    pub fn is_match<S>(&self, message: Option<S>) -> bool
     where
         S: AsRef<[u8]>,
     {
-        let message = message.as_ref();
-        if message.is_empty() {
-            return false;
-        }
-
         let globs = self.globs.get_or_init(|| self.parse_globs());
-        is_match(globs, message)
+
+        is_match(globs, message.as_ref().map(|m| m.as_ref()))
     }
 
     /// Parses valid patterns from the list.
-    fn parse_globs(&self) -> Vec<Regex> {
+    fn parse_globs(&self) -> Vec<Option<Regex>> {
         let mut globs = Vec::with_capacity(self.patterns.len());
 
         for pattern in &self.patterns {
-            let glob_result = GlobBuilder::new(pattern)
-                .case_insensitive(true)
-                .backslash_escape(true)
-                .build();
+            match pattern {
+                Some(pattern) => {
+                    let glob_result = GlobBuilder::new(pattern)
+                        .case_insensitive(true)
+                        .backslash_escape(true)
+                        .build();
 
-            if let Ok(glob) = glob_result {
-                let regex_result = RegexBuilder::new(glob.regex())
-                    .dot_matches_new_line(true)
-                    .build();
+                    if let Ok(glob) = glob_result {
+                        let regex_result = RegexBuilder::new(glob.regex())
+                            .dot_matches_new_line(true)
+                            .build();
 
-                if let Ok(regex) = regex_result {
-                    globs.push(regex);
+                        if let Ok(regex) = regex_result {
+                            globs.push(Some(regex));
+                        }
+                    }
                 }
-            }
+                None => globs.push(None),
+            };
         }
 
         globs
@@ -189,7 +194,7 @@ mod tests {
     macro_rules! globs {
         ($($pattern:literal),*) => {
             GlobPatterns::new(vec![
-                $($pattern.to_string()),*
+                $(Some($pattern.to_string())),*
             ])
         };
     }
@@ -197,31 +202,31 @@ mod tests {
     #[test]
     fn test_match_literal() {
         let globs = globs!("foo");
-        assert!(globs.is_match("foo"));
+        assert!(globs.is_match(Some("foo")));
     }
 
     #[test]
     fn test_match_negative() {
         let globs = globs!("foo");
-        assert!(!globs.is_match("nope"));
+        assert!(!globs.is_match(Some("nope")));
     }
 
     #[test]
     fn test_match_prefix() {
         let globs = globs!("foo*");
-        assert!(globs.is_match("foobarblub"));
+        assert!(globs.is_match(Some("foobarblub")));
     }
 
     #[test]
     fn test_match_suffix() {
         let globs = globs!("*blub");
-        assert!(globs.is_match("foobarblub"));
+        assert!(globs.is_match(Some("foobarblub")));
     }
 
     #[test]
     fn test_match_inner() {
         let globs = globs!("*bar*");
-        assert!(globs.is_match("foobarblub"));
+        assert!(globs.is_match(Some("foobarblub")));
     }
 
     #[test]
@@ -230,33 +235,33 @@ mod tests {
     #[test]
     fn test_match_newline() {
         let globs = globs!("*foo*");
-        assert!(globs.is_match("foo\n"));
+        assert!(globs.is_match(Some("foo\n")));
     }
 
     #[test]
     fn test_match_newline_inner() {
         let globs = globs!("foo*bar");
-        assert!(globs.is_match("foo\nbar"));
+        assert!(globs.is_match(Some("foo\nbar")));
     }
 
     #[test]
     fn test_match_newline_pattern() {
         let globs = globs!("foo*\n*bar");
-        assert!(globs.is_match("foo \n bar"));
+        assert!(globs.is_match(Some("foo \n bar")));
     }
 
     #[test]
     fn test_match_range() {
         let globs = globs!("1.18.[0-4].*");
-        assert!(globs.is_match("1.18.4.2153-2aa83397b"));
-        assert!(!globs.is_match("1.18.5.2153-2aa83397b"));
+        assert!(globs.is_match(Some("1.18.4.2153-2aa83397b")));
+        assert!(!globs.is_match(Some("1.18.5.2153-2aa83397b")));
     }
 
     #[test]
     fn test_match_range_neg() {
         let globs = globs!("1.18.[!0-4].*");
-        assert!(!globs.is_match("1.18.4.2153-2aa83397b"));
-        assert!(globs.is_match("1.18.5.2153-2aa83397b"));
+        assert!(!globs.is_match(Some("1.18.4.2153-2aa83397b")));
+        assert!(globs.is_match(Some("1.18.5.2153-2aa83397b")));
     }
 
     #[test]
@@ -264,7 +269,14 @@ mod tests {
         // this is not necessarily desirable behavior, but it is our current one: negation (!)
         // outside of [] doesn't work
         let globs = globs!("!1.18.4.*");
-        assert!(!globs.is_match("1.18.4.2153-2aa83397b"));
-        assert!(!globs.is_match("1.18.5.2153-2aa83397b"));
+        assert!(!globs.is_match(Some("1.18.4.2153-2aa83397b")));
+        assert!(!globs.is_match(Some("1.18.5.2153-2aa83397b")));
+    }
+
+    #[test]
+    fn test_match_with_null() {
+        let globs = GlobPatterns::new(vec![None]);
+        assert!(globs.is_match(Option::<[u8; 0]>::None));
+        assert!(!globs.is_match(Some("prod")));
     }
 }
