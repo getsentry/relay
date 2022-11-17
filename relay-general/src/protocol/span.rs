@@ -18,7 +18,7 @@ pub struct Span {
     pub exclusive_time: Annotated<f64>,
 
     /// Human readable description of a span (e.g. method URL).
-    #[metastructure(pii = "maybe")]
+    #[metastructure(pii = "true")]
     pub description: Annotated<String>,
 
     /// Span type (see `OperationType` docs).
@@ -44,7 +44,7 @@ pub struct Span {
     pub tags: Annotated<Object<JsonLenientString>>,
 
     /// Arbitrary additional data on a span, like `extra` on the top-level event.
-    #[metastructure(pii = "maybe")]
+    #[metastructure(pii = "true")]
     pub data: Annotated<Object<Value>>,
 
     // TODO remove retain when the api stabilizes
