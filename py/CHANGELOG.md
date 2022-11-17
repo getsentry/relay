@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Always scrub PII in the span description and data. So far, the user had to configure this by hand. ([#1590](https://github.com/getsentry/relay/pull/1590))
+
 ## 0.8.15
 
 - Restore correct behavior when `is_renormalize` is specified on `normalize_event`. ([#1548](https://github.com/getsentry/relay/pull/1548))
