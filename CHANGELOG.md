@@ -4,6 +4,7 @@
 
 **Internal**:
 
+- Could not find `assert_json_snapshot` in `insta`. ([#1589](https://github.com/getsentry/relay/pull/1589))
 - Emit a `service.back_pressure` metric that measures internal back pressure by service. ([#1583](https://github.com/getsentry/relay/pull/1583))
 
 ## 22.11.0
