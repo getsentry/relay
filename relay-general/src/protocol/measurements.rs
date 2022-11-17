@@ -101,7 +101,7 @@ impl FromValue for Measurements {
                         return Some((name.to_lowercase(), object));
                     } else {
                         processing_errors.push(Error::invalid(format!(
-                            "measurement name '{}' can contain only characters a-z0-9.-_",
+                            "measurement name '{}' can contain only characters a-z0-9._",
                             name
                         )));
                     }
@@ -139,7 +139,7 @@ fn is_valid_measurement_name(name: &str) -> bool {
     name.starts_with(|c| matches!(c, 'a'..='z' | 'A'..='Z'))
         && name
             .chars()
-            .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '.'))
+            .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '.'))
 }
 
 #[cfg(test)]
@@ -185,9 +185,6 @@ mod tests {
       "value": 420.69,
       "unit": "millisecond"
     },
-    "lcp_final.element-size123": {
-      "value": 1.0
-    },
     "missing_value": null
   },
   "_meta": {
@@ -203,7 +200,13 @@ mod tests {
           [
             "invalid_data",
             {
-              "reason": "measurement name 'Total Blocking Time' can contain only characters a-z0-9.-_"
+              "reason": "measurement name 'lcp_final.element-Size123' can contain only characters a-z0-9._"
+            }
+          ],
+          [
+            "invalid_data",
+            {
+              "reason": "measurement name 'Total Blocking Time' can contain only characters a-z0-9._"
             }
           ]
         ]
@@ -257,13 +260,6 @@ mod tests {
                 }),
             );
             measurements.insert(
-                "lcp_final.element-size123".to_owned(),
-                Annotated::new(Measurement {
-                    value: Annotated::new(1f64),
-                    unit: Annotated::empty(),
-                }),
-            );
-            measurements.insert(
                 "fid".to_owned(),
                 Annotated::new(Measurement {
                     value: Annotated::new(2020f64),
@@ -301,7 +297,11 @@ mod tests {
         measurements_meta.add_error(Error::invalid("measurement name '' cannot be empty"));
 
         measurements_meta.add_error(Error::invalid(
-            "measurement name 'Total Blocking Time' can contain only characters a-z0-9.-_",
+            "measurement name 'lcp_final.element-Size123' can contain only characters a-z0-9._",
+        ));
+
+        measurements_meta.add_error(Error::invalid(
+            "measurement name 'Total Blocking Time' can contain only characters a-z0-9._",
         ));
 
         let event = Annotated::new(Event {

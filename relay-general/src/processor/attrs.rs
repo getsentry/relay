@@ -101,6 +101,7 @@ pub enum MaxChars {
     TagKey,
     TagValue,
     Environment,
+    Distribution,
     Hard(usize),
     Soft(usize),
 }
@@ -123,6 +124,7 @@ impl MaxChars {
             MaxChars::TagKey => 32,
             MaxChars::TagValue => 200,
             MaxChars::Environment => 64,
+            MaxChars::Distribution => 64,
             MaxChars::Soft(len) | MaxChars::Hard(len) => len,
         }
     }
@@ -143,6 +145,7 @@ impl MaxChars {
             MaxChars::TagKey => 0,
             MaxChars::TagValue => 0,
             MaxChars::Environment => 0,
+            MaxChars::Distribution => 0,
             MaxChars::Soft(_) => 10,
             MaxChars::Hard(_) => 0,
         }

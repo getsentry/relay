@@ -529,6 +529,7 @@ fn parse_max_chars(name: &str) -> TokenStream {
         "tag_key" => quote!(crate::processor::MaxChars::TagKey),
         "tag_value" => quote!(crate::processor::MaxChars::TagValue),
         "environment" => quote!(crate::processor::MaxChars::Environment),
+        "distribution" => quote!(crate::processor::MaxChars::Distribution),
         _ => panic!("invalid max_chars variant '{}'", name),
     }
 }

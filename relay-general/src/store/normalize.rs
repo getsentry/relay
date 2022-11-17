@@ -90,20 +90,19 @@ pub fn is_valid_platform(platform: &str) -> bool {
     VALID_PLATFORMS.contains(&platform)
 }
 
-pub fn normalize_dist(dist: &mut Option<String>) {
-    let mut erase = false;
-    if let Some(val) = dist {
-        if val.is_empty() {
-            erase = true;
+pub fn normalize_dist(distribution: &mut Annotated<String>) -> ProcessingResult {
+    distribution.apply(|dist, meta| {
+        let trimmed = dist.trim();
+        if trimmed.is_empty() {
+            return Err(ProcessingAction::DeleteValueHard);
+        } else if bytecount::num_chars(trimmed.as_bytes()) > MaxChars::Distribution.limit() {
+            meta.add_error(Error::new(ErrorKind::ValueTooLong));
+            return Err(ProcessingAction::DeleteValueSoft);
+        } else if trimmed != dist {
+            *dist = trimmed.to_string();
         }
-        let trimmed = val.trim();
-        if trimmed != val {
-            *val = trimmed.to_string()
-        }
-    }
-    if erase {
-        *dist = None;
-    }
+        Ok(())
+    })
 }
 
 /// Compute additional measurements derived from existing ones.
@@ -329,12 +328,6 @@ fn normalize_units(measurements: &mut Measurements) {
 
         let stated_unit = measurement.unit.value().copied();
         let default_unit = get_metric_measurement_unit(name);
-        if let (Some(default_), Some(stated)) = (default_unit, stated_unit) {
-            if default_ != stated {
-                relay_log::error!("unit mismatch on measurements.{}: {}", name, stated);
-            }
-        }
-
         measurement
             .unit
             .set_value(Some(stated_unit.or(default_unit).unwrap_or_default()))
@@ -482,14 +475,14 @@ fn normalize_event_tags(event: &mut Event) -> ProcessingResult {
 
     let server_name = std::mem::take(&mut event.server_name);
     if server_name.value().is_some() {
-        #[allow(clippy::unnecessary_to_owned)]
-        tags.insert("server_name".to_string(), server_name);
+        let tag_name = "server_name".to_string();
+        tags.insert(tag_name, server_name);
     }
 
     let site = std::mem::take(&mut event.site);
     if site.value().is_some() {
-        #[allow(clippy::unnecessary_to_owned)]
-        tags.insert("site".to_string(), site);
+        let tag_name = "site".to_string();
+        tags.insert(tag_name, site);
     }
 
     Ok(())
@@ -547,8 +540,8 @@ fn normalize_timestamps(
 }
 
 /// Ensures that the `release` and `dist` fields match up.
-fn normalize_release_dist(event: &mut Event) {
-    normalize_dist(event.dist.value_mut());
+fn normalize_release_dist(event: &mut Event) -> ProcessingResult {
+    normalize_dist(&mut event.dist)
 }
 
 fn is_security_report(event: &Event) -> bool {
@@ -656,8 +649,8 @@ fn normalize_ip_addresses(event: &mut Event, client_ip: Option<&IpAddr>) {
     }
 }
 
-fn normalize_logentry(logentry: &mut Annotated<LogEntry>, meta: &mut Meta) -> ProcessingResult {
-    logentry.apply(|le, _| logentry::normalize_logentry(le, meta))
+fn normalize_logentry(logentry: &mut Annotated<LogEntry>, _meta: &mut Meta) -> ProcessingResult {
+    logentry.apply(|le, meta| logentry::normalize_logentry(le, meta))
 }
 
 #[derive(Default, Debug)]
@@ -717,7 +710,7 @@ pub fn light_normalize_event(
 
         // Default required attributes, even if they have errors
         normalize_logentry(&mut event.logentry, meta)?;
-        normalize_release_dist(event); // dist is a tag extracted along with other metrics from transactions
+        normalize_release_dist(event)?; // dist is a tag extracted along with other metrics from transactions
         normalize_timestamps(
             event,
             meta,
@@ -1716,6 +1709,32 @@ mod tests {
     }
 
     #[test]
+    fn test_too_long_distribution() {
+        let json = r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "fingerprint": [
+    "{{ default }}"
+  ],
+  "platform": "other",
+  "dist": "52df9022835246eeb317dbd739ccd059-52df9022835246eeb317dbd739ccd059-52df9022835246eeb317dbd739ccd059"
+}"#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        let mut processor = NormalizeProcessor::default();
+        let config = LightNormalizationConfig::default();
+        light_normalize_event(&mut event, &config).unwrap();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        let dist = &event.value().unwrap().dist;
+        let result = &Annotated::<String>::from_error(
+            Error::new(ErrorKind::ValueTooLong),
+            Some(Value::String("52df9022835246eeb317dbd739ccd059-52df9022835246eeb317dbd739ccd059-52df9022835246eeb317dbd739ccd059".to_string()))
+        );
+        assert_eq!(dist, result);
+    }
+
+    #[test]
     fn test_regression_backfills_abs_path_even_when_moving_stacktrace() {
         let mut event = Annotated::new(Event {
             exceptions: Annotated::new(Values::new(vec![Annotated::new(Exception {
@@ -1847,6 +1866,64 @@ mod tests {
     }
 
     #[test]
+    fn test_logentry_error() {
+        let json = r###"
+{
+    "event_id": "74ad1301f4df489ead37d757295442b1",
+    "timestamp": 1668148328.308933,
+    "received": 1668148328.308933,
+    "level": "error",
+    "platform": "python",
+    "logentry": {
+        "params": [
+            "bogus"
+        ],
+        "formatted": 42
+    }
+}
+"###;
+        let mut event = Annotated::from_json(json).unwrap();
+
+        let mut processor = NormalizeProcessor::default();
+        let config = LightNormalizationConfig::default();
+        light_normalize_event(&mut event, &config).unwrap();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&event), {".received" => "[received]"}, @r###"
+        {
+          "event_id": "74ad1301f4df489ead37d757295442b1",
+          "level": "error",
+          "type": "default",
+          "logentry": null,
+          "logger": "",
+          "platform": "python",
+          "timestamp": 1668148328.308933,
+          "received": "[received]",
+          "_meta": {
+            "logentry": {
+              "": {
+                "err": [
+                  [
+                    "invalid_data",
+                    {
+                      "reason": "no message present"
+                    }
+                  ]
+                ],
+                "val": {
+                  "formatted": null,
+                  "message": null,
+                  "params": [
+                    "bogus"
+                  ]
+                }
+              }
+            }
+          }
+        }"###)
+    }
+
+    #[test]
     fn test_future_timestamp() {
         let mut event = Annotated::new(Event {
             timestamp: Annotated::new(Utc.ymd(2000, 1, 3).and_hms(0, 2, 0).into()),
@@ -1966,30 +2043,30 @@ mod tests {
 
     #[test]
     fn test_normalize_dist_none() {
-        let mut dist = None;
-        normalize_dist(&mut dist);
-        assert_eq!(dist, None);
+        let mut dist = Annotated::default();
+        normalize_dist(&mut dist).unwrap();
+        assert_eq!(dist.value(), None);
     }
 
     #[test]
     fn test_normalize_dist_empty() {
-        let mut dist = Some("".to_owned());
-        normalize_dist(&mut dist);
-        assert_eq!(dist, None);
+        let mut dist = Annotated::new("".to_string());
+        normalize_dist(&mut dist).unwrap();
+        assert_eq!(dist.value(), None);
     }
 
     #[test]
     fn test_normalize_dist_trim() {
-        let mut dist = Some(" foo  ".to_owned());
-        normalize_dist(&mut dist);
-        assert_eq!(dist.unwrap(), "foo");
+        let mut dist = Annotated::new(" foo  ".to_string());
+        normalize_dist(&mut dist).unwrap();
+        assert_eq!(dist.value(), Some(&"foo".to_string()));
     }
 
     #[test]
     fn test_normalize_dist_whitespace() {
-        let mut dist = Some(" ".to_owned());
-        normalize_dist(&mut dist);
-        assert_eq!(dist.unwrap(), ""); // Not sure if this is what we want
+        let mut dist = Annotated::new(" ".to_owned());
+        normalize_dist(&mut dist).unwrap();
+        assert_eq!(dist.value(), None);
     }
 
     #[test]

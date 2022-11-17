@@ -4,13 +4,33 @@
 
 **Features**:
 
+- Dynamic sampling is now based on the volume received by Relay by default and does not include the original volume dropped by client-side sampling in SDKs. This is required for the final dynamic sampling feature in the latest Sentry plans. ([#1591](https://github.com/getsentry/relay/pull/1591))
+
+**Internal**:
+
+- Emit a `service.back_pressure` metric that measures internal back pressure by service. ([#1583](https://github.com/getsentry/relay/pull/1583))
+- Always scrub PII in the span description and data. So far, the user had to configure this by hand. ([#1590](https://github.com/getsentry/relay/pull/1590))
+
+## 22.11.0
+
+**Features**:
+
+- Add PII scrubber for replay recordings. ([#1545](https://github.com/getsentry/relay/pull/1545))
 - Support decaying rules. Decaying rules are regular sampling rules, but they are only applicable in a specific time range. ([#1544](https://github.com/getsentry/relay/pull/1544))
+- Disallow `-` in measurement and breakdown names. These items are converted to metrics, which do not allow `-` in their name. ([#1571](https://github.com/getsentry/relay/pull/1571))
+
+**Bug Fixes**:
+
+- Validate the distribution name in the event. ([#1556](https://github.com/getsentry/relay/pull/1556))
+- Use correct meta object for logentry in light normalization. ([#1577](https://github.com/getsentry/relay/pull/1577))
 
 **Internal**:
 
 - Implement response context schema. ([#1529](https://github.com/getsentry/relay/pull/1529))
 - Support dedicated quotas for storing transaction payloads ("indexed transactions") via the `transaction_indexed` data category if metrics extraction is enabled. ([#1537](https://github.com/getsentry/relay/pull/1537), [#1555](https://github.com/getsentry/relay/pull/1555))
 - Report outcomes for dynamic sampling with the correct indexed transaction data category to restore correct totals. ([#1561](https://github.com/getsentry/relay/pull/1561))
+- Add fields to the Frame object for the sample format. ([#1562](https://github.com/getsentry/relay/pull/1562))
+- Move kafka related code into separate `relay-kafka` crate. ([#1563](https://github.com/getsentry/relay/pull/1563))
 
 ## 22.10.0
 

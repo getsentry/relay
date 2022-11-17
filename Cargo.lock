@@ -186,13 +186,23 @@ checksum = "08f9b8508dccb7687a1d6c4ce66b2b0ecef467c94667de27d8d7fe1f8d2a9cdc"
 
 [[package]]
 name = "anylog"
-version = "0.6.1"
+version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6bc1da9efdf690bb9d25615b925bf1e468b66bbaca45c591b6714393d54e4730"
+checksum = "9a16c6307b6697265897d39135d69d92c47a6ee2af665f1b232c817cee2e12f1"
 dependencies = [
  "chrono",
  "lazy_static",
  "regex",
+]
+
+[[package]]
+name = "assert-json-diff"
+version = "2.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47e4f2b81832e72834d7518d8487a0396a28cc408186a2e8854c0f98011faf12"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -998,12 +1008,11 @@ checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
 
 [[package]]
 name = "elementtree"
-version = "0.7.0"
+version = "1.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f6319c9433cf1e95c60c8533978bccf0614f27f03bb4e514253468eeeaa7fe3"
+checksum = "83e91f812124e4fc7f82605feda4da357307185a4619baee415ae0b7f6d5e031"
 dependencies = [
  "string_cache",
- "xml-rs",
 ]
 
 [[package]]
@@ -2200,9 +2209,9 @@ dependencies = [
 
 [[package]]
 name = "native-tls"
-version = "0.2.10"
+version = "0.2.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fd7e2f3618557f980e0b17e8856252eee3c97fa12c54dff0ca290fb6266ca4a9"
+checksum = "07226173c32f2926027b63cce4bcd8076c3552846cbe7925f3aaffeac0a3b92e"
 dependencies = [
  "lazy_static",
  "libc",
@@ -2362,9 +2371,9 @@ checksum = "2839e79665f131bdb5782e51f2c6c9599c133c6098982a54c794358bf432529c"
 
 [[package]]
 name = "openssl"
-version = "0.10.40"
+version = "0.10.42"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb81a6430ac911acb25fe5ac8f1d2af1b4ea8a4fdfda0f1ee4292af2e2d8eb0e"
+checksum = "12fc0523e3bd51a692c8850d075d74dc062ccf251c0110668cbd921917118a13"
 dependencies = [
  "bitflags",
  "cfg-if 1.0.0",
@@ -2394,18 +2403,18 @@ checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
 
 [[package]]
 name = "openssl-src"
-version = "111.22.0+1.1.1q"
+version = "111.24.0+1.1.1s"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f31f0d509d1c1ae9cada2f9539ff8f37933831fd5098879e482aa687d659853"
+checksum = "3498f259dab01178c6228c6b00dcef0ed2a2d5e20d648c017861227773ea4abd"
 dependencies = [
  "cc",
 ]
 
 [[package]]
 name = "openssl-sys"
-version = "0.9.74"
+version = "0.9.77"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "835363342df5fba8354c5b453325b110ffd54044e588c539cf2f20a8014e4cb1"
+checksum = "b03b84c3b2d099b81f0953422b4d4ad58761589d0229b5506356afca05a3670a"
 dependencies = [
  "autocfg 1.1.0",
  "cc",
@@ -2834,7 +2843,7 @@ dependencies = [
  "rand_isaac",
  "rand_jitter",
  "rand_os",
- "rand_pcg",
+ "rand_pcg 0.1.2",
  "rand_xorshift",
  "winapi 0.3.9",
 ]
@@ -2989,6 +2998,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rand_pcg"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "59cad018caf63deb318e5a4586d99a24424a364f40f1e5778c29aca23f4fc73e"
+dependencies = [
+ "rand_core 0.6.3",
+]
+
+[[package]]
 name = "rand_xorshift"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3125,7 +3143,7 @@ checksum = "49b3de9ec5dc0a3417da371aab17d729997c15010e7fd24ff707773a33bddb64"
 
 [[package]]
 name = "relay"
-version = "22.10.0"
+version = "22.11.0"
 dependencies = [
  "clap",
  "console 0.10.3",
@@ -3143,7 +3161,7 @@ dependencies = [
 
 [[package]]
 name = "relay-auth"
-version = "22.10.0"
+version = "22.11.0"
 dependencies = [
  "base64 0.10.1",
  "chrono",
@@ -3159,7 +3177,7 @@ dependencies = [
 
 [[package]]
 name = "relay-aws-extension"
-version = "22.10.0"
+version = "22.11.0"
 dependencies = [
  "relay-log",
  "relay-system",
@@ -3189,7 +3207,7 @@ dependencies = [
 
 [[package]]
 name = "relay-common"
-version = "22.10.0"
+version = "22.11.0"
 dependencies = [
  "backoff",
  "chrono",
@@ -3208,13 +3226,14 @@ dependencies = [
 
 [[package]]
 name = "relay-config"
-version = "22.10.0"
+version = "22.11.0"
 dependencies = [
  "failure",
  "human-size",
  "num_cpus",
  "relay-auth",
  "relay-common",
+ "relay-kafka",
  "relay-log",
  "relay-metrics",
  "relay-redis",
@@ -3226,7 +3245,7 @@ dependencies = [
 
 [[package]]
 name = "relay-crash"
-version = "22.10.0"
+version = "22.11.0"
 dependencies = [
  "bindgen",
  "cmake",
@@ -3234,7 +3253,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi"
-version = "22.10.0"
+version = "22.11.0"
 dependencies = [
  "failure",
  "relay-ffi-macros",
@@ -3242,7 +3261,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi-macros"
-version = "22.10.0"
+version = "22.11.0"
 dependencies = [
  "quote 1.0.18",
  "syn 1.0.96",
@@ -3250,7 +3269,7 @@ dependencies = [
 
 [[package]]
 name = "relay-filter"
-version = "22.10.0"
+version = "22.11.0"
 dependencies = [
  "globset",
  "insta",
@@ -3266,7 +3285,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general"
-version = "22.10.0"
+version = "22.11.0"
 dependencies = [
  "bytecount",
  "chrono",
@@ -3307,7 +3326,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general-derive"
-version = "22.10.0"
+version = "22.11.0"
 dependencies = [
  "proc-macro2 1.0.39",
  "quote 1.0.18",
@@ -3316,8 +3335,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-kafka"
+version = "22.11.0"
+dependencies = [
+ "failure",
+ "rdkafka",
+ "rdkafka-sys",
+ "relay-log",
+ "relay-statsd",
+ "rmp-serde",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+]
+
+[[package]]
 name = "relay-log"
-version = "22.10.0"
+version = "22.11.0"
 dependencies = [
  "chrono",
  "console 0.10.3",
@@ -3334,7 +3368,7 @@ dependencies = [
 
 [[package]]
 name = "relay-metrics"
-version = "22.10.0"
+version = "22.11.0"
 dependencies = [
  "actix",
  "criterion",
@@ -3356,7 +3390,7 @@ dependencies = [
 
 [[package]]
 name = "relay-profiling"
-version = "22.10.0"
+version = "22.11.0"
 dependencies = [
  "android_trace_log",
  "base64 0.10.1",
@@ -3371,7 +3405,7 @@ dependencies = [
 
 [[package]]
 name = "relay-quotas"
-version = "22.10.0"
+version = "22.11.0"
 dependencies = [
  "failure",
  "insta",
@@ -3385,7 +3419,7 @@ dependencies = [
 
 [[package]]
 name = "relay-redis"
-version = "22.10.0"
+version = "22.11.0"
 dependencies = [
  "failure",
  "r2d2",
@@ -3396,11 +3430,13 @@ dependencies = [
 
 [[package]]
 name = "relay-replays"
-version = "22.10.0"
+version = "22.11.0"
 dependencies = [
+ "assert-json-diff",
+ "flate2",
  "insta",
- "rand 0.6.5",
- "rand_pcg",
+ "rand 0.8.5",
+ "rand_pcg 0.3.1",
  "relay-common",
  "relay-filter",
  "relay-general",
@@ -3412,12 +3448,12 @@ dependencies = [
 
 [[package]]
 name = "relay-sampling"
-version = "22.10.0"
+version = "22.11.0"
 dependencies = [
  "chrono",
  "insta",
  "rand 0.6.5",
- "rand_pcg",
+ "rand_pcg 0.1.2",
  "relay-common",
  "relay-filter",
  "relay-general",
@@ -3429,7 +3465,7 @@ dependencies = [
 
 [[package]]
 name = "relay-server"
-version = "22.10.0"
+version = "22.11.0"
 dependencies = [
  "actix",
  "actix-web",
@@ -3453,8 +3489,6 @@ dependencies = [
  "native-tls",
  "once_cell",
  "parking_lot 0.12.1",
- "rdkafka",
- "rdkafka-sys",
  "regex",
  "relay-auth",
  "relay-aws-extension",
@@ -3462,6 +3496,7 @@ dependencies = [
  "relay-config",
  "relay-filter",
  "relay-general",
+ "relay-kafka",
  "relay-log",
  "relay-metrics",
  "relay-profiling",
@@ -3490,7 +3525,7 @@ dependencies = [
 
 [[package]]
 name = "relay-statsd"
-version = "22.10.0"
+version = "22.11.0"
 dependencies = [
  "cadence",
  "parking_lot 0.12.1",
@@ -3500,7 +3535,7 @@ dependencies = [
 
 [[package]]
 name = "relay-system"
-version = "22.10.0"
+version = "22.11.0"
 dependencies = [
  "actix",
  "failure",
@@ -3508,13 +3543,14 @@ dependencies = [
  "futures 0.3.21",
  "once_cell",
  "relay-log",
+ "relay-statsd",
  "tokio 0.1.22",
  "tokio 1.19.2",
 ]
 
 [[package]]
 name = "relay-test"
-version = "22.10.0"
+version = "22.11.0"
 dependencies = [
  "actix",
  "actix-web",
@@ -4238,21 +4274,21 @@ checksum = "6bdef32e8150c2a081110b42772ffe7d7c9032b606bc226c8260fd97e0976601"
 
 [[package]]
 name = "symbolic-common"
-version = "8.7.3"
+version = "10.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c276d5b296f30f0fb30d2128b6be6f9804be7669f1edef46c4d8c017de4c77c3"
+checksum = "492875918a6bcbae753a5fc6f39bc87566fc3c25182e76d7f128ef1c8a2375c6"
 dependencies = [
- "debugid 0.7.3",
+ "debugid 0.8.0",
  "memmap2",
  "stable_deref_trait",
- "uuid 0.8.2",
+ "uuid 1.1.2",
 ]
 
 [[package]]
 name = "symbolic-unreal"
-version = "8.7.3"
+version = "10.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7aa8d30ac2e896b1b0ce7e03f35de88a56caa307c5b8945b2a06e9b70c275343"
+checksum = "d1a3634df86c7be20a0ec8f61ee8eaa527fdcbda60ddd1619bd3eea80eba9d34"
 dependencies = [
  "anylog",
  "bytes 1.1.0",
@@ -5373,12 +5409,6 @@ name = "wyz"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "85e60b0d1b5f99db2556934e21937020776a5d31520bf169e851ac44e6420214"
-
-[[package]]
-name = "xml-rs"
-version = "0.8.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2d7d3948613f75c98fd9328cfdcc45acc4d360655289d0a7d4ec931392200a3"
 
 [[package]]
 name = "yaml-rust"

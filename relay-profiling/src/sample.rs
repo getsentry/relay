@@ -14,16 +14,22 @@ use crate::Platform;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Frame {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    instruction_addr: Option<Addr>,
-    #[serde(alias = "name", default, skip_serializing_if = "Option::is_none")]
-    function: Option<String>,
-    #[serde(alias = "line", default, skip_serializing_if = "Option::is_none")]
-    lineno: Option<u32>,
-    #[serde(alias = "column", default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    abs_path: Option<String>,
+    #[serde(alias = "column", skip_serializing_if = "Option::is_none")]
     colno: Option<u32>,
-    #[serde(alias = "file", default, skip_serializing_if = "Option::is_none")]
+    #[serde(alias = "file", skip_serializing_if = "Option::is_none")]
     filename: Option<String>,
+    #[serde(alias = "name", skip_serializing_if = "Option::is_none")]
+    function: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    in_app: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    instruction_addr: Option<Addr>,
+    #[serde(alias = "line", skip_serializing_if = "Option::is_none")]
+    lineno: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    module: Option<String>,
 }
 
 impl Frame {
