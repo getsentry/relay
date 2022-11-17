@@ -351,11 +351,13 @@ fn insert_replacement_chunks(rule: &RuleRef, text: &str, output: &mut Vec<Chunk<
 
 #[cfg(test)]
 mod tests {
-    use crate::pii::{PiiConfig, ReplaceRedaction};
+    use chrono::{TimeZone, Utc};
+
+    use crate::pii::{DataScrubbingConfig, PiiConfig, ReplaceRedaction};
     use crate::processor::process_value;
     use crate::protocol::{
         Addr, DebugImage, DebugMeta, Event, ExtraValue, Headers, LogEntry, NativeDebugImage,
-        Request, TagEntry, Tags,
+        Request, Span, SpanId, SpanStatus, TagEntry, Tags, TraceId,
     };
     use crate::testutils::assert_annotated_snapshot;
     use crate::types::{Annotated, Object, Value};
@@ -418,6 +420,36 @@ mod tests {
                 ))]
                 .into(),
             )),
+            ..Default::default()
+        });
+
+        let mut processor = PiiProcessor::new(config.compiled());
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(event);
+    }
+
+    #[test]
+    fn test_span_default_rules() {
+        let ds_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: true,
+            ..Default::default()
+        };
+        let config = ds_config.pii_config().unwrap().as_ref().unwrap();
+
+        let span = Annotated::new(Span {
+            timestamp: Annotated::new(Utc.ymd(1970, 1, 1).and_hms_nano(0, 0, 0, 0).into()),
+            start_timestamp: Annotated::new(Utc.ymd(1968, 1, 1).and_hms_nano(0, 0, 0, 0).into()),
+            description: Annotated::new(
+                "desc with http://example.com/userid=1&token=1234 the end".to_owned(),
+            ),
+            trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+            span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
+            status: Annotated::new(SpanStatus::Ok),
+            ..Default::default()
+        });
+        let mut event = Annotated::new(Event {
+            spans: Annotated::new(vec![span]),
             ..Default::default()
         });
 
