@@ -18,7 +18,7 @@ pub struct Span {
     pub exclusive_time: Annotated<f64>,
 
     /// Human readable description of a span (e.g. method URL).
-    #[metastructure(pii = "maybe")]
+    #[metastructure(pii = "true")]
     pub description: Annotated<String>,
 
     /// Span type (see `OperationType` docs).
