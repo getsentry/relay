@@ -388,7 +388,7 @@ jobs:
             .
       - name: Build Relay final image
         run: |
-          build -t ghcr.io/getsentry/relay:nightly -t ghcr.io/getsentry/relay:$COMMIT_SHA \
+          docker build -t ghcr.io/getsentry/relay:nightly -t ghcr.io/getsentry/relay:$COMMIT_SHA \
             --cache-from us.gcr.io/$PROJECT_ID/relay:deps \
             --cache-from us.gcr.io/$PROJECT_ID/relay:nightly \
             .
