@@ -295,7 +295,6 @@ jobs:
         env:
           RELAY_VERSION_CHAIN: "20.6.0,latest"
 
-
   sentry-relay-integration-tests:
     name: Sentry-Relay Integration Tests
     runs-on: ubuntu-latest
@@ -388,7 +387,7 @@ jobs:
             .
       - name: Build Relay final image
         run: |
-          docker build -t ghcr.io/getsentry/relay:nightly -t ghcr.io/getsentry/relay:$COMMIT_SHA \
+          docker build -t ghcr.io/getsentry/relay:nightly -t ghcr.io/getsentry/relay:${{ github.sha }} \
             --cache-from us.gcr.io/$PROJECT_ID/relay:deps \
             --cache-from us.gcr.io/$PROJECT_ID/relay:nightly \
             .
