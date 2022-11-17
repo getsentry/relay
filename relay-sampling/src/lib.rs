@@ -267,6 +267,11 @@ pub enum RuleCondition {
 }
 
 impl RuleCondition {
+    /// Returns a condition that matches everything.
+    pub fn all() -> Self {
+        Self::And(AndCondition { inner: Vec::new() })
+    }
+
     /// Checks if Relay supports this condition (in other words if the condition had any unknown configuration
     /// which was serialized as "Unsupported" (because the configuration is either faulty or was created for a
     /// newer relay that supports some other condition types)

@@ -46,7 +46,7 @@ fn check_unsupported_rules(
     Ok(())
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 struct SamplingSpec {
     sample_rate: f64,
     rule_id: RuleId,
@@ -170,57 +170,56 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Instant;
-
     use bytes::Bytes;
-    use smallvec::SmallVec;
 
     use relay_common::EventType;
     use relay_general::protocol::EventId;
     use relay_general::types::Annotated;
-    use relay_sampling::{RuleId, RuleType, SamplingConfig};
+    use relay_sampling::{RuleCondition, RuleId, RuleType, SamplingConfig, SamplingRule};
 
-    use crate::actors::project::ProjectConfig;
     use crate::envelope::Item;
 
     use super::*;
 
-    fn get_project_state(sample_rate: Option<f64>, rule_type: RuleType) -> ProjectState {
-        let sampling_config_str = if let Some(sample_rate) = sample_rate {
-            let rt = match rule_type {
-                RuleType::Transaction => "transaction",
-                RuleType::Error => "error",
-                RuleType::Trace => "trace",
-            };
-            format!(
-                r#"{{
-                "rules":[{{
-                    "condition": {{ "op": "and", "inner":[]}},
-                    "sampleRate": {},
-                    "type": "{}",
-                    "id": 1
-                }}]
-            }}"#,
-                sample_rate, rt
-            )
-        } else {
-            "{\"rules\":[]}".to_owned()
-        };
-        let sampling_config = serde_json::from_str::<SamplingConfig>(&sampling_config_str).ok();
+    fn state_with_config(sampling_config: SamplingConfig) -> ProjectState {
+        let mut state = ProjectState::allowed();
+        state.config.dynamic_sampling = Some(sampling_config);
+        state
+    }
 
-        ProjectState {
-            project_id: None,
-            disabled: false,
-            public_keys: SmallVec::new(),
-            slug: None,
-            config: ProjectConfig {
-                dynamic_sampling: sampling_config,
-                ..ProjectConfig::default()
-            },
-            organization_id: None,
-            last_change: None,
-            last_fetch: Instant::now(),
-            invalid: false,
+    fn state_with_rule(
+        sample_rate: Option<f64>,
+        rule_type: RuleType,
+        mode: SamplingMode,
+    ) -> ProjectState {
+        let rules = match sample_rate {
+            Some(sample_rate) => vec![SamplingRule {
+                condition: RuleCondition::all(),
+                sample_rate,
+                ty: rule_type,
+                id: RuleId(1),
+                time_range: Default::default(),
+            }],
+            None => Vec::new(),
+        };
+
+        state_with_config(SamplingConfig {
+            rules,
+            mode,
+            next_id: None,
+        })
+    }
+
+    fn create_sampling_context(sample_rate: Option<f64>) -> DynamicSamplingContext {
+        DynamicSamplingContext {
+            trace_id: uuid::Uuid::new_v4(),
+            public_key: "12345678901234567890123456789012".parse().unwrap(),
+            release: None,
+            environment: None,
+            transaction: None,
+            sample_rate,
+            user: Default::default(),
+            other: Default::default(),
         }
     }
 
@@ -230,18 +229,11 @@ mod tests {
         let event_id = EventId::new();
 
         let raw_event = if with_trace_context {
-            let trace_id = uuid::Uuid::new_v4();
-            let project_key = "12345678901234567890123456789012";
-            let trace_context_raw = format!(
-                r#"{{"trace_id": "{}", "public_key": "{}"}}"#,
-                trace_id.to_simple(),
-                project_key,
-            );
             format!(
                 "{{\"event_id\":\"{}\",\"dsn\":\"{}\", \"trace\": {}}}\n",
                 event_id.0.to_simple(),
                 dsn,
-                trace_context_raw,
+                serde_json::to_string(&create_sampling_context(None)).unwrap(),
             )
         } else {
             format!(
@@ -276,18 +268,18 @@ mod tests {
             ..Event::default()
         };
 
-        let proj_state = get_project_state(Some(0.0), RuleType::Error);
+        let proj_state = state_with_rule(Some(0.0), RuleType::Error, SamplingMode::default());
 
         assert_eq!(
             SamplingResult::Drop(RuleId(1)),
             should_keep_event(None, Some(&event), None, &proj_state, None, true)
         );
-        let proj_state = get_project_state(Some(1.0), RuleType::Error);
+        let proj_state = state_with_rule(Some(1.0), RuleType::Error, SamplingMode::default());
         assert_eq!(
             SamplingResult::Keep,
             should_keep_event(None, Some(&event), None, &proj_state, None, true)
         );
-        let proj_state = get_project_state(None, RuleType::Error);
+        let proj_state = state_with_rule(None, RuleType::Error, SamplingMode::default());
         assert_eq!(
             SamplingResult::Keep,
             should_keep_event(None, Some(&event), None, &proj_state, None, true)
@@ -298,8 +290,8 @@ mod tests {
     fn test_unsampled_envelope_with_sample_rate() {
         //create an envelope with a event and a transaction
         let envelope = new_envelope(true);
-        let state = get_project_state(Some(1.0), RuleType::Trace);
-        let sampling_state = get_project_state(Some(0.0), RuleType::Trace);
+        let state = state_with_rule(Some(1.0), RuleType::Trace, SamplingMode::default());
+        let sampling_state = state_with_rule(Some(0.0), RuleType::Trace, SamplingMode::default());
         let result = should_keep_event(
             envelope.sampling_context(),
             None,
@@ -316,8 +308,8 @@ mod tests {
     fn test_should_keep_transaction_no_trace() {
         //create an envelope with a event and a transaction
         let envelope = new_envelope(false);
-        let state = get_project_state(Some(1.0), RuleType::Trace);
-        let sampling_state = get_project_state(Some(0.0), RuleType::Trace);
+        let state = state_with_rule(Some(1.0), RuleType::Trace, SamplingMode::default());
+        let sampling_state = state_with_rule(Some(0.0), RuleType::Trace, SamplingMode::default());
 
         let result = should_keep_event(
             envelope.sampling_context(),
@@ -338,8 +330,8 @@ mod tests {
     fn test_should_signal_when_envelope_becomes_empty() {
         //create an envelope with a event and a transaction
         let envelope = new_envelope(true);
-        let state = get_project_state(Some(1.0), RuleType::Trace);
-        let sampling_state = get_project_state(Some(0.0), RuleType::Trace);
+        let state = state_with_rule(Some(1.0), RuleType::Trace, SamplingMode::default());
+        let sampling_state = state_with_rule(Some(0.0), RuleType::Trace, SamplingMode::default());
 
         let result = should_keep_event(
             envelope.sampling_context(),
@@ -394,31 +386,17 @@ mod tests {
             }
         );
 
-        let sampling_config = serde_json::from_value::<SamplingConfig>(sampling_config).ok();
-
-        let project_state = ProjectState {
-            project_id: None,
-            disabled: false,
-            public_keys: SmallVec::new(),
-            slug: None,
-            config: ProjectConfig {
-                dynamic_sampling: sampling_config,
-                ..ProjectConfig::default()
-            },
-            organization_id: None,
-            last_change: None,
-            last_fetch: Instant::now(),
-            invalid: false,
-        };
+        let sampling_config = serde_json::from_value(sampling_config).unwrap();
+        let project_state = state_with_config(sampling_config);
 
         let envelope = new_envelope(true);
 
-        let mut event = Event::default();
-        event.ty.set_value(Some(EventType::Transaction));
-        event.id.set_value(Some(EventId(Uuid::new_v4())));
-        event
-            .transaction
-            .set_value(Some("my-important-transaction".to_owned()));
+        let event = Event {
+            id: Annotated::new(EventId::new()),
+            ty: Annotated::new(EventType::Transaction),
+            transaction: Annotated::new("my-important-transaction".to_owned()),
+            ..Event::default()
+        };
 
         let keep_event = should_keep_event(
             envelope.sampling_context(),
@@ -430,5 +408,76 @@ mod tests {
         );
 
         assert_eq!(keep_event, SamplingResult::Keep);
+    }
+
+    #[test]
+    fn test_trace_rule_received() {
+        let project_state = state_with_rule(Some(0.1), RuleType::Trace, SamplingMode::Received);
+        let sampling_context = create_sampling_context(Some(0.5));
+        let spec = get_trace_sampling_rule(
+            true, // irrelevant, just skips unsupported rules
+            Some(&project_state),
+            Some(&sampling_context),
+            None,
+        );
+
+        assert_eq!(spec.unwrap().unwrap().sample_rate, 0.1);
+    }
+
+    #[test]
+    fn test_trace_rule_adjusted() {
+        let project_state = state_with_rule(Some(0.1), RuleType::Trace, SamplingMode::Total);
+        let sampling_context = create_sampling_context(Some(0.5));
+        let spec = get_trace_sampling_rule(
+            true, // irrelevant, just skips unsupported rules
+            Some(&project_state),
+            Some(&sampling_context),
+            None,
+        );
+
+        assert_eq!(spec.unwrap().unwrap().sample_rate, 0.2);
+    }
+
+    #[test]
+    fn test_event_rule_received() {
+        let project_state =
+            state_with_rule(Some(0.1), RuleType::Transaction, SamplingMode::Received);
+        let sampling_context = create_sampling_context(Some(0.5));
+        let event = Event {
+            id: Annotated::new(EventId::new()),
+            ty: Annotated::new(EventType::Transaction),
+            ..Event::default()
+        };
+
+        let spec = get_event_sampling_rule(
+            true, // irrelevant, just skips unsupported rules
+            &project_state,
+            Some(&sampling_context),
+            Some(&event),
+            None, // ip address not needed for uniform rule
+        );
+
+        assert_eq!(spec.unwrap().unwrap().sample_rate, 0.1);
+    }
+
+    #[test]
+    fn test_event_rule_adjusted() {
+        let project_state = state_with_rule(Some(0.1), RuleType::Transaction, SamplingMode::Total);
+        let sampling_context = create_sampling_context(Some(0.5));
+        let event = Event {
+            id: Annotated::new(EventId::new()),
+            ty: Annotated::new(EventType::Transaction),
+            ..Event::default()
+        };
+
+        let spec = get_event_sampling_rule(
+            true, // irrelevant, just skips unsupported rules
+            &project_state,
+            Some(&sampling_context),
+            Some(&event),
+            None, // ip address not needed for uniform rule
+        );
+
+        assert_eq!(spec.unwrap().unwrap().sample_rate, 0.2);
     }
 }
