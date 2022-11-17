@@ -22,7 +22,7 @@ impl ProducerContext for CaptureErrorContext {
             relay_log::with_scope(
                 |scope| {
                     scope.set_tag("topic", message.topic());
-                    scope.set_tag("payload_len", message.payload_len())
+                    scope.set_extra("payload_len", message.payload_len().into());
                 },
                 || {
                     relay_log::error!(
