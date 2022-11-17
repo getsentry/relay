@@ -2532,6 +2532,50 @@
 <span id="2530">2530</span>
 <span id="2531">2531</span>
 <span id="2532">2532</span>
+<span id="2533">2533</span>
+<span id="2534">2534</span>
+<span id="2535">2535</span>
+<span id="2536">2536</span>
+<span id="2537">2537</span>
+<span id="2538">2538</span>
+<span id="2539">2539</span>
+<span id="2540">2540</span>
+<span id="2541">2541</span>
+<span id="2542">2542</span>
+<span id="2543">2543</span>
+<span id="2544">2544</span>
+<span id="2545">2545</span>
+<span id="2546">2546</span>
+<span id="2547">2547</span>
+<span id="2548">2548</span>
+<span id="2549">2549</span>
+<span id="2550">2550</span>
+<span id="2551">2551</span>
+<span id="2552">2552</span>
+<span id="2553">2553</span>
+<span id="2554">2554</span>
+<span id="2555">2555</span>
+<span id="2556">2556</span>
+<span id="2557">2557</span>
+<span id="2558">2558</span>
+<span id="2559">2559</span>
+<span id="2560">2560</span>
+<span id="2561">2561</span>
+<span id="2562">2562</span>
+<span id="2563">2563</span>
+<span id="2564">2564</span>
+<span id="2565">2565</span>
+<span id="2566">2566</span>
+<span id="2567">2567</span>
+<span id="2568">2568</span>
+<span id="2569">2569</span>
+<span id="2570">2570</span>
+<span id="2571">2571</span>
+<span id="2572">2572</span>
+<span id="2573">2573</span>
+<span id="2574">2574</span>
+<span id="2575">2575</span>
+<span id="2576">2576</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Functionality for calculating if a trace should be processed or dropped.
 </span><span class="attribute">#![doc(
     html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
@@ -2801,6 +2845,11 @@
 }
 
 <span class="kw">impl </span>RuleCondition {
+    <span class="doccomment">/// Returns a condition that matches everything.
+    </span><span class="kw">pub fn </span>all() -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::And(AndCondition { inner: Vec::new() })
+    }
+
     <span class="doccomment">/// Checks if Relay supports this condition (in other words if the condition had any unknown configuration
     /// which was serialized as &quot;Unsupported&quot; (because the configuration is either faulty or was created for a
     /// newer relay that supports some other condition types)
@@ -3193,15 +3242,50 @@
     }
 }
 
+<span class="doccomment">/// Defines which population of items a dynamic sample rate applies to.
+///
+/// SDKs with client side sampling reduce the number of items sent to Relay, where dynamic sampling
+/// occurs. The sampling mode controlls whether the sample rate is relative to the original
+/// population of items before client-side sampling, or relative to the number received by Relay
+/// after client-side sampling.
+</span><span class="attribute">#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+</span><span class="kw">pub enum </span>SamplingMode {
+    <span class="doccomment">/// The sample rate is based on the number of events received by Relay.
+    ///
+    /// Server-side dynamic sampling occurs on top of potential client-side sampling in the SDK. For
+    /// example, if the SDK samples at 50% and the server sampling rate is set at 10%, the resulting
+    /// effective sample rate is 5%.
+    </span>Received,
+    <span class="doccomment">/// The sample rate is based on the original number of events in the client.
+    ///
+    /// Server-side sampling compensates potential client-side sampling in the SDK. For example, if
+    /// the SDK samples at 50% and the server sampling rate is set at 10%, the resulting effective
+    /// sample rate is 10%.
+    ///
+    /// In this mode, the server sampling rate is capped by the client&#39;s sampling rate. Rules with a
+    /// higher sample rate than what the client is sending are effectively inactive.
+    </span>Total,
+}
+
+<span class="kw">impl </span>Default <span class="kw">for </span>SamplingMode {
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::Received
+    }
+}
+
 <span class="doccomment">/// Represents the dynamic sampling configuration available to a project.
 ///
 /// Note: This comes from the organization data
 </span><span class="attribute">#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
 </span><span class="kw">pub struct </span>SamplingConfig {
-    <span class="doccomment">/// The sampling rules for the project
+    <span class="doccomment">/// The ordered sampling rules for the project from highest to lowest priority.
     </span><span class="kw">pub </span>rules: Vec&lt;SamplingRule&gt;,
-    <span class="doccomment">/// The id of the next new Rule (used as a generator for unique rule ids)
+    <span class="doccomment">/// Defines which population of items a dynamic sample rate applies to.
+    </span><span class="attribute">#[serde(default)]
+    </span><span class="kw">pub </span>mode: SamplingMode,
+    <span class="doccomment">/// The unique identifier for the next new rule to be added.
     </span><span class="attribute">#[serde(default)]
     </span><span class="kw">pub </span>next_id: <span class="prelude-ty">Option</span>&lt;u32&gt;,
 }
@@ -4533,6 +4617,7 @@
                     time_range: Default::default(),
                 },
             ],
+            mode: SamplingMode::Received,
             next_id: <span class="prelude-val">None</span>,
         };
 
@@ -4753,6 +4838,7 @@
                     time_range: Default::default(),
                 },
             ],
+            mode: SamplingMode::Received,
             next_id: <span class="prelude-val">None</span>,
         }
     }
@@ -4825,6 +4911,7 @@
                     id: RuleId(<span class="number">1</span>),
                     time_range: range,
                 }],
+                mode: SamplingMode::Received,
                 next_id: <span class="prelude-val">None</span>,
             };
             <span class="macro">assert_eq!</span>(
@@ -4841,6 +4928,7 @@
                     id: RuleId(<span class="number">1</span>),
                     time_range: range,
                 }],
+                mode: SamplingMode::Received,
                 next_id: <span class="prelude-val">None</span>,
             };
             <span class="macro">assert_eq!</span>(
