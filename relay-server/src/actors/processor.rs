@@ -1097,6 +1097,11 @@ impl EnvelopeProcessorService {
                 match result {
                     Ok(mut replay) => {
                         if let Some(replay_value) = replay.value_mut() {
+                            let valid_platform = replay_value.normalize_platform();
+                            if !valid_platform {
+                                return false;
+                            }
+
                             replay_value.normalize_user_agent();
                             replay_value.normalize_ip_address(client_addr);
                             item.set_payload(

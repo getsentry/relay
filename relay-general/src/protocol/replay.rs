@@ -6,6 +6,8 @@ use crate::types::{Annotated, Array};
 use crate::user_agent;
 use std::net::IpAddr as RealIpAddr;
 
+pub const VALID_REPLAY_PLATFORMS: &[&str] = &["javascript"];
+
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_replay", value_type = "Replay")]
@@ -72,6 +74,15 @@ impl Replay {
                 }
             }
         };
+    }
+
+    pub fn normalize_platform(&mut self) -> bool {
+        let platform = self
+            .platform
+            .get_or_insert_with(|| "javascript".to_string());
+
+        // Return "True" if a valid platform was provided.
+        VALID_REPLAY_PLATFORMS.contains(&platform.as_str())
     }
 
     pub fn normalize_user_agent(&mut self) {
