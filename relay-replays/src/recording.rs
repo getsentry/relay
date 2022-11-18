@@ -579,7 +579,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pii_removal() {
+    fn test_pii_credit_card_removal() {
         let payload = include_bytes!("../tests/fixtures/rrweb-pii.json");
         let mut events: Vec<Event> = serde_json::from_slice(payload).unwrap();
 
@@ -592,6 +592,30 @@ mod tests {
                 if let recording::NodeVariant::T2(mut ee) = dd.node.variant {
                     let ff = ee.child_nodes.pop().unwrap();
                     if let recording::NodeVariant::Rest(gg) = ff.variant {
+                        assert!(gg.text_content.as_str() == "[Filtered]");
+                        return;
+                    }
+                }
+            }
+        }
+        unreachable!();
+    }
+
+    #[test]
+    fn test_pii_ip_address_removal() {
+        let payload = include_bytes!("../tests/fixtures/rrweb-pii-ip-address.json");
+        let mut events: Vec<Event> = serde_json::from_slice(payload).unwrap();
+
+        recording::strip_pii(&mut events).unwrap();
+
+        let aa = events.pop().unwrap();
+        if let recording::Event::T3(bb) = aa {
+            if let recording::IncrementalSourceDataVariant::Mutation(mut cc) = bb.data {
+                let dd = cc.adds.pop().unwrap();
+                if let recording::NodeVariant::T2(mut ee) = dd.node.variant {
+                    let ff = ee.child_nodes.pop().unwrap();
+                    if let recording::NodeVariant::Rest(gg) = ff.variant {
+                        println!("{}", gg.text_content.as_str());
                         assert!(gg.text_content.as_str() == "[Filtered]");
                         return;
                     }
