@@ -397,4 +397,4 @@ jobs:
         with:
           project_name: relay
           local_image: ghcr.io/getsentry/relay:${{ github.sha }}
-          container_repo: ghcr.io/getsentry/relay
+          docker_repo: ghcr.io/getsentry/relay
