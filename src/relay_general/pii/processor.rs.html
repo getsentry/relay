@@ -958,38 +958,6 @@
 <span id="956">956</span>
 <span id="957">957</span>
 <span id="958">958</span>
-<span id="959">959</span>
-<span id="960">960</span>
-<span id="961">961</span>
-<span id="962">962</span>
-<span id="963">963</span>
-<span id="964">964</span>
-<span id="965">965</span>
-<span id="966">966</span>
-<span id="967">967</span>
-<span id="968">968</span>
-<span id="969">969</span>
-<span id="970">970</span>
-<span id="971">971</span>
-<span id="972">972</span>
-<span id="973">973</span>
-<span id="974">974</span>
-<span id="975">975</span>
-<span id="976">976</span>
-<span id="977">977</span>
-<span id="978">978</span>
-<span id="979">979</span>
-<span id="980">980</span>
-<span id="981">981</span>
-<span id="982">982</span>
-<span id="983">983</span>
-<span id="984">984</span>
-<span id="985">985</span>
-<span id="986">986</span>
-<span id="987">987</span>
-<span id="988">988</span>
-<span id="989">989</span>
-<span id="990">990</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::mem;
 
@@ -1343,13 +1311,11 @@
 
 <span class="attribute">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span>chrono::{TimeZone, Utc};
-
-    <span class="kw">use </span><span class="kw">crate</span>::pii::{DataScrubbingConfig, PiiConfig, ReplaceRedaction};
+    <span class="kw">use </span><span class="kw">crate</span>::pii::{PiiConfig, ReplaceRedaction};
     <span class="kw">use </span><span class="kw">crate</span>::processor::process_value;
     <span class="kw">use </span><span class="kw">crate</span>::protocol::{
         Addr, DebugImage, DebugMeta, Event, ExtraValue, Headers, LogEntry, NativeDebugImage,
-        Request, Span, SpanId, SpanStatus, TagEntry, Tags, TraceId,
+        Request, TagEntry, Tags,
     };
     <span class="kw">use </span><span class="kw">crate</span>::testutils::assert_annotated_snapshot;
     <span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Object, Value};
@@ -1412,36 +1378,6 @@
                 ))]
                 .into(),
             )),
-            ..Default::default()
-        });
-
-        <span class="kw">let </span><span class="kw-2">mut </span>processor = PiiProcessor::new(config.compiled());
-        process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
-        <span class="macro">assert_annotated_snapshot!</span>(event);
-    }
-
-    <span class="attribute">#[test]
-    </span><span class="kw">fn </span>test_span_default_rules() {
-        <span class="kw">let </span>ds_config = DataScrubbingConfig {
-            scrub_data: <span class="bool-val">true</span>,
-            scrub_defaults: <span class="bool-val">true</span>,
-            ..Default::default()
-        };
-        <span class="kw">let </span>config = ds_config.pii_config().unwrap().as_ref().unwrap();
-
-        <span class="kw">let </span>span = Annotated::new(Span {
-            timestamp: Annotated::new(Utc.ymd(<span class="number">1970</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
-            start_timestamp: Annotated::new(Utc.ymd(<span class="number">1968</span>, <span class="number">1</span>, <span class="number">1</span>).and_hms_nano(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).into()),
-            description: Annotated::new(
-                <span class="string">&quot;desc with http://example.com/userid=1&amp;token=1234 the end&quot;</span>.to_owned(),
-            ),
-            trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
-            span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74052&quot;</span>.into())),
-            status: Annotated::new(SpanStatus::Ok),
-            ..Default::default()
-        });
-        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
-            spans: Annotated::new(<span class="macro">vec!</span>[span]),
             ..Default::default()
         });
 

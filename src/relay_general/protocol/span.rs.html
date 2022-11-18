@@ -112,7 +112,7 @@
     </span><span class="kw">pub </span>exclusive_time: Annotated&lt;f64&gt;,
 
     <span class="doccomment">/// Human readable description of a span (e.g. method URL).
-    </span><span class="attribute">#[metastructure(pii = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="attribute">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
     </span><span class="kw">pub </span>description: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Span type (see `OperationType` docs).
@@ -138,7 +138,7 @@
     </span><span class="kw">pub </span>tags: Annotated&lt;Object&lt;JsonLenientString&gt;&gt;,
 
     <span class="doccomment">/// Arbitrary additional data on a span, like `extra` on the top-level event.
-    </span><span class="attribute">#[metastructure(pii = <span class="string">&quot;true&quot;</span>)]
+    </span><span class="attribute">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
     </span><span class="kw">pub </span>data: Annotated&lt;Object&lt;Value&gt;&gt;,
 
     <span class="comment">// TODO remove retain when the api stabilizes
