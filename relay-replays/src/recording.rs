@@ -56,6 +56,7 @@ fn dumps(rrweb: Vec<Event>) -> Result<Vec<u8>, RecordingParseError> {
 fn strip_pii(events: &mut Vec<Event>) -> Result<(), ProcessingAction> {
     let mut scrub_config = DataScrubbingConfig::default();
     scrub_config.scrub_data = true;
+    scrub_config.scrub_ip_addresses = true;
     scrub_config.scrub_defaults = true;
 
     let pii_config = scrub_config.pii_config().unwrap().as_ref().unwrap();
