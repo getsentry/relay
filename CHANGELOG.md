@@ -9,7 +9,6 @@
 **Internal**:
 
 - Emit a `service.back_pressure` metric that measures internal back pressure by service. ([#1583](https://github.com/getsentry/relay/pull/1583))
-- Always scrub PII in the span description and data. So far, the user had to configure this by hand. ([#1590](https://github.com/getsentry/relay/pull/1590))
 
 ## 22.11.0
 
