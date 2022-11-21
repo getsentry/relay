@@ -1,6 +1,5 @@
 ---
 source: relay-general/tests/test_fixtures.rs
-assertion_line: 109
 expression: "relay_general::protocol::event_json_schema()"
 ---
 {
@@ -824,6 +823,9 @@ expression: "relay_general::protocol::event_json_schema()"
         },
         {
           "$ref": "#/definitions/ResponseContext"
+        },
+        {
+          "$ref": "#/definitions/OtelContext"
         },
         {
           "type": "object",
@@ -2362,6 +2364,35 @@ expression: "relay_general::protocol::event_json_schema()"
                 "string",
                 "null"
               ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "OtelContext": {
+      "description": " OpenTelemetry Context\n\n If an event has this context, it was generated from a OpenTelemetry signal (trace, metric, log).",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "attributes": {
+              "description": " Attributes of the OpenTelemetry span that maps to a Sentry event.\n\n <https://github.com/open-telemetry/opentelemetry-proto/blob/724e427879e3d2bae2edc0218fff06e37b9eb46e/opentelemetry/proto/trace/v1/trace.proto#L174-L186>",
+              "default": null,
+              "type": [
+                "object",
+                "null"
+              ],
+              "additionalProperties": true
+            },
+            "resource": {
+              "description": " Information about an OpenTelemetry resource.\n\n <https://github.com/open-telemetry/opentelemetry-proto/blob/724e427879e3d2bae2edc0218fff06e37b9eb46e/opentelemetry/proto/resource/v1/resource.proto>",
+              "default": null,
+              "type": [
+                "object",
+                "null"
+              ],
+              "additionalProperties": true
             }
           },
           "additionalProperties": false
