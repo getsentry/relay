@@ -208,6 +208,22 @@ impl Outcome {
             Outcome::Abuse => None,
         }
     }
+
+    /// Returns true if there is a bug or an infrastructure problem causing event loss.
+    ///
+    /// This can happen when we introduce bugs or during incidents.
+    ///
+    /// During healthy operation, this should always return false.
+    pub fn is_unexpected(&self) -> bool {
+        matches!(
+            self,
+            Outcome::Invalid(
+                DiscardReason::Internal
+                    | DiscardReason::ProjectState
+                    | DiscardReason::ProjectStatePii,
+            )
+        )
+    }
 }
 
 impl fmt::Display for Outcome {

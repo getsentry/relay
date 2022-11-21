@@ -150,7 +150,14 @@ impl EnvelopeContext {
             return;
         }
 
-        relay_log::debug!("dropped envelope: {}", outcome);
+        // Errors are only logged for what we consider infrastructure or implementation
+        // bugs. In other cases, we "expect" errors and log them as debug level.
+        if outcome.is_unexpected() {
+            relay_log::error!("dropped envelope: {}", outcome);
+        } else {
+            relay_log::debug!("dropped envelope: {}", outcome);
+        }
+
         // TODO: This could be optimized with Capture::should_capture
         TestStore::from_registry().send(Capture::rejected(self.event_id, &outcome));
 
