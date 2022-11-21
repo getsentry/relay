@@ -2,7 +2,7 @@ use crate::types::{Annotated, Object, Value};
 
 /// OpenTelemetry Context
 ///
-/// If an event has this context, it was generated from a OpenTelemetry signal (trace, metric, log).
+/// If an event has this context, it was generated from an OpenTelemetry signal (trace, metric, log).
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct OtelContext {
