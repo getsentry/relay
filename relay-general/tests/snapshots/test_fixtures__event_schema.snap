@@ -2371,7 +2371,7 @@ expression: "relay_general::protocol::event_json_schema()"
       ]
     },
     "OtelContext": {
-      "description": " OpenTelemetry Context\n\n If an event has this context, it was generated from a OpenTelemetry signal (trace, metric, log).",
+      "description": " OpenTelemetry Context\n\n If an event has this context, it was generated from an OpenTelemetry signal (trace, metric, log).",
       "anyOf": [
         {
           "type": "object",
