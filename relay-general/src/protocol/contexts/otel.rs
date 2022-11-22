@@ -29,3 +29,118 @@ impl OtelContext {
         "otel"
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::protocol::Context;
+
+    use super::*;
+
+    #[test]
+    pub(crate) fn test_otel_context_roundtrip() {
+        let json = r#"{
+  "attributes": {
+    "app.payment.amount": 394.25,
+    "rpc.grpc.status_code": "1",
+    "rpc.method": "Charge",
+    "rpc.service": "hipstershop.PaymentService",
+    "rpc.system": "grpc"
+  },
+  "resource": {
+    "process.command": "/usr/src/app/index.js",
+    "process.command_line": "/usr/local/bin/node /usr/src/app/index.js",
+    "process.executable.name": "node",
+    "process.pid": 1,
+    "process.runtime.description": "Node.js",
+    "process.runtime.name": "nodejs",
+    "process.runtime.version": "16.18.0",
+    "service.name": "paymentservice",
+    "telemetry.sdk.language": "nodejs",
+    "telemetry.sdk.name": "opentelemetry",
+    "telemetry.sdk.version": "1.7.0"
+  },
+  "other": "value",
+  "type": "otel"
+}"#;
+        let context = Annotated::new(Context::Otel(Box::new(OtelContext {
+            attributes: Annotated::new(Object::from([
+                (
+                    "app.payment.amount".to_string(),
+                    Annotated::new(Value::F64(394.25)),
+                ),
+                (
+                    "rpc.grpc.status_code".to_string(),
+                    Annotated::new(Value::String("1".to_string())),
+                ),
+                (
+                    "rpc.method".to_string(),
+                    Annotated::new(Value::String("Charge".to_string())),
+                ),
+                (
+                    "rpc.service".to_string(),
+                    Annotated::new(Value::String("hipstershop.PaymentService".to_string())),
+                ),
+                (
+                    "rpc.system".to_string(),
+                    Annotated::new(Value::String("grpc".to_string())),
+                ),
+            ])),
+            resource: Annotated::new(Object::from([
+                (
+                    "process.command".to_string(),
+                    Annotated::new(Value::String("/usr/src/app/index.js".to_string())),
+                ),
+                (
+                    "process.command_line".to_string(),
+                    Annotated::new(Value::String(
+                        "/usr/local/bin/node /usr/src/app/index.js".to_string(),
+                    )),
+                ),
+                (
+                    "process.executable.name".to_string(),
+                    Annotated::new(Value::String("node".to_string())),
+                ),
+                ("process.pid".to_string(), Annotated::new(Value::I64(1))),
+                (
+                    "process.runtime.description".to_string(),
+                    Annotated::new(Value::String("Node.js".to_string())),
+                ),
+                (
+                    "process.runtime.name".to_string(),
+                    Annotated::new(Value::String("nodejs".to_string())),
+                ),
+                (
+                    "process.runtime.version".to_string(),
+                    Annotated::new(Value::String("16.18.0".to_string())),
+                ),
+                (
+                    "service.name".to_string(),
+                    Annotated::new(Value::String("paymentservice".to_string())),
+                ),
+                (
+                    "telemetry.sdk.language".to_string(),
+                    Annotated::new(Value::String("nodejs".to_string())),
+                ),
+                (
+                    "telemetry.sdk.name".to_string(),
+                    Annotated::new(Value::String("opentelemetry".to_string())),
+                ),
+                (
+                    "telemetry.sdk.version".to_string(),
+                    Annotated::new(Value::String("1.7.0".to_string())),
+                ),
+            ])),
+            other: {
+                let mut map = Object::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                map
+            },
+        })));
+
+        assert_eq!(context, Annotated::from_json(json).unwrap());
+        assert_eq!(json, context.to_json_pretty().unwrap());
+    }
+}
