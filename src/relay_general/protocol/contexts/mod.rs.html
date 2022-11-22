@@ -295,6 +295,11 @@
 <span id="293">293</span>
 <span id="294">294</span>
 <span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
 </pre><pre class="rust"><code><span class="kw">mod </span>app;
 <span class="kw">pub use </span>app::<span class="kw-2">*</span>;
 <span class="kw">mod </span>browser;
@@ -315,6 +320,8 @@
 <span class="kw">pub use </span>runtime::<span class="kw-2">*</span>;
 <span class="kw">mod </span>trace;
 <span class="kw">pub use </span>trace::<span class="kw-2">*</span>;
+<span class="kw">mod </span>otel;
+<span class="kw">pub use </span>otel::<span class="kw-2">*</span>;
 
 <span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, FromValue, Object, Value};
 
@@ -348,6 +355,8 @@
     </span>Reprocessing(Box&lt;ReprocessingContext&gt;),
     <span class="doccomment">/// Response information.
     </span>Response(Box&lt;ResponseContext&gt;),
+    <span class="doccomment">/// OpenTelemetry information
+    </span>Otel(Box&lt;OtelContext&gt;),
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
     </span><span class="attribute">#[metastructure(fallback_variant)]
     </span>Other(<span class="attribute">#[metastructure(pii = <span class="string">&quot;true&quot;</span>)] </span>Object&lt;Value&gt;),
@@ -369,6 +378,7 @@
             Context::Trace(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(TraceContext::default_key()),
             Context::Monitor(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(MonitorContext::default_key()),
             Context::Response(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(ResponseContext::default_key()),
+            Context::Otel(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(OtelContext::default_key()),
             Context::Other(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
         }
     }
