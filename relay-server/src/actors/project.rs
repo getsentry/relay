@@ -71,6 +71,9 @@ pub enum Feature {
     /// Enables ingestion of Session Replays (Replay Recordings and Replay Events)
     #[serde(rename = "organizations:session-replay")]
     Replays,
+    /// docs
+    #[serde(rename = "organizations:transaction-name-normalize")]
+    TransactionNameNormalize,
 
     /// Unused.
     ///
