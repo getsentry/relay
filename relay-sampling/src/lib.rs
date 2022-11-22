@@ -2365,6 +2365,32 @@ mod tests {
     }
 
     #[test]
+    fn test_glob_special_characters() {
+        let serialized_rule = r#"{
+            "condition":{
+                "op":"and",
+                "inner": [
+                    { "op" : "glob", "name": "event.transaction", "value":["/api/0/organizations/{organization_slug}/stats/"]}
+                ]
+            },
+            "sampleRate": 0.7,
+            "type": "trace",
+            "id": 1
+        }"#;
+        let rule = serde_json::from_str::<SamplingRule>(serialized_rule).unwrap();
+
+        let event = Event {
+            ty: Annotated::new(EventType::Transaction),
+            transaction: Annotated::new(
+                "/api/0/organizations/{organization_slug}/stats/".to_string(),
+            ),
+            ..Default::default()
+        };
+
+        assert!(rule.condition.matches(&event, None));
+    }
+
+    #[test]
     /// Test that we can convert the full range of UUID into a number without panicking
     fn test_id_range() {
         let highest = Uuid::from_str("ffffffff-ffff-ffff-ffff-ffffffffffff").unwrap();
