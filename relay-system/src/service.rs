@@ -7,6 +7,8 @@ use std::sync::Arc;
 use std::task::Context;
 use std::time::Duration;
 
+use futures::future::Shared;
+use futures::FutureExt;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::MissedTickBehavior;
 
@@ -234,6 +236,80 @@ impl MessageResponse for NoResponse {
 
     fn channel() -> (Self::Sender, Self::Output) {
         ((), ())
+    }
+}
+
+// pub struct SharedRequest<T>(oneshot::Receiver<T>);
+pub struct SharedRequest<T>(Pin<Box<dyn Future<Output = Result<T, SendError>> + Send + Sync>>);
+
+#[derive(Debug)]
+pub struct SharedChannel<T>(oneshot::Sender<T>, Shared<oneshot::Receiver<T>>);
+
+impl<T: Clone> SharedChannel<T> {
+    pub fn new() -> Self {
+        let (tx, rx) = oneshot::channel();
+        Self(tx, rx.shared())
+    }
+
+    pub fn send(self, value: T) {
+        self.0.send(value).ok();
+    }
+
+    pub fn attach(&self, sender: SharedSender<T>) {
+        sender.0.send(Foo::Shared(self.1.clone())).ok();
+    }
+}
+
+#[derive(Debug)]
+enum Foo<T> {
+    Value(T),
+    Shared(Shared<oneshot::Receiver<T>>),
+}
+
+#[derive(Debug)]
+pub struct SharedSender<T>(oneshot::Sender<Foo<T>>);
+
+impl<T> SharedSender<T> {
+    pub fn send(self, value: T) {
+        self.0.send(Foo::Value(value)).ok();
+    }
+}
+
+impl<T> Future for SharedRequest<T> {
+    type Output = Result<T, SendError>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> std::task::Poll<Self::Output> {
+        Pin::new(&mut self.0)
+            .poll(cx)
+            .map(|r| r.map_err(|_| SendError))
+    }
+}
+
+pub struct SharedResponse<T>(PhantomData<T>);
+
+impl<T> fmt::Debug for SharedResponse<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("SharedResponse")
+    }
+}
+
+impl<T: Clone + Send + Sync + 'static> MessageResponse for SharedResponse<T> {
+    type Sender = SharedSender<T>;
+
+    type Output = SharedRequest<T>;
+
+    fn channel() -> (Self::Sender, Self::Output) {
+        let (tx, rx) = oneshot::channel();
+
+        let sender = SharedSender(tx);
+        let request = SharedRequest(Box::pin(async move {
+            match rx.await.map_err(|_| SendError)? {
+                Foo::Value(value) => Ok(value),
+                Foo::Shared(shared) => shared.await.map_err(|_| SendError),
+            }
+        }));
+
+        (sender, request)
     }
 }
 
