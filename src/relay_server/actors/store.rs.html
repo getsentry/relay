@@ -1625,10 +1625,10 @@
         <span class="comment">// This skips chunks for empty replay recordings. The consumer does not require chunks for
         // empty replay recordings. `chunks` will be `0` in this case.
         </span><span class="kw">while </span>offset &lt; size {
-            <span class="comment">// XXX: Max chunk size has 200 bytes reserved for metadata. Typically we see the
-            // metadata consume 160 bytes but it does vary +/- a few bytes. The extra 40 bytes
+            <span class="comment">// XXX: Max chunk size has 2000 bytes reserved for metadata. Typically we see the
+            // metadata consume 160 bytes but it does vary +/- a few bytes. The extra bytes
             // serve as padding.
-            </span><span class="kw">let </span>max_chunk_size = <span class="self">self</span>.config.attachment_chunk_size() - <span class="number">200</span>;
+            </span><span class="kw">let </span>max_chunk_size = <span class="self">self</span>.config.attachment_chunk_size() - <span class="number">2000</span>;
             <span class="kw">let </span>chunk_size = std::cmp::min(max_chunk_size, size - offset);
 
             <span class="kw">let </span>replay_recording_chunk_message =
