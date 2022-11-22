@@ -2924,6 +2924,7 @@
 <span id="2922">2922</span>
 <span id="2923">2923</span>
 <span id="2924">2924</span>
+<span id="2925">2925</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::cmp::max;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
@@ -3086,8 +3087,9 @@
         }
     }
 
-    <span class="kw">fn </span>is_internal(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="self">self</span>.to_outcome() == <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::Internal))
+    <span class="kw">fn </span>is_unexpected(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.to_outcome()
+            .map_or(<span class="bool-val">false</span>, |outcome| outcome.is_unexpected())
     }
 
     <span class="kw">fn </span>should_keep_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
@@ -5067,7 +5069,7 @@
             <span class="prelude-val">Err</span>(error) =&gt; {
                 <span class="comment">// Errors are only logged for what we consider infrastructure or implementation
                 // bugs. In other cases, we &quot;expect&quot; errors and log them as debug level.
-                </span><span class="kw">if </span>error.is_internal() {
+                </span><span class="kw">if </span>error.is_unexpected() {
                     relay_log::with_scope(
                         |scope| scope.set_tag(<span class="string">&quot;project_key&quot;</span>, project_key),
                         || <span class="macro">relay_log::error!</span>(<span class="string">&quot;error processing envelope: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error)),
