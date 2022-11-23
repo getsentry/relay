@@ -2,6 +2,9 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 
 /// Contains multiple capture groups which will be used as a replace placeholder.
+///
+/// This regex is inspired by one used for grouping:
+/// https://github.com/getsentry/sentry/blob/6ba59023a78bfe033e48ea4e035b64710a905c6b/src/sentry/grouping/strategies/message.py#L16-L97
 pub static TRANSACTION_NAME_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
         r#"

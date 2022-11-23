@@ -223,39 +223,27 @@ fn normalize_transaction_name(transaction: &mut Annotated<String>) -> Processing
         .collect::<Vec<_>>();
 
     transaction.apply(|trans, meta| {
-        // Collect all the remarks first, since we will mutate the string afterwords and all the
-        // ranges will change.
+        // Collect all the remarks if anything matches.
         for matches in TRANSACTION_NAME_NORMALIZER_REGEX.captures_iter(trans) {
-            // Skip first, since it's always the entire match and the following are groups.
-            // And if there is no matches, just cotinue to next iteration.
-            let mut matches_iter = matches.iter();
-            if matches_iter.next().is_none() {
-                continue;
-            }
-            for m in matches_iter.flatten() {
-                let remark = Remark::with_range(
-                    RemarkType::Substituted,
-                    "normalize_transaction_name",
-                    (m.start(), m.end()),
-                );
-                meta.add_remark(remark)
-            }
-        }
-        for name in capture_names {
-            if let Some(caps) = TRANSACTION_NAME_NORMALIZER_REGEX.captures(trans) {
-                if let Some(m) = caps.name(name) {
-                    if meta.original_value().is_none() {
-                        meta.set_original_value(Some(trans.to_string()))
-                    }
-                    let mut collector = String::new();
-                    collector.push_str(&trans[..m.start()]);
-                    collector.push('<');
-                    collector.push_str(name);
-                    collector.push('>');
-                    collector.push_str(&trans[m.end()..]);
-                    *trans = collector;
+            for name in &capture_names {
+                if let Some(m) = matches.name(name) {
+                    let remark = Remark::with_range(
+                        RemarkType::Substituted,
+                        format!("normalize_transaction_name:{}", name).as_str(),
+                        (m.start(), m.end()),
+                    );
+                    meta.add_remark(remark);
+                    break;
                 }
             }
+        }
+
+        let changed = TRANSACTION_NAME_NORMALIZER_REGEX
+            .replace_all(trans, "*")
+            .to_string();
+        if *trans != changed {
+            meta.set_original_value(Some(trans.to_string()));
+            *trans = changed
         }
         Ok(())
     })
@@ -1380,7 +1368,7 @@ mod tests {
         assert_annotated_snapshot!(event, @r###"
         {
           "type": "transaction",
-          "transaction": "/foo/<sha1>/user/<int>/0",
+          "transaction": "/foo/*/user/*/0",
           "transaction_info": {
             "source": "url"
           },
@@ -1407,13 +1395,13 @@ mod tests {
               "": {
                 "rem": [
                   [
-                    "normalize_transaction_name",
+                    "normalize_transaction_name:sha1",
                     "s",
                     5,
                     45
                   ],
                   [
-                    "normalize_transaction_name",
+                    "normalize_transaction_name:int",
                     "s",
                     51,
                     54
