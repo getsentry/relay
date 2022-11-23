@@ -160,8 +160,9 @@ impl ProcessingError {
         }
     }
 
-    fn is_internal(&self) -> bool {
-        self.to_outcome() == Some(Outcome::Invalid(DiscardReason::Internal))
+    fn is_unexpected(&self) -> bool {
+        self.to_outcome()
+            .map_or(false, |outcome| outcome.is_unexpected())
     }
 
     fn should_keep_metrics(&self) -> bool {
@@ -2146,7 +2147,7 @@ impl EnvelopeProcessorService {
             Err(error) => {
                 // Errors are only logged for what we consider infrastructure or implementation
                 // bugs. In other cases, we "expect" errors and log them as debug level.
-                if error.is_internal() {
+                if error.is_unexpected() {
                     relay_log::with_scope(
                         |scope| scope.set_tag("project_key", project_key),
                         || relay_log::error!("error processing envelope: {}", LogError(&error)),
