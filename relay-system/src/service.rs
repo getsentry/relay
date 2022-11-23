@@ -239,24 +239,31 @@ impl MessageResponse for NoResponse {
     }
 }
 
-// pub struct SharedRequest<T>(oneshot::Receiver<T>);
+// TODO(ja): Implement as concrete future type if possible
 pub struct SharedRequest<T>(Pin<Box<dyn Future<Output = Result<T, SendError>> + Send + Sync>>);
 
 #[derive(Debug)]
-pub struct SharedChannel<T>(oneshot::Sender<T>, Shared<oneshot::Receiver<T>>);
+pub struct SharedChannel<T> {
+    tx: oneshot::Sender<T>,
+    rx: Shared<oneshot::Receiver<T>>,
+}
 
 impl<T: Clone> SharedChannel<T> {
     pub fn new() -> Self {
         let (tx, rx) = oneshot::channel();
-        Self(tx, rx.shared())
+        Self {
+            tx,
+            rx: rx.shared(),
+        }
     }
 
     pub fn send(self, value: T) {
-        self.0.send(value).ok();
+        self.tx.send(value).ok();
     }
 
     pub fn attach(&self, sender: SharedSender<T>) {
-        sender.0.send(Foo::Shared(self.1.clone())).ok();
+        // TODO(ja): Keep this or the other one?
+        sender.0.send(Foo::Shared(self.rx.clone())).ok();
     }
 }
 
@@ -269,9 +276,15 @@ enum Foo<T> {
 #[derive(Debug)]
 pub struct SharedSender<T>(oneshot::Sender<Foo<T>>);
 
-impl<T> SharedSender<T> {
+impl<T: Clone> SharedSender<T> {
     pub fn send(self, value: T) {
         self.0.send(Foo::Value(value)).ok();
+    }
+
+    pub fn defer(self) -> SharedChannel<T> {
+        let channel = SharedChannel::new();
+        self.0.send(Foo::Shared(channel.rx.clone())).ok();
+        channel
     }
 }
 
@@ -295,7 +308,6 @@ impl<T> fmt::Debug for SharedResponse<T> {
 
 impl<T: Clone + Send + Sync + 'static> MessageResponse for SharedResponse<T> {
     type Sender = SharedSender<T>;
-
     type Output = SharedRequest<T>;
 
     fn channel() -> (Self::Sender, Self::Output) {

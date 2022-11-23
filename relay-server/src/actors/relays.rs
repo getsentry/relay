@@ -12,7 +12,9 @@ use relay_auth::{PublicKey, RelayId};
 use relay_common::RetryBackoff;
 use relay_config::{Config, RelayInfo};
 use relay_log::LogError;
-use relay_system::{compat, Addr, FromMessage, Interface, Service};
+use relay_system::{
+    compat, Addr, FromMessage, Interface, Service, SharedChannel, SharedResponse, SharedSender,
+};
 
 use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::service::REGISTRY;
@@ -181,8 +183,6 @@ impl RelayState {
 ///  - `Ok`: The task succeeded and information from the response should be inserted into the cache.
 ///  - `Err`: The task failed and the senders should be placed back for the next fetch.
 type FetchResult = Result<GetRelaysResponse, HashMap<RelayId, SharedChannel<GetRelayResult>>>;
-
-use relay_system::{SharedChannel, SharedResponse, SharedSender};
 
 /// Service implementing the [`RelayCache`] interface.
 #[derive(Debug)]
