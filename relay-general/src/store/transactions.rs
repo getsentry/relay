@@ -227,11 +227,8 @@ fn normalize_transaction_name(transaction: &mut Annotated<String>) -> Processing
         for matches in TRANSACTION_NAME_NORMALIZER_REGEX.captures_iter(trans) {
             for name in &capture_names {
                 if let Some(m) = matches.name(name) {
-                    let remark = Remark::with_range(
-                        RemarkType::Substituted,
-                        format!("normalize_transaction_name:{}", name).as_str(),
-                        (m.start(), m.end()),
-                    );
+                    let remark =
+                        Remark::with_range(RemarkType::Substituted, *name, (m.start(), m.end()));
                     meta.add_remark(remark);
                     break;
                 }
@@ -1395,13 +1392,13 @@ mod tests {
               "": {
                 "rem": [
                   [
-                    "normalize_transaction_name:sha1",
+                    "sha1",
                     "s",
                     5,
                     45
                   ],
                   [
-                    "normalize_transaction_name:int",
+                    "int",
                     "s",
                     51,
                     54
