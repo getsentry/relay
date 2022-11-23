@@ -2000,6 +2000,10 @@ impl EnvelopeProcessorService {
             measurements_config: state.project_state.config.measurements.as_ref(),
             breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
             normalize_user_agent: Some(true),
+            normalize_transaction_name: state
+                .project_state
+                .has_feature(Feature::TransactionNameNormalize),
+
             is_renormalize: false,
         };
 
