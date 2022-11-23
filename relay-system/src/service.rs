@@ -7,6 +7,7 @@ use std::sync::Arc;
 use std::task::Context;
 use std::time::Duration;
 
+use actix::Response;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::MissedTickBehavior;
 
@@ -308,6 +309,41 @@ pub trait FromMessage<M>: Interface {
     fn from_message(message: M, sender: <Self::Response as MessageResponse>::Sender) -> Self;
 }
 
+/// TODO(ja): Doc
+/// TODO(ja): Find good name
+trait MessageRecipient<M> {
+    type Response: MessageResponse;
+
+    /// TODO(ja): Doc
+    fn send(&self, message: M) -> <Self::Response as MessageResponse>::Output;
+}
+
+impl<M, I> MessageRecipient<M> for Addr<I>
+where
+    I: Interface + FromMessage<M>,
+{
+    type Response = <I as FromMessage<M>>::Response;
+
+    fn send(&self, message: M) -> <Self::Response as MessageResponse>::Output {
+        Addr::send(self, message)
+    }
+}
+
+/// TODO(ja): Doc
+pub struct MessageAddr<M, R> {
+    inner: Box<dyn MessageRecipient<M, Response = R>>,
+}
+
+impl<M, R> MessageAddr<M, R>
+where
+    R: MessageResponse,
+{
+    /// TODO(ja): Doc
+    pub fn send(&self, message: M) -> R::Output {
+        self.inner.send(message)
+    }
+}
+
 /// The address of a [`Service`].
 ///
 /// The address of a [`Service`] allows you to [send](Self::send) messages to the service as
@@ -356,6 +392,16 @@ impl<I: Interface> Addr<I> {
         self.queue_size.fetch_add(1, Ordering::SeqCst);
         self.tx.send(I::from_message(message, tx)).ok(); // it's ok to drop, the response will fail
         rx
+    }
+
+    /// TODO(ja): Doc
+    pub fn recipient<M>(self) -> MessageAddr<M, I::Response>
+    where
+        I: FromMessage<M>,
+    {
+        MessageAddr {
+            inner: Box::new(self),
+        }
     }
 }
 
