@@ -2925,6 +2925,20 @@
 <span id="2923">2923</span>
 <span id="2924">2924</span>
 <span id="2925">2925</span>
+<span id="2926">2926</span>
+<span id="2927">2927</span>
+<span id="2928">2928</span>
+<span id="2929">2929</span>
+<span id="2930">2930</span>
+<span id="2931">2931</span>
+<span id="2932">2932</span>
+<span id="2933">2933</span>
+<span id="2934">2934</span>
+<span id="2935">2935</span>
+<span id="2936">2936</span>
+<span id="2937">2937</span>
+<span id="2938">2938</span>
+<span id="2939">2939</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::cmp::max;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
@@ -4566,6 +4580,20 @@
                     sdk = envelope.meta().client_name().unwrap_or(<span class="string">&quot;proprietary&quot;</span>),
                     platform = event.platform.as_str().unwrap_or(<span class="string">&quot;other&quot;</span>),
                 );
+
+                <span class="kw">let </span>otel_context = event
+                    .contexts
+                    .value()
+                    .and_then(|contexts| contexts.get(<span class="string">&quot;otel&quot;</span>))
+                    .and_then(Annotated::value);
+
+                <span class="kw">if </span>otel_context.is_some() {
+                    <span class="macro">metric!</span>(
+                        counter(RelayCounters::OpenTelemetryEvent) += <span class="number">1</span>,
+                        sdk = envelope.meta().client_name().unwrap_or(<span class="string">&quot;proprietary&quot;</span>),
+                        platform = event.platform.as_str().unwrap_or(<span class="string">&quot;other&quot;</span>),
+                    );
+                }
             }
         }
 

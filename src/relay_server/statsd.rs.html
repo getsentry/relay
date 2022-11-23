@@ -597,6 +597,14 @@
 <span id="595">595</span>
 <span id="596">596</span>
 <span id="597">597</span>
+<span id="598">598</span>
+<span id="599">599</span>
+<span id="600">600</span>
+<span id="601">601</span>
+<span id="602">602</span>
+<span id="603">603</span>
+<span id="604">604</span>
+<span id="605">605</span>
 </pre><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -1163,6 +1171,13 @@
     </span>MetricBucketsParsingFailed,
     <span class="doccomment">/// Count extraction of transaction names. Tag with the decision to drop / replace / use original.
     </span>MetricsTransactionNameExtracted,
+    <span class="doccomment">/// Number of Events with an OpenTelemetry Context
+    ///
+    /// This metric is tagged with:
+    ///  - `platform`: The event&#39;s platform, such as `&quot;javascript&quot;`.
+    ///  - `sdk`: The name of the Sentry SDK sending the transaction. This tag is only set for
+    ///    Sentry&#39;s SDKs and defaults to &quot;proprietary&quot;.
+    </span>OpenTelemetryEvent,
 }
 
 <span class="kw">impl </span>CounterMetric <span class="kw">for </span>RelayCounters {
@@ -1191,6 +1206,7 @@
             RelayCounters::EvictingStaleProjectCaches =&gt; <span class="string">&quot;project_cache.eviction&quot;</span>,
             RelayCounters::MetricBucketsParsingFailed =&gt; <span class="string">&quot;metrics.buckets.parsing_failed&quot;</span>,
             RelayCounters::MetricsTransactionNameExtracted =&gt; <span class="string">&quot;metrics.transaction_name&quot;</span>,
+            RelayCounters::OpenTelemetryEvent =&gt; <span class="string">&quot;event.opentelemetry&quot;</span>,
         }
     }
 }
