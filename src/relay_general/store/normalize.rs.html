@@ -2405,6 +2405,9 @@
 <span id="2403">2403</span>
 <span id="2404">2404</span>
 <span id="2405">2405</span>
+<span id="2406">2406</span>
+<span id="2407">2407</span>
+<span id="2408">2408</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::DefaultHasher;
 <span class="kw">use </span>std::hash::{Hash, Hasher};
 <span class="kw">use </span>std::mem;
@@ -3070,6 +3073,7 @@
     <span class="kw">pub </span>measurements_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>MeasurementsConfig&gt;,
     <span class="kw">pub </span>breakdowns_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>BreakdownsConfig&gt;,
     <span class="kw">pub </span>normalize_user_agent: <span class="prelude-ty">Option</span>&lt;bool&gt;,
+    <span class="kw">pub </span>normalize_transaction_name: bool,
     <span class="kw">pub </span>is_renormalize: bool,
 }
 
@@ -3086,7 +3090,9 @@
         // (internally noops for non-transaction events).
         // TODO: Parts of this processor should probably be a filter so we
         // can revert some changes to ProcessingAction
-        </span>transactions::TransactionsProcessor.process_event(event, meta, ProcessingState::root())<span class="question-mark">?</span>;
+        </span><span class="kw">let </span><span class="kw-2">mut </span>transactions_processor =
+            transactions::TransactionsProcessor::new(config.normalize_transaction_name);
+        transactions_processor.process_event(event, meta, ProcessingState::root())<span class="question-mark">?</span>;
 
         <span class="comment">// Check for required and non-empty values
         </span>schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())<span class="question-mark">?</span>;

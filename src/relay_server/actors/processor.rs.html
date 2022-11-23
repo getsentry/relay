@@ -2939,6 +2939,10 @@
 <span id="2937">2937</span>
 <span id="2938">2938</span>
 <span id="2939">2939</span>
+<span id="2940">2940</span>
+<span id="2941">2941</span>
+<span id="2942">2942</span>
+<span id="2943">2943</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::cmp::max;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
@@ -4941,6 +4945,10 @@
             measurements_config: state.project_state.config.measurements.as_ref(),
             breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
             normalize_user_agent: <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
+            normalize_transaction_name: state
+                .project_state
+                .has_feature(Feature::TransactionNameNormalize),
+
             is_renormalize: <span class="bool-val">false</span>,
         };
 

@@ -1077,6 +1077,10 @@
 <span id="1075">1075</span>
 <span id="1076">1076</span>
 <span id="1077">1077</span>
+<span id="1078">1078</span>
+<span id="1079">1079</span>
+<span id="1080">1080</span>
+<span id="1081">1081</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeSet, VecDeque};
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::{Duration, Instant};
@@ -1147,9 +1151,13 @@
     <span class="doccomment">/// Enables ingestion and normalization of profiles.
     </span><span class="attribute">#[serde(rename = <span class="string">&quot;organizations:profiling&quot;</span>)]
     </span>Profiling,
-    <span class="doccomment">/// Enables ingestion of Session Replays (Replay Recordings and Replay Events)
+    <span class="doccomment">/// Enables ingestion of Session Replays (Replay Recordings and Replay Events).
     </span><span class="attribute">#[serde(rename = <span class="string">&quot;organizations:session-replay&quot;</span>)]
     </span>Replays,
+    <span class="doccomment">/// Enable transaction names normalization.
+    /// Replacing UUIDs, SHAs and numerical IDs by placeholders.
+    </span><span class="attribute">#[serde(rename = <span class="string">&quot;organizations:transaction-name-normalize&quot;</span>)]
+    </span>TransactionNameNormalize,
 
     <span class="doccomment">/// Unused.
     ///
