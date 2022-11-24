@@ -474,7 +474,7 @@ impl Meta {
     }
 
     fn upsert(&mut self) -> &mut MetaInner {
-        self.0.get_or_insert_with(|| Box::<MetaInner>::default())
+        self.0.get_or_insert_with(|| Box::default())
     }
 
     /// The original length of this field, if applicable.
