@@ -13,6 +13,8 @@ pub struct MeasurementValue {
     // nanoseconds elapsed since the start of the profile
     #[serde(deserialize_with = "deserialize_number_from_string")]
     elapsed_since_start_ns: u64,
+
+    // Android 6.8.0 sends a string instead of a float64 so we need to accept both
     #[serde(deserialize_with = "deserialize_number_from_string")]
     value: f64,
 }
