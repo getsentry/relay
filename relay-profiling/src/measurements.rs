@@ -13,6 +13,7 @@ pub struct MeasurementValue {
     // nanoseconds elapsed since the start of the profile
     #[serde(deserialize_with = "deserialize_number_from_string")]
     elapsed_since_start_ns: u64,
+    #[serde(deserialize_with = "deserialize_number_from_string")]
     value: f64,
 }
 
