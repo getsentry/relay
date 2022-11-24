@@ -258,7 +258,9 @@ enum SharedRequestState<T> {
 /// This is returned from [`Addr::send`] when the message responds asynchronously through
 /// [`SharedResponse`]. It is a future that should be awaited. The message still runs to
 /// completion if this future is dropped.
-pub struct SharedRequest<T>(SharedRequestState<T>);
+pub struct SharedRequest<T>(SharedRequestState<T>)
+where
+    T: Clone;
 
 impl<T: Clone> Future for SharedRequest<T> {
     type Output = Result<T, SendError>;
@@ -287,7 +289,10 @@ impl<T: Clone> Future for SharedRequest<T> {
 /// TODO(ja): Doc
 // TODO(ja): Debug?
 #[derive(Debug)]
-pub struct SharedChannel<T> {
+pub struct SharedChannel<T>
+where
+    T: Clone,
+{
     tx: oneshot::Sender<T>,
     rx: Shared<oneshot::Receiver<T>>,
 }
@@ -322,7 +327,9 @@ impl<T: Clone> Default for SharedChannel<T> {
 /// TODO(ja): Doc
 // TODO(ja): Debug
 #[derive(Debug)]
-pub struct SharedSender<T>(oneshot::Sender<Foo<T>>);
+pub struct SharedSender<T>(oneshot::Sender<Foo<T>>)
+where
+    T: Clone;
 
 impl<T: Clone> SharedSender<T> {
     /// TODO(ja): Doc
@@ -339,15 +346,17 @@ impl<T: Clone> SharedSender<T> {
 }
 
 /// TODO(ja): Doc
-pub struct SharedResponse<T>(PhantomData<T>);
+pub struct SharedResponse<T>(PhantomData<T>)
+where
+    T: Clone;
 
-impl<T> fmt::Debug for SharedResponse<T> {
+impl<T: Clone> fmt::Debug for SharedResponse<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("SharedResponse")
     }
 }
 
-impl<T: Clone + Send + Sync + 'static> MessageResponse for SharedResponse<T> {
+impl<T: Clone> MessageResponse for SharedResponse<T> {
     type Sender = SharedSender<T>;
     type Output = SharedRequest<T>;
 
