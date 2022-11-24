@@ -4,10 +4,20 @@ use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     Context, ContextInner, Event, EventType, Span, Timestamp, TransactionSource,
 };
-use crate::types::{Annotated, Meta, ProcessingAction, ProcessingResult};
+use crate::store::regexes::TRANSACTION_NAME_NORMALIZER_REGEX;
+use crate::types::{Annotated, Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
 
 /// Rejects transactions based on required fields.
-pub struct TransactionsProcessor;
+#[derive(Default)]
+pub struct TransactionsProcessor {
+    normalize_names: bool,
+}
+
+impl TransactionsProcessor {
+    pub fn new(normalize_names: bool) -> Self {
+        Self { normalize_names }
+    }
+}
 
 /// Get the value for a measurement, e.g. lcp -> event.measurements.lcp
 pub fn get_measurement(transaction: &Event, name: &str) -> Option<f64> {
@@ -203,6 +213,39 @@ fn set_default_transaction_source(event: &mut Event) {
     }
 }
 
+/// Normalize the transaction name.
+///
+/// Replaces UUIDs, SHAs and numerical IDs in transaction names by placeholders.
+fn normalize_transaction_name(transaction: &mut Annotated<String>) -> ProcessingResult {
+    let capture_names = TRANSACTION_NAME_NORMALIZER_REGEX
+        .capture_names()
+        .flatten()
+        .collect::<Vec<_>>();
+
+    transaction.apply(|trans, meta| {
+        // Collect all the remarks if anything matches.
+        for matches in TRANSACTION_NAME_NORMALIZER_REGEX.captures_iter(trans) {
+            for name in &capture_names {
+                if let Some(m) = matches.name(name) {
+                    let remark =
+                        Remark::with_range(RemarkType::Substituted, *name, (m.start(), m.end()));
+                    meta.add_remark(remark);
+                    break;
+                }
+            }
+        }
+
+        let changed = TRANSACTION_NAME_NORMALIZER_REGEX
+            .replace_all(trans, "*")
+            .to_string();
+        if *trans != changed {
+            meta.set_original_value(Some(trans.to_string()));
+            *trans = changed
+        }
+        Ok(())
+    })
+}
+
 impl Processor for TransactionsProcessor {
     fn process_event(
         &mut self,
@@ -223,6 +266,11 @@ impl Processor for TransactionsProcessor {
             event
                 .transaction
                 .set_value(Some("<unlabeled transaction>".to_owned()))
+        }
+
+        // Normalize transaction names for URLs transaction sources only.
+        if event.get_transaction_source() == &TransactionSource::Url && self.normalize_names {
+            normalize_transaction_name(&mut event.transaction)?;
         }
 
         validate_transaction(event)?;
@@ -345,7 +393,7 @@ mod tests {
         let mut event = Annotated::new(Event::default());
         process_value(
             &mut event,
-            &mut TransactionsProcessor,
+            &mut TransactionsProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -362,7 +410,7 @@ mod tests {
         assert_eq!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor,
+                &mut TransactionsProcessor::default(),
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -382,7 +430,7 @@ mod tests {
         assert_eq!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor,
+                &mut TransactionsProcessor::default(),
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -403,7 +451,7 @@ mod tests {
         assert_eq!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor,
+                &mut TransactionsProcessor::default(),
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -425,7 +473,7 @@ mod tests {
         assert_eq!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor,
+                &mut TransactionsProcessor::default(),
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -451,7 +499,7 @@ mod tests {
         assert_eq!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor,
+                &mut TransactionsProcessor::default(),
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -482,7 +530,7 @@ mod tests {
         assert_eq!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor,
+                &mut TransactionsProcessor::default(),
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -516,7 +564,7 @@ mod tests {
         assert_eq!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor,
+                &mut TransactionsProcessor::default(),
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -554,7 +602,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor,
+            &mut TransactionsProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -607,7 +655,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor,
+            &mut TransactionsProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -641,7 +689,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor,
+            &mut TransactionsProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -661,7 +709,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor,
+            &mut TransactionsProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -716,7 +764,7 @@ mod tests {
         assert_eq!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor,
+                &mut TransactionsProcessor::default(),
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -755,7 +803,7 @@ mod tests {
         assert_eq!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor,
+                &mut TransactionsProcessor::default(),
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -795,7 +843,7 @@ mod tests {
         assert_eq!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor,
+                &mut TransactionsProcessor::default(),
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -836,7 +884,7 @@ mod tests {
         assert_eq!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor,
+                &mut TransactionsProcessor::default(),
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -878,7 +926,7 @@ mod tests {
         assert_eq!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor,
+                &mut TransactionsProcessor::default(),
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -925,7 +973,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor,
+            &mut TransactionsProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -988,7 +1036,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor,
+            &mut TransactionsProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1032,7 +1080,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor,
+            &mut TransactionsProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1048,7 +1096,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor,
+            &mut TransactionsProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1096,7 +1144,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor,
+            &mut TransactionsProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1144,7 +1192,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor,
+            &mut TransactionsProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1226,5 +1274,141 @@ mod tests {
         assert!(!event.meta().has_errors());
 
         assert!(is_high_cardinality_sdk(&event.0.unwrap()));
+    }
+
+    #[test]
+    fn test_transaction_name_dont_normalize() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0",
+            "transaction_info": {
+              "source": "url"
+            },
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "rails.request",
+                    "status": "ok"
+                }
+            }
+        }
+        "#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        // This must not normalize transaction name, since it's disabled.
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor::default(),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(event, @r###"
+        {
+          "type": "transaction",
+          "transaction": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0",
+          "transaction_info": {
+            "source": "url"
+          },
+          "timestamp": 1619420400.0,
+          "start_timestamp": 1619420341.0,
+          "contexts": {
+            "trace": {
+              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+              "span_id": "fa90fdead5f74053",
+              "op": "rails.request",
+              "status": "ok",
+              "type": "trace"
+            }
+          },
+          "spans": []
+        }
+        "###);
+    }
+    #[test]
+    fn test_transaction_name_normalize() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0",
+            "transaction_info": {
+              "source": "url"
+            },
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "rails.request",
+                    "status": "ok"
+                }
+            },
+            "sdk": {"name": "sentry.ruby"},
+            "modules": {"rack": "1.2.3"}
+
+        }
+        "#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor::new(true),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(event, @r###"
+        {
+          "type": "transaction",
+          "transaction": "/foo/*/user/*/0",
+          "transaction_info": {
+            "source": "url"
+          },
+          "modules": {
+            "rack": "1.2.3"
+          },
+          "timestamp": 1619420400.0,
+          "start_timestamp": 1619420341.0,
+          "contexts": {
+            "trace": {
+              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+              "span_id": "fa90fdead5f74053",
+              "op": "rails.request",
+              "status": "ok",
+              "type": "trace"
+            }
+          },
+          "sdk": {
+            "name": "sentry.ruby"
+          },
+          "spans": [],
+          "_meta": {
+            "transaction": {
+              "": {
+                "rem": [
+                  [
+                    "sha1",
+                    "s",
+                    5,
+                    45
+                  ],
+                  [
+                    "int",
+                    "s",
+                    51,
+                    54
+                  ]
+                ],
+                "val": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0"
+              }
+            }
+          }
+        }
+        "###);
     }
 }

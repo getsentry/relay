@@ -1639,6 +1639,20 @@ impl EnvelopeProcessorService {
                     sdk = envelope.meta().client_name().unwrap_or("proprietary"),
                     platform = event.platform.as_str().unwrap_or("other"),
                 );
+
+                let otel_context = event
+                    .contexts
+                    .value()
+                    .and_then(|contexts| contexts.get("otel"))
+                    .and_then(Annotated::value);
+
+                if otel_context.is_some() {
+                    metric!(
+                        counter(RelayCounters::OpenTelemetryEvent) += 1,
+                        sdk = envelope.meta().client_name().unwrap_or("proprietary"),
+                        platform = event.platform.as_str().unwrap_or("other"),
+                    );
+                }
             }
         }
 
@@ -1986,6 +2000,10 @@ impl EnvelopeProcessorService {
             measurements_config: state.project_state.config.measurements.as_ref(),
             breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
             normalize_user_agent: Some(true),
+            normalize_transaction_name: state
+                .project_state
+                .has_feature(Feature::TransactionNameNormalize),
+
             is_renormalize: false,
         };
 

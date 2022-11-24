@@ -769,7 +769,7 @@ mod tests {
         let request = RegisterRequest::new(&relay_id, &pk);
 
         // sign it
-        let (request_bytes, request_sig) = sk.pack(&request);
+        let (request_bytes, request_sig) = sk.pack(request);
 
         // attempt to get the data through bootstrap unpacking.
         let request =
@@ -795,7 +795,7 @@ mod tests {
         let response = challenge.into_response();
 
         // sign and unsign it
-        let (response_bytes, response_sig) = sk.pack(&response);
+        let (response_bytes, response_sig) = sk.pack(response);
         let (response, _) = RegisterResponse::unpack(
             &response_bytes,
             &response_sig,
