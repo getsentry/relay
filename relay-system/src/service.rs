@@ -308,13 +308,100 @@ pub trait FromMessage<M>: Interface {
     fn from_message(message: M, sender: <Self::Response as MessageResponse>::Sender) -> Self;
 }
 
+/// Abstraction over address types for service channels.
+trait SendDispatch<M> {
+    /// The behavior declaring the return value when sending this message.
+    ///
+    /// When this is implemented for a type bound to an [`Interface`], this is the same behavior as
+    /// used in [`FromMessage::Response`].
+    type Response: MessageResponse;
+
+    /// Sends a message to the service and returns the response.
+    ///
+    /// See [`Addr::send`] for more information on a concrete type.
+    fn send(&self, message: M) -> <Self::Response as MessageResponse>::Output;
+
+    /// Returns a trait object of this type.
+    fn to_trait_object(&self) -> Box<dyn SendDispatch<M, Response = Self::Response>>;
+}
+
+/// An address to a [`Service`] implementing any interface that takes a given message.
+///
+/// This is similar to an [`Addr`], but it is bound to a single message rather than an interface. As
+/// such, this type is not meant for communicating with a service implementation, but rather as a
+/// handle to any service that can consume a given message. These can be back-channels or hooks that
+/// are configured externally through Inversion of Control (IoC).
+///
+/// Recipients are created through [`Addr::recipient`].
+pub struct Recipient<M, R> {
+    inner: Box<dyn SendDispatch<M, Response = R>>,
+}
+
+impl<M, R> Recipient<M, R>
+where
+    R: MessageResponse,
+{
+    /// Sends a message to the service and returns the response.
+    ///
+    /// This is equivalent to [`send`](Addr::send) on the originating address.
+    pub fn send(&self, message: M) -> R::Output {
+        self.inner.send(message)
+    }
+}
+
+// Manual implementation since `XSender` cannot require `Clone` for object safety.
+impl<M, R: MessageResponse> Clone for Recipient<M, R> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.to_trait_object(),
+        }
+    }
+}
+
 /// The address of a [`Service`].
 ///
-/// The address of a [`Service`] allows you to [send](Self::send) messages to the service as
-/// long as the service is running. It can be freely cloned.
+/// Addresses allow to [send](Self::send) messages to a service that implements a corresponding
+/// [`Interface`] as long as the service is running.
+///
+/// Addresses can be freely cloned. When the last clone is dropped, the message channel of the
+/// service closes permanently, which signals to the service that it can shut down.
 pub struct Addr<I: Interface> {
     tx: mpsc::UnboundedSender<I>,
     queue_size: Arc<AtomicU64>,
+}
+
+impl<I: Interface> Addr<I> {
+    /// Sends a message to the service and returns the response.
+    ///
+    /// Depending on the message's response behavior, this either returns a future resolving to the
+    /// return value, or does not return anything for fire-and-forget messages. The communication
+    /// channel with the service is unbounded, so backlogs could occur when sending too many
+    /// messages.
+    ///
+    /// Sending asynchronous messages can fail with `Err(SendError)` if the service has shut down.
+    /// The result of asynchronous messages does not have to be awaited. The message will be
+    /// delivered and handled regardless:
+    pub fn send<M>(&self, message: M) -> <I::Response as MessageResponse>::Output
+    where
+        I: FromMessage<M>,
+    {
+        let (tx, rx) = I::Response::channel();
+        self.queue_size.fetch_add(1, Ordering::SeqCst);
+        self.tx.send(I::from_message(message, tx)).ok(); // it's ok to drop, the response will fail
+        rx
+    }
+
+    /// Returns a handle that can receive a given message independent of the interface.
+    ///
+    /// See [`Recipient`] for more information and examples.
+    pub fn recipient<M>(self) -> Recipient<M, I::Response>
+    where
+        I: FromMessage<M>,
+    {
+        Recipient {
+            inner: Box::new(self),
+        }
+    }
 }
 
 impl<I: Interface> fmt::Debug for Addr<I> {
@@ -337,25 +424,18 @@ impl<I: Interface> Clone for Addr<I> {
     }
 }
 
-impl<I: Interface> Addr<I> {
-    /// Sends a message to the service and returns the response.
-    ///
-    /// Depending on the message's response behavior, this either returns a future resolving to the
-    /// return value, or does not return anything for fire-and-forget messages. The communication
-    /// channel with the service is unbounded, so backlogs could occur when sending too many
-    /// messages.
-    ///
-    /// Sending asynchronous messages can fail with `Err(SendError)` if the service has shut down.
-    /// The result of asynchronous messages does not have to be awaited. The message will be
-    /// delivered and handled regardless:
-    pub fn send<M>(&self, message: M) -> <I::Response as MessageResponse>::Output
-    where
-        I: FromMessage<M>,
-    {
-        let (tx, rx) = I::Response::channel();
-        self.queue_size.fetch_add(1, Ordering::SeqCst);
-        self.tx.send(I::from_message(message, tx)).ok(); // it's ok to drop, the response will fail
-        rx
+impl<I, M> SendDispatch<M> for Addr<I>
+where
+    I: Interface + FromMessage<M>,
+{
+    type Response = <I as FromMessage<M>>::Response;
+
+    fn send(&self, message: M) -> <Self::Response as MessageResponse>::Output {
+        Addr::send(self, message)
+    }
+
+    fn to_trait_object(&self) -> Box<dyn SendDispatch<M, Response = Self::Response>> {
+        Box::new(self.clone())
     }
 }
 
