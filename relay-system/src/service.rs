@@ -7,7 +7,6 @@ use std::sync::Arc;
 use std::task::Context;
 use std::time::Duration;
 
-use actix::Response;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::MissedTickBehavior;
 
@@ -309,68 +308,66 @@ pub trait FromMessage<M>: Interface {
     fn from_message(message: M, sender: <Self::Response as MessageResponse>::Sender) -> Self;
 }
 
-/// TODO(ja): Doc
-/// TODO(ja): Find good name
-trait MessageRecipient<M> {
+/// Abstraction over address types for service channels.
+trait SendDispatch<M> {
+    /// The behavior declaring the return value when sending this message.
+    ///
+    /// When this is implemented for a type bound to an [`Interface`], this is the same behavior as
+    /// used in [`FromMessage::Response`].
     type Response: MessageResponse;
 
-    /// TODO(ja): Doc
+    /// Sends a message to the service and returns the response.
+    ///
+    /// See [`Addr::send`] for more information on a concrete type.
     fn send(&self, message: M) -> <Self::Response as MessageResponse>::Output;
+
+    /// Returns a trait object of this type.
+    fn to_trait_object(&self) -> Box<dyn SendDispatch<M, Response = Self::Response>>;
 }
 
-impl<M, I> MessageRecipient<M> for Addr<I>
-where
-    I: Interface + FromMessage<M>,
-{
-    type Response = <I as FromMessage<M>>::Response;
-
-    fn send(&self, message: M) -> <Self::Response as MessageResponse>::Output {
-        Addr::send(self, message)
-    }
+/// An address to a [`Service`] implementing any interface that takes a given message.
+///
+/// This is similar to an [`Addr`], but it is bound to a single message rather than an interface. As
+/// such, this type is not meant for communicating with a service implementation, but rather as a
+/// handle to any service that can consume a given message. These can be back-channels or hooks that
+/// are configured externally through Inversion of Control (IoC).
+///
+/// Recipients are created through [`Addr::recipient`].
+pub struct Recipient<M, R> {
+    inner: Box<dyn SendDispatch<M, Response = R>>,
 }
 
-/// TODO(ja): Doc
-pub struct MessageAddr<M, R> {
-    inner: Box<dyn MessageRecipient<M, Response = R>>,
-}
-
-impl<M, R> MessageAddr<M, R>
+impl<M, R> Recipient<M, R>
 where
     R: MessageResponse,
 {
-    /// TODO(ja): Doc
+    /// Sends a message to the service and returns the response.
+    ///
+    /// This is equivalent to [`send`](Addr::send) on the originating address.
     pub fn send(&self, message: M) -> R::Output {
         self.inner.send(message)
     }
 }
 
+// Manual implementation since `XSender` cannot require `Clone` for object safety.
+impl<M, R: MessageResponse> Clone for Recipient<M, R> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.to_trait_object(),
+        }
+    }
+}
+
 /// The address of a [`Service`].
 ///
-/// The address of a [`Service`] allows you to [send](Self::send) messages to the service as
-/// long as the service is running. It can be freely cloned.
+/// Addresses allow to [send](Self::send) messages to a service that implements a corresponding
+/// [`Interface`] as long as the service is running.
+///
+/// Addresses can be freely cloned. When the last clone is dropped, the message channel of the
+/// service closes permanently, which signals to the service that it can shut down.
 pub struct Addr<I: Interface> {
     tx: mpsc::UnboundedSender<I>,
     queue_size: Arc<AtomicU64>,
-}
-
-impl<I: Interface> fmt::Debug for Addr<I> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Addr")
-            .field("open", &!self.tx.is_closed())
-            .field("queue_size", &self.queue_size.load(Ordering::Relaxed))
-            .finish()
-    }
-}
-
-// Manually derive `Clone` since we do not require `I: Clone` and the Clone derive adds this
-// constraint.
-impl<I: Interface> Clone for Addr<I> {
-    fn clone(&self) -> Self {
-        Self {
-            tx: self.tx.clone(),
-            queue_size: self.queue_size.clone(),
-        }
-    }
 }
 
 impl<I: Interface> Addr<I> {
@@ -394,14 +391,51 @@ impl<I: Interface> Addr<I> {
         rx
     }
 
-    /// TODO(ja): Doc
-    pub fn recipient<M>(self) -> MessageAddr<M, I::Response>
+    /// Returns a handle that can receive a given message independent of the interface.
+    ///
+    /// See [`Recipient`] for more information and examples.
+    pub fn recipient<M>(self) -> Recipient<M, I::Response>
     where
         I: FromMessage<M>,
     {
-        MessageAddr {
+        Recipient {
             inner: Box::new(self),
         }
+    }
+}
+
+impl<I: Interface> fmt::Debug for Addr<I> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Addr")
+            .field("open", &!self.tx.is_closed())
+            .field("queue_size", &self.queue_size.load(Ordering::Relaxed))
+            .finish()
+    }
+}
+
+// Manually derive `Clone` since we do not require `I: Clone` and the Clone derive adds this
+// constraint.
+impl<I: Interface> Clone for Addr<I> {
+    fn clone(&self) -> Self {
+        Self {
+            tx: self.tx.clone(),
+            queue_size: self.queue_size.clone(),
+        }
+    }
+}
+
+impl<I, M> SendDispatch<M> for Addr<I>
+where
+    I: Interface + FromMessage<M>,
+{
+    type Response = <I as FromMessage<M>>::Response;
+
+    fn send(&self, message: M) -> <Self::Response as MessageResponse>::Output {
+        Addr::send(self, message)
+    }
+
+    fn to_trait_object(&self) -> Box<dyn SendDispatch<M, Response = Self::Response>> {
+        Box::new(self.clone())
     }
 }
 
