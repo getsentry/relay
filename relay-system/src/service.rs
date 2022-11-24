@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::task::Context;
+use std::task::{Context, Poll};
 use std::time::Duration;
 
 use futures::future::Shared;
@@ -239,9 +239,53 @@ impl MessageResponse for NoResponse {
     }
 }
 
-// TODO(ja): Implement as concrete future type if possible
-pub struct SharedRequest<T>(Pin<Box<dyn Future<Output = Result<T, SendError>> + Send + Sync>>);
+/// TODO(ja): Doc
+#[derive(Debug)]
+enum Foo<T> {
+    /// TODO(ja): Doc
+    Value(T),
+    /// TODO(ja): Doc
+    Shared(Shared<oneshot::Receiver<T>>),
+}
 
+enum SharedRequestState<T> {
+    Pending(oneshot::Receiver<Foo<T>>),
+    Shared(Shared<oneshot::Receiver<T>>),
+}
+
+/// The request when sending an asynchronous message to a service.
+///
+/// This is returned from [`Addr::send`] when the message responds asynchronously through
+/// [`SharedResponse`]. It is a future that should be awaited. The message still runs to
+/// completion if this future is dropped.
+pub struct SharedRequest<T>(SharedRequestState<T>);
+
+impl<T: Clone> Future for SharedRequest<T> {
+    type Output = Result<T, SendError>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Poll::Ready(loop {
+            match self.0 {
+                SharedRequestState::Pending(ref mut pending) => {
+                    match futures::ready!(Pin::new(pending).poll(cx)) {
+                        Ok(Foo::Value(value)) => break Ok(value),
+                        Ok(Foo::Shared(shared)) => self.0 = SharedRequestState::Shared(shared),
+                        Err(_) => break Err(SendError),
+                    }
+                }
+                SharedRequestState::Shared(ref mut shared) => {
+                    match futures::ready!(Pin::new(shared).poll(cx)) {
+                        Ok(value) => break Ok(value),
+                        Err(_) => break Err(SendError),
+                    }
+                }
+            }
+        })
+    }
+}
+
+/// TODO(ja): Doc
+// TODO(ja): Debug?
 #[derive(Debug)]
 pub struct SharedChannel<T> {
     tx: oneshot::Sender<T>,
@@ -249,6 +293,7 @@ pub struct SharedChannel<T> {
 }
 
 impl<T: Clone> SharedChannel<T> {
+    /// TODO(ja): Doc
     pub fn new() -> Self {
         let (tx, rx) = oneshot::channel();
         Self {
@@ -257,47 +302,43 @@ impl<T: Clone> SharedChannel<T> {
         }
     }
 
+    /// TODO(ja): Doc
     pub fn send(self, value: T) {
         self.tx.send(value).ok();
     }
 
+    /// TODO(ja): Doc
     pub fn attach(&self, sender: SharedSender<T>) {
-        // TODO(ja): Keep this or the other one?
         sender.0.send(Foo::Shared(self.rx.clone())).ok();
     }
 }
 
-#[derive(Debug)]
-enum Foo<T> {
-    Value(T),
-    Shared(Shared<oneshot::Receiver<T>>),
+impl<T: Clone> Default for SharedChannel<T> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
+/// TODO(ja): Doc
+// TODO(ja): Debug
 #[derive(Debug)]
 pub struct SharedSender<T>(oneshot::Sender<Foo<T>>);
 
 impl<T: Clone> SharedSender<T> {
+    /// TODO(ja): Doc
     pub fn send(self, value: T) {
         self.0.send(Foo::Value(value)).ok();
     }
 
-    pub fn defer(self) -> SharedChannel<T> {
+    /// TODO(ja): Doc
+    pub fn into_channel(self) -> SharedChannel<T> {
         let channel = SharedChannel::new();
-        self.0.send(Foo::Shared(channel.rx.clone())).ok();
+        channel.attach(self);
         channel
     }
 }
 
-impl<T> Future for SharedRequest<T> {
-    type Output = Result<T, SendError>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> std::task::Poll<Self::Output> {
-        Pin::new(&mut self.0)
-            .poll(cx)
-            .map(|r| r.map_err(|_| SendError))
-    }
-}
-
+/// TODO(ja): Doc
 pub struct SharedResponse<T>(PhantomData<T>);
 
 impl<T> fmt::Debug for SharedResponse<T> {
@@ -312,16 +353,10 @@ impl<T: Clone + Send + Sync + 'static> MessageResponse for SharedResponse<T> {
 
     fn channel() -> (Self::Sender, Self::Output) {
         let (tx, rx) = oneshot::channel();
-
-        let sender = SharedSender(tx);
-        let request = SharedRequest(Box::pin(async move {
-            match rx.await.map_err(|_| SendError)? {
-                Foo::Value(value) => Ok(value),
-                Foo::Shared(shared) => shared.await.map_err(|_| SendError),
-            }
-        }));
-
-        (sender, request)
+        (
+            SharedSender(tx),
+            SharedRequest(SharedRequestState::Pending(rx)),
+        )
     }
 }
 
