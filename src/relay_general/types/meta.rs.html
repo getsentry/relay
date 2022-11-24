@@ -1103,7 +1103,7 @@
     }
 
     <span class="kw">fn </span>upsert(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span>MetaInner {
-        <span class="self">self</span>.<span class="number">0</span>.get_or_insert_with(|| Box::new(MetaInner::default()))
+        <span class="self">self</span>.<span class="number">0</span>.get_or_insert_with(|| Box::default())
     }
 
     <span class="doccomment">/// The original length of this field, if applicable.

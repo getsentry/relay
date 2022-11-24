@@ -798,7 +798,7 @@
         <span class="comment">// Set the mailbox size to the size of the envelope buffer. This is a rough estimate but
         // should ensure that we&#39;re not dropping messages if the main arbiter running this actor
         // gets hammered a bit.
-        </span><span class="kw">let </span>mailbox_size = <span class="self">self</span>.config.envelope_buffer_size() <span class="kw">as </span>usize;
+        </span><span class="kw">let </span>mailbox_size = <span class="self">self</span>.config.envelope_buffer_size();
         context.set_mailbox_capacity(mailbox_size);
 
         context.run_interval(<span class="self">self</span>.config.cache_eviction_interval(), |slf, <span class="kw">_</span>| {

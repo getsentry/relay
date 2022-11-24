@@ -384,8 +384,6 @@
 <span id="382">382</span>
 <span id="383">383</span>
 <span id="384">384</span>
-<span id="385">385</span>
-<span id="386">386</span>
 </pre><pre class="rust"><code><span class="kw">use </span>chrono::{TimeZone, Utc};
 <span class="kw">use </span>symbolic_unreal::{
     Unreal4Context, Unreal4Crash, Unreal4Error, Unreal4ErrorKind, Unreal4FileType, Unreal4LogEntry,
@@ -587,7 +585,7 @@
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(memory_physical) = runtime_props.memory_stats_total_physical.take() {
         <span class="kw">let </span>device_context = contexts.get_or_insert_with(DeviceContext::default_key(), || {
-            Context::Device(Box::new(DeviceContext::default()))
+            Context::Device(Box::default())
         });
 
         <span class="kw">if let </span>Context::Device(device_context) = device_context {
@@ -597,9 +595,8 @@
 
     <span class="comment">// OS information is likely overwritten by Minidump processing later.
     </span><span class="kw">if let </span><span class="prelude-val">Some</span>(os_major) = runtime_props.misc_os_version_major.take() {
-        <span class="kw">let </span>os_context = contexts.get_or_insert_with(OsContext::default_key(), || {
-            Context::Os(Box::new(OsContext::default()))
-        });
+        <span class="kw">let </span>os_context =
+            contexts.get_or_insert_with(OsContext::default_key(), || Context::Os(Box::default()));
 
         <span class="kw">if let </span>Context::Os(os_context) = os_context {
             os_context.name = Annotated::new(os_major);
@@ -607,9 +604,8 @@
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(gpu_brand) = runtime_props.misc_primary_gpu_brand.take() {
-        <span class="kw">let </span>gpu_context = contexts.get_or_insert_with(GpuContext::default_key(), || {
-            Context::Gpu(Box::new(GpuContext::default()))
-        });
+        <span class="kw">let </span>gpu_context =
+            contexts.get_or_insert_with(GpuContext::default_key(), || Context::Gpu(Box::default()));
 
         <span class="kw">if let </span>Context::Gpu(gpu_context) = gpu_context {
             gpu_context.name = Annotated::new(gpu_brand);

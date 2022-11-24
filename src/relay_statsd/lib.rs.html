@@ -831,7 +831,7 @@
     }
 
     <span class="comment">// Normalize sample_rate
-    </span><span class="kw">let </span>sample_rate = sample_rate.max(<span class="number">0.</span>).min(<span class="number">1.</span>);
+    </span><span class="kw">let </span>sample_rate = sample_rate.clamp(<span class="number">0.</span>, <span class="number">1.</span>);
     <span class="macro">relay_log::debug!</span>(
         <span class="string">&quot;metrics sample rate is set to {}{}&quot;</span>,
         sample_rate,

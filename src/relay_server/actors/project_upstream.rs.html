@@ -718,7 +718,7 @@
         <span class="comment">// Set the mailbox size to the size of the eveenvelopent buffer. This is a rough estimate
         // but should ensure that we&#39;re not dropping messages if the main arbiter running this actor
         // gets hammered a bit.
-        </span><span class="kw">let </span>mailbox_size = <span class="self">self</span>.config.envelope_buffer_size() <span class="kw">as </span>usize;
+        </span><span class="kw">let </span>mailbox_size = <span class="self">self</span>.config.envelope_buffer_size();
         context.set_mailbox_capacity(mailbox_size);
 
         <span class="macro">relay_log::info!</span>(<span class="string">&quot;project upstream cache started&quot;</span>);

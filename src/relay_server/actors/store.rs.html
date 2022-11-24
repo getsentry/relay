@@ -983,7 +983,6 @@
 <span id="981">981</span>
 <span id="982">982</span>
 <span id="983">983</span>
-<span id="984">984</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -1464,11 +1463,10 @@
                 started: protocol::datetime_to_timestamp(session.started),
                 duration: session.duration,
                 status: session.status,
-                errors: session
-                    .errors
-                    .min(u16::max_value().into())
-                    .max((session.status == SessionStatus::Crashed) <span class="kw">as _</span>)
-                    <span class="kw">as _</span>,
+                errors: session.errors.clamp(
+                    (session.status == SessionStatus::Crashed) <span class="kw">as _</span>,
+                    u16::MAX.into(),
+                ) <span class="kw">as _</span>,
                 release: session.attributes.release,
                 environment: session.attributes.environment,
                 sdk: client.map(str::to_owned),
