@@ -479,8 +479,8 @@ impl StoreService {
                 duration: session.duration,
                 status: session.status,
                 errors: session.errors.clamp(
-                    u16::MAX.into(),
                     (session.status == SessionStatus::Crashed) as _,
+                    u16::MAX.into(),
                 ) as _,
                 release: session.attributes.release,
                 environment: session.attributes.environment,
