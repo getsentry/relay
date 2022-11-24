@@ -101,6 +101,12 @@ lint-python: setup-venv ## run lint on Python code using flake8
 	.venv/bin/flake8 py
 .PHONY: lint-python
 
+lint-rust-beta: setup-git ## run lint on Rust using clippy and beta toolchain
+	@rustup toolchain install beta 2>/dev/null
+	@rustup component add clippy --toolchain beta 2> /dev/null
+	cargo +beta clippy --workspace --all-targets --all-features --no-deps -- -D warnings
+.PHONY: lint-rust-beta
+
 # Formatting
 
 format: format-rust format-python ## format all the Rust and Python code

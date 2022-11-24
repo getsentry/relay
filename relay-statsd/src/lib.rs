@@ -200,7 +200,7 @@ pub fn init<A: ToSocketAddrs>(
     }
 
     // Normalize sample_rate
-    let sample_rate = sample_rate.max(0.).min(1.);
+    let sample_rate = sample_rate.clamp(0., 1.);
     relay_log::debug!(
         "metrics sample rate is set to {}{}",
         sample_rate,

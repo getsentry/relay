@@ -478,11 +478,10 @@ impl StoreService {
                 started: protocol::datetime_to_timestamp(session.started),
                 duration: session.duration,
                 status: session.status,
-                errors: session
-                    .errors
-                    .min(u16::max_value().into())
-                    .max((session.status == SessionStatus::Crashed) as _)
-                    as _,
+                errors: session.errors.clamp(
+                    u16::MAX.into(),
+                    (session.status == SessionStatus::Crashed) as _,
+                ) as _,
                 release: session.attributes.release,
                 environment: session.attributes.environment,
                 sdk: client.map(str::to_owned),
