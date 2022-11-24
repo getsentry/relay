@@ -18,6 +18,8 @@ mod runtime;
 pub use runtime::*;
 mod trace;
 pub use trace::*;
+mod otel;
+pub use otel::*;
 
 use crate::types::{Annotated, FromValue, Object, Value};
 
@@ -51,6 +53,8 @@ pub enum Context {
     Reprocessing(Box<ReprocessingContext>),
     /// Response information.
     Response(Box<ResponseContext>),
+    /// OpenTelemetry information
+    Otel(Box<OtelContext>),
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(fallback_variant)]
     Other(#[metastructure(pii = "true")] Object<Value>),
@@ -72,6 +76,7 @@ impl Context {
             Context::Trace(_) => Some(TraceContext::default_key()),
             Context::Monitor(_) => Some(MonitorContext::default_key()),
             Context::Response(_) => Some(ResponseContext::default_key()),
+            Context::Otel(_) => Some(OtelContext::default_key()),
             Context::Other(_) => None,
         }
     }

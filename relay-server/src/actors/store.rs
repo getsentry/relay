@@ -639,10 +639,10 @@ impl StoreService {
         // This skips chunks for empty replay recordings. The consumer does not require chunks for
         // empty replay recordings. `chunks` will be `0` in this case.
         while offset < size {
-            // XXX: Max chunk size has 200 bytes reserved for metadata. Typically we see the
-            // metadata consume 160 bytes but it does vary +/- a few bytes. The extra 40 bytes
+            // XXX: Max chunk size has 2000 bytes reserved for metadata. Typically we see the
+            // metadata consume 160 bytes but it does vary +/- a few bytes. The extra bytes
             // serve as padding.
-            let max_chunk_size = self.config.attachment_chunk_size() - 200;
+            let max_chunk_size = self.config.attachment_chunk_size() - 2000;
             let chunk_size = std::cmp::min(max_chunk_size, size - offset);
 
             let replay_recording_chunk_message =
