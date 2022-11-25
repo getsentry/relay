@@ -12,6 +12,7 @@
 - Emit a `service.back_pressure` metric that measures internal back pressure by service. ([#1583](https://github.com/getsentry/relay/pull/1583))
 - Track metrics for OpenTelemetry events. ([#1618](https://github.com/getsentry/relay/pull/1618))
 - Normalize transaction name for URLs transaction source, by replacing UUIDs, SHAs and numerical IDs in transaction names by placeholders. ([#1621](https://github.com/getsentry/relay/pull/1621))
+- Parse string as number to handle a release bug. ([#1637](https://github.com/getsentry/relay/pull/1637))
 
 ## 22.11.0
 
