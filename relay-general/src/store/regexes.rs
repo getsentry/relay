@@ -10,7 +10,7 @@ pub static TRANSACTION_NAME_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
         r#"
 
     (?x)
-    (?P<uuid>
+    (?P<uuid>[^/]*
         \b
             [0-9a-fA-F]{8}-
             [0-9a-fA-F]{4}-
@@ -18,14 +18,14 @@ pub static TRANSACTION_NAME_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
             [0-9a-fA-F]{4}-
             [0-9a-fA-F]{12}
         \b
-    ) |
-    (?P<sha1>
+    [^/]*) |
+    (?P<sha1>[^/]*
         \b[0-9a-fA-F]{40}\b
-    ) |
-    (?P<md5>
+    [^/]*) |
+    (?P<md5>[^/]*
         \b[0-9a-fA-F]{32}\b
-    ) |
-    (?P<date>
+    [^/]*) |
+    (?P<date>[^/]*
         (?:
             (?:\d{4}-[01]\d-[0-3]\dT[0-2]\d:[0-5]\d:[0-5]\d\.\d+([+-][0-2]\d:[0-5]\d|Z))|
             (?:\d{4}-[01]\d-[0-3]\dT[0-2]\d:[0-5]\d:[0-5]\d([+-][0-2]\d:[0-5]\d|Z))|
@@ -47,13 +47,13 @@ pub static TRANSACTION_NAME_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
             (?::(60|[0-5][\d]))?\s+
             (?:[-\+][\d]{2}[0-5][\d]|(?:UT|GMT|(?:E|C|M|P)(?:ST|DT)|[A-IK-Z]))
         )
-    ) |
-    (?P<hex>
+    [^/]*) |
+    (?P<hex>[^/]*
         \b0[xX][0-9a-fA-F]+\b
-    ) |
-    (?P<int>
+    [^/]*) |
+    (?P<int>[^/]*
         \b\d{2,}\b
-    )
+    [^/]*)
 "#,
     )
     .unwrap()

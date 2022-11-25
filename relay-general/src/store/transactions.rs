@@ -1329,6 +1329,7 @@ mod tests {
         }
         "###);
     }
+
     #[test]
     fn test_transaction_name_normalize() {
         let json = r#"
@@ -1411,4 +1412,71 @@ mod tests {
         }
         "###);
     }
+
+    macro_rules! transaction_name_test {
+        ($name:ident, $input:literal, $output:literal) => {
+            #[test]
+            fn $name() {
+                let json = format!(
+                    r#"
+                    {{
+                        "type": "transaction",
+                        "transaction": "{}",
+                        "transaction_info": {{
+                          "source": "url"
+                        }},
+                        "timestamp": "2021-04-26T08:00:00+0100",
+                        "start_timestamp": "2021-04-26T07:59:01+0100",
+                        "contexts": {{
+                            "trace": {{
+                                "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                                "span_id": "fa90fdead5f74053",
+                                "op": "rails.request",
+                                "status": "ok"
+                            }}
+                        }}
+                    }}
+                "#,
+                    $input
+                );
+                let mut event = Annotated::<Event>::from_json(&json).unwrap();
+
+                process_value(
+                    &mut event,
+                    &mut TransactionsProcessor::new(true),
+                    ProcessingState::root(),
+                )
+                .unwrap();
+
+                assert_eq!($output, event.value().unwrap().transaction.value().unwrap());
+            }
+        };
+    }
+
+    transaction_name_test!(test_transaction_name_normalize_id, "/1234", "/*");
+    transaction_name_test!(
+        test_transaction_name_normalize_in_segments_1,
+        "/user/path-with-1234/",
+        "/user/*/"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_in_segments_2,
+        "/testing/open-19-close/1",
+        "/testing/*/1"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_sha,
+        "/hash/4c79f60c11214eb38604f4ae0781bfb2/diff",
+        "/hash/*/diff"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_uuid,
+        "/u/7b25feea-ed2d-4132-bcbd-6232b7922add/edit",
+        "/u/*/edit"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_hex,
+        "/u/0x3707344A4093822299F31D008/profile/123123213",
+        "/u/*/profile/*"
+    );
 }
