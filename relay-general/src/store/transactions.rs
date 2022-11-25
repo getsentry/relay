@@ -1439,6 +1439,7 @@ mod tests {
                 "#,
                     $input
                 );
+
                 let mut event = Annotated::<Event>::from_json(&json).unwrap();
 
                 process_value(
@@ -1478,5 +1479,10 @@ mod tests {
         test_transaction_name_normalize_hex,
         "/u/0x3707344A4093822299F31D008/profile/123123213",
         "/u/*/profile/*"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_windows_path,
+        r#"C:\\\\Program Files\\1234\\Files"#,
+        r#"C:\\Program Files\*\Files"#
     );
 }
