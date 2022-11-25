@@ -321,24 +321,20 @@ relay_common::impl_str_de!(ContentType, "a content type string");
 /// The type of an event attachment.
 ///
 /// These item types must align with the Sentry processing pipeline.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AttachmentType {
     /// A regular attachment without special meaning.
-    #[serde(rename = "event.attachment")]
     Attachment,
 
     /// A minidump crash report (binary data).
-    #[serde(rename = "event.minidump")]
     Minidump,
 
     /// An apple crash report (text data).
-    #[serde(rename = "event.applecrashreport")]
     AppleCrashReport,
 
     /// A msgpack-encoded event payload submitted as part of multipart uploads.
     ///
     /// This attachment is processed by Relay immediately and never forwarded or persisted.
-    #[serde(rename = "event.payload")]
     EventPayload,
 
     /// A msgpack-encoded list of payloads.
@@ -347,7 +343,6 @@ pub enum AttachmentType {
     /// will be merged and truncated to the maxmimum number of allowed attachments.
     ///
     /// This attachment is processed by Relay immediately and never forwarded or persisted.
-    #[serde(rename = "event.breadcrumbs")]
     Breadcrumbs,
 
     /// This is a binary attachment present in Unreal 4 events containing event context information.
@@ -356,7 +351,6 @@ pub enum AttachmentType {
     /// [`symbolic_unreal::Unreal4Context`].
     ///
     /// [`symbolic_unreal::Unreal4Context`]: https://docs.rs/symbolic/*/symbolic/unreal/struct.Unreal4Context.html
-    #[serde(rename = "unreal.context")]
     UnrealContext,
 
     /// This is a binary attachment present in Unreal 4 events containing event Logs.
@@ -365,8 +359,10 @@ pub enum AttachmentType {
     /// [`symbolic_unreal::Unreal4LogEntry`].
     ///
     /// [`symbolic_unreal::Unreal4LogEntry`]: https://docs.rs/symbolic/*/symbolic/unreal/struct.Unreal4LogEntry.html
-    #[serde(rename = "unreal.logs")]
     UnrealLogs,
+
+    /// Unknown attachment type, forwarded for compatibility.
+    Unknown(&'static str),
 }
 
 impl Default for AttachmentType {
@@ -374,6 +370,43 @@ impl Default for AttachmentType {
         Self::Attachment
     }
 }
+
+impl fmt::Display for AttachmentType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AttachmentType::Attachment => write!(f, "event.attachment"),
+            AttachmentType::Minidump => write!(f, "event.minidump"),
+            AttachmentType::AppleCrashReport => write!(f, "event.applecrashreport"),
+            AttachmentType::EventPayload => write!(f, "event.payload"),
+            AttachmentType::Breadcrumbs => write!(f, "event.breadcrumbs"),
+            AttachmentType::UnrealContext => write!(f, "unreal.context"),
+            AttachmentType::UnrealLogs => write!(f, "unreal.logs"),
+            AttachmentType::Unknown(s) => s.fmt(f),
+        }
+    }
+}
+
+impl std::str::FromStr for AttachmentType {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "event.attachment" => AttachmentType::Attachment,
+            "event.minidump" => AttachmentType::Minidump,
+            "event.applecrashreport" => AttachmentType::AppleCrashReport,
+            "event.payload" => AttachmentType::EventPayload,
+            "event.breadcrumbs" => AttachmentType::Breadcrumbs,
+            "unreal.context" => AttachmentType::UnrealContext,
+            "unreal.logs" => AttachmentType::UnrealLogs,
+            other => AttachmentType::Unknown("some"), // FIXME
+        })
+    }
+}
+
+relay_common::impl_str_serde!(
+    AttachmentType,
+    "an attachment type (see sentry develop docs)"
+);
 
 fn is_false(val: &bool) -> bool {
     !*val
@@ -615,6 +648,10 @@ impl Item {
                 AttachmentType::Attachment
                 | AttachmentType::UnrealContext
                 | AttachmentType::UnrealLogs => false,
+                // When an outdated Relay instance forwards an unknown attachment type for compatibility,
+                // we assume that the attachment does not create a new event. This will make it hard
+                // to introduce new attachment types which _do_ create a new event.
+                AttachmentType::Unknown(_) => false,
             },
 
             // Form data items may contain partial event payloads, but those are only ever valid if
