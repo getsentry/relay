@@ -399,7 +399,7 @@ impl std::str::FromStr for AttachmentType {
             "event.breadcrumbs" => AttachmentType::Breadcrumbs,
             "unreal.context" => AttachmentType::UnrealContext,
             "unreal.logs" => AttachmentType::UnrealLogs,
-            other => AttachmentType::Unknown(other.to_owned()), // FIXME
+            other => AttachmentType::Unknown(other.to_owned()),
         })
     }
 }
@@ -643,17 +643,17 @@ impl Item {
             // event payloads. Plain attachments never create event payloads.
             ItemType::Attachment => {
                 match self.attachment_type().unwrap_or(&AttachmentType::default()) {
-                    &AttachmentType::AppleCrashReport
-                    | &AttachmentType::Minidump
-                    | &AttachmentType::EventPayload
-                    | &AttachmentType::Breadcrumbs => true,
-                    &AttachmentType::Attachment
-                    | &AttachmentType::UnrealContext
-                    | &AttachmentType::UnrealLogs => false,
+                    AttachmentType::AppleCrashReport
+                    | AttachmentType::Minidump
+                    | AttachmentType::EventPayload
+                    | AttachmentType::Breadcrumbs => true,
+                    AttachmentType::Attachment
+                    | AttachmentType::UnrealContext
+                    | AttachmentType::UnrealLogs => false,
                     // When an outdated Relay instance forwards an unknown attachment type for compatibility,
                     // we assume that the attachment does not create a new event. This will make it hard
                     // to introduce new attachment types which _do_ create a new event.
-                    &AttachmentType::Unknown(_) => false,
+                    AttachmentType::Unknown(_) => false,
                 }
             }
 
