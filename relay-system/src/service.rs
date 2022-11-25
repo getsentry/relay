@@ -239,43 +239,55 @@ impl MessageResponse for NoResponse {
     }
 }
 
-/// TODO(ja): Doc
+/// Initial response to a [`BroadcastRequest`].
 #[derive(Debug)]
-enum Foo<T> {
-    /// TODO(ja): Doc
-    Value(T),
-    /// TODO(ja): Doc
-    Shared(Shared<oneshot::Receiver<T>>),
+enum InitialResponse<T> {
+    /// The response value is immediately ready.
+    ///
+    /// The sender did not attach to a broadcast channel and instead resolved the requested value
+    /// immediately. The request is now ready and can resolve. See [`BroadcastChannel::attach`].
+    Ready(T),
+    /// The sender is attached to a channel that needs to be polled.
+    Poll(Shared<oneshot::Receiver<T>>),
 }
 
-enum SharedRequestState<T> {
-    Pending(oneshot::Receiver<Foo<T>>),
-    Shared(Shared<oneshot::Receiver<T>>),
+/// States of a [`BroadcastRequest`].
+enum BroadcastState<T> {
+    /// The request is waiting for an initial response.
+    Pending(oneshot::Receiver<InitialResponse<T>>),
+    /// The request is attached to a [`BroadcastChannel`].
+    Attached(Shared<oneshot::Receiver<T>>),
 }
 
 /// The request when sending an asynchronous message to a service.
 ///
 /// This is returned from [`Addr::send`] when the message responds asynchronously through
-/// [`SharedResponse`]. It is a future that should be awaited. The message still runs to
+/// [`BroadcastResponse`]. It is a future that should be awaited. The message still runs to
 /// completion if this future is dropped.
-pub struct SharedRequest<T>(SharedRequestState<T>)
+///
+/// # Panics
+///
+/// This future is not fused and panics if it is polled again after it has resolved.
+pub struct BroadcastRequest<T>(BroadcastState<T>)
 where
     T: Clone;
 
-impl<T: Clone> Future for SharedRequest<T> {
+impl<T: Clone> Future for BroadcastRequest<T> {
     type Output = Result<T, SendError>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         Poll::Ready(loop {
             match self.0 {
-                SharedRequestState::Pending(ref mut pending) => {
+                BroadcastState::Pending(ref mut pending) => {
                     match futures::ready!(Pin::new(pending).poll(cx)) {
-                        Ok(Foo::Value(value)) => break Ok(value),
-                        Ok(Foo::Shared(shared)) => self.0 = SharedRequestState::Shared(shared),
+                        Ok(InitialResponse::Ready(value)) => break Ok(value),
+                        Ok(InitialResponse::Poll(shared)) => {
+                            self.0 = BroadcastState::Attached(shared)
+                        }
                         Err(_) => break Err(SendError),
                     }
                 }
-                SharedRequestState::Shared(ref mut shared) => {
+                BroadcastState::Attached(ref mut shared) => {
                     match futures::ready!(Pin::new(shared).poll(cx)) {
                         Ok(value) => break Ok(value),
                         Err(_) => break Err(SendError),
@@ -286,10 +298,19 @@ impl<T: Clone> Future for SharedRequest<T> {
     }
 }
 
-/// TODO(ja): Doc
-// TODO(ja): Debug?
+/// A channel that broadcasts values to attached [senders](BroadcastSender).
+///
+/// This is part of the [`BroadcastResponse`] message behavior to efficiently send delayed responses
+/// to a large number of senders. All requests that are attached to this channel via their senders
+/// resolve with the same value.
+///
+/// # Example
+///
+/// ```
+/// todo!()
+/// ```
 #[derive(Debug)]
-pub struct SharedChannel<T>
+pub struct BroadcastChannel<T>
 where
     T: Clone,
 {
@@ -297,8 +318,11 @@ where
     rx: Shared<oneshot::Receiver<T>>,
 }
 
-impl<T: Clone> SharedChannel<T> {
-    /// TODO(ja): Doc
+impl<T: Clone> BroadcastChannel<T> {
+    /// Creates a standalone channel.
+    ///
+    /// Use [`attach`](Self::attach) to add senders to this channel. Alternatively, create a channel
+    /// with [`BroadcastSender::into_channel`].
     pub fn new() -> Self {
         let (tx, rx) = oneshot::channel();
         Self {
@@ -307,64 +331,136 @@ impl<T: Clone> SharedChannel<T> {
         }
     }
 
-    /// TODO(ja): Doc
+    /// Attaches a sender of another message to this channel to receive the same value.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// todo!()
+    /// ```
+    pub fn attach(&mut self, sender: BroadcastSender<T>) {
+        sender.0.send(InitialResponse::Poll(self.rx.clone())).ok();
+    }
+
+    /// Send a value to all attached senders and close the channel.
+    ///
+    /// This method succeeds even if no senders are attached to this channel anymore. To check if
+    /// this channel is still active with senders attached, use [`is_attached`](Self::is_attached).
     pub fn send(self, value: T) {
         self.tx.send(value).ok();
     }
 
-    /// TODO(ja): Doc
-    pub fn attach(&self, sender: SharedSender<T>) {
-        sender.0.send(Foo::Shared(self.rx.clone())).ok();
+    /// Returns `true` if there are [requests](BroadcastRequest) waiting for this channel.
+    ///
+    /// The channel is not permanently closed when all waiting requests have detached. A new sender
+    /// can be attached using [`attach`](Self::attach) even after this method returns `false`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// todo!()
+    /// ```
+    pub fn is_attached(&self) -> bool {
+        self.rx.strong_count() > Some(1)
     }
 }
 
-impl<T: Clone> Default for SharedChannel<T> {
+impl<T: Clone> Default for BroadcastChannel<T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-/// TODO(ja): Doc
-// TODO(ja): Debug
+/// Sends a message response from a service back to the waiting [`BroadcastRequest`].
+///
+/// The sender is part of an [`BroadcastResponse`] and should be moved into the service interface
+/// type. If this sender is dropped without calling [`send`](Self::send), the request fails with
+/// [`SendError`].
+///
+/// As opposed to the regular [`Sender`] for asynchronous messages, this sender can be converted
+/// into a [channel](Self::into_channel) that efficiently shares a common response for multiple
+/// requests to the same data value. This is useful if resolving or computing the value takes more
+/// time.
+///
+/// # Example
+///
+/// ```
+/// todo!()
+/// ```
 #[derive(Debug)]
-pub struct SharedSender<T>(oneshot::Sender<Foo<T>>)
+pub struct BroadcastSender<T>(oneshot::Sender<InitialResponse<T>>)
 where
     T: Clone;
 
-impl<T: Clone> SharedSender<T> {
-    /// TODO(ja): Doc
+impl<T: Clone> BroadcastSender<T> {
+    /// Immediately resolve a ready value.
+    ///
+    /// This bypasses shared channels and directly sends the a value to the waiting
+    /// [request](BroadcastRequest). In terms of performance and behavior, using `send` is
+    /// equivalent to calling [`Sender::send`] for a regular [`AsyncResponse`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// todo!()
+    /// ```
     pub fn send(self, value: T) {
-        self.0.send(Foo::Value(value)).ok();
+        self.0.send(InitialResponse::Ready(value)).ok();
     }
 
-    /// TODO(ja): Doc
-    pub fn into_channel(self) -> SharedChannel<T> {
-        let channel = SharedChannel::new();
+    /// Creates a channel from this sender that can be shared with other senders.
+    ///
+    /// To add more senders to the created channel at a later point, use
+    /// [`attach`](BroadcastChannel::attach).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// todo!()
+    /// ```
+    pub fn into_channel(self) -> BroadcastChannel<T> {
+        let mut channel = BroadcastChannel::new();
         channel.attach(self);
         channel
     }
 }
 
-/// TODO(ja): Doc
-pub struct SharedResponse<T>(PhantomData<T>)
+/// Variation of [`AsyncResponse`] that efficiently broadcasts responses to many requests.
+///
+/// This response behavior is useful for services that cache or debounce requests. Instead of
+/// responding to each equivalent request via its individual sender, the broadcast behavior allows
+/// to create a [`BroadcastChannel`] that efficiently resolves all pending requests once the value
+/// is ready.
+///
+/// Similar to `AsyncResponse`, the service receives a sender that it can use to send a value
+/// directly back to the waiting request. Additionally, the sender can be converted into a channel
+/// or attached to an already existing channel, if the service expects more requests while computing
+/// the response.
+///
+/// # Example
+///
+/// ```
+/// todo!()
+/// ```
+pub struct BroadcastResponse<T>(PhantomData<T>)
 where
     T: Clone;
 
-impl<T: Clone> fmt::Debug for SharedResponse<T> {
+impl<T: Clone> fmt::Debug for BroadcastResponse<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("SharedResponse")
+        f.write_str("BroadcastResponse")
     }
 }
 
-impl<T: Clone> MessageResponse for SharedResponse<T> {
-    type Sender = SharedSender<T>;
-    type Output = SharedRequest<T>;
+impl<T: Clone> MessageResponse for BroadcastResponse<T> {
+    type Sender = BroadcastSender<T>;
+    type Output = BroadcastRequest<T>;
 
     fn channel() -> (Self::Sender, Self::Output) {
         let (tx, rx) = oneshot::channel();
         (
-            SharedSender(tx),
-            SharedRequest(SharedRequestState::Pending(rx)),
+            BroadcastSender(tx),
+            BroadcastRequest(BroadcastState::Pending(rx)),
         )
     }
 }
@@ -429,6 +525,17 @@ impl<T: Clone> MessageResponse for SharedResponse<T> {
 ///         Self::MyMessage(message, sender)
 ///     }
 /// }
+/// ```
+///
+/// # Broadcast Responses
+///
+/// [`BroadcastResponse`] is similar to the previous asynchronous response, but it additionally
+/// allows to efficiently handle duplicate requests for services that debounce equivalent requests
+/// or cache results. On the requesting side, this behavior is identical to the asynchronous
+/// behavior, but it provides more utilities to the implementing service.
+///
+/// ```
+/// todo!()
 /// ```
 ///
 /// See [`Interface`] for more examples on how to build interfaces using this trait.

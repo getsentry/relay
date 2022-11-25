@@ -13,7 +13,8 @@ use relay_common::RetryBackoff;
 use relay_config::{Config, RelayInfo};
 use relay_log::LogError;
 use relay_system::{
-    compat, Addr, FromMessage, Interface, Service, SharedChannel, SharedResponse, SharedSender,
+    compat, Addr, BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface,
+    Service,
 };
 
 use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
@@ -39,7 +40,7 @@ pub type GetRelayResult = Option<RelayInfo>;
 
 /// Manages authentication information for downstream Relays.
 #[derive(Debug)]
-pub struct RelayCache(GetRelay, SharedSender<GetRelayResult>);
+pub struct RelayCache(GetRelay, BroadcastSender<GetRelayResult>);
 
 impl RelayCache {
     pub fn from_registry() -> Addr<Self> {
@@ -50,9 +51,9 @@ impl RelayCache {
 impl Interface for RelayCache {}
 
 impl FromMessage<GetRelay> for RelayCache {
-    type Response = SharedResponse<GetRelayResult>;
+    type Response = BroadcastResponse<GetRelayResult>;
 
-    fn from_message(message: GetRelay, sender: SharedSender<GetRelayResult>) -> Self {
+    fn from_message(message: GetRelay, sender: BroadcastSender<GetRelayResult>) -> Self {
         Self(message, sender)
     }
 }
@@ -182,14 +183,14 @@ impl RelayState {
 ///
 ///  - `Ok`: The task succeeded and information from the response should be inserted into the cache.
 ///  - `Err`: The task failed and the senders should be placed back for the next fetch.
-type FetchResult = Result<GetRelaysResponse, HashMap<RelayId, SharedChannel<GetRelayResult>>>;
+type FetchResult = Result<GetRelaysResponse, HashMap<RelayId, BroadcastChannel<GetRelayResult>>>;
 
 /// Service implementing the [`RelayCache`] interface.
 #[derive(Debug)]
 pub struct RelayCacheService {
     static_relays: HashMap<RelayId, RelayInfo>,
     relays: HashMap<RelayId, RelayState>,
-    senders: HashMap<RelayId, SharedChannel<GetRelayResult>>,
+    senders: HashMap<RelayId, BroadcastChannel<GetRelayResult>>,
     fetch_channel: (mpsc::Sender<FetchResult>, mpsc::Receiver<FetchResult>),
     backoff: RetryBackoff,
     delay: SleepHandle,
@@ -301,7 +302,7 @@ impl RelayCacheService {
     ///
     /// Sends information immediately if it is available in the cache. Otherwise, this schedules a
     /// delayed background fetch and queues the sender.
-    fn get_or_fetch(&mut self, message: GetRelay, sender: SharedSender<GetRelayResult>) {
+    fn get_or_fetch(&mut self, message: GetRelay, sender: BroadcastSender<GetRelayResult>) {
         let relay_id = message.relay_id;
 
         // First check the statically configured relays
@@ -329,7 +330,7 @@ impl RelayCacheService {
         relay_log::debug!("relay {} public key requested", relay_id);
         self.senders
             .entry(relay_id)
-            .or_insert_with(SharedChannel::new)
+            .or_insert_with(BroadcastChannel::new)
             .attach(sender);
 
         if !self.backoff.started() {
