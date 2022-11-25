@@ -363,6 +363,7 @@
 <span id="361">361</span>
 <span id="362">362</span>
 <span id="363">363</span>
+<span id="364">364</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::sync::Arc;
@@ -377,7 +378,10 @@
 <span class="kw">use </span>relay_common::RetryBackoff;
 <span class="kw">use </span>relay_config::{Config, RelayInfo};
 <span class="kw">use </span>relay_log::LogError;
-<span class="kw">use </span>relay_system::{compat, Addr, AsyncResponse, FromMessage, Interface, Sender, Service};
+<span class="kw">use </span>relay_system::{
+    compat, Addr, BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface,
+    Service,
+};
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
 <span class="kw">use </span><span class="kw">crate</span>::service::REGISTRY;
@@ -402,7 +406,7 @@
 
 <span class="doccomment">/// Manages authentication information for downstream Relays.
 </span><span class="attribute">#[derive(Debug)]
-</span><span class="kw">pub struct </span>RelayCache(GetRelay, Sender&lt;GetRelayResult&gt;);
+</span><span class="kw">pub struct </span>RelayCache(GetRelay, BroadcastSender&lt;GetRelayResult&gt;);
 
 <span class="kw">impl </span>RelayCache {
     <span class="kw">pub fn </span>from_registry() -&gt; Addr&lt;<span class="self">Self</span>&gt; {
@@ -413,9 +417,9 @@
 <span class="kw">impl </span>Interface <span class="kw">for </span>RelayCache {}
 
 <span class="kw">impl </span>FromMessage&lt;GetRelay&gt; <span class="kw">for </span>RelayCache {
-    <span class="kw">type </span>Response = AsyncResponse&lt;GetRelayResult&gt;;
+    <span class="kw">type </span>Response = BroadcastResponse&lt;GetRelayResult&gt;;
 
-    <span class="kw">fn </span>from_message(message: GetRelay, sender: Sender&lt;GetRelayResult&gt;) -&gt; <span class="self">Self </span>{
+    <span class="kw">fn </span>from_message(message: GetRelay, sender: BroadcastSender&lt;GetRelayResult&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>(message, sender)
     }
 }
@@ -544,15 +548,15 @@
 <span class="doccomment">/// Result type of the background fetch task.
 ///
 ///  - `Ok`: The task succeeded and information from the response should be inserted into the cache.
-///  - `Err`: The task failed and the senders should be placed back for the next fetch.
-</span><span class="kw">type </span>FetchResult = <span class="prelude-ty">Result</span>&lt;GetRelaysResponse, HashMap&lt;RelayId, Vec&lt;Sender&lt;GetRelayResult&gt;&gt;&gt;&gt;;
+///  - `Err`: The task failed and the channels should be placed back for the next fetch.
+</span><span class="kw">type </span>FetchResult = <span class="prelude-ty">Result</span>&lt;GetRelaysResponse, HashMap&lt;RelayId, BroadcastChannel&lt;GetRelayResult&gt;&gt;&gt;;
 
 <span class="doccomment">/// Service implementing the [`RelayCache`] interface.
 </span><span class="attribute">#[derive(Debug)]
 </span><span class="kw">pub struct </span>RelayCacheService {
     static_relays: HashMap&lt;RelayId, RelayInfo&gt;,
     relays: HashMap&lt;RelayId, RelayState&gt;,
-    senders: HashMap&lt;RelayId, Vec&lt;Sender&lt;GetRelayResult&gt;&gt;&gt;,
+    channels: HashMap&lt;RelayId, BroadcastChannel&lt;GetRelayResult&gt;&gt;,
     fetch_channel: (mpsc::Sender&lt;FetchResult&gt;, mpsc::Receiver&lt;FetchResult&gt;),
     backoff: RetryBackoff,
     delay: SleepHandle,
@@ -565,7 +569,7 @@
         <span class="self">Self </span>{
             static_relays: config.static_relays().clone(),
             relays: HashMap::new(),
-            senders: HashMap::new(),
+            channels: HashMap::new(),
             fetch_channel: mpsc::channel(<span class="number">1</span>),
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             delay: SleepHandle::idle(),
@@ -598,7 +602,7 @@
     /// This assumes that currently no request is running. If the upstream request fails or new
     /// channels are pushed in the meanwhile, this will reschedule automatically.
     </span><span class="kw">fn </span>fetch_relays(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="kw">let </span>channels = std::mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.senders);
+        <span class="kw">let </span>channels = std::mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.channels);
         <span class="macro">relay_log::debug!</span>(
             <span class="string">&quot;updating public keys for {} relays (attempt {})&quot;</span>,
             channels.len(),
@@ -614,7 +618,7 @@
             <span class="kw">let </span>upstream = UpstreamRelay::from_registry();
             <span class="kw">let </span>query_result = <span class="kw">match </span>compat::send(upstream, SendQuery(request)).<span class="kw">await </span>{
                 <span class="prelude-val">Ok</span>(inner) =&gt; inner,
-                <span class="comment">// Drop the senders to propagate the SendError up.
+                <span class="comment">// Drop the channels to propagate the `SendError` up.
                 </span><span class="prelude-val">Err</span>(_send_error) =&gt; <span class="kw">return</span>,
             };
 
@@ -622,12 +626,10 @@
                 <span class="prelude-val">Ok</span>(response) =&gt; {
                     <span class="kw">let </span>response = GetRelaysResponse::from(response);
 
-                    <span class="kw">for </span>(id, channels) <span class="kw">in </span>channels {
+                    <span class="kw">for </span>(id, channel) <span class="kw">in </span>channels {
                         <span class="macro">relay_log::debug!</span>(<span class="string">&quot;relay {} public key updated&quot;</span>, id);
                         <span class="kw">let </span>info = response.relays.get(<span class="kw-2">&amp;</span>id).unwrap_or(<span class="kw-2">&amp;</span><span class="prelude-val">None</span>);
-                        <span class="kw">for </span>channel <span class="kw">in </span>channels {
-                            channel.send(info.clone());
-                        }
+                        channel.send(info.clone());
                     }
 
                     <span class="prelude-val">Ok</span>(response)
@@ -653,11 +655,11 @@
                 }
             }
             <span class="prelude-val">Err</span>(channels) =&gt; {
-                <span class="self">self</span>.senders.extend(channels);
+                <span class="self">self</span>.channels.extend(channels);
             }
         }
 
-        <span class="kw">if </span>!<span class="self">self</span>.senders.is_empty() {
+        <span class="kw">if </span>!<span class="self">self</span>.channels.is_empty() {
             <span class="self">self</span>.schedule_fetch();
         }
     }
@@ -665,8 +667,8 @@
     <span class="doccomment">/// Resolves information for a Relay and passes it to the sender.
     ///
     /// Sends information immediately if it is available in the cache. Otherwise, this schedules a
-    /// delayed background fetch and queues the sender.
-    </span><span class="kw">fn </span>get_or_fetch(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: GetRelay, sender: Sender&lt;GetRelayResult&gt;) {
+    /// delayed background fetch and attaches the sender to a broadcast channel.
+    </span><span class="kw">fn </span>get_or_fetch(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: GetRelay, sender: BroadcastSender&lt;GetRelayResult&gt;) {
         <span class="kw">let </span>relay_id = message.relay_id;
 
         <span class="comment">// First check the statically configured relays
@@ -692,10 +694,10 @@
         }
 
         <span class="macro">relay_log::debug!</span>(<span class="string">&quot;relay {} public key requested&quot;</span>, relay_id);
-        <span class="self">self</span>.senders
+        <span class="self">self</span>.channels
             .entry(relay_id)
-            .or_insert_with(Vec::new)
-            .push(sender);
+            .or_insert_with(BroadcastChannel::new)
+            .attach(sender);
 
         <span class="kw">if </span>!<span class="self">self</span>.backoff.started() {
             <span class="self">self</span>.schedule_fetch();
