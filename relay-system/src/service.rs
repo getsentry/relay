@@ -119,7 +119,7 @@ pub trait Interface: Send + 'static {}
 impl Interface for () {}
 
 /// An error when [sending](Addr::send) a message to a service fails.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SendError;
 
 impl fmt::Display for SendError {
@@ -200,6 +200,8 @@ impl<T> Sender<T> {
 /// Message response resulting in an asynchronous [`Request`].
 ///
 /// The sender must be placed on the interface in [`FromMessage::from_message`].
+///
+/// See [`FromMessage`] and [`Service`] for implementation advice and examples.
 pub struct AsyncResponse<T>(PhantomData<T>);
 
 impl<T> fmt::Debug for AsyncResponse<T> {
@@ -222,6 +224,8 @@ impl<T> MessageResponse for AsyncResponse<T> {
 ///
 /// There is no sender associated to this response. When implementing [`FromMessage`], the sender
 /// can be ignored.
+///
+/// See [`FromMessage`] and [`Service`] for implementation advice and examples.
 pub struct NoResponse;
 
 impl fmt::Debug for NoResponse {
@@ -307,7 +311,27 @@ impl<T: Clone> Future for BroadcastRequest<T> {
 /// # Example
 ///
 /// ```
-/// todo!()
+/// use relay_system::{BroadcastChannel, BroadcastSender};
+///
+/// struct MyService {
+///     channel: Option<BroadcastChannel<String>>,
+/// }
+///
+/// impl MyService {
+///     fn handle_message(&mut self, sender: BroadcastSender<String>) {
+///         if let Some(ref mut channel) = self.channel {
+///             channel.attach(sender);
+///         } else {
+///             self.channel = Some(sender.into_channel());
+///         }
+///     }
+///
+///     fn finish_compute(&mut self, value: String) {
+///         if let Some(channel) = self.channel.take() {
+///             channel.send(value);
+///         }
+///     }
+/// }
 /// ```
 #[derive(Debug)]
 pub struct BroadcastChannel<T>
@@ -336,7 +360,14 @@ impl<T: Clone> BroadcastChannel<T> {
     /// # Example
     ///
     /// ```
-    /// todo!()
+    /// use relay_system::{BroadcastChannel, BroadcastResponse, BroadcastSender};
+    /// # use relay_system::MessageResponse;
+    ///
+    /// // This is usually done as part of `Addr::send`
+    /// let (sender, rx) = BroadcastResponse::<&str>::channel();
+    ///
+    /// let mut channel = BroadcastChannel::new();
+    /// channel.attach(sender);
     /// ```
     pub fn attach(&mut self, sender: BroadcastSender<T>) {
         sender.0.send(InitialResponse::Poll(self.rx.clone())).ok();
@@ -346,6 +377,22 @@ impl<T: Clone> BroadcastChannel<T> {
     ///
     /// This method succeeds even if no senders are attached to this channel anymore. To check if
     /// this channel is still active with senders attached, use [`is_attached`](Self::is_attached).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_system::BroadcastResponse;
+    /// # use relay_system::MessageResponse;
+    /// # tokio::runtime::Builder::new_current_thread().build().unwrap().block_on(async {
+    ///
+    /// // This is usually done as part of `Addr::send`
+    /// let (sender, rx) = BroadcastResponse::<&str>::channel();
+    ///
+    /// let channel = sender.into_channel();
+    /// channel.send("test");
+    /// assert_eq!(rx.await, Ok("test"));
+    /// # })
+    /// ```
     pub fn send(self, value: T) {
         self.tx.send(value).ok();
     }
@@ -358,7 +405,17 @@ impl<T: Clone> BroadcastChannel<T> {
     /// # Example
     ///
     /// ```
-    /// todo!()
+    /// use relay_system::BroadcastResponse;
+    /// # use relay_system::MessageResponse;
+    ///
+    /// // This is usually done as part of `Addr::send`
+    /// let (sender, rx) = BroadcastResponse::<&str>::channel();
+    ///
+    /// let channel = sender.into_channel();
+    /// assert!(channel.is_attached());
+    ///
+    /// drop(rx);
+    /// assert!(!channel.is_attached());
     /// ```
     pub fn is_attached(&self) -> bool {
         self.rx.strong_count() > Some(1)
@@ -385,7 +442,25 @@ impl<T: Clone> Default for BroadcastChannel<T> {
 /// # Example
 ///
 /// ```
-/// todo!()
+/// use relay_system::BroadcastResponse;
+/// # use relay_system::MessageResponse;
+/// # tokio::runtime::Builder::new_current_thread().build().unwrap().block_on(async {
+///
+/// // This is usually done as part of `Addr::send`
+/// let (sender1, rx1) = BroadcastResponse::<&str>::channel();
+/// let (sender2, rx2) = BroadcastResponse::<&str>::channel();
+///
+/// // On the first time, convert the sender into a channel
+/// let mut channel = sender1.into_channel();
+///
+/// // The second time, attach the sender to the existing channel
+/// channel.attach(sender2);
+///
+/// // Send a value into the channel to resolve all requests simultaneously
+/// channel.send("test");
+/// assert_eq!(rx1.await, Ok("test"));
+/// assert_eq!(rx2.await, Ok("test"));
+/// # })
 /// ```
 #[derive(Debug)]
 pub struct BroadcastSender<T>(oneshot::Sender<InitialResponse<T>>)
@@ -402,7 +477,18 @@ impl<T: Clone> BroadcastSender<T> {
     /// # Example
     ///
     /// ```
-    /// todo!()
+    /// use relay_system::BroadcastResponse;
+    /// # use relay_system::MessageResponse;
+    /// # tokio::runtime::Builder::new_current_thread().build().unwrap().block_on(async {
+    ///
+    /// // This is usually done as part of `Addr::send`
+    /// let (sender, rx) = BroadcastResponse::<&str>::channel();
+    ///
+    /// // sender is NOT converted into a channel!
+    ///
+    /// sender.send("test");
+    /// assert_eq!(rx.await, Ok("test"));
+    /// # })
     /// ```
     pub fn send(self, value: T) {
         self.0.send(InitialResponse::Ready(value)).ok();
@@ -416,7 +502,13 @@ impl<T: Clone> BroadcastSender<T> {
     /// # Example
     ///
     /// ```
-    /// todo!()
+    /// use relay_system::{BroadcastChannel, BroadcastResponse};
+    /// # use relay_system::MessageResponse;
+    ///
+    /// // This is usually done as part of `Addr::send`
+    /// let (sender, rx) = BroadcastResponse::<&str>::channel();
+    ///
+    /// let channel: BroadcastChannel<&str> = sender.into_channel();
     /// ```
     pub fn into_channel(self) -> BroadcastChannel<T> {
         let mut channel = BroadcastChannel::new();
@@ -437,11 +529,7 @@ impl<T: Clone> BroadcastSender<T> {
 /// or attached to an already existing channel, if the service expects more requests while computing
 /// the response.
 ///
-/// # Example
-///
-/// ```
-/// todo!()
-/// ```
+/// See [`FromMessage`] and [`Service`] for implementation advice and examples.
 pub struct BroadcastResponse<T>(PhantomData<T>)
 where
     T: Clone;
@@ -535,10 +623,28 @@ impl<T: Clone> MessageResponse for BroadcastResponse<T> {
 /// behavior, but it provides more utilities to the implementing service.
 ///
 /// ```
-/// todo!()
+/// use relay_system::{BroadcastResponse, BroadcastSender, FromMessage, Interface};
+///
+/// struct MyMessage;
+///
+/// enum MyInterface {
+///     MyMessage(MyMessage, BroadcastSender<bool>),
+///     // ...
+/// }
+///
+/// impl Interface for MyInterface {}
+///
+/// impl FromMessage<MyMessage> for MyInterface {
+///     type Response = BroadcastResponse<bool>;
+///
+///     fn from_message(message: MyMessage, sender: BroadcastSender<bool>) -> Self {
+///         Self::MyMessage(message, sender)
+///     }
+/// }
 /// ```
 ///
-/// See [`Interface`] for more examples on how to build interfaces using this trait.
+/// See [`Interface`] for more examples on how to build interfaces using this trait and [`Service`]
+/// documentation for patterns and advice to handle messages.
 pub trait FromMessage<M>: Interface {
     /// The behavior declaring the return value when sending this message.
     type Response: MessageResponse;
@@ -806,6 +912,54 @@ pub fn channel<I: Interface>(name: &'static str) -> (Addr<I>, Receiver<I>) {
 ///
 /// let addr = MyService.start();
 /// ```
+///
+/// ## Debounce and Caching
+///
+/// Services that cache or debounce their responses can benefit from the [`BroadcastResponse`]
+/// behavior. To use this behavior, implement the message and interface identical to
+/// [`AsyncResponse`] above. This will provide a different sender type that can be converted into a
+/// channel to debounce responses. It is still possible to send values directly via the sender
+/// without a broadcast channel.
+///
+/// ```
+/// use std::collections::btree_map::{BTreeMap, Entry};
+/// use relay_system::{BroadcastChannel, BroadcastSender};
+///
+/// // FromMessage implementation using BroadcastResponse omitted for brevity.
+///
+/// struct MyService {
+///     cache: BTreeMap<u32, String>,
+///     channels: BTreeMap<u32, BroadcastChannel<String>>,
+/// }
+///
+/// impl MyService {
+///     fn handle_message(&mut self, id: u32, sender: BroadcastSender<String>) {
+///         if let Some(cached) = self.cache.get(&id) {
+///             sender.send(cached.clone());
+///             return;
+///         }
+///
+///         match self.channels.entry(id) {
+///             Entry::Vacant(entry) => {
+///                 entry.insert(sender.into_channel());
+///                 // Start async computation here.
+///             }
+///             Entry::Occupied(mut entry) => {
+///                 entry.get_mut().attach(sender);
+///             }
+///         }
+///     }
+///
+///     fn finish_compute(&mut self, id: u32, value: String) {
+///         if let Some(channel) = self.channels.remove(&id) {
+///             channel.send(value.clone());
+///         }
+///
+///         self.cache.insert(id, value);
+///     }
+/// }
+/// ```
+///
 pub trait Service: Sized {
     /// The interface of messages this service implements.
     ///
