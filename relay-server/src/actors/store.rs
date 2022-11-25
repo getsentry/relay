@@ -316,7 +316,10 @@ impl StoreService {
             content_type: item
                 .content_type()
                 .map(|content_type| content_type.as_str().to_owned()),
-            attachment_type: item.attachment_type().unwrap_or_default(),
+            attachment_type: item
+                .attachment_type()
+                .unwrap_or(&AttachmentType::default())
+                .clone(),
             chunks: chunk_index,
             size: Some(size),
             rate_limited: Some(item.rate_limited()),

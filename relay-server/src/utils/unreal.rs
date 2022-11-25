@@ -272,9 +272,9 @@ pub fn process_unreal_envelope(
         .get_header(UNREAL_USER_HEADER)
         .and_then(Value::as_str);
     let context_item =
-        envelope.get_item_by(|item| item.attachment_type() == Some(AttachmentType::UnrealContext));
+        envelope.get_item_by(|item| item.attachment_type() == Some(&AttachmentType::UnrealContext));
     let logs_item =
-        envelope.get_item_by(|item| item.attachment_type() == Some(AttachmentType::UnrealLogs));
+        envelope.get_item_by(|item| item.attachment_type() == Some(&AttachmentType::UnrealLogs));
 
     // Early exit if there is no information.
     if user_header.is_none() && context_item.is_none() && logs_item.is_none() {

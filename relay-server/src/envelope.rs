@@ -321,7 +321,7 @@ relay_common::impl_str_de!(ContentType, "a content type string");
 /// The type of an event attachment.
 ///
 /// These item types must align with the Sentry processing pipeline.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum AttachmentType {
     /// A regular attachment without special meaning.
     Attachment,
@@ -362,7 +362,8 @@ pub enum AttachmentType {
     UnrealLogs,
 
     /// Unknown attachment type, forwarded for compatibility.
-    Unknown(&'static str),
+    /// Attachments with this type will be dropped if `accept_unknown_items` is set to false.
+    Unknown(String),
 }
 
 impl Default for AttachmentType {
@@ -398,7 +399,7 @@ impl std::str::FromStr for AttachmentType {
             "event.breadcrumbs" => AttachmentType::Breadcrumbs,
             "unreal.context" => AttachmentType::UnrealContext,
             "unreal.logs" => AttachmentType::UnrealLogs,
-            other => AttachmentType::Unknown("some"), // FIXME
+            other => AttachmentType::Unknown(other.to_owned()), // FIXME
         })
     }
 }
@@ -524,9 +525,9 @@ impl Item {
     }
 
     /// Returns the attachment type if this item is an attachment.
-    pub fn attachment_type(&self) -> Option<AttachmentType> {
+    pub fn attachment_type(&self) -> Option<&AttachmentType> {
         // TODO: consider to replace this with an ItemType?
-        self.headers.attachment_type
+        self.headers.attachment_type.as_ref()
     }
 
     /// Sets the attachment type of this item.
@@ -640,19 +641,21 @@ impl Item {
 
             // Attachments are only event items if they are crash reports or if they carry partial
             // event payloads. Plain attachments never create event payloads.
-            ItemType::Attachment => match self.attachment_type().unwrap_or_default() {
-                AttachmentType::AppleCrashReport
-                | AttachmentType::Minidump
-                | AttachmentType::EventPayload
-                | AttachmentType::Breadcrumbs => true,
-                AttachmentType::Attachment
-                | AttachmentType::UnrealContext
-                | AttachmentType::UnrealLogs => false,
-                // When an outdated Relay instance forwards an unknown attachment type for compatibility,
-                // we assume that the attachment does not create a new event. This will make it hard
-                // to introduce new attachment types which _do_ create a new event.
-                AttachmentType::Unknown(_) => false,
-            },
+            ItemType::Attachment => {
+                match self.attachment_type().unwrap_or(&AttachmentType::default()) {
+                    &AttachmentType::AppleCrashReport
+                    | &AttachmentType::Minidump
+                    | &AttachmentType::EventPayload
+                    | &AttachmentType::Breadcrumbs => true,
+                    &AttachmentType::Attachment
+                    | &AttachmentType::UnrealContext
+                    | &AttachmentType::UnrealLogs => false,
+                    // When an outdated Relay instance forwards an unknown attachment type for compatibility,
+                    // we assume that the attachment does not create a new event. This will make it hard
+                    // to introduce new attachment types which _do_ create a new event.
+                    &AttachmentType::Unknown(_) => false,
+                }
+            }
 
             // Form data items may contain partial event payloads, but those are only ever valid if
             // they occur together with an explicit event item, such as a minidump or apple crash

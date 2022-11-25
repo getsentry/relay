@@ -56,11 +56,19 @@ def test_unknown_item(mini_sentry, relay):
     envelope.add_item(
         Item(payload=PayloadRef(bytes=b"something"), type="invalid_unknown")
     )
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(bytes=b"something"),
+            type="attachment",
+            attachment_type="attachment_unknown",
+        )
+    )
     relay.send_envelope(PROJECT_ID, envelope)
 
     envelope = mini_sentry.captured_events.get(timeout=1)
-    assert len(envelope.items) == 1
+    assert len(envelope.items) == 2
     assert envelope.items[0].type == "invalid_unknown"
+    assert envelope.items[1].attachment_type == "attachment_unknown"
 
 
 def test_drop_unknown_item(mini_sentry, relay):
@@ -71,6 +79,13 @@ def test_drop_unknown_item(mini_sentry, relay):
     envelope = Envelope()
     envelope.add_item(
         Item(payload=PayloadRef(bytes=b"something"), type="invalid_unknown")
+    )
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(bytes=b"something"),
+            type="attachment",
+            attachment_type="attachment_unknown",
+        )
     )
     relay.send_envelope(PROJECT_ID, envelope)
 
