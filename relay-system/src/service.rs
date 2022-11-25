@@ -373,7 +373,7 @@ impl<T: Clone> BroadcastChannel<T> {
         sender.0.send(InitialResponse::Poll(self.rx.clone())).ok();
     }
 
-    /// Send a value to all attached senders and close the channel.
+    /// Sends a value to all attached senders and closes the channel.
     ///
     /// This method succeeds even if no senders are attached to this channel anymore. To check if
     /// this channel is still active with senders attached, use [`is_attached`](Self::is_attached).
