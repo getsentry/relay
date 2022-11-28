@@ -6,6 +6,7 @@
 
 - Dynamic sampling is now based on the volume received by Relay by default and does not include the original volume dropped by client-side sampling in SDKs. This is required for the final dynamic sampling feature in the latest Sentry plans. ([#1591](https://github.com/getsentry/relay/pull/1591))
 - Add OpenTelemetry Context ([#1617](https://github.com/getsentry/relay/pull/1617))
+- Add `app.in_foreground` and `thread.main` flag to protocol. ([#1578](https://github.com/getsentry/relay/pull/1578))
 - Make `attachment_type` on envelope items forward compatible by adding fallback variant. ([#1638](https://github.com/getsentry/relay/pull/1638))
 
 **Internal**:
@@ -13,6 +14,7 @@
 - Emit a `service.back_pressure` metric that measures internal back pressure by service. ([#1583](https://github.com/getsentry/relay/pull/1583))
 - Track metrics for OpenTelemetry events. ([#1618](https://github.com/getsentry/relay/pull/1618))
 - Normalize transaction name for URLs transaction source, by replacing UUIDs, SHAs and numerical IDs in transaction names by placeholders. ([#1621](https://github.com/getsentry/relay/pull/1621))
+- Parse string as number to handle a release bug. ([#1637](https://github.com/getsentry/relay/pull/1637))
 
 ## 22.11.0
 
