@@ -17,7 +17,7 @@ use tokio::sync::mpsc;
 
 use crate::actors::outcome::DiscardReason;
 use crate::actors::processor::ProcessEnvelope;
-use crate::actors::project::{Project, ProjectState};
+use crate::actors::project::{Project, ProjectSender, ProjectState};
 use crate::actors::project_local::LocalProjectSource;
 use crate::actors::project_upstream::UpstreamProjectSource;
 use crate::envelope::Envelope;
@@ -28,7 +28,7 @@ use crate::utils::{self, EnvelopeContext, GarbageDisposal};
 #[cfg(feature = "processing")]
 use {crate::actors::project_redis::RedisProjectSource, relay_common::clone};
 
-#[derive(Fail, Debug)]
+#[derive(Fail, Debug, Clone)]
 pub enum ProjectError {
     #[fail(display = "failed to fetch project state from upstream")]
     FetchFailed,
@@ -200,10 +200,7 @@ impl UpdateRateLimits {
 pub enum ProjectCache {
     // TODO(ja): Rename to RequestUpdate or FetchProjectState
     Update(UpdateProjectState),
-    Get(
-        GetProjectState,
-        Sender<Result<Arc<ProjectState>, ProjectError>>,
-    ),
+    Get(GetProjectState, ProjectSender),
     GetCached(GetCachedProjectState, Sender<Option<Arc<ProjectState>>>),
     CheckEnvelope(
         CheckEnvelope,
@@ -234,12 +231,9 @@ impl FromMessage<UpdateProjectState> for ProjectCache {
 }
 
 impl FromMessage<GetProjectState> for ProjectCache {
-    type Response = relay_system::AsyncResponse<Result<Arc<ProjectState>, ProjectError>>;
+    type Response = relay_system::BroadcastResponse<Result<Arc<ProjectState>, ProjectError>>;
 
-    fn from_message(
-        message: GetProjectState,
-        sender: Sender<Result<Arc<ProjectState>, ProjectError>>,
-    ) -> Self {
+    fn from_message(message: GetProjectState, sender: ProjectSender) -> Self {
         Self::Get(message, sender)
     }
 }
@@ -529,19 +523,14 @@ impl ProjectCacheService {
         });
     }
 
-    async fn handle_get(
-        &mut self,
-        message: GetProjectState,
-    ) -> Result<Arc<ProjectState>, ProjectError> {
+    fn handle_get(&mut self, message: GetProjectState, sender: ProjectSender) {
         self.get_or_create_project(message.project_key)
-            .get_or_fetch_state(message.no_cache)
-            .await // TODO(ja): This is evil
+            .get_state(sender, message.no_cache);
     }
 
     fn handle_get_cached(&mut self, message: GetCachedProjectState) -> Option<Arc<ProjectState>> {
-        let project = self.get_or_create_project(message.project_key);
-        project.get_or_fetch_state(false);
-        project.valid_state()
+        self.get_or_create_project(message.project_key)
+            .get_cached_state(false)
     }
 
     fn handle_check_envelope(
@@ -553,7 +542,7 @@ impl ProjectCacheService {
         // Preload the project cache so that it arrives a little earlier in processing. However,
         // do not pass `no_cache`. In case the project is rate limited, we do not want to force
         // a full reload. Fetching must not block the store request.
-        project.get_or_fetch_state(false);
+        project.prefetch(false);
 
         project.check_envelope(message.envelope, message.context)
     }
@@ -562,7 +551,7 @@ impl ProjectCacheService {
         // Preload the project cache for dynamic sampling in parallel to the main one.
         if let Some(sampling_key) = utils::get_sampling_key(&message.envelope) {
             self.get_or_create_project(sampling_key)
-                .get_or_fetch_state(message.envelope.meta().no_cache());
+                .prefetch(message.envelope.meta().no_cache());
         }
 
         self.get_or_create_project(message.envelope.meta().public_key())
@@ -600,8 +589,7 @@ impl ProjectCacheService {
     async fn handle_message(&mut self, message: ProjectCache) {
         match message {
             ProjectCache::Update(message) => self.handle_update(message).await,
-            // TODO(ja): This await is evil.
-            ProjectCache::Get(message, sender) => sender.send(self.handle_get(message).await),
+            ProjectCache::Get(message, sender) => self.handle_get(message, sender),
             ProjectCache::GetCached(message, sender) => {
                 sender.send(self.handle_get_cached(message))
             }

@@ -218,8 +218,11 @@ impl ServiceState {
         }
 
         let guard = aggregator_runtime.enter();
-        let aggregator =
-            AggregatorService::new(config.aggregator_config(), Some(project_cache.clone())).start();
+        let aggregator = AggregatorService::new(
+            config.aggregator_config(),
+            Some(project_cache.clone().recipient()),
+        )
+        .start();
         drop(guard);
 
         REGISTRY

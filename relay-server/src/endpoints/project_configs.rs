@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use actix::prelude::*;
 use actix_web::{Error, FromRequest, Json};
+use futures::{FutureExt, TryFutureExt};
 use futures01::{future, Future};
 use serde::{Deserialize, Serialize};
 
@@ -132,17 +133,21 @@ fn get_project_configs(
         let project_future = if version.version >= ENDPOINT_V3 && !no_cache {
             let future = project_cache
                 .send(GetCachedProjectState::new(project_key))
+                .boxed()
+                .compat()
                 .map(Ok);
             Box::new(future) as ResponseFuture<Result<Option<Arc<ProjectState>>, _>, _>
         } else {
             let future = project_cache
                 .send(GetProjectState::new(project_key).no_cache(no_cache))
+                .boxed()
+                .compat()
                 .map(|state_result| state_result.map(Some));
             Box::new(future) as ResponseFuture<Result<Option<Arc<ProjectState>>, _>, _>
         };
 
         project_future
-            .map_err(Error::from)
+            .map_err(|_| Error::from(MailboxError::Closed))
             .map(move |state_result| (project_key, state_result))
     });
 

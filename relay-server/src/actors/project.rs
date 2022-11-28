@@ -3,7 +3,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Utc};
-use futures01::{future::Shared, sync::oneshot, Future};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use smallvec::SmallVec;
@@ -34,9 +33,7 @@ use crate::metrics_extraction::transactions::TransactionMetricsConfig;
 use crate::metrics_extraction::TaggingRule;
 use crate::service::Registry;
 use crate::statsd::RelayCounters;
-use crate::utils::{
-    self, EnvelopeContext, EnvelopeLimiter, ErrorBoundary, MetricsLimiter, Response,
-};
+use crate::utils::{self, EnvelopeContext, EnvelopeLimiter, ErrorBoundary, MetricsLimiter};
 
 /// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -61,6 +58,11 @@ pub enum ExpiryState {
     /// An expired project state that should not be used. See [`Expiry::Expired`].
     Expired,
 }
+
+/// TODO(ja): Doc
+pub type ProjectResult = Result<Arc<ProjectState>, ProjectError>;
+pub type ProjectSender = relay_system::BroadcastSender<ProjectResult>;
+pub type ProjectChannel = relay_system::BroadcastChannel<ProjectResult>;
 
 /// Features exposed by project config.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -492,17 +494,14 @@ pub struct PublicKeyConfig {
 }
 
 struct StateChannel {
-    sender: oneshot::Sender<Arc<ProjectState>>,
-    receiver: Shared<oneshot::Receiver<Arc<ProjectState>>>,
+    inner: ProjectChannel,
     no_cache: bool,
 }
 
 impl StateChannel {
     pub fn new() -> Self {
-        let (sender, receiver) = oneshot::channel();
         Self {
-            sender,
-            receiver: receiver.shared(),
+            inner: ProjectChannel::new(),
             no_cache: false,
         }
     }
@@ -512,13 +511,13 @@ impl StateChannel {
         self
     }
 
-    pub fn receiver(&self) -> Shared<oneshot::Receiver<Arc<ProjectState>>> {
-        self.receiver.clone()
-    }
+    // pub fn receiver(&self) -> Shared<oneshot::Receiver<Arc<ProjectState>>> {
+    //     self.inner.clone()
+    // }
 
-    pub fn send(self, state: Arc<ProjectState>) {
-        self.sender.send(state).ok();
-    }
+    // pub fn send(self, state: Arc<ProjectState>) {
+    //     self.sender.send(state).ok();
+    // }
 }
 
 /// Structure representing organization and project configuration for a project key.
@@ -583,7 +582,7 @@ impl Project {
     /// Returns the project state if it is not expired.
     ///
     /// Convenience wrapper around [`expiry_state`](Self::expiry_state).
-    pub fn valid_state(&self) -> Option<Arc<ProjectState>> {
+    fn valid_state(&self) -> Option<Arc<ProjectState>> {
         match self.expiry_state() {
             ExpiryState::Updated(state) => Some(state),
             ExpiryState::Stale(state) => Some(state),
@@ -650,6 +649,26 @@ impl Project {
         }
     }
 
+    /// TODO(ja): Doc
+    fn fetch_state(&mut self, no_cache: bool) {
+        // TODO(ja): Invert this comment
+        // Either there is no running request, or the current request does not have
+        // `no_cache` set. In both cases, start a new request. All in-flight receivers will
+        // get the latest state.
+        if let Some(channel) = self.state_channel {
+            if channel.no_cache || !no_cache {
+                return;
+            }
+        }
+
+        self.state_channel
+            .get_or_insert_with(StateChannel::new)
+            .no_cache(no_cache);
+
+        relay_log::debug!("project {} state requested", self.project_key);
+        ProjectCache::from_registry().send(UpdateProjectState::new(self.project_key, no_cache));
+    }
+
     /// Ensures the project state gets updated and returns it once valid.
     ///
     /// This first checks if the state needs to be updated. This is the case if the project state
@@ -664,10 +683,7 @@ impl Project {
     ///  - [`Response::Future`] if the state was expired or `no_cache` was specified. This future
     ///    may fail if the state repeatedly cannot be fetched. The future does not have to be
     ///    awaited for the update to pass.
-    pub fn get_or_fetch_state(
-        &mut self,
-        mut no_cache: bool,
-    ) -> Response<Arc<ProjectState>, ProjectError> {
+    pub fn get_cached_state(&mut self, no_cache: bool) -> Option<Arc<ProjectState>> {
         // count number of times we are looking for the project state
         metric!(counter(RelayCounters::ProjectStateGet) += 1);
 
@@ -689,41 +705,27 @@ impl Project {
             // The project is semi-outdated, fetch new state but return old one.
             ExpiryState::Stale(state) => Some(state),
             // The project is not outdated, return early here to jump over fetching logic below.
-            ExpiryState::Updated(state) => return Response::ok(state),
+            ExpiryState::Updated(state) => return Some(state),
         };
 
-        let receiver = match self.state_channel {
-            Some(ref channel) if channel.no_cache || !no_cache => {
-                relay_log::debug!("project {} state request amended", self.project_key);
-                channel.receiver()
-            }
-            _ => {
-                relay_log::debug!("project {} state requested", self.project_key);
+        self.fetch_state(no_cache);
+        cached_state
+    }
 
-                let receiver = self
-                    .state_channel
-                    .get_or_insert_with(StateChannel::new)
-                    .no_cache(no_cache)
-                    .receiver();
-
-                // Either there is no running request, or the current request does not have
-                // `no_cache` set. In both cases, start a new request. All in-flight receivers will
-                // get the latest state.
-                self.fetch_state(no_cache);
-
-                receiver
-            }
-        };
-
-        if let Some(rv) = cached_state {
-            return Response::ok(rv);
+    /// TODO(ja): Doc
+    pub fn get_state(&mut self, sender: ProjectSender, no_cache: bool) {
+        if let Some(state) = self.get_cached_state(no_cache) {
+            sender.send(Ok(state))
+        } else if let Some(channel) = self.state_channel {
+            channel.inner.attach(sender);
+        } else {
+            // TODO(ja): See if we can get rid of this branch
         }
+    }
 
-        let future = receiver
-            .map(|shared| (*shared).clone())
-            .map_err(|_| ProjectError::FetchFailed);
-
-        Response::future(future)
+    /// TODO(ja): Doc
+    pub fn prefetch(&mut self, no_cache: bool) {
+        self.get_cached_state(no_cache);
     }
 
     /// Validates the envelope and submits the envelope to the next stage.
@@ -766,9 +768,9 @@ impl Project {
     /// This method will trigger an update of the project state internally if the state is stale or
     /// outdated.
     pub fn enqueue_validation(&mut self, envelope: Envelope, context: EnvelopeContext) {
-        match self.get_or_fetch_state(envelope.meta().no_cache()) {
-            Response::Reply(Ok(state)) => self.flush_validation(envelope, context, state),
-            _ => self.pending_validations.push_back((envelope, context)),
+        match self.get_cached_state(envelope.meta().no_cache()) {
+            Some(state) => self.flush_validation(envelope, context, state),
+            None => self.pending_validations.push_back((envelope, context)),
         }
     }
 
@@ -788,16 +790,16 @@ impl Project {
     /// This method will trigger an update of the project state internally if the state is stale or
     /// outdated.
     pub fn enqueue_sampling(&mut self, message: ProcessEnvelope) {
-        match self.get_or_fetch_state(message.envelope.meta().no_cache()) {
-            Response::Reply(_) => self.flush_sampling(message),
-            Response::Future(_) => self.pending_sampling.push_back(message),
+        match self.get_cached_state(message.envelope.meta().no_cache()) {
+            Some(_) => self.flush_sampling(message),
+            None => self.pending_sampling.push_back(message),
         }
     }
 
     /// Replaces the internal project state with a new one and triggers pending actions.
     ///
     /// This flushes pending envelopes from [`ValidateEnvelope`] and [`AddSamplingState`] and
-    /// notifies all pending receivers from [`get_or_fetch_state`](Self::get_or_fetch_state).
+    /// notifies all pending receivers from [`get_or_fetch_state2`](Self::get_or_fetch_state2).
     ///
     /// `no_cache` should be passed from the requesting call. Updates with `no_cache` will always
     /// take precedence.
@@ -835,12 +837,7 @@ impl Project {
 
         // Flush all waiting recipients.
         relay_log::debug!("project state {} updated", self.project_key);
-        channel.send(state);
-    }
-
-    fn fetch_state(&mut self, no_cache: bool) {
-        debug_assert!(self.state_channel.is_some());
-        ProjectCache::from_registry().send(UpdateProjectState::new(self.project_key, no_cache));
+        channel.inner.send(Ok(state)); // TODO(ja): Did this ever send non-Ok?
     }
 
     /// Creates `Scoping` for this project if the state is loaded.
@@ -911,29 +908,18 @@ impl Project {
 
         // Schedule an update to the project state if it is outdated, regardless of whether the
         // metrics can be forwarded or not. We never wait for this update.
-        self.get_or_fetch_state(false);
-
-        let project_state = match expiry_state {
-            ExpiryState::Updated(state) | ExpiryState::Stale(state) => state,
-            ExpiryState::Expired => {
-                relay_log::trace!("project expired: merging back {} buckets", buckets.len());
-                // If the state is outdated, we need to wait for an updated state. Put them back into the
-                // aggregator.
-                Registry::aggregator().send(MergeBuckets::new(self.project_key, buckets));
-                return;
-            }
+        let Some(project_state) = self.get_cached_state(false) else {
+            relay_log::trace!("project expired: merging back {} buckets", buckets.len());
+            // If the state is outdated, we need to wait for an updated state. Put them back into
+            // the aggregator.
+            Registry::aggregator().send(MergeBuckets::new(self.project_key, buckets));
+            return;
         };
 
-        let scoping = match self.scoping() {
-            Some(scoping) => scoping,
-            _ => {
-                relay_log::trace!(
-                    "there is no scoping: merging back {} buckets",
-                    buckets.len()
-                );
-                Registry::aggregator().send(MergeBuckets::new(self.project_key, buckets));
-                return;
-            }
+        let Some(scoping) = self.scoping() else {
+            relay_log::trace!("there is no scoping: merging back {} buckets", buckets.len());
+            Registry::aggregator().send(MergeBuckets::new(self.project_key, buckets));
+            return;
         };
 
         // Only send if the project state is valid, otherwise drop this bucket.
