@@ -199,6 +199,11 @@
 <span id="197">197</span>
 <span id="198">198</span>
 <span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
 </pre><pre class="rust"><code><span class="kw">use </span>serde::{Deserialize, Serialize, Serializer};
 
 <span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
@@ -320,8 +325,11 @@
     <span class="doccomment">/// A flag indicating whether the thread crashed. Defaults to `false`.
     </span><span class="kw">pub </span>crashed: Annotated&lt;bool&gt;,
 
-    <span class="doccomment">/// A flag indicating whether the thread was in the foreground.  Defaults to `false`.
+    <span class="doccomment">/// A flag indicating whether the thread was in the foreground. Defaults to `false`.
     </span><span class="kw">pub </span>current: Annotated&lt;bool&gt;,
+
+    <span class="doccomment">/// A flag indicating whether the thread was responsible for rendering the user interface.
+    </span><span class="kw">pub </span>main: Annotated&lt;bool&gt;,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
     </span><span class="attribute">#[metastructure(additional_properties)]
@@ -366,6 +374,7 @@
   &quot;name&quot;: &quot;myname&quot;,
   &quot;crashed&quot;: true,
   &quot;current&quot;: true,
+  &quot;main&quot;: true,
   &quot;other&quot;: &quot;value&quot;
 }&quot;#</span>;
         <span class="kw">let </span>thread = Annotated::new(Thread {
@@ -375,6 +384,7 @@
             raw_stacktrace: Annotated::empty(),
             crashed: Annotated::new(<span class="bool-val">true</span>),
             current: Annotated::new(<span class="bool-val">true</span>),
+            main: Annotated::new(<span class="bool-val">true</span>),
             other: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
                 map.insert(

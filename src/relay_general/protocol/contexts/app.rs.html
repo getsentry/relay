@@ -117,6 +117,11 @@
 <span id="115">115</span>
 <span id="116">116</span>
 <span id="117">117</span>
+<span id="118">118</span>
+<span id="119">119</span>
+<span id="120">120</span>
+<span id="121">121</span>
+<span id="122">122</span>
 </pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::protocol::LenientString;
 <span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Object, Value};
 
@@ -155,6 +160,9 @@
     <span class="doccomment">/// Amount of memory used by the application in bytes.
     </span><span class="kw">pub </span>app_memory: Annotated&lt;u64&gt;,
 
+    <span class="doccomment">/// A flag indicating whether the app is in foreground or not. An app is in foreground when it&#39;s visible to the user.
+    </span><span class="kw">pub </span>in_foreground: Annotated&lt;bool&gt;,
+
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
     </span><span class="attribute">#[metastructure(additional_properties, retain = <span class="string">&quot;true&quot;</span>, pii = <span class="string">&quot;maybe&quot;</span>)]
     </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
@@ -183,6 +191,7 @@
   &quot;app_version&quot;: &quot;1.0&quot;,
   &quot;app_build&quot;: &quot;100001&quot;,
   &quot;app_memory&quot;: 22883948,
+  &quot;in_foreground&quot;: true,
   &quot;other&quot;: &quot;value&quot;,
   &quot;type&quot;: &quot;app&quot;
 }&quot;#</span>;
@@ -195,6 +204,7 @@
             app_version: Annotated::new(<span class="string">&quot;1.0&quot;</span>.to_string()),
             app_build: Annotated::new(<span class="string">&quot;100001&quot;</span>.to_string().into()),
             app_memory: Annotated::new(<span class="number">22883948</span>),
+            in_foreground: Annotated::new(<span class="bool-val">true</span>),
             other: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
                 map.insert(
