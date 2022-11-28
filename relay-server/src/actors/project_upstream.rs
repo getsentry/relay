@@ -16,7 +16,7 @@ use relay_log::LogError;
 use relay_statsd::metric;
 
 use crate::actors::project::ProjectState;
-use crate::actors::project_cache::{FetchProjectState, ProjectError, ProjectStateResponse};
+use crate::actors::project_cache::{FetchProjectState, ProjectError};
 use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{self, ErrorBoundary};
@@ -343,7 +343,7 @@ impl Actor for UpstreamProjectSource {
 }
 
 impl Handler<FetchProjectState> for UpstreamProjectSource {
-    type Result = ResponseFuture<ProjectStateResponse, ()>;
+    type Result = ResponseFuture<Arc<ProjectState>, ()>;
 
     fn handle(&mut self, message: FetchProjectState, context: &mut Self::Context) -> Self::Result {
         if !self.backoff.started() {
@@ -377,11 +377,6 @@ impl Handler<FetchProjectState> for UpstreamProjectSource {
             channel.no_cache();
         }
 
-        Box::new(
-            channel
-                .receiver()
-                .map_err(|_| ())
-                .map(|x| ProjectStateResponse::new((*x).clone())),
-        )
+        Box::new(channel.receiver().map_err(|_| ()).map(|x| (*x).clone()))
     }
 }

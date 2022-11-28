@@ -30,6 +30,7 @@ use {crate::actors::project_redis::RedisProjectSource, relay_common::clone};
 
 #[derive(Fail, Debug, Clone)]
 pub enum ProjectError {
+    // TODO(ja): Check why this is unused now.
     #[fail(display = "failed to fetch project state from upstream")]
     FetchFailed,
 
@@ -346,8 +347,7 @@ impl ProjectSource {
         &self,
         project_key: ProjectKey,
         no_cache: bool,
-    ) -> Result<ProjectStateResponse, ()> {
-        // TODO(ja): Remove ProjectStateResponse
+    ) -> Result<Arc<ProjectState>, ()> {
         let state_opt = self
             .local_source
             .send(FetchOptionalProjectState { project_key })
@@ -356,18 +356,18 @@ impl ProjectSource {
             .map_err(|_| ())?;
 
         if let Some(state) = state_opt {
-            return Ok(ProjectStateResponse::new(state));
+            return Ok(state);
         }
 
         match self.config.relay_mode() {
             RelayMode::Proxy => {
-                return Ok(ProjectStateResponse::new(Arc::new(ProjectState::allowed())));
+                return Ok(Arc::new(ProjectState::allowed()));
             }
             RelayMode::Static => {
-                return Ok(ProjectStateResponse::new(Arc::new(ProjectState::missing())));
+                return Ok(Arc::new(ProjectState::missing()));
             }
             RelayMode::Capture => {
-                return Ok(ProjectStateResponse::new(Arc::new(ProjectState::allowed())));
+                return Ok(Arc::new(ProjectState::allowed()));
             }
             RelayMode::Managed => {
                 // Proceed with loading the config from redis or upstream
@@ -389,18 +389,17 @@ impl ProjectSource {
         };
 
         if let Some(state) = state_opt {
-            return Ok(ProjectStateResponse::new(state));
+            return Ok(state);
         }
 
-        Ok(self
-            .upstream_source
+        self.upstream_source
             .send(FetchProjectState {
                 project_key,
                 no_cache,
             })
             .compat()
             .await
-            .map_err(|_| ())??)
+            .map_err(|_| ())?
     }
 }
 
@@ -430,7 +429,7 @@ pub struct ProjectCacheService {
 impl ProjectCacheService {
     pub fn new(config: Arc<Config>, redis: Option<RedisPool>) -> Self {
         Self {
-            config,
+            config: config.clone(),
             projects: hashbrown::HashMap::new(),
             garbage_disposal: GarbageDisposal::new(),
             source: ProjectSource::new(config, redis),
@@ -508,10 +507,10 @@ impl ProjectCacheService {
         let sender = self.inner.0.clone();
 
         tokio::spawn(async move {
-            let state = match source.fetch(project_key, no_cache).await {
-                Ok(response) => response.state,
-                Err(()) => Arc::new(ProjectState::err()),
-            };
+            let state = source
+                .fetch(project_key, no_cache)
+                .await
+                .unwrap_or_else(|()| Arc::new(ProjectState::err()));
 
             let message = UpdateProjectState2 {
                 project_key,
@@ -611,6 +610,7 @@ impl Service for ProjectCacheService {
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
+            let mut ticker = tokio::time::interval(self.config.cache_eviction_interval());
             relay_log::info!("project cache started");
 
             loop {
@@ -618,9 +618,7 @@ impl Service for ProjectCacheService {
                     biased;
 
                     Some(message) = self.inner.1.recv() => self.merge_state(message),
-                    // context.run_interval(self.config.cache_eviction_interval(), |slf, _| {
-                    //     slf.evict_stale_project_caches()
-                    // });
+                    _ = ticker.tick() => self.evict_stale_project_caches(),
                     Some(message) = rx.recv() => self.handle_message(message).await,
                     else => break,
                 }
@@ -628,17 +626,6 @@ impl Service for ProjectCacheService {
 
             relay_log::info!("project cache stopped");
         });
-    }
-}
-
-#[derive(Debug)]
-pub struct ProjectStateResponse {
-    pub state: Arc<ProjectState>,
-}
-
-impl ProjectStateResponse {
-    pub fn new(state: Arc<ProjectState>) -> Self {
-        ProjectStateResponse { state }
     }
 }
 
@@ -652,7 +639,7 @@ pub struct FetchProjectState {
 }
 
 impl Message for FetchProjectState {
-    type Result = Result<ProjectStateResponse, ()>;
+    type Result = Result<Arc<ProjectState>, ()>;
 }
 
 #[derive(Clone, Debug)]

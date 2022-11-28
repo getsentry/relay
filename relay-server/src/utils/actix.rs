@@ -16,7 +16,7 @@ pub fn create_runtime(threads: usize) -> Runtime {
     tokio::runtime::Builder::new_multi_thread()
         .worker_threads(threads)
         .enable_all()
-        .on_thread_start(|| System::set_current(system.clone()))
+        .on_thread_start(move || System::set_current(system.clone()))
         .build()
         .unwrap()
 }

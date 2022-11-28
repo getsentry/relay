@@ -651,11 +651,9 @@ impl Project {
 
     /// TODO(ja): Doc
     fn fetch_state(&mut self, no_cache: bool) {
-        // TODO(ja): Invert this comment
-        // Either there is no running request, or the current request does not have
-        // `no_cache` set. In both cases, start a new request. All in-flight receivers will
-        // get the latest state.
-        if let Some(channel) = self.state_channel {
+        // If there is a running request and we do not need to upgrade it to no_cache, skip
+        // scheduling a new fetch.
+        if let Some(ref channel) = self.state_channel {
             if channel.no_cache || !no_cache {
                 return;
             }
@@ -669,6 +667,7 @@ impl Project {
         ProjectCache::from_registry().send(UpdateProjectState::new(self.project_key, no_cache));
     }
 
+    /// TODO(ja): Update doc
     /// Ensures the project state gets updated and returns it once valid.
     ///
     /// This first checks if the state needs to be updated. This is the case if the project state
@@ -683,7 +682,7 @@ impl Project {
     ///  - [`Response::Future`] if the state was expired or `no_cache` was specified. This future
     ///    may fail if the state repeatedly cannot be fetched. The future does not have to be
     ///    awaited for the update to pass.
-    pub fn get_cached_state(&mut self, no_cache: bool) -> Option<Arc<ProjectState>> {
+    pub fn get_cached_state(&mut self, mut no_cache: bool) -> Option<Arc<ProjectState>> {
         // count number of times we are looking for the project state
         metric!(counter(RelayCounters::ProjectStateGet) += 1);
 
@@ -716,7 +715,7 @@ impl Project {
     pub fn get_state(&mut self, sender: ProjectSender, no_cache: bool) {
         if let Some(state) = self.get_cached_state(no_cache) {
             sender.send(Ok(state))
-        } else if let Some(channel) = self.state_channel {
+        } else if let Some(ref mut channel) = self.state_channel {
             channel.inner.attach(sender);
         } else {
             // TODO(ja): See if we can get rid of this branch
@@ -902,9 +901,8 @@ impl Project {
         })
     }
 
-    pub fn flush_buckets(&self, partition_key: Option<u64>, buckets: Vec<Bucket>) {
+    pub fn flush_buckets(&mut self, partition_key: Option<u64>, buckets: Vec<Bucket>) {
         let config = self.config.clone();
-        let expiry_state = self.expiry_state();
 
         // Schedule an update to the project state if it is outdated, regardless of whether the
         // metrics can be forwarded or not. We never wait for this update.

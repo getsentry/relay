@@ -1,4 +1,3 @@
-use std::cmp::max;
 use std::collections::{btree_map, hash_map::Entry, BTreeMap, BTreeSet, HashMap};
 use std::fmt;
 use std::hash::Hasher;
@@ -1836,7 +1835,7 @@ impl AggregatorService {
             None => {
                 return BTreeMap::from([(None, buckets.into_iter().map(|x| x.bucket).collect())]);
             }
-            Some(x) => max(1, x), // handle 0,
+            Some(x) => x.max(1), // handle 0,
         };
         let mut partitions = BTreeMap::<_, Vec<Bucket>>::new();
         for bucket in buckets {
