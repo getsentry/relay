@@ -373,37 +373,24 @@ impl ProjectSource {
         }
 
         match self.config.relay_mode() {
-            RelayMode::Proxy => {
-                return Ok(Arc::new(ProjectState::allowed()));
-            }
-            RelayMode::Static => {
-                return Ok(Arc::new(ProjectState::missing()));
-            }
-            RelayMode::Capture => {
-                return Ok(Arc::new(ProjectState::allowed()));
-            }
-            RelayMode::Managed => {
-                // Proceed with loading the config from redis or upstream
-            }
+            RelayMode::Proxy => return Ok(Arc::new(ProjectState::allowed())),
+            RelayMode::Static => return Ok(Arc::new(ProjectState::missing())),
+            RelayMode::Capture => return Ok(Arc::new(ProjectState::allowed())),
+            RelayMode::Managed => (), // Proceed with loading the config from redis or upstream
         }
 
-        #[cfg(not(feature = "processing"))]
-        let state_opt = None;
-
         #[cfg(feature = "processing")]
-        let state_opt = if let Some(ref redis_source) = self.redis_source {
-            redis_source
+        if let Some(ref redis_source) = self.redis_source {
+            let state_opt = redis_source
                 .send(FetchOptionalProjectState { project_key })
                 .compat()
                 .await
-                .map_err(|_| ())?
-        } else {
-            None
-        };
+                .map_err(|_| ())?;
 
-        if let Some(state) = state_opt {
-            return Ok(state);
-        }
+            if let Some(state) = state_opt {
+                return Ok(state);
+            }
+        };
 
         self.upstream_source
             .send(FetchProjectState {
