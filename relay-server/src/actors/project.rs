@@ -519,6 +519,11 @@ impl StateChannel {
     // }
 }
 
+enum GetOrFetch<'a> {
+    Cached(Arc<ProjectState>),
+    Scheduled(&'a mut StateChannel),
+}
+
 /// Structure representing organization and project configuration for a project key.
 ///
 /// This structure no longer uniquely identifies a project. Instead, it identifies a project key.
@@ -652,39 +657,23 @@ impl Project {
     ///
     /// If the state is already being updated in the background, this method checks if the request
     /// needs to be upgraded with the `no_cache` flag to ensure a more recent update.
-    fn fetch_state(&mut self, no_cache: bool) {
+    fn fetch_state(&mut self, no_cache: bool) -> &mut StateChannel {
         // If there is a running request and we do not need to upgrade it to no_cache, skip
         // scheduling a new fetch.
-        if let Some(ref channel) = self.state_channel {
-            if channel.no_cache || !no_cache {
-                return;
-            }
+        let should_fetch =
+            !matches!(self.state_channel, Some(ref channel) if channel.no_cache || !no_cache);
+        let channel = self.state_channel.get_or_insert_with(StateChannel::new);
+
+        if should_fetch {
+            channel.no_cache(no_cache);
+            relay_log::debug!("project {} state requested", self.project_key);
+            ProjectCache::from_registry().send(RequestUpdate::new(self.project_key, no_cache));
         }
 
-        self.state_channel
-            .get_or_insert_with(StateChannel::new)
-            .no_cache(no_cache);
-
-        relay_log::debug!("project {} state requested", self.project_key);
-        ProjectCache::from_registry().send(RequestUpdate::new(self.project_key, no_cache));
+        channel
     }
 
-    /// Returns the cached project state if it is valid.
-    ///
-    /// Depending on the state of the cache, this method takes different action:
-    ///
-    ///  - If the cached state is up-to-date, this method simply returns `Some`.
-    ///  - If the cached state is stale, this method triggers a refresh in the background and
-    ///    returns `Some`. The stale period can be configured through
-    ///    [`Config::project_grace_period`].
-    ///  - If there is no cached state or the cached state is fully outdated, this method triggers a
-    ///    refresh in the background and returns `None`.
-    ///
-    /// If `no_cache` is set to true, this method always returns `None` and always triggers a
-    /// background refresh.
-    ///
-    /// To wait for a valid state instead, use [`get_state`](Self::get_state).
-    pub fn get_cached_state(&mut self, mut no_cache: bool) -> Option<Arc<ProjectState>> {
+    fn get_or_fetch_state(&mut self, mut no_cache: bool) -> GetOrFetch<'_> {
         // count number of times we are looking for the project state
         metric!(counter(RelayCounters::ProjectStateGet) += 1);
 
@@ -706,11 +695,37 @@ impl Project {
             // The project is semi-outdated, fetch new state but return old one.
             ExpiryState::Stale(state) => Some(state),
             // The project is not outdated, return early here to jump over fetching logic below.
-            ExpiryState::Updated(state) => return Some(state),
+            ExpiryState::Updated(state) => return GetOrFetch::Cached(state),
         };
 
-        self.fetch_state(no_cache);
-        cached_state
+        let channel = self.fetch_state(no_cache);
+
+        match cached_state {
+            Some(state) => GetOrFetch::Cached(state),
+            None => GetOrFetch::Scheduled(channel),
+        }
+    }
+
+    /// Returns the cached project state if it is valid.
+    ///
+    /// Depending on the state of the cache, this method takes different action:
+    ///
+    ///  - If the cached state is up-to-date, this method simply returns `Some`.
+    ///  - If the cached state is stale, this method triggers a refresh in the background and
+    ///    returns `Some`. The stale period can be configured through
+    ///    [`Config::project_grace_period`].
+    ///  - If there is no cached state or the cached state is fully outdated, this method triggers a
+    ///    refresh in the background and returns `None`.
+    ///
+    /// If `no_cache` is set to true, this method always returns `None` and always triggers a
+    /// background refresh.
+    ///
+    /// To wait for a valid state instead, use [`get_state`](Self::get_state).
+    pub fn get_cached_state(&mut self, no_cache: bool) -> Option<Arc<ProjectState>> {
+        match self.get_or_fetch_state(no_cache) {
+            GetOrFetch::Cached(state) => Some(state),
+            GetOrFetch::Scheduled(_) => None,
+        }
     }
 
     /// Obtains a valid project state and passes it to the sender once ready.
@@ -722,12 +737,9 @@ impl Project {
     /// Independent of updating, _stale_ states are passed to the sender immediately as long as they
     /// are in the [grace period](Config::project_grace_period).
     pub fn get_state(&mut self, sender: ProjectSender, no_cache: bool) {
-        if let Some(state) = self.get_cached_state(no_cache) {
-            sender.send(state)
-        } else if let Some(ref mut channel) = self.state_channel {
-            channel.inner.attach(sender);
-        } else {
-            // TODO(ja): See if we can get rid of this branch
+        match self.get_or_fetch_state(no_cache) {
+            GetOrFetch::Cached(state) => sender.send(state),
+            GetOrFetch::Scheduled(channel) => channel.inner.attach(sender),
         }
     }
 
