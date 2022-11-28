@@ -72,6 +72,12 @@ fn get_trace_sampling_rule(
     let sample_rate = match sampling_config.mode {
         SamplingMode::Received => rule.sample_rate,
         SamplingMode::Total => sampling_context.adjusted_sample_rate(rule.sample_rate),
+        SamplingMode::Unsupported => {
+            if processing_enabled {
+                relay_log::error!("Found unsupported sampling mode even as processing Relay, keep");
+            }
+            return Err(SamplingResult::Keep);
+        }
     };
 
     Ok(Some(SamplingSpec {
