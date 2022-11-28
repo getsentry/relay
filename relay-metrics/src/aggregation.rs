@@ -1956,11 +1956,9 @@ impl AggregatorService {
         }
     }
 
-    fn handle_shutdown(&mut self, message: &Option<Shutdown>) {
-        if let Some(message) = message {
-            if message.timeout.is_some() {
-                self.state = AggregatorState::ShuttingDown;
-            }
+    fn handle_shutdown(&mut self, message: Shutdown) {
+        if message.timeout.is_some() {
+            self.state = AggregatorState::ShuttingDown;
         }
     }
 }
@@ -1981,7 +1979,7 @@ impl Service for AggregatorService {
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
             let mut ticker = tokio::time::interval(FLUSH_INTERVAL);
-            let mut shutdown = Controller::subscribe_v2().await;
+            let mut shutdown = Controller::shutdown_handle();
             relay_log::info!("aggregator started");
 
             // Note that currently this loop never exists and will run till the tokio runtime shuts
@@ -1992,7 +1990,7 @@ impl Service for AggregatorService {
 
                     _ = ticker.tick() => self.try_flush(),
                     Some(message) = rx.recv() => self.handle_message(message),
-                    _ = shutdown.changed() => self.handle_shutdown(&shutdown.borrow_and_update()),
+                    shutdown = shutdown.notified() => self.handle_shutdown(shutdown),
 
                     else => break,
                 }
