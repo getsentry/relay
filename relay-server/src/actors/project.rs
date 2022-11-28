@@ -23,7 +23,7 @@ use relay_system::BroadcastChannel;
 
 use crate::actors::envelopes::{EnvelopeManager, SendMetrics};
 use crate::actors::outcome::{DiscardReason, Outcome};
-use crate::actors::processor::{EnvelopeProcessor, ProcessEnvelope, RateLimitFlushBuckets};
+use crate::actors::processor::{EnvelopeProcessor, ProcessEnvelope};
 use crate::actors::project_cache::{
     AddSamplingState, CheckedEnvelope, ProjectCache, RequestUpdate,
 };
@@ -35,6 +35,9 @@ use crate::metrics_extraction::TaggingRule;
 use crate::service::Registry;
 use crate::statsd::RelayCounters;
 use crate::utils::{self, EnvelopeContext, EnvelopeLimiter, ErrorBoundary, MetricsLimiter};
+
+#[cfg(feature = "processing")]
+use crate::actors::processor::RateLimitFlushBuckets;
 
 /// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -828,7 +831,7 @@ impl Project {
     /// Replaces the internal project state with a new one and triggers pending actions.
     ///
     /// This flushes pending envelopes from [`ValidateEnvelope`] and [`AddSamplingState`] and
-    /// notifies all pending receivers from [`get_or_fetch_state2`](Self::get_or_fetch_state2).
+    /// notifies all pending receivers from [`get_state`](Self::get_state).
     ///
     /// `no_cache` should be passed from the requesting call. Updates with `no_cache` will always
     /// take precedence.

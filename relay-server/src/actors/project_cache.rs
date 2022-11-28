@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use actix::prelude::{Actor, Message, SyncArbiter};
+use actix::{Actor, Message};
 use actix_web::ResponseError;
 use failure::Fail;
 use futures::compat::Future01CompatExt;
@@ -26,7 +26,7 @@ use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{self, EnvelopeContext, GarbageDisposal};
 
 #[cfg(feature = "processing")]
-use {crate::actors::project_redis::RedisProjectSource, relay_common::clone};
+use {crate::actors::project_redis::RedisProjectSource, actix::SyncArbiter, relay_common::clone};
 
 #[derive(Fail, Debug, Clone)]
 pub enum ProjectError {
