@@ -19,12 +19,13 @@ use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric, MetricsContaine
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::SamplingConfig;
 use relay_statsd::metric;
+use relay_system::BroadcastChannel;
 
 use crate::actors::envelopes::{EnvelopeManager, SendMetrics};
 use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::processor::{EnvelopeProcessor, ProcessEnvelope, RateLimitFlushBuckets};
 use crate::actors::project_cache::{
-    AddSamplingState, CheckedEnvelope, ProjectCache, ProjectError, UpdateProjectState,
+    AddSamplingState, CheckedEnvelope, ProjectCache, RequestUpdate,
 };
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
@@ -59,10 +60,8 @@ pub enum ExpiryState {
     Expired,
 }
 
-/// TODO(ja): Doc
-pub type ProjectResult = Result<Arc<ProjectState>, ProjectError>;
-pub type ProjectSender = relay_system::BroadcastSender<ProjectResult>;
-pub type ProjectChannel = relay_system::BroadcastChannel<ProjectResult>;
+/// Sender type for messages that respond with project states.
+pub type ProjectSender = relay_system::BroadcastSender<Arc<ProjectState>>;
 
 /// Features exposed by project config.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -494,14 +493,14 @@ pub struct PublicKeyConfig {
 }
 
 struct StateChannel {
-    inner: ProjectChannel,
+    inner: BroadcastChannel<Arc<ProjectState>>,
     no_cache: bool,
 }
 
 impl StateChannel {
     pub fn new() -> Self {
         Self {
-            inner: ProjectChannel::new(),
+            inner: BroadcastChannel::new(),
             no_cache: false,
         }
     }
@@ -649,7 +648,10 @@ impl Project {
         }
     }
 
-    /// TODO(ja): Doc
+    /// Triggers a debounced refresh of the project state.
+    ///
+    /// If the state is already being updated in the background, this method checks if the request
+    /// needs to be upgraded with the `no_cache` flag to ensure a more recent update.
     fn fetch_state(&mut self, no_cache: bool) {
         // If there is a running request and we do not need to upgrade it to no_cache, skip
         // scheduling a new fetch.
@@ -664,24 +666,24 @@ impl Project {
             .no_cache(no_cache);
 
         relay_log::debug!("project {} state requested", self.project_key);
-        ProjectCache::from_registry().send(UpdateProjectState::new(self.project_key, no_cache));
+        ProjectCache::from_registry().send(RequestUpdate::new(self.project_key, no_cache));
     }
 
-    /// TODO(ja): Update doc
-    /// Ensures the project state gets updated and returns it once valid.
+    /// Returns the cached project state if it is valid.
     ///
-    /// This first checks if the state needs to be updated. This is the case if the project state
-    /// has passed its cache timeout. The `no_cache` flag forces an update. This does nothing if an
-    /// update is already running in the background.
+    /// Depending on the state of the cache, this method takes different action:
     ///
-    /// Independent of updating, _stale_ states can still be returned immediately as long as they
-    /// are in the [grace period](Config::project_grace_period). This function returns:
+    ///  - If the cached state is up-to-date, this method simply returns `Some`.
+    ///  - If the cached state is stale, this method triggers a refresh in the background and
+    ///    returns `Some`. The stale period can be configured through
+    ///    [`Config::project_grace_period`].
+    ///  - If there is no cached state or the cached state is fully outdated, this method triggers a
+    ///    refresh in the background and returns `None`.
     ///
-    ///  - [`Response::Reply(Ok)`](Response::Reply) if the state is updated or stale, and `no_cache`
-    ///    was not specified. This case is infallible.
-    ///  - [`Response::Future`] if the state was expired or `no_cache` was specified. This future
-    ///    may fail if the state repeatedly cannot be fetched. The future does not have to be
-    ///    awaited for the update to pass.
+    /// If `no_cache` is set to true, this method always returns `None` and always triggers a
+    /// background refresh.
+    ///
+    /// To wait for a valid state instead, use [`get_state`](Self::get_state).
     pub fn get_cached_state(&mut self, mut no_cache: bool) -> Option<Arc<ProjectState>> {
         // count number of times we are looking for the project state
         metric!(counter(RelayCounters::ProjectStateGet) += 1);
@@ -711,10 +713,17 @@ impl Project {
         cached_state
     }
 
-    /// TODO(ja): Doc
+    /// Obtains a valid project state and passes it to the sender once ready.
+    ///
+    /// This first checks if the state needs to be updated. This is the case if the project state
+    /// has passed its cache timeout. The `no_cache` flag forces an update. This does nothing if an
+    /// update is already running in the background.
+    ///
+    /// Independent of updating, _stale_ states are passed to the sender immediately as long as they
+    /// are in the [grace period](Config::project_grace_period).
     pub fn get_state(&mut self, sender: ProjectSender, no_cache: bool) {
         if let Some(state) = self.get_cached_state(no_cache) {
-            sender.send(Ok(state))
+            sender.send(state)
         } else if let Some(ref mut channel) = self.state_channel {
             channel.inner.attach(sender);
         } else {
@@ -722,7 +731,16 @@ impl Project {
         }
     }
 
-    /// TODO(ja): Doc
+    /// Ensures the project state gets updated.
+    ///
+    /// This first checks if the state needs to be updated. This is the case if the project state
+    /// has passed its cache timeout. The `no_cache` flag forces another update unless one is
+    /// already running in the background.
+    ///
+    /// If an update is required, the update will start in the background and complete at a later
+    /// point. Therefore, this method is useful to trigger an update early if it is already clear
+    /// that the project state will be needed soon. To retrieve an updated state, use
+    /// [`Project::get_state`] instead.
     pub fn prefetch(&mut self, no_cache: bool) {
         self.get_cached_state(no_cache);
     }
@@ -836,7 +854,7 @@ impl Project {
 
         // Flush all waiting recipients.
         relay_log::debug!("project state {} updated", self.project_key);
-        channel.inner.send(Ok(state)); // TODO(ja): Did this ever send non-Ok?
+        channel.inner.send(state);
     }
 
     /// Creates `Scoping` for this project if the state is loaded.

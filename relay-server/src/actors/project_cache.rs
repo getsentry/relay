@@ -30,17 +30,13 @@ use {crate::actors::project_redis::RedisProjectSource, relay_common::clone};
 
 #[derive(Fail, Debug, Clone)]
 pub enum ProjectError {
-    // TODO(ja): Check why this is unused now.
-    #[fail(display = "failed to fetch project state from upstream")]
-    FetchFailed,
-
     #[fail(display = "could not schedule project fetching")]
     ScheduleFailed,
 }
 
 impl ResponseError for ProjectError {}
 
-/// Fetches a project state from one of the available sources.
+/// Requests a refresh of a project state from one of the available sources.
 ///
 /// The project state is resolved in the following precedence:
 ///
@@ -51,7 +47,7 @@ impl ResponseError for ProjectError {}
 /// Requests to the upstream are performed via `UpstreamProjectSource`, which internally batches
 /// individual requests.
 #[derive(Clone)]
-pub struct UpdateProjectState {
+pub struct RequestUpdate {
     /// The public key to fetch the project by.
     project_key: ProjectKey,
 
@@ -59,7 +55,7 @@ pub struct UpdateProjectState {
     no_cache: bool,
 }
 
-impl UpdateProjectState {
+impl RequestUpdate {
     pub fn new(project_key: ProjectKey, no_cache: bool) -> Self {
         Self {
             project_key,
@@ -199,8 +195,7 @@ impl UpdateRateLimits {
 }
 
 pub enum ProjectCache {
-    // TODO(ja): Rename to RequestUpdate or FetchProjectState
-    Update(UpdateProjectState),
+    RequestUpdate(RequestUpdate),
     Get(GetProjectState, ProjectSender),
     GetCached(GetCachedProjectState, Sender<Option<Arc<ProjectState>>>),
     CheckEnvelope(
@@ -223,16 +218,16 @@ impl ProjectCache {
 
 impl Interface for ProjectCache {}
 
-impl FromMessage<UpdateProjectState> for ProjectCache {
+impl FromMessage<RequestUpdate> for ProjectCache {
     type Response = relay_system::NoResponse;
 
-    fn from_message(message: UpdateProjectState, _: ()) -> Self {
-        Self::Update(message)
+    fn from_message(message: RequestUpdate, _: ()) -> Self {
+        Self::RequestUpdate(message)
     }
 }
 
 impl FromMessage<GetProjectState> for ProjectCache {
-    type Response = relay_system::BroadcastResponse<Result<Arc<ProjectState>, ProjectError>>;
+    type Response = relay_system::BroadcastResponse<Arc<ProjectState>>;
 
     fn from_message(message: GetProjectState, sender: ProjectSender) -> Self {
         Self::Get(message, sender)
@@ -403,12 +398,12 @@ impl ProjectSource {
     }
 }
 
-/// TODO(ja): Doc
-struct UpdateProjectState2 {
+/// Updates the cache with new project state information.
+struct UpdateProjectState {
     /// The public key to fetch the project by.
     project_key: ProjectKey,
 
-    /// TODO(ja): Doc
+    /// New project state information.
     state: Arc<ProjectState>,
 
     /// If true, all caches should be skipped and a fresh state should be computed.
@@ -421,8 +416,8 @@ pub struct ProjectCacheService {
     garbage_disposal: GarbageDisposal<Project>,
     source: ProjectSource,
     inner: (
-        mpsc::UnboundedSender<UpdateProjectState2>,
-        mpsc::UnboundedReceiver<UpdateProjectState2>,
+        mpsc::UnboundedSender<UpdateProjectState>,
+        mpsc::UnboundedReceiver<UpdateProjectState>,
     ),
 }
 
@@ -482,8 +477,8 @@ impl ProjectCacheService {
             })
     }
 
-    fn merge_state(&mut self, message: UpdateProjectState2) {
-        let UpdateProjectState2 {
+    fn merge_state(&mut self, message: UpdateProjectState) {
+        let UpdateProjectState {
             project_key,
             state,
             no_cache,
@@ -493,8 +488,8 @@ impl ProjectCacheService {
             .update_state(state, no_cache);
     }
 
-    async fn handle_update(&mut self, message: UpdateProjectState) {
-        let UpdateProjectState {
+    async fn handle_update(&mut self, message: RequestUpdate) {
+        let RequestUpdate {
             project_key,
             no_cache,
         } = message;
@@ -512,7 +507,7 @@ impl ProjectCacheService {
                 .await
                 .unwrap_or_else(|()| Arc::new(ProjectState::err()));
 
-            let message = UpdateProjectState2 {
+            let message = UpdateProjectState {
                 project_key,
                 state,
                 no_cache,
@@ -587,7 +582,7 @@ impl ProjectCacheService {
 
     async fn handle_message(&mut self, message: ProjectCache) {
         match message {
-            ProjectCache::Update(message) => self.handle_update(message).await,
+            ProjectCache::RequestUpdate(message) => self.handle_update(message).await,
             ProjectCache::Get(message, sender) => self.handle_get(message, sender),
             ProjectCache::GetCached(message, sender) => {
                 sender.send(self.handle_get_cached(message))

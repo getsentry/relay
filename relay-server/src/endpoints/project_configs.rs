@@ -134,16 +134,15 @@ fn get_project_configs(
             let future = project_cache
                 .send(GetCachedProjectState::new(project_key))
                 .boxed()
-                .compat()
-                .map(Ok);
-            Box::new(future) as ResponseFuture<Result<Option<Arc<ProjectState>>, _>, _>
+                .compat();
+            Box::new(future) as ResponseFuture<Option<Arc<ProjectState>>, _>
         } else {
             let future = project_cache
                 .send(GetProjectState::new(project_key).no_cache(no_cache))
                 .boxed()
                 .compat()
-                .map(|state_result| state_result.map(Some));
-            Box::new(future) as ResponseFuture<Result<Option<Arc<ProjectState>>, _>, _>
+                .map(Some);
+            Box::new(future) as ResponseFuture<Option<Arc<ProjectState>>, _>
         };
 
         project_future
@@ -157,7 +156,7 @@ fn get_project_configs(
 
         for (project_key, result) in project_states {
             match result {
-                Ok(Some(project_state)) => {
+                Some(project_state) => {
                     // If public key is known (even if rate-limited, which is Some(false)), it has
                     // access to the project config
                     let has_access = relay.internal
@@ -177,11 +176,8 @@ fn get_project_configs(
                         );
                     };
                 }
-                Ok(None) => {
+                None => {
                     pending.push(project_key);
-                }
-                Err(_) => {
-                    configs.insert(project_key, None);
                 }
             }
         }
