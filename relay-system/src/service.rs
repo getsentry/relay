@@ -654,7 +654,7 @@ pub trait FromMessage<M>: Interface {
 }
 
 /// Abstraction over address types for service channels.
-trait SendDispatch<M> {
+trait SendDispatch<M>: Send + Sync {
     /// The behavior declaring the return value when sending this message.
     ///
     /// When this is implemented for a type bound to an [`Interface`], this is the same behavior as
