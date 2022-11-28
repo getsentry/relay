@@ -8,6 +8,9 @@
 - Add OpenTelemetry Context ([#1617](https://github.com/getsentry/relay/pull/1617))
 - Add `app.in_foreground` and `thread.main` flag to protocol. ([#1578](https://github.com/getsentry/relay/pull/1578))
 
+**Bug Fixes**:
+- Make `attachment_type` on envelope items forward compatible by adding fallback variant. ([#1638](https://github.com/getsentry/relay/pull/1638))
+
 **Internal**:
 
 - Emit a `service.back_pressure` metric that measures internal back pressure by service. ([#1583](https://github.com/getsentry/relay/pull/1583))

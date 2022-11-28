@@ -1471,11 +1471,11 @@ impl EnvelopeProcessorService {
         let raw_security_item = envelope.take_item_by(|item| item.ty() == &ItemType::RawSecurity);
         let form_item = envelope.take_item_by(|item| item.ty() == &ItemType::FormData);
         let attachment_item = envelope
-            .take_item_by(|item| item.attachment_type() == Some(AttachmentType::EventPayload));
+            .take_item_by(|item| item.attachment_type() == Some(&AttachmentType::EventPayload));
         let breadcrumbs1 = envelope
-            .take_item_by(|item| item.attachment_type() == Some(AttachmentType::Breadcrumbs));
+            .take_item_by(|item| item.attachment_type() == Some(&AttachmentType::Breadcrumbs));
         let breadcrumbs2 = envelope
-            .take_item_by(|item| item.attachment_type() == Some(AttachmentType::Breadcrumbs));
+            .take_item_by(|item| item.attachment_type() == Some(&AttachmentType::Breadcrumbs));
 
         // Event items can never occur twice in an envelope.
         if let Some(duplicate) = envelope.get_item_by(|item| self.is_duplicate(item)) {
@@ -1550,9 +1550,9 @@ impl EnvelopeProcessorService {
         let envelope = &mut state.envelope;
 
         let minidump_attachment =
-            envelope.get_item_by(|item| item.attachment_type() == Some(AttachmentType::Minidump));
+            envelope.get_item_by(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
         let apple_crash_report_attachment = envelope
-            .get_item_by(|item| item.attachment_type() == Some(AttachmentType::AppleCrashReport));
+            .get_item_by(|item| item.attachment_type() == Some(&AttachmentType::AppleCrashReport));
 
         if let Some(item) = minidump_attachment {
             let event = state.event.get_or_insert_with(Event::default);
@@ -1608,7 +1608,7 @@ impl EnvelopeProcessorService {
 
             let attachment_size = envelope
                 .items()
-                .filter(|item| item.attachment_type() == Some(AttachmentType::Attachment))
+                .filter(|item| item.attachment_type() == Some(&AttachmentType::Attachment))
                 .map(|item| item.len() as u64)
                 .sum::<u64>();
 
@@ -1896,7 +1896,7 @@ impl EnvelopeProcessorService {
         let envelope = &mut state.envelope;
         if let Some(ref config) = state.project_state.config.pii_config {
             let minidump = envelope
-                .get_item_by_mut(|item| item.attachment_type() == Some(AttachmentType::Minidump));
+                .get_item_by_mut(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
 
             if let Some(item) = minidump {
                 let filename = item.filename().unwrap_or_default();
