@@ -28,6 +28,8 @@
 use std::fmt::Write;
 use std::net::IpAddr;
 
+pub mod recording;
+
 use serde::{Deserialize, Serialize};
 use serde_json::{Error, Value};
 

@@ -1,0 +1,1099 @@
+[
+    {
+        "type": 4,
+        "data": {
+            "href": "https://sentry.io/organizations/sentry/issues/?project=-1",
+            "width": 2560,
+            "height": 1327
+        },
+        "timestamp": 1665063926927
+    },
+    {
+        "type": 3,
+        "data": {
+            "source": 0,
+            "texts": [],
+            "attributes": [],
+            "removes": [
+                {
+                    "parentId": 4,
+                    "id": 72
+                }
+            ],
+            "adds": []
+        },
+        "timestamp": 1665063926941
+    },
+    {
+        "type": 3,
+        "data": {
+            "source": 0,
+            "texts": [],
+            "attributes": [],
+            "removes": [],
+            "adds": [
+                {
+                    "parentId": 74,
+                    "nextId": null,
+                    "node": {
+                        "type": 2,
+                        "tagName": "iframe",
+                        "attributes": {
+                            "data-product": "web_widget",
+                            "title": "No content",
+                            "tabindex": "-1",
+                            "allow": "microphone *",
+                            "aria-hidden": "true",
+                            "style": "width: 0px; height: 0px; border: 0px none; position: absolute; top: -9999px;"
+                        },
+                        "childNodes": [],
+                        "id": 309
+                    }
+                }
+            ]
+        },
+        "timestamp": 1665063926945
+    },
+    {
+        "type": 3,
+        "data": {
+            "source": 0,
+            "adds": [
+                {
+                    "parentId": 309,
+                    "nextId": null,
+                    "node": {
+                        "type": 0,
+                        "childNodes": [
+                            {
+                                "type": 2,
+                                "tagName": "html",
+                                "attributes": {},
+                                "childNodes": [
+                                    {
+                                        "type": 2,
+                                        "tagName": "head",
+                                        "attributes": {},
+                                        "childNodes": [],
+                                        "rootId": 310,
+                                        "id": 312
+                                    },
+                                    {
+                                        "type": 2,
+                                        "tagName": "body",
+                                        "attributes": {},
+                                        "childNodes": [],
+                                        "rootId": 310,
+                                        "id": 313
+                                    }
+                                ],
+                                "rootId": 310,
+                                "id": 311
+                            }
+                        ],
+                        "compatMode": "BackCompat",
+                        "id": 310
+                    }
+                }
+            ],
+            "removes": [],
+            "texts": [],
+            "attributes": [],
+            "isAttachIframe": true
+        },
+        "timestamp": 1665063926988
+    },
+    {
+        "type": 3,
+        "data": {
+            "source": 0,
+            "texts": [],
+            "attributes": [],
+            "removes": [],
+            "adds": [
+                {
+                    "parentId": 312,
+                    "nextId": null,
+                    "node": {
+                        "type": 2,
+                        "tagName": "script",
+                        "attributes": {
+                            "type": "text/javascript",
+                            "src": "https://static.zdassets.com/web_widget/latest/web-widget-framework-bec8a5ff4d17b534ed20.js"
+                        },
+                        "childNodes": [],
+                        "rootId": 310,
+                        "id": 314
+                    }
+                }
+            ]
+        },
+        "timestamp": 1665063926992
+    },
+    {
+        "type": 3,
+        "data": {
+            "source": 2,
+            "type": 6,
+            "id": 1
+        },
+        "timestamp": 1665063926993
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.993,
+        "data": {
+            "tag": "breadcrumb",
+            "payload": {
+                "timestamp": 1665063926.993,
+                "type": "default",
+                "category": "ui.blur"
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.994,
+        "data": {
+            "tag": "breadcrumb",
+            "payload": {
+                "timestamp": 1665063926.994,
+                "type": "default",
+                "category": "console",
+                "level": "debug",
+                "message": "[debug]: runFlush (0)\n\n../../getsentry/node_modules/@sentry/replay/dist/index.es.js/Ue/s/</<@https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-getsentry_node_modules_sentry_replay_dist_index_es_js.608036df484abfcd0889.js:1:77080\n../../getsentry/node_modules/@sentry/replay/dist/index.es.js/Ue/s/<@https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-getsentry_node_modules_sentry_replay_dist_index_es_js.608036df484abfcd0889.js:1:77185\n../../getsentry/node_modules/@sentry/replay/dist/index.es.js/Fe/<@https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-getsentry_node_modules_sentry_replay_dist_index_es_js.608036df484abfcd0889.js:1:76121\nFe@https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-getsentry_node_modules_sentry_replay_dist_index_es_js.608036df484abfcd0889.js:1:75866\n../../getsentry/node_modules/@sentry/replay/dist/index.es.js/t.prototype.runFlush@https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-getsentry_node_modules_sentry_replay_dist_index_es_js.608036df484abfcd0889.js:1:141254\n../../getsentry/node_modules/@sentry/replay/dist/index.es.js/t/this.flush/vn</<@https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-getsentry_node_modules_sentry_replay_dist_index_es_js.608036df484abfcd0889.js:1:89355\n../../getsentry/node_modules/@sentry/replay/dist/index.es.js/Ue/s/</<@https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-getsentry_node_modules_sentry_replay_dist_index_es_js.608036df484abfcd0889.js:1:77080\n../../getsentry/node_modules/@sentry/replay/dist/index.es.js/Ue/s/<@https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-getsentry_node_modules_sentry_replay_dist_index_es_js.608036df484abfcd0889.js:1:77185\n../../getsentry/node_modules/@sentry/replay/dist/index.es.js/Fe/<@https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-getsentry_node_modules_sentry_replay_dist_index_es_js.608036df484abfcd0889.js:1:76121\nFe@https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-getsentry_node_modules_sentry_replay_dist_index_es_js.608036df484abfcd0889.js:1:75866\n../../getsentry/node_modules/@sentry/replay/dist/index.es.js/t/this.flush@https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-getsentry_node_modules_sentry_replay_dist_index_es_js.608036df484abfcd0889.js:1:89057\n../../getsentry/node_modules/@sentry/replay/dist/index.es.js/t.prototype.conditionalFlush@https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-getsentry_node_modules_sentry_replay_dist_index_es_js.608036df484abfcd0889.js:1:140618\n../../getsentry/node_modules/@sentry/replay/dist/index.es.js/t.prototype.doChangeToBackgroundTasks@https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-getsentry_node_modules_sentry_replay_dist_index_es_js.608036df484abfcd0889.js:1:138668\n../../getsentry/node_modules/@sentry/replay/dist/index.es.js/t/this.handleWindowBlur@https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-getsentry_node_modules_sentry_replay_dist_index_es_js.608036df484abfcd0889.js:1:87528\ns@https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_emotion_is-prop-valid_dist_is-prop-valid_browser_esm_js-node_modules_emo-06baa6.be9f0f6f6c9e04e95220.js:2:60103\n"
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.125,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "navigation.navigate",
+                "description": "https://sentry.io/organizations/sentry/issues/?project=-1",
+                "startTimestamp": 1665063926.125,
+                "endTimestamp": 1665063926.833,
+                "data": {
+                    "size": 9538,
+                    "duration": 710
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.263,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://js.sentry-cdn.com/c51734c603c4430eb57cb0a5728a479d.min.js",
+                "startTimestamp": 1665063926.263,
+                "endTimestamp": 1665063926.332,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 1018
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.263,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.link",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/entrypoints/sentry.css",
+                "startTimestamp": 1665063926.263,
+                "endTimestamp": 1665063926.386,
+                "data": {
+                    "size": 31872,
+                    "encodedBodySize": 31356
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.275,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://static.zdassets.com/ekr/snippet.js?key=99cb65b7-1616-43cd-b8be-203f91ec932e",
+                "startTimestamp": 1665063926.275,
+                "endTimestamp": 1665063926.333,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 0
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.275,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://js.stripe.com/v3/",
+                "startTimestamp": 1665063926.275,
+                "endTimestamp": 1665063926.36,
+                "data": {
+                    "size": 552,
+                    "encodedBodySize": 87535
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.275,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://ssl.google-analytics.com/analytics.js",
+                "startTimestamp": 1665063926.275,
+                "endTimestamp": 1665063926.761,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 0
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.275,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/entrypoints/app.js",
+                "startTimestamp": 1665063926.275,
+                "endTimestamp": 1665063926.401,
+                "data": {
+                    "size": 15683,
+                    "encodedBodySize": 15153
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.275,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/6a3365519e168f62c66d79f5d7949427/sentry/js/ads.js",
+                "startTimestamp": 1665063926.275,
+                "endTimestamp": 1665063926.33,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 33
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.275,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.img",
+                "description": "https://s1.sentry-cdn.com/_static/6a3365519e168f62c66d79f5d7949427/sentry/images/sentry-loader.svg",
+                "startTimestamp": 1665063926.275,
+                "endTimestamp": 1665063926.332,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 2114
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.406,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_sentry_hub_esm_exports_js-node_modules_moment_moment_js.e9c62724af8cb6628626.js",
+                "startTimestamp": 1665063926.406,
+                "endTimestamp": 1665063926.417,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 26175
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.406,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_bootstrap_index_tsx.52430597416e4696fdcf.js",
+                "startTimestamp": 1665063926.406,
+                "endTimestamp": 1665063926.412,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 352
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.406,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_emotion_react__isolated-hnrs_dist_emotion-react-_isolated-hnrs_browser_e-24043c.55c9c4bf0f10675da36b.js",
+                "startTimestamp": 1665063926.406,
+                "endTimestamp": 1665063926.418,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 21599
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.407,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_emotion_react_dist_emotion-element-cbed451f_browser_esm_js-node_modules_-7fc73c.4f9ded2d76a7d2a21537.js",
+                "startTimestamp": 1665063926.407,
+                "endTimestamp": 1665063926.419,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 4984
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.407,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_bootstrap_initializeLocale_tsx.00f8155450d83c7b1209.js",
+                "startTimestamp": 1665063926.407,
+                "endTimestamp": 1665063926.419,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 3684
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.411,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://cdn.pendo.io/agent/static/dc5c6fad-c3ae-4441-49ce-0ae37103aed7/pendo.js",
+                "startTimestamp": 1665063926.411,
+                "endTimestamp": 1665063926.422,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 0
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.414,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.other",
+                "description": "https://s1.sentry-cdn.com/_static/6a3365519e168f62c66d79f5d7949427/sentry/images/favicon.png",
+                "startTimestamp": 1665063926.414,
+                "endTimestamp": 1665063926.765,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 998
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.414,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.other",
+                "description": "https://s1.sentry-cdn.com/_static/6a3365519e168f62c66d79f5d7949427/sentry/images/logos/apple-touch-icon-152x152.png",
+                "startTimestamp": 1665063926.414,
+                "endTimestamp": 1665063926.764,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 3836
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.425,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.other",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/assets/rubik-regular.ac2d143aa7c4dc5fb505.woff",
+                "startTimestamp": 1665063926.425,
+                "endTimestamp": 1665063926.43,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 30384
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.453,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "paint",
+                "description": "first-contentful-paint",
+                "startTimestamp": 1665063926.453,
+                "endTimestamp": 1665063926.453
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.457,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_react-aria_button_dist_module_js-node_modules_react-aria_menu_dist_modul-31be31.847fb652c6dcec7e7b86.js",
+                "startTimestamp": 1665063926.457,
+                "endTimestamp": 1665063926.511,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 14864
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.458,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_buffer_index_js.68cb5e1dfa89fe8d07fe.js",
+                "startTimestamp": 1665063926.458,
+                "endTimestamp": 1665063926.514,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 8337
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.458,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_date-fns_format_index_js.3bb9a36155b9aca9de56.js",
+                "startTimestamp": 1665063926.458,
+                "endTimestamp": 1665063926.515,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 6761
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.458,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_moment-timezone_moment-timezone_js-node_modules_reflux_src_index_js-node-d351fd.9965e754165aa974efee.js",
+                "startTimestamp": 1665063926.458,
+                "endTimestamp": 1665063926.536,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 43162
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.458,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_echarts-for-react_lib_core_js-node_modules_echarts_core_js-node_modules_-6d3074.7adc76f7cdbb366f9767.js",
+                "startTimestamp": 1665063926.458,
+                "endTimestamp": 1665063926.541,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 215418
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.459,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_emotion_is-prop-valid_dist_is-prop-valid_browser_esm_js-node_modules_emo-06baa6.be9f0f6f6c9e04e95220.js",
+                "startTimestamp": 1665063926.459,
+                "endTimestamp": 1665063926.544,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 290622
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.459,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_lodash_cloneDeep_js-node_modules_lodash_invert_js-node_modules_lodash_is-639e47.9b0de96343fa4ab53682.js",
+                "startTimestamp": 1665063926.459,
+                "endTimestamp": 1665063926.527,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 10848
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.459,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_echarts_lib_component_markPoint_js-node_modules_focus-trap_dist_focus-tr-26bbba.b5459480f0b05824f045.js",
+                "startTimestamp": 1665063926.459,
+                "endTimestamp": 1665063926.532,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 47572
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.459,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_react-aria_separator_dist_module_js-node_modules_react-stately_tree_dist-8a8f77.70f5811b97ad43af78c5.js",
+                "startTimestamp": 1665063926.459,
+                "endTimestamp": 1665063926.533,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 8596
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.459,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_react-aria_utils_dist_module_js-node_modules_sentry_release-parser_lib_p-fd72ca.be3ab1dc2863f6df73c9.js",
+                "startTimestamp": 1665063926.459,
+                "endTimestamp": 1665063926.534,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 12488
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.46,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-getsentry_node_modules_amplitude-js_amplitude_esm_js-getsentry_node_modules_lodash_gr-406f50.45d88b1beae577b93fce.js",
+                "startTimestamp": 1665063926.46,
+                "endTimestamp": 1665063926.536,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 31639
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.46,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_components_events_interfaces_spans_utils_tsx.bff51e4643db0f1e1b6d.js",
+                "startTimestamp": 1665063926.46,
+                "endTimestamp": 1665063926.539,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 5298
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.46,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_components_clipboard_tsx-app_components_forms_compactSelect_tsx-app_utils_projects_tsx-ap-901735.3a0f0d680412f18e28d0.js",
+                "startTimestamp": 1665063926.46,
+                "endTimestamp": 1665063926.54,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 5560
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.46,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_components_asyncComponent_tsx.a79263bae9b91091f63b.js",
+                "startTimestamp": 1665063926.46,
+                "endTimestamp": 1665063926.54,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 5146
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.46,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-getsentry_node_modules_lodash__baseClone_js-getsentry_node_modules_lodash__baseIsEqua-2e3c81.f9aea044f5972790bc6a.js",
+                "startTimestamp": 1665063926.46,
+                "endTimestamp": 1665063926.534,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 7086
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.46,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_components_acl_access_tsx-app_components_forms_textCopyInput_tsx-app_components_globalSel-763f1e.51b4a319c9e09e5a9932.js",
+                "startTimestamp": 1665063926.46,
+                "endTimestamp": 1665063926.541,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 4349
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.461,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_components_charts_utils_tsx-app_utils_discover_eventView_tsx-app_utils_withPageFilters_tsx.f9bc1846bf0f55f7d53b.js",
+                "startTimestamp": 1665063926.461,
+                "endTimestamp": 1665063926.542,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 38282
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.461,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_actionCreators_navigation_tsx-app_components_navTabs_tsx-app_components_pagination_tsx.f39c70954a42db7d47a0.js",
+                "startTimestamp": 1665063926.461,
+                "endTimestamp": 1665063926.542,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 4166
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.461,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_components_quickTrace_styles_tsx.d9944e9b5b712471d892.js",
+                "startTimestamp": 1665063926.461,
+                "endTimestamp": 1665063926.543,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 1380
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.461,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_actionCreators_tags_tsx-app_components_assigneeSelector_tsx-app_components_charts_barChar-aa2894.d74a9f5e8c4f5d3df64a.js",
+                "startTimestamp": 1665063926.461,
+                "endTimestamp": 1665063926.545,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 45789
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.461,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_components_eventOrGroupHeader_tsx-app_components_featureBadge_tsx-app_components_layouts_-a10b5f.ce32f0a5849893de3f78.js",
+                "startTimestamp": 1665063926.461,
+                "endTimestamp": 1665063926.547,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 37891
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.462,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/getsentry_static_getsentry_gsApp_registerHooks_tsx-getsentry_static_getsentry_images_dashboar-ab27f7.11b39fa80e55497fcdaf.js",
+                "startTimestamp": 1665063926.462,
+                "endTimestamp": 1665063926.557,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 62648
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.462,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_components_alerts_toastIndicator_tsx-app_components_autoComplete_tsx-app_components_dropd-c8af16.28cbdd6d15401fb734ab.js",
+                "startTimestamp": 1665063926.462,
+                "endTimestamp": 1665063926.549,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 90414
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.462,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_components_charts_miniBarChart_tsx-app_components_deprecatedforms_apiForm_tsx-app_compone-dccf4d.2a1b4ef62c7dad74a864.js",
+                "startTimestamp": 1665063926.462,
+                "endTimestamp": 1665063926.549,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 12734
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.462,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_actionCreators_members_tsx-app_components_dropdownMenuControl_tsx.d139e2ce5c200e0a09b6.js",
+                "startTimestamp": 1665063926.462,
+                "endTimestamp": 1665063926.55,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 3965
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.462,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_components_acl_feature_tsx-app_components_acl_featureDisabled_tsx-app_components_actions_-62db5e.75772c4200d99f750b69.js",
+                "startTimestamp": 1665063926.462,
+                "endTimestamp": 1665063926.551,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 2020
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.462,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/getsentry_static_getsentry_gsApp_initializeBundleMetrics_tsx.acc030adfc7819010872.js",
+                "startTimestamp": 1665063926.462,
+                "endTimestamp": 1665063926.558,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 803
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.462,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_bootstrap_initializeMain_tsx.0c5d76b5dd756d30169b.js",
+                "startTimestamp": 1665063926.462,
+                "endTimestamp": 1665063926.558,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 4514
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.462,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_actionCreators_discoverSavedQueries_tsx-app_components_charts_components_markPoint_tsx-ap-911bcb.4f5382bc5125e434e176.js",
+                "startTimestamp": 1665063926.462,
+                "endTimestamp": 1665063926.559,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 128762
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.746,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_tanstack_react-query_build_umd_index_production_js.022394ad633602ff62bc.js",
+                "startTimestamp": 1665063926.746,
+                "endTimestamp": 1665063926.754,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 11964
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.746,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_sentry_integrations_esm_extraerrordata_js-node_modules_sentry_tracing_es-542a0d.bf78320ddb64498377bc.js",
+                "startTimestamp": 1665063926.746,
+                "endTimestamp": 1665063926.756,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 10832
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.746,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_plugins_index_tsx.568fa305ee201eef1635.js",
+                "startTimestamp": 1665063926.746,
+                "endTimestamp": 1665063926.757,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 6424
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.746,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_bootstrap_initializeApp_tsx.599f0ce792b30f307269.js",
+                "startTimestamp": 1665063926.746,
+                "endTimestamp": 1665063926.758,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 8638
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.835,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.iframe",
+                "description": "https://js.stripe.com/v3/m-outer-eb2c029b07d5db094d54c37555539fa5.html#url=https%3A%2F%2Fsentry.io%2Forganizations%2Fsentry%2Fissues%2F%3Fproject%3D-1&title=Sentry&referrer=&muid=c09bfd07-e6f4-4184-be10-1d4bef549aca3bfe92&sid=db4187bd-3542-4b08-b374-94439b440830e400d8&version=6&preview=false",
+                "startTimestamp": 1665063926.835,
+                "endTimestamp": 1665063926.86,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 114
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.883,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.script",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-getsentry_node_modules_sentry_replay_dist_index_es_js.608036df484abfcd0889.js",
+                "startTimestamp": 1665063926.883,
+                "endTimestamp": 1665063926.897,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 45571
+                }
+            }
+        }
+    },
+    {
+        "type": 5,
+        "timestamp": 1665063926.905,
+        "data": {
+            "tag": "performanceSpan",
+            "payload": {
+                "op": "resource.other",
+                "description": "https://s1.sentry-cdn.com/_static/dist/sentry/assets/rubik-medium.c9da53ef4973605ec234.woff",
+                "startTimestamp": 1665063926.905,
+                "endTimestamp": 1665063926.908,
+                "data": {
+                    "size": 0,
+                    "encodedBodySize": 30540
+                }
+            }
+        }
+    }
+]

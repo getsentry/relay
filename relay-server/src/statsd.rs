@@ -128,10 +128,6 @@ pub enum RelayHistograms {
     ///   - `status-code`: The status code of the request when available, otherwise "-".
     UpstreamRetries,
 
-    /// Size of emitted kafka message in bytes, tagged by message type.
-    #[cfg(feature = "processing")]
-    KafkaMessageSize,
-
     /// Size of envelopes sent over HTTP in bytes.
     UpstreamQueryBodySize,
 
@@ -233,8 +229,6 @@ impl HistogramMetric for RelayHistograms {
             }
             RelayHistograms::UpstreamMessageQueueSize => "http_queue.size",
             RelayHistograms::UpstreamRetries => "upstream.retries",
-            #[cfg(feature = "processing")]
-            RelayHistograms::KafkaMessageSize => "kafka.message_size",
             RelayHistograms::UpstreamQueryBodySize => "upstream.query.body_size",
             RelayHistograms::UpstreamEnvelopeBodySize => "upstream.envelope.body_size",
             RelayHistograms::DynamicSamplingChanges => "dynamic_sampling.changes",
@@ -525,14 +519,6 @@ pub enum RelayCounters {
     ///  - `session`: A release health session update, sent to `ingest-sessions`.
     #[cfg(feature = "processing")]
     ProcessingMessageProduced,
-    /// Number of producer errors occurred after an envelope was already enqueued for sending to
-    /// Kafka.
-    ///
-    /// These errors include, for example, _"MessageTooLarge"_ errors when the broker does not
-    /// accept the requests over a certain size, which is usually due to invalid or inconsistent
-    /// broker/producer configurations.
-    #[cfg(feature = "processing")]
-    ProcessingProduceError,
     /// Number of events that hit any of the store-like endpoints: Envelope, Store, Security,
     /// Minidump, Unreal.
     ///
@@ -578,6 +564,13 @@ pub enum RelayCounters {
     MetricBucketsParsingFailed,
     /// Count extraction of transaction names. Tag with the decision to drop / replace / use original.
     MetricsTransactionNameExtracted,
+    /// Number of Events with an OpenTelemetry Context
+    ///
+    /// This metric is tagged with:
+    ///  - `platform`: The event's platform, such as `"javascript"`.
+    ///  - `sdk`: The name of the Sentry SDK sending the transaction. This tag is only set for
+    ///    Sentry's SDKs and defaults to "proprietary".
+    OpenTelemetryEvent,
 }
 
 impl CounterMetric for RelayCounters {
@@ -599,8 +592,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ServerStarting => "server.starting",
             #[cfg(feature = "processing")]
             RelayCounters::ProcessingMessageProduced => "processing.event.produced",
-            #[cfg(feature = "processing")]
-            RelayCounters::ProcessingProduceError => "processing.produce.error",
             RelayCounters::EventProtocol => "event.protocol",
             RelayCounters::EventTransactionSource => "event.transaction_source",
             RelayCounters::Requests => "requests",
@@ -608,6 +599,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EvictingStaleProjectCaches => "project_cache.eviction",
             RelayCounters::MetricBucketsParsingFailed => "metrics.buckets.parsing_failed",
             RelayCounters::MetricsTransactionNameExtracted => "metrics.transaction_name",
+            RelayCounters::OpenTelemetryEvent => "event.opentelemetry",
         }
     }
 }

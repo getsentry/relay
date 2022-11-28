@@ -649,8 +649,8 @@ fn normalize_ip_addresses(event: &mut Event, client_ip: Option<&IpAddr>) {
     }
 }
 
-fn normalize_logentry(logentry: &mut Annotated<LogEntry>, meta: &mut Meta) -> ProcessingResult {
-    logentry.apply(|le, _| logentry::normalize_logentry(le, meta))
+fn normalize_logentry(logentry: &mut Annotated<LogEntry>, _meta: &mut Meta) -> ProcessingResult {
+    logentry.apply(|le, meta| logentry::normalize_logentry(le, meta))
 }
 
 #[derive(Default, Debug)]
@@ -663,6 +663,7 @@ pub struct LightNormalizationConfig<'a> {
     pub measurements_config: Option<&'a MeasurementsConfig>,
     pub breakdowns_config: Option<&'a BreakdownsConfig>,
     pub normalize_user_agent: Option<bool>,
+    pub normalize_transaction_name: bool,
     pub is_renormalize: bool,
 }
 
@@ -679,7 +680,9 @@ pub fn light_normalize_event(
         // (internally noops for non-transaction events).
         // TODO: Parts of this processor should probably be a filter so we
         // can revert some changes to ProcessingAction
-        transactions::TransactionsProcessor.process_event(event, meta, ProcessingState::root())?;
+        let mut transactions_processor =
+            transactions::TransactionsProcessor::new(config.normalize_transaction_name);
+        transactions_processor.process_event(event, meta, ProcessingState::root())?;
 
         // Check for required and non-empty values
         schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())?;
@@ -1863,6 +1866,64 @@ mod tests {
           },
         }
         "###);
+    }
+
+    #[test]
+    fn test_logentry_error() {
+        let json = r###"
+{
+    "event_id": "74ad1301f4df489ead37d757295442b1",
+    "timestamp": 1668148328.308933,
+    "received": 1668148328.308933,
+    "level": "error",
+    "platform": "python",
+    "logentry": {
+        "params": [
+            "bogus"
+        ],
+        "formatted": 42
+    }
+}
+"###;
+        let mut event = Annotated::from_json(json).unwrap();
+
+        let mut processor = NormalizeProcessor::default();
+        let config = LightNormalizationConfig::default();
+        light_normalize_event(&mut event, &config).unwrap();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&event), {".received" => "[received]"}, @r###"
+        {
+          "event_id": "74ad1301f4df489ead37d757295442b1",
+          "level": "error",
+          "type": "default",
+          "logentry": null,
+          "logger": "",
+          "platform": "python",
+          "timestamp": 1668148328.308933,
+          "received": "[received]",
+          "_meta": {
+            "logentry": {
+              "": {
+                "err": [
+                  [
+                    "invalid_data",
+                    {
+                      "reason": "no message present"
+                    }
+                  ]
+                ],
+                "val": {
+                  "formatted": null,
+                  "message": null,
+                  "params": [
+                    "bogus"
+                  ]
+                }
+              }
+            }
+          }
+        }"###)
     }
 
     #[test]

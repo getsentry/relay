@@ -160,8 +160,9 @@ impl ProcessingError {
         }
     }
 
-    fn is_internal(&self) -> bool {
-        self.to_outcome() == Some(Outcome::Invalid(DiscardReason::Internal))
+    fn is_unexpected(&self) -> bool {
+        self.to_outcome()
+            .map_or(false, |outcome| outcome.is_unexpected())
     }
 
     fn should_keep_metrics(&self) -> bool {
@@ -1109,7 +1110,27 @@ impl EnvelopeProcessorService {
                     }
                 }
             }
-            ItemType::ReplayRecording => replays_enabled,
+            ItemType::ReplayRecording => {
+                // XXX: Temporarily, only the Sentry org will be allowed to parse replays while
+                // we measure the impact of this change.
+                if replays_enabled && state.project_state.organization_id == Some(1) {
+                    let parsed_recording =
+                        relay_replays::recording::process_recording(&item.payload());
+
+                    match parsed_recording {
+                        Ok(recording) => {
+                            item.set_payload(ContentType::OctetStream, recording.as_slice());
+                        }
+                        Err(e) => {
+                            relay_log::warn!("failed to parse replay event: {}", e);
+                        }
+                    }
+                }
+
+                // XXX: For now replays that could not be parsed are still accepted while we
+                // determine the impact of the recording parser.
+                replays_enabled
+            }
             _ => true,
         });
     }
@@ -1618,6 +1639,20 @@ impl EnvelopeProcessorService {
                     sdk = envelope.meta().client_name().unwrap_or("proprietary"),
                     platform = event.platform.as_str().unwrap_or("other"),
                 );
+
+                let otel_context = event
+                    .contexts
+                    .value()
+                    .and_then(|contexts| contexts.get("otel"))
+                    .and_then(Annotated::value);
+
+                if otel_context.is_some() {
+                    metric!(
+                        counter(RelayCounters::OpenTelemetryEvent) += 1,
+                        sdk = envelope.meta().client_name().unwrap_or("proprietary"),
+                        platform = event.platform.as_str().unwrap_or("other"),
+                    );
+                }
             }
         }
 
@@ -1965,6 +2000,10 @@ impl EnvelopeProcessorService {
             measurements_config: state.project_state.config.measurements.as_ref(),
             breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
             normalize_user_agent: Some(true),
+            normalize_transaction_name: state
+                .project_state
+                .has_feature(Feature::TransactionNameNormalize),
+
             is_renormalize: false,
         };
 
@@ -2121,7 +2160,7 @@ impl EnvelopeProcessorService {
             Err(error) => {
                 // Errors are only logged for what we consider infrastructure or implementation
                 // bugs. In other cases, we "expect" errors and log them as debug level.
-                if error.is_internal() {
+                if error.is_unexpected() {
                     relay_log::with_scope(
                         |scope| scope.set_tag("project_key", project_key),
                         || relay_log::error!("error processing envelope: {}", LogError(&error)),

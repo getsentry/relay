@@ -15,6 +15,7 @@ mod event_error;
 mod geo;
 mod legacy;
 mod normalize;
+mod regexes;
 mod remove_other;
 mod schema;
 mod transactions;

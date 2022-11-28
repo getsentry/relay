@@ -267,6 +267,11 @@ pub enum RuleCondition {
 }
 
 impl RuleCondition {
+    /// Returns a condition that matches everything.
+    pub fn all() -> Self {
+        Self::And(AndCondition { inner: Vec::new() })
+    }
+
     /// Checks if Relay supports this condition (in other words if the condition had any unknown configuration
     /// which was serialized as "Unsupported" (because the configuration is either faulty or was created for a
     /// newer relay that supports some other condition types)
@@ -659,15 +664,50 @@ impl FieldValueProvider for DynamicSamplingContext {
     }
 }
 
+/// Defines which population of items a dynamic sample rate applies to.
+///
+/// SDKs with client side sampling reduce the number of items sent to Relay, where dynamic sampling
+/// occurs. The sampling mode controlls whether the sample rate is relative to the original
+/// population of items before client-side sampling, or relative to the number received by Relay
+/// after client-side sampling.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SamplingMode {
+    /// The sample rate is based on the number of events received by Relay.
+    ///
+    /// Server-side dynamic sampling occurs on top of potential client-side sampling in the SDK. For
+    /// example, if the SDK samples at 50% and the server sampling rate is set at 10%, the resulting
+    /// effective sample rate is 5%.
+    Received,
+    /// The sample rate is based on the original number of events in the client.
+    ///
+    /// Server-side sampling compensates potential client-side sampling in the SDK. For example, if
+    /// the SDK samples at 50% and the server sampling rate is set at 10%, the resulting effective
+    /// sample rate is 10%.
+    ///
+    /// In this mode, the server sampling rate is capped by the client's sampling rate. Rules with a
+    /// higher sample rate than what the client is sending are effectively inactive.
+    Total,
+}
+
+impl Default for SamplingMode {
+    fn default() -> Self {
+        Self::Received
+    }
+}
+
 /// Represents the dynamic sampling configuration available to a project.
 ///
 /// Note: This comes from the organization data
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SamplingConfig {
-    /// The sampling rules for the project
+    /// The ordered sampling rules for the project from highest to lowest priority.
     pub rules: Vec<SamplingRule>,
-    /// The id of the next new Rule (used as a generator for unique rule ids)
+    /// Defines which population of items a dynamic sample rate applies to.
+    #[serde(default)]
+    pub mode: SamplingMode,
+    /// The unique identifier for the next new rule to be added.
     #[serde(default)]
     pub next_id: Option<u32>,
 }
@@ -1999,6 +2039,7 @@ mod tests {
                     time_range: Default::default(),
                 },
             ],
+            mode: SamplingMode::Received,
             next_id: None,
         };
 
@@ -2219,6 +2260,7 @@ mod tests {
                     time_range: Default::default(),
                 },
             ],
+            mode: SamplingMode::Received,
             next_id: None,
         }
     }
@@ -2291,6 +2333,7 @@ mod tests {
                     id: RuleId(1),
                     time_range: range,
                 }],
+                mode: SamplingMode::Received,
                 next_id: None,
             };
             assert_eq!(
@@ -2307,6 +2350,7 @@ mod tests {
                     id: RuleId(1),
                     time_range: range,
                 }],
+                mode: SamplingMode::Received,
                 next_id: None,
             };
             assert_eq!(
