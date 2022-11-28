@@ -194,6 +194,21 @@ impl UpdateRateLimits {
     }
 }
 
+/// A cache for [`ProjectState`]s.
+///
+/// The project maintains information about organizations, projects, and project keys along with
+/// settings required to ingest traffic to Sentry. Internally, it tries to keep information
+/// up-to-date and automatically retires unused old data.
+///
+/// To retrieve information from the cache, use [`GetProjectState`] for guaranteed up-to-date
+/// information, or [`GetCachedProjectState`] for immediately available but potentially older
+/// information.
+///
+/// There are also higher-level operations, such as [`CheckEnvelope`] and [`ValidateEnvelope`] that
+/// inspect contents of envelopes for ingestion, as well as [`InsertMetrics`] and [`MergeBuckets`]
+/// to aggregate metrics associated with a project.
+///
+/// See the enumerated variants for a full list of available messages for this service.
 pub enum ProjectCache {
     RequestUpdate(RequestUpdate),
     Get(GetProjectState, ProjectSender),
@@ -304,6 +319,9 @@ impl FromMessage<FlushBuckets> for ProjectCache {
     }
 }
 
+/// Helper type that contains all configured sources for project cache fetching.
+///
+/// See [`RequestUpdate`] for a description on how project states are fetched.
 #[derive(Clone, Debug)]
 struct ProjectSource {
     config: Arc<Config>,
@@ -410,6 +428,7 @@ struct UpdateProjectState {
     no_cache: bool,
 }
 
+/// Service implementing the [`ProjectCache`] interface.
 pub struct ProjectCacheService {
     config: Arc<Config>,
     projects: hashbrown::HashMap<ProjectKey, Project>, // need hashbrown because drain_filter is not stable in std yet
