@@ -584,7 +584,6 @@ impl ProjectCacheService {
     fn handle_flush_buckets(&mut self, message: FlushBuckets) {
         self.get_or_create_project(message.project_key)
             .flush_buckets(message.partition_key, message.buckets);
-        // TODO
     }
 
     async fn handle_message(&mut self, message: ProjectCache) {
@@ -640,6 +639,7 @@ pub struct FetchProjectState {
     pub no_cache: bool,
 }
 
+// TODO: Remove once `UpstreamProjectSource` was moved to tokio
 impl Message for FetchProjectState {
     type Result = Result<Arc<ProjectState>, ()>;
 }
@@ -655,6 +655,7 @@ impl FetchOptionalProjectState {
     }
 }
 
+// TODO: Remove once `RedisProjectSource` and `LocalProjectSource` were moved to tokio
 impl Message for FetchOptionalProjectState {
     type Result = Option<Arc<ProjectState>>;
 }
