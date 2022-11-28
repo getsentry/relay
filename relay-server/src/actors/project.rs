@@ -512,14 +512,6 @@ impl StateChannel {
         self.no_cache = no_cache;
         self
     }
-
-    // pub fn receiver(&self) -> Shared<oneshot::Receiver<Arc<ProjectState>>> {
-    //     self.inner.clone()
-    // }
-
-    // pub fn send(self, state: Arc<ProjectState>) {
-    //     self.sender.send(state).ok();
-    // }
 }
 
 enum GetOrFetch<'a> {
