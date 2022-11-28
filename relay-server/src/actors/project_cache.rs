@@ -495,7 +495,7 @@ impl ProjectCacheService {
             .update_state(state, no_cache);
     }
 
-    async fn handle_update(&mut self, message: RequestUpdate) {
+    fn handle_request_update(&mut self, message: RequestUpdate) {
         let RequestUpdate {
             project_key,
             no_cache,
@@ -589,7 +589,7 @@ impl ProjectCacheService {
 
     async fn handle_message(&mut self, message: ProjectCache) {
         match message {
-            ProjectCache::RequestUpdate(message) => self.handle_update(message).await,
+            ProjectCache::RequestUpdate(message) => self.handle_request_update(message),
             ProjectCache::Get(message, sender) => self.handle_get(message, sender),
             ProjectCache::GetCached(message, sender) => {
                 sender.send(self.handle_get_cached(message))
