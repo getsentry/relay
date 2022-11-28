@@ -449,7 +449,7 @@ mod tests {
         let project_state = state_with_rule(Some(0.1), RuleType::Trace, SamplingMode::Unsupported);
         let sampling_context = create_sampling_context(Some(0.5));
         let spec = get_trace_sampling_rule(
-            true, // irrelevant, just skips unsupported rules
+            true,
             Some(&project_state),
             Some(&sampling_context),
             None,
