@@ -418,23 +418,24 @@ struct UpdateProjectState {
 /// Service implementing the [`ProjectCache`] interface.
 pub struct ProjectCacheService {
     config: Arc<Config>,
-    projects: hashbrown::HashMap<ProjectKey, Project>, // need hashbrown because drain_filter is not stable in std yet
+    // need hashbrown because drain_filter is not stable in std yet
+    projects: hashbrown::HashMap<ProjectKey, Project>,
     garbage_disposal: GarbageDisposal<Project>,
     source: ProjectSource,
-    inner: (
-        mpsc::UnboundedSender<UpdateProjectState>,
-        mpsc::UnboundedReceiver<UpdateProjectState>,
-    ),
+    state_tx: mpsc::UnboundedSender<UpdateProjectState>,
+    state_rx: mpsc::UnboundedReceiver<UpdateProjectState>,
 }
 
 impl ProjectCacheService {
     pub fn new(config: Arc<Config>, redis: Option<RedisPool>) -> Self {
+        let (state_tx, state_rx) = mpsc::unbounded_channel();
         Self {
             config: config.clone(),
             projects: hashbrown::HashMap::new(),
             garbage_disposal: GarbageDisposal::new(),
             source: ProjectSource::new(config, redis),
-            inner: mpsc::unbounded_channel(),
+            state_tx,
+            state_rx,
         }
     }
 
@@ -505,7 +506,7 @@ impl ProjectCacheService {
             .refresh_updated_timestamp();
 
         let source = self.source.clone();
-        let sender = self.inner.0.clone();
+        let sender = self.state_tx.clone();
 
         tokio::spawn(async move {
             let state = source
@@ -618,7 +619,7 @@ impl Service for ProjectCacheService {
                 tokio::select! {
                     biased;
 
-                    Some(message) = self.inner.1.recv() => self.merge_state(message),
+                    Some(message) = self.state_rx.recv() => self.merge_state(message),
                     _ = ticker.tick() => self.evict_stale_project_caches(),
                     Some(message) = rx.recv() => self.handle_message(message).await,
                     else => break,
