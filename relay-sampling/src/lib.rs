@@ -2605,24 +2605,4 @@ mod tests {
         .unwrap();
         assert!(!rule.supported());
     }
-
-    #[test]
-    fn test_supported_sampling_mode() {
-        let config: SamplingConfig = serde_json::from_value(serde_json::json!({
-            "rules": [],
-            "mode": "total"
-        }))
-        .unwrap();
-        assert!(config.supported());
-    }
-
-    #[test]
-    fn test_unsupported_sampling_mode() {
-        let config: SamplingConfig = serde_json::from_value(serde_json::json!({
-            "rules": [],
-            "mode": "unknownSamplingMode"
-        }))
-        .unwrap();
-        assert!(!config.supported());
-    }
 }

@@ -445,6 +445,20 @@ mod tests {
     }
 
     #[test]
+    fn test_trace_rule_unsupported() {
+        let project_state = state_with_rule(Some(0.1), RuleType::Trace, SamplingMode::Unsupported);
+        let sampling_context = create_sampling_context(Some(0.5));
+        let spec = get_trace_sampling_rule(
+            true, // irrelevant, just skips unsupported rules
+            Some(&project_state),
+            Some(&sampling_context),
+            None,
+        );
+
+        assert!(matches!(spec, Err(SamplingResult::Keep)));
+    }
+
+    #[test]
     fn test_event_rule_received() {
         let project_state =
             state_with_rule(Some(0.1), RuleType::Transaction, SamplingMode::Received);
