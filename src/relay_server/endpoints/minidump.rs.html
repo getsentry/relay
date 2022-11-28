@@ -346,7 +346,7 @@
         .and_then(<span class="kw">move </span>|<span class="kw-2">mut </span>items| {
             <span class="kw">let </span>minidump_index = items
                 .iter()
-                .position(|item| item.attachment_type() == <span class="prelude-val">Some</span>(AttachmentType::Minidump));
+                .position(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::Minidump));
 
             <span class="kw">let </span><span class="kw-2">mut </span>minidump_item = <span class="kw">match </span>minidump_index {
                 <span class="prelude-val">Some</span>(index) =&gt; items.swap_remove(index),

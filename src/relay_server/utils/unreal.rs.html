@@ -658,9 +658,9 @@
         .get_header(UNREAL_USER_HEADER)
         .and_then(Value::as_str);
     <span class="kw">let </span>context_item =
-        envelope.get_item_by(|item| item.attachment_type() == <span class="prelude-val">Some</span>(AttachmentType::UnrealContext));
+        envelope.get_item_by(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::UnrealContext));
     <span class="kw">let </span>logs_item =
-        envelope.get_item_by(|item| item.attachment_type() == <span class="prelude-val">Some</span>(AttachmentType::UnrealLogs));
+        envelope.get_item_by(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::UnrealLogs));
 
     <span class="comment">// Early exit if there is no information.
     </span><span class="kw">if </span>user_header.is_none() &amp;&amp; context_item.is_none() &amp;&amp; logs_item.is_none() {

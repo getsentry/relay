@@ -4416,11 +4416,11 @@
         <span class="kw">let </span>raw_security_item = envelope.take_item_by(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::RawSecurity);
         <span class="kw">let </span>form_item = envelope.take_item_by(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::FormData);
         <span class="kw">let </span>attachment_item = envelope
-            .take_item_by(|item| item.attachment_type() == <span class="prelude-val">Some</span>(AttachmentType::EventPayload));
+            .take_item_by(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::EventPayload));
         <span class="kw">let </span>breadcrumbs1 = envelope
-            .take_item_by(|item| item.attachment_type() == <span class="prelude-val">Some</span>(AttachmentType::Breadcrumbs));
+            .take_item_by(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::Breadcrumbs));
         <span class="kw">let </span>breadcrumbs2 = envelope
-            .take_item_by(|item| item.attachment_type() == <span class="prelude-val">Some</span>(AttachmentType::Breadcrumbs));
+            .take_item_by(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::Breadcrumbs));
 
         <span class="comment">// Event items can never occur twice in an envelope.
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(duplicate) = envelope.get_item_by(|item| <span class="self">self</span>.is_duplicate(item)) {
@@ -4495,9 +4495,9 @@
         <span class="kw">let </span>envelope = <span class="kw-2">&amp;mut </span>state.envelope;
 
         <span class="kw">let </span>minidump_attachment =
-            envelope.get_item_by(|item| item.attachment_type() == <span class="prelude-val">Some</span>(AttachmentType::Minidump));
+            envelope.get_item_by(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::Minidump));
         <span class="kw">let </span>apple_crash_report_attachment = envelope
-            .get_item_by(|item| item.attachment_type() == <span class="prelude-val">Some</span>(AttachmentType::AppleCrashReport));
+            .get_item_by(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::AppleCrashReport));
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(item) = minidump_attachment {
             <span class="kw">let </span>event = state.event.get_or_insert_with(Event::default);
@@ -4553,7 +4553,7 @@
 
             <span class="kw">let </span>attachment_size = envelope
                 .items()
-                .filter(|item| item.attachment_type() == <span class="prelude-val">Some</span>(AttachmentType::Attachment))
+                .filter(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::Attachment))
                 .map(|item| item.len() <span class="kw">as </span>u64)
                 .sum::&lt;u64&gt;();
 
@@ -4841,7 +4841,7 @@
         <span class="kw">let </span>envelope = <span class="kw-2">&amp;mut </span>state.envelope;
         <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>config) = state.project_state.config.pii_config {
             <span class="kw">let </span>minidump = envelope
-                .get_item_by_mut(|item| item.attachment_type() == <span class="prelude-val">Some</span>(AttachmentType::Minidump));
+                .get_item_by_mut(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::Minidump));
 
             <span class="kw">if let </span><span class="prelude-val">Some</span>(item) = minidump {
                 <span class="kw">let </span>filename = item.filename().unwrap_or_default();

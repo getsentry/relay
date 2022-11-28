@@ -1570,6 +1570,46 @@
 <span id="1568">1568</span>
 <span id="1569">1569</span>
 <span id="1570">1570</span>
+<span id="1571">1571</span>
+<span id="1572">1572</span>
+<span id="1573">1573</span>
+<span id="1574">1574</span>
+<span id="1575">1575</span>
+<span id="1576">1576</span>
+<span id="1577">1577</span>
+<span id="1578">1578</span>
+<span id="1579">1579</span>
+<span id="1580">1580</span>
+<span id="1581">1581</span>
+<span id="1582">1582</span>
+<span id="1583">1583</span>
+<span id="1584">1584</span>
+<span id="1585">1585</span>
+<span id="1586">1586</span>
+<span id="1587">1587</span>
+<span id="1588">1588</span>
+<span id="1589">1589</span>
+<span id="1590">1590</span>
+<span id="1591">1591</span>
+<span id="1592">1592</span>
+<span id="1593">1593</span>
+<span id="1594">1594</span>
+<span id="1595">1595</span>
+<span id="1596">1596</span>
+<span id="1597">1597</span>
+<span id="1598">1598</span>
+<span id="1599">1599</span>
+<span id="1600">1600</span>
+<span id="1601">1601</span>
+<span id="1602">1602</span>
+<span id="1603">1603</span>
+<span id="1604">1604</span>
+<span id="1605">1605</span>
+<span id="1606">1606</span>
+<span id="1607">1607</span>
+<span id="1608">1608</span>
+<span id="1609">1609</span>
+<span id="1610">1610</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
@@ -1893,24 +1933,20 @@
 <span class="doccomment">/// The type of an event attachment.
 ///
 /// These item types must align with the Sentry processing pipeline.
-</span><span class="attribute">#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
+</span><span class="attribute">#[derive(Clone, Debug, Eq, PartialEq)]
 </span><span class="kw">pub enum </span>AttachmentType {
     <span class="doccomment">/// A regular attachment without special meaning.
-    </span><span class="attribute">#[serde(rename = <span class="string">&quot;event.attachment&quot;</span>)]
     </span>Attachment,
 
     <span class="doccomment">/// A minidump crash report (binary data).
-    </span><span class="attribute">#[serde(rename = <span class="string">&quot;event.minidump&quot;</span>)]
     </span>Minidump,
 
     <span class="doccomment">/// An apple crash report (text data).
-    </span><span class="attribute">#[serde(rename = <span class="string">&quot;event.applecrashreport&quot;</span>)]
     </span>AppleCrashReport,
 
     <span class="doccomment">/// A msgpack-encoded event payload submitted as part of multipart uploads.
     ///
     /// This attachment is processed by Relay immediately and never forwarded or persisted.
-    </span><span class="attribute">#[serde(rename = <span class="string">&quot;event.payload&quot;</span>)]
     </span>EventPayload,
 
     <span class="doccomment">/// A msgpack-encoded list of payloads.
@@ -1919,7 +1955,6 @@
     /// will be merged and truncated to the maxmimum number of allowed attachments.
     ///
     /// This attachment is processed by Relay immediately and never forwarded or persisted.
-    </span><span class="attribute">#[serde(rename = <span class="string">&quot;event.breadcrumbs&quot;</span>)]
     </span>Breadcrumbs,
 
     <span class="doccomment">/// This is a binary attachment present in Unreal 4 events containing event context information.
@@ -1928,7 +1963,6 @@
     /// [`symbolic_unreal::Unreal4Context`].
     ///
     /// [`symbolic_unreal::Unreal4Context`]: https://docs.rs/symbolic/*/symbolic/unreal/struct.Unreal4Context.html
-    </span><span class="attribute">#[serde(rename = <span class="string">&quot;unreal.context&quot;</span>)]
     </span>UnrealContext,
 
     <span class="doccomment">/// This is a binary attachment present in Unreal 4 events containing event Logs.
@@ -1937,8 +1971,11 @@
     /// [`symbolic_unreal::Unreal4LogEntry`].
     ///
     /// [`symbolic_unreal::Unreal4LogEntry`]: https://docs.rs/symbolic/*/symbolic/unreal/struct.Unreal4LogEntry.html
-    </span><span class="attribute">#[serde(rename = <span class="string">&quot;unreal.logs&quot;</span>)]
     </span>UnrealLogs,
+
+    <span class="doccomment">/// Unknown attachment type, forwarded for compatibility.
+    /// Attachments with this type will be dropped if `accept_unknown_items` is set to false.
+    </span>Unknown(String),
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>AttachmentType {
@@ -1946,6 +1983,43 @@
         <span class="self">Self</span>::Attachment
     }
 }
+
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>AttachmentType {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">match </span><span class="self">self </span>{
+            AttachmentType::Attachment =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;event.attachment&quot;</span>),
+            AttachmentType::Minidump =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;event.minidump&quot;</span>),
+            AttachmentType::AppleCrashReport =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;event.applecrashreport&quot;</span>),
+            AttachmentType::EventPayload =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;event.payload&quot;</span>),
+            AttachmentType::Breadcrumbs =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;event.breadcrumbs&quot;</span>),
+            AttachmentType::UnrealContext =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;unreal.context&quot;</span>),
+            AttachmentType::UnrealLogs =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;unreal.logs&quot;</span>),
+            AttachmentType::Unknown(s) =&gt; s.fmt(f),
+        }
+    }
+}
+
+<span class="kw">impl </span>std::str::FromStr <span class="kw">for </span>AttachmentType {
+    <span class="kw">type </span><span class="prelude-val">Err </span>= std::convert::Infallible;
+
+    <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
+        <span class="prelude-val">Ok</span>(<span class="kw">match </span>s {
+            <span class="string">&quot;event.attachment&quot; </span>=&gt; AttachmentType::Attachment,
+            <span class="string">&quot;event.minidump&quot; </span>=&gt; AttachmentType::Minidump,
+            <span class="string">&quot;event.applecrashreport&quot; </span>=&gt; AttachmentType::AppleCrashReport,
+            <span class="string">&quot;event.payload&quot; </span>=&gt; AttachmentType::EventPayload,
+            <span class="string">&quot;event.breadcrumbs&quot; </span>=&gt; AttachmentType::Breadcrumbs,
+            <span class="string">&quot;unreal.context&quot; </span>=&gt; AttachmentType::UnrealContext,
+            <span class="string">&quot;unreal.logs&quot; </span>=&gt; AttachmentType::UnrealLogs,
+            other =&gt; AttachmentType::Unknown(other.to_owned()),
+        })
+    }
+}
+
+<span class="macro">relay_common::impl_str_serde!</span>(
+    AttachmentType,
+    <span class="string">&quot;an attachment type (see sentry develop docs)&quot;
+</span>);
 
 <span class="kw">fn </span>is_false(val: <span class="kw-2">&amp;</span>bool) -&gt; bool {
     !<span class="kw-2">*</span>val
@@ -2063,9 +2137,9 @@
     }
 
     <span class="doccomment">/// Returns the attachment type if this item is an attachment.
-    </span><span class="kw">pub fn </span>attachment_type(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;AttachmentType&gt; {
+    </span><span class="kw">pub fn </span>attachment_type(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>AttachmentType&gt; {
         <span class="comment">// TODO: consider to replace this with an ItemType?
-        </span><span class="self">self</span>.headers.attachment_type
+        </span><span class="self">self</span>.headers.attachment_type.as_ref()
     }
 
     <span class="doccomment">/// Sets the attachment type of this item.
@@ -2179,15 +2253,21 @@
 
             <span class="comment">// Attachments are only event items if they are crash reports or if they carry partial
             // event payloads. Plain attachments never create event payloads.
-            </span>ItemType::Attachment =&gt; <span class="kw">match </span><span class="self">self</span>.attachment_type().unwrap_or_default() {
-                AttachmentType::AppleCrashReport
-                | AttachmentType::Minidump
-                | AttachmentType::EventPayload
-                | AttachmentType::Breadcrumbs =&gt; <span class="bool-val">true</span>,
-                AttachmentType::Attachment
-                | AttachmentType::UnrealContext
-                | AttachmentType::UnrealLogs =&gt; <span class="bool-val">false</span>,
-            },
+            </span>ItemType::Attachment =&gt; {
+                <span class="kw">match </span><span class="self">self</span>.attachment_type().unwrap_or(<span class="kw-2">&amp;</span>AttachmentType::default()) {
+                    AttachmentType::AppleCrashReport
+                    | AttachmentType::Minidump
+                    | AttachmentType::EventPayload
+                    | AttachmentType::Breadcrumbs =&gt; <span class="bool-val">true</span>,
+                    AttachmentType::Attachment
+                    | AttachmentType::UnrealContext
+                    | AttachmentType::UnrealLogs =&gt; <span class="bool-val">false</span>,
+                    <span class="comment">// When an outdated Relay instance forwards an unknown attachment type for compatibility,
+                    // we assume that the attachment does not create a new event. This will make it hard
+                    // to introduce new attachment types which _do_ create a new event.
+                    </span>AttachmentType::Unknown(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
+                }
+            }
 
             <span class="comment">// Form data items may contain partial event payloads, but those are only ever valid if
             // they occur together with an explicit event item, such as a minidump or apple crash
