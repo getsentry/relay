@@ -2931,6 +2931,14 @@ expression: "relay_general::protocol::event_json_schema()"
                 }
               ]
             },
+            "main": {
+              "description": " A flag indicating whether the thread was responsible for rendering the user interface.",
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
             "name": {
               "description": " Display name of this thread.",
               "default": null,
@@ -2949,14 +2957,6 @@ expression: "relay_general::protocol::event_json_schema()"
                 {
                   "type": "null"
                 }
-              ]
-            },
-            "ui": {
-              "description": " A flag indicating whether the thread was responsible for rendering the user interface.",
-              "default": null,
-              "type": [
-                "boolean",
-                "null"
               ]
             }
           },
