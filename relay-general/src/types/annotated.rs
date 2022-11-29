@@ -1,7 +1,5 @@
 use std::fmt;
 
-use failure::Fail;
-
 #[cfg(feature = "jsonschema")]
 use schemars::gen::SchemaGenerator;
 #[cfg(feature = "jsonschema")]
@@ -65,18 +63,18 @@ pub type ProcessingResult = Result<(), ProcessingAction>;
 
 /// Used to indicate how to handle an annotated value in a callback.
 #[must_use = "This `ProcessingAction` must be handled by `Annotated::apply`"]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Fail)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum ProcessingAction {
     /// Discards the value entirely.
-    #[fail(display = "value should be hard-deleted (unreachable, should not surface as error!)")]
+    #[error("value should be hard-deleted (unreachable, should not surface as error!)")]
     DeleteValueHard,
 
     /// Discards the value and moves it into meta's `original_value`.
-    #[fail(display = "value should be hard-deleted (unreachable, should not surface as error!)")]
+    #[error("value should be hard-deleted (unreachable, should not surface as error!)")]
     DeleteValueSoft,
 
     /// The event is invalid (needs to bubble up)
-    #[fail(display = "invalid transaction event: {}", _0)]
+    #[error("invalid transaction event: {}", .0)]
     InvalidTransaction(&'static str),
 }
 
