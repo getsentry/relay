@@ -376,11 +376,9 @@
 <span id="374">374</span>
 <span id="375">375</span>
 <span id="376">376</span>
-<span id="377">377</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
-<span class="kw">use </span>failure::Fail;
 <span class="kw">use </span>pest::error::Error;
 <span class="kw">use </span>pest::iterators::Pair;
 <span class="kw">use </span>pest::Parser;
@@ -388,24 +386,24 @@
 <span class="kw">use </span><span class="kw">crate</span>::processor::{Pii, ProcessingState, ValueType};
 
 <span class="doccomment">/// Error for invalid selectors
-</span><span class="attribute">#[derive(Debug, Fail)]
+</span><span class="attribute">#[derive(Debug, thiserror::Error)]
 </span><span class="kw">pub enum </span>InvalidSelectorError {
-    <span class="attribute">#[fail(display = <span class="string">&quot;invalid selector: deep wildcard used more than once&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;invalid selector: deep wildcard used more than once&quot;</span>)]
     </span>InvalidDeepWildcard,
 
-    <span class="attribute">#[fail(display = <span class="string">&quot;invalid selector: wildcard must be part of a path&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;invalid selector: wildcard must be part of a path&quot;</span>)]
     </span>InvalidWildcard,
 
-    <span class="attribute">#[fail(display = <span class="string">&quot;invalid selector: {}&quot;</span>, _0)]
+    <span class="attribute">#[error(<span class="string">&quot;invalid selector: {}&quot;</span>, .<span class="number">0</span>)]
     </span>ParseError(Box&lt;Error&lt;Rule&gt;&gt;),
 
-    <span class="attribute">#[fail(display = <span class="string">&quot;invalid selector: invalid index&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;invalid selector: invalid index&quot;</span>)]
     </span>InvalidIndex,
 
-    <span class="attribute">#[fail(display = <span class="string">&quot;invalid selector: unknown value&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;invalid selector: unknown value&quot;</span>)]
     </span>UnknownType,
 
-    <span class="attribute">#[fail(display = <span class="string">&quot;parser bug: consumed {} (expected {})&quot;</span>, _0, _1)]
+    <span class="attribute">#[error(<span class="string">&quot;parser bug: consumed {} (expected {})&quot;</span>, .<span class="number">0</span>, .<span class="number">1</span>)]
     </span>UnexpectedToken(String, <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str),
 }
 

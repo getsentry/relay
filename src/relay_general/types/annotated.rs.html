@@ -538,11 +538,7 @@
 <span id="536">536</span>
 <span id="537">537</span>
 <span id="538">538</span>
-<span id="539">539</span>
-<span id="540">540</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
-
-<span class="kw">use </span>failure::Fail;
 
 <span class="attribute">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
 </span><span class="kw">use </span>schemars::gen::SchemaGenerator;
@@ -607,18 +603,18 @@
 
 <span class="doccomment">/// Used to indicate how to handle an annotated value in a callback.
 </span><span class="attribute">#[must_use = <span class="string">&quot;This `ProcessingAction` must be handled by `Annotated::apply`&quot;</span>]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Fail)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, thiserror::Error)]
 </span><span class="kw">pub enum </span>ProcessingAction {
     <span class="doccomment">/// Discards the value entirely.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;value should be hard-deleted (unreachable, should not surface as error!)&quot;</span>)]
+    </span><span class="attribute">#[error(<span class="string">&quot;value should be hard-deleted (unreachable, should not surface as error!)&quot;</span>)]
     </span>DeleteValueHard,
 
     <span class="doccomment">/// Discards the value and moves it into meta&#39;s `original_value`.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;value should be hard-deleted (unreachable, should not surface as error!)&quot;</span>)]
+    </span><span class="attribute">#[error(<span class="string">&quot;value should be hard-deleted (unreachable, should not surface as error!)&quot;</span>)]
     </span>DeleteValueSoft,
 
     <span class="doccomment">/// The event is invalid (needs to bubble up)
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;invalid transaction event: {}&quot;</span>, _0)]
+    </span><span class="attribute">#[error(<span class="string">&quot;invalid transaction event: {}&quot;</span>, .<span class="number">0</span>)]
     </span>InvalidTransaction(<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str),
 }
 

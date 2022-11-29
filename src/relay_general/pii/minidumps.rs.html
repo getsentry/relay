@@ -801,13 +801,6 @@
 <span id="799">799</span>
 <span id="800">800</span>
 <span id="801">801</span>
-<span id="802">802</span>
-<span id="803">803</span>
-<span id="804">804</span>
-<span id="805">805</span>
-<span id="806">806</span>
-<span id="807">807</span>
-<span id="808">808</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Minidump scrubbing.
 
 </span><span class="kw">use </span>std::borrow::Cow;
@@ -816,7 +809,6 @@
 <span class="kw">use </span>std::ops::Range;
 <span class="kw">use </span>std::str::Utf8Error;
 
-<span class="kw">use </span>failure::Fail;
 <span class="kw">use </span>minidump::format::{
     CvSignature, MINIDUMP_LOCATION_DESCRIPTOR, MINIDUMP_STREAM_TYPE <span class="kw">as </span>StreamType,
 };
@@ -830,30 +822,24 @@
 <span class="kw">use </span><span class="kw">crate</span>::pii::{PiiAttachmentsProcessor, ScrubEncodings};
 <span class="kw">use </span><span class="kw">crate</span>::processor::{FieldAttrs, Pii, ValueType};
 
-<span class="attribute">#[derive(Debug, Fail)]
+<span class="attribute">#[derive(Debug, thiserror::Error)]
 </span><span class="kw">pub enum </span>ScrubMinidumpError {
-    <span class="attribute">#[fail(display = <span class="string">&quot;failed to parse minidump&quot;</span>)]
-    </span>InvalidMinidump(<span class="attribute">#[cause] </span>MinidumpError),
+    <span class="attribute">#[error(<span class="string">&quot;failed to parse minidump&quot;</span>)]
+    </span>InvalidMinidump(<span class="attribute">#[from] </span>MinidumpError),
 
-    <span class="attribute">#[fail(display = <span class="string">&quot;invalid memory address&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;invalid memory address&quot;</span>)]
     </span>InvalidAddress,
 
-    <span class="attribute">#[fail(display = <span class="string">&quot;minidump offsets out of usize range&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;minidump offsets out of usize range&quot;</span>)]
     </span>OutOfRange,
 
-    <span class="attribute">#[fail(display = <span class="string">&quot;string decoding error&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;string decoding error&quot;</span>)]
     </span>Decoding,
 }
 
 <span class="kw">impl </span>From&lt;TryFromIntError&gt; <span class="kw">for </span>ScrubMinidumpError {
     <span class="kw">fn </span>from(_source: TryFromIntError) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::OutOfRange
-    }
-}
-
-<span class="kw">impl </span>From&lt;MinidumpError&gt; <span class="kw">for </span>ScrubMinidumpError {
-    <span class="kw">fn </span>from(source: MinidumpError) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::InvalidMinidump(source)
     }
 }
 

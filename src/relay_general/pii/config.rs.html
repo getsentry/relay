@@ -239,12 +239,10 @@
 <span id="237">237</span>
 <span id="238">238</span>
 <span id="239">239</span>
-<span id="240">240</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::ops::Deref;
 
-<span class="kw">use </span>failure::Fail;
 <span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>regex::{Regex, RegexBuilder};
 <span class="kw">use </span>serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
@@ -254,10 +252,10 @@
 
 <span class="kw">const </span>COMPILED_PATTERN_MAX_SIZE: usize = <span class="number">262_144</span>;
 
-<span class="attribute">#[derive(Clone, Debug, Fail)]
+<span class="attribute">#[derive(Clone, Debug, thiserror::Error)]
 </span><span class="kw">pub enum </span>PiiConfigError {
-    <span class="attribute">#[fail(display = <span class="string">&quot;could not parse regex&quot;</span>)]
-    </span>RegexError(<span class="attribute">#[cause] </span>regex::Error),
+    <span class="attribute">#[error(<span class="string">&quot;could not parse pattern&quot;</span>)]
+    </span>RegexError(<span class="attribute">#[source] </span>regex::Error),
 }
 
 <span class="doccomment">/// A regex pattern for text replacement.

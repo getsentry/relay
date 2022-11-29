@@ -842,12 +842,17 @@
 <span id="840">840</span>
 <span id="841">841</span>
 <span id="842">842</span>
+<span id="843">843</span>
+<span id="844">844</span>
+<span id="845">845</span>
+<span id="846">846</span>
+<span id="847">847</span>
+<span id="848">848</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::ops::RangeInclusive;
 
 <span class="kw">use </span>enumset::{EnumSet, EnumSetType};
-<span class="kw">use </span>failure::Fail;
 <span class="kw">use </span>smallvec::SmallVec;
 
 <span class="kw">use </span><span class="kw">crate</span>::macros::derive_fromstr_and_display;
@@ -855,9 +860,16 @@
 <span class="kw">use </span><span class="kw">crate</span>::types::Annotated;
 
 <span class="doccomment">/// Error for unknown value types.
-</span><span class="attribute">#[derive(Debug, Fail)]
-#[fail(display = <span class="string">&quot;unknown value type&quot;</span>)]
+</span><span class="attribute">#[derive(Debug)]
 </span><span class="kw">pub struct </span>UnknownValueTypeError;
+
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>UnknownValueTypeError {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;unknown value type&quot;</span>)
+    }
+}
+
+<span class="kw">impl </span>std::error::Error <span class="kw">for </span>UnknownValueTypeError {}
 
 <span class="doccomment">/// The (simplified) type of a value.
 </span><span class="attribute">#[derive(Debug, Ord, PartialOrd, EnumSetType)]
