@@ -21,27 +21,27 @@
 <span id="21">21</span>
 <span id="22">22</span>
 <span id="23">23</span>
-</pre><pre class="rust"><code><span class="kw">use </span>failure::Fail;
+</pre><pre class="rust"><code><span class="kw">use </span>thiserror::Error;
 
-<span class="attribute">#[derive(Debug, Fail)]
+<span class="attribute">#[derive(Debug, Error)]
 </span><span class="kw">pub enum </span>ProfileError {
-    <span class="attribute">#[fail(display = <span class="string">&quot;invalid json in profile&quot;</span>)]
-    </span>InvalidJson(<span class="attribute">#[cause] </span>serde_json::Error),
-    <span class="attribute">#[fail(display = <span class="string">&quot;invalid base64 value&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;invalid json in profile&quot;</span>)]
+    </span>InvalidJson(<span class="attribute">#[source] </span>serde_json::Error),
+    <span class="attribute">#[error(<span class="string">&quot;invalid base64 value&quot;</span>)]
     </span>InvalidBase64Value,
-    <span class="attribute">#[fail(display = <span class="string">&quot;invalid sampled profile&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;invalid sampled profile&quot;</span>)]
     </span>InvalidSampledProfile,
-    <span class="attribute">#[fail(display = <span class="string">&quot;cannot serialize payload&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;cannot serialize payload&quot;</span>)]
     </span>CannotSerializePayload,
-    <span class="attribute">#[fail(display = <span class="string">&quot;not enough samples&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;not enough samples&quot;</span>)]
     </span>NotEnoughSamples,
-    <span class="attribute">#[fail(display = <span class="string">&quot;platform not supported&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;platform not supported&quot;</span>)]
     </span>PlatformNotSupported,
-    <span class="attribute">#[fail(display = <span class="string">&quot;no transaction associated&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;no transaction associated&quot;</span>)]
     </span>NoTransactionAssociated,
-    <span class="attribute">#[fail(display = <span class="string">&quot;invalid transaction metadata&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;invalid transaction metadata&quot;</span>)]
     </span>InvalidTransactionMetadata,
-    <span class="attribute">#[fail(display = <span class="string">&quot;missing profile metadata&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;missing profile metadata&quot;</span>)]
     </span>MissingProfileMetadata,
 }
 </code></pre></div>

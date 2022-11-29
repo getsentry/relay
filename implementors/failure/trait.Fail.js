@@ -1,5 +1,4 @@
 (function() {var implementors = {
 "relay_config":[["impl Fail for <a class=\"struct\" href=\"relay_config/struct.ConfigError.html\" title=\"struct relay_config::ConfigError\">ConfigError</a>"],["impl Fail for <a class=\"enum\" href=\"relay_config/enum.ConfigErrorKind.html\" title=\"enum relay_config::ConfigErrorKind\">ConfigErrorKind</a>"],["impl Fail for <a class=\"enum\" href=\"relay_config/enum.UpstreamError.html\" title=\"enum relay_config::UpstreamError\">UpstreamError</a>"],["impl Fail for <a class=\"enum\" href=\"relay_config/enum.UpstreamParseError.html\" title=\"enum relay_config::UpstreamParseError\">UpstreamParseError</a>"]],
-"relay_profiling":[["impl Fail for <a class=\"enum\" href=\"relay_profiling/enum.ProfileError.html\" title=\"enum relay_profiling::ProfileError\">ProfileError</a>"]],
 "relay_server":[["impl Fail for <a class=\"struct\" href=\"relay_server/struct.ServerError.html\" title=\"struct relay_server::ServerError\">ServerError</a>"]]
 };if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()
