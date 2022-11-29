@@ -1,4 +1,4 @@
-use failure::Fail;
+use thiserror::Error;
 
 use crate::config::RedisConfig;
 
@@ -7,8 +7,8 @@ use crate::config::RedisConfig;
 pub struct RedisPool;
 
 /// An error returned from `RedisPool`.
-#[derive(Debug, Fail)]
-#[fail(display = "unreachable")]
+#[derive(Debug, Error)]
+#[error("unreachable")]
 pub struct RedisError;
 
 impl RedisPool {

@@ -1,23 +1,23 @@
 use std::fmt;
 
-use failure::Fail;
 use r2d2::{Pool, PooledConnection};
 use redis::ConnectionLike;
+use thiserror::Error;
 
 use crate::config::{RedisConfig, RedisConfigOptions};
 
 pub use redis;
 
 /// An error returned from `RedisPool`.
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum RedisError {
     /// Failure in r2d2 pool.
-    #[fail(display = "failed to pool redis connection")]
-    Pool(#[cause] r2d2::Error),
+    #[error("failed to pool redis connection")]
+    Pool(#[source] r2d2::Error),
 
     /// Failure in Redis communication.
-    #[fail(display = "failed to communicate with redis")]
-    Redis(#[cause] redis::RedisError),
+    #[error("failed to communicate with redis")]
+    Redis(#[source] redis::RedisError),
 }
 
 enum ConnectionInner<'a> {

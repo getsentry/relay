@@ -3404,7 +3404,6 @@ dependencies = [
 name = "relay-quotas"
 version = "22.11.0"
 dependencies = [
- "failure",
  "insta",
  "relay-common",
  "relay-log",
@@ -3412,17 +3411,18 @@ dependencies = [
  "serde",
  "serde_json",
  "smallvec 1.8.0",
+ "thiserror",
 ]
 
 [[package]]
 name = "relay-redis"
 version = "22.11.0"
 dependencies = [
- "failure",
  "r2d2",
  "redis",
  "serde",
  "serde_yaml",
+ "thiserror",
 ]
 
 [[package]]
