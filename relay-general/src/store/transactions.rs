@@ -238,9 +238,11 @@ fn normalize_transaction_name(transaction: &mut Annotated<String>) -> Processing
         let changed = TRANSACTION_NAME_NORMALIZER_REGEX
             .replace_all(trans, "*")
             .to_string();
-        if *trans != changed {
+        if *trans != changed && changed != "*" {
             meta.set_original_value(Some(trans.to_string()));
             *trans = changed
+        } else {
+            meta.clear_remarks();
         }
         Ok(())
     })
@@ -1485,4 +1487,5 @@ mod tests {
         r#"C:\\\\Program Files\\1234\\Files"#,
         r#"C:\\Program Files\*\Files"#
     );
+    transaction_name_test!(test_transaction_name_skip_replace_all, "12345", "12345");
 }
