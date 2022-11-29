@@ -361,6 +361,9 @@ pub enum AttachmentType {
     /// [`symbolic_unreal::Unreal4LogEntry`]: https://docs.rs/symbolic/*/symbolic/unreal/struct.Unreal4LogEntry.html
     UnrealLogs,
 
+    /// An application ui view hierarchy (json payload)
+    ViewHierarchy,
+
     /// Unknown attachment type, forwarded for compatibility.
     /// Attachments with this type will be dropped if `accept_unknown_items` is set to false.
     Unknown(String),
@@ -382,6 +385,7 @@ impl fmt::Display for AttachmentType {
             AttachmentType::Breadcrumbs => write!(f, "event.breadcrumbs"),
             AttachmentType::UnrealContext => write!(f, "unreal.context"),
             AttachmentType::UnrealLogs => write!(f, "unreal.logs"),
+            AttachmentType::ViewHierarchy => write!(f, "event.viewhierarchy"),
             AttachmentType::Unknown(s) => s.fmt(f),
         }
     }
@@ -397,6 +401,7 @@ impl std::str::FromStr for AttachmentType {
             "event.applecrashreport" => AttachmentType::AppleCrashReport,
             "event.payload" => AttachmentType::EventPayload,
             "event.breadcrumbs" => AttachmentType::Breadcrumbs,
+            "event.viewhierarchy" => AttachmentType::ViewHierarchy,
             "unreal.context" => AttachmentType::UnrealContext,
             "unreal.logs" => AttachmentType::UnrealLogs,
             other => AttachmentType::Unknown(other.to_owned()),
@@ -649,7 +654,8 @@ impl Item {
                     | AttachmentType::Breadcrumbs => true,
                     AttachmentType::Attachment
                     | AttachmentType::UnrealContext
-                    | AttachmentType::UnrealLogs => false,
+                    | AttachmentType::UnrealLogs
+                    | AttachmentType::ViewHierarchy => false,
                     // When an outdated Relay instance forwards an unknown attachment type for compatibility,
                     // we assume that the attachment does not create a new event. This will make it hard
                     // to introduce new attachment types which _do_ create a new event.
@@ -1432,6 +1438,26 @@ mod tests {
         assert_eq!(envelope.len(), 1);
         let items: Vec<_> = envelope.items().collect();
         assert_eq!(items[0].ty(), &ItemType::ReplayRecording);
+    }
+
+    #[test]
+    fn test_deserialize_envelope_view_hierarchy() {
+        let bytes = Bytes::from(
+            "\
+             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
+             {\"type\":\"attachment\",\"length\":44,\"content_type\":\"application/json\",\"attachment_type\":\"event.viewhierarchy\"}\n\
+             {\"rendering_system\":\"compose\",\"windows\":[]}\n\
+             ",
+        );
+
+        let envelope = Envelope::parse_bytes(bytes).unwrap();
+        assert_eq!(envelope.len(), 1);
+        let items: Vec<_> = envelope.items().collect();
+        assert_eq!(items[0].ty(), &ItemType::Attachment);
+        assert_eq!(
+            items[0].attachment_type(),
+            Some(&AttachmentType::ViewHierarchy)
+        );
     }
 
     #[test]
