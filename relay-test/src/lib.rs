@@ -27,17 +27,12 @@
 )]
 #![allow(clippy::derive_partial_eq_without_eq)]
 
-use std::{
-    cell::RefCell,
-    future::Future,
-    time::{Duration, Instant},
-};
+use std::cell::RefCell;
 
 use actix::{System, SystemRunner};
 use futures01::{future, IntoFuture};
 
 pub use actix_web::test::*;
-use tokio_timer::Delay;
 
 thread_local! {
     static SYSTEM: RefCell<Inner> = RefCell::new(Inner::new());
@@ -122,43 +117,4 @@ where
     F: FnOnce() -> R,
 {
     block_fn(move || future::ok::<_, ()>(func())).unwrap()
-}
-
-/// Returns a future which completes after the requested delay.
-/// ```
-/// use std::time::Duration;
-/// use futures01::future::Future;
-///
-/// relay_test::setup();
-/// relay_test::block_fn(|| {
-///     relay_test::delay(Duration::from_millis(1000)).and_then(|_| {
-///         println!("One second has passed.");
-///         Ok(())
-///     })
-/// });
-/// ```
-pub fn delay(timeout: Duration) -> Delay {
-    Delay::new(Instant::now() + timeout)
-}
-
-/// Creates a new runtime for the future to run on, and also keeps [`actix::System`] around for
-/// things which are still depend on it.
-pub fn block_with_actix(f: impl Future<Output = ()> + Send + 'static) {
-    let system = actix::System::current();
-    let (tx, rx) = futures01::sync::oneshot::channel();
-
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(1)
-        .enable_all()
-        .build()
-        .unwrap();
-
-    rt.spawn(async move {
-        actix::System::set_current(system);
-        f.await;
-        tx.send(()).ok();
-    });
-
-    // Note that this also resolves with error if `f` panics.
-    block_fn(|| rx).unwrap()
 }

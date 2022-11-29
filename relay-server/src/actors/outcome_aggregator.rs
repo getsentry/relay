@@ -75,12 +75,10 @@ impl OutcomeAggregator {
         }
     }
 
-    fn handle_shutdown(&mut self, message: &Option<Shutdown>) {
-        if let Some(message) = message {
-            if message.timeout.is_some() {
-                self.flush();
-                relay_log::info!("outcome aggregator stopped");
-            }
+    fn handle_shutdown(&mut self, message: Shutdown) {
+        if message.timeout.is_some() {
+            self.flush();
+            relay_log::info!("outcome aggregator stopped");
         }
     }
 
@@ -182,7 +180,7 @@ impl Service for OutcomeAggregator {
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
-            let mut shutdown = Controller::subscribe_v2().await;
+            let mut shutdown = Controller::shutdown_handle();
             relay_log::info!("outcome aggregator started");
 
             loop {
@@ -193,7 +191,7 @@ impl Service for OutcomeAggregator {
 
                     () = &mut self.flush_handle => self.flush(),
                     Some(message) = rx.recv() => self.handle_track_outcome(message),
-                    _ = shutdown.changed() => self.handle_shutdown(&shutdown.borrow_and_update()),
+                    shutdown = shutdown.notified() => self.handle_shutdown(shutdown),
                     else => break,
                 }
             }

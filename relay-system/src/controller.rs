@@ -4,15 +4,44 @@ use std::time::Duration;
 use actix::actors::signal;
 use actix::fut;
 use actix::prelude::*;
-use futures::compat::Future01CompatExt;
 use futures01::future;
 use futures01::prelude::*;
+use once_cell::sync::OnceCell;
 use tokio::sync::watch;
 
 #[doc(inline)]
 pub use actix::actors::signal::{Signal, SignalType};
 
 use crate::compat;
+
+type ShutdownChannel = (
+    watch::Sender<Option<Shutdown>>,
+    watch::Receiver<Option<Shutdown>>,
+);
+
+/// Global [`ShutdownChannel`] for all services.
+static SHUTDOWN: OnceCell<ShutdownChannel> = OnceCell::new();
+
+/// Notifies a service about an upcoming shutdown.
+// TODO: The receiver of this message can not yet signal they have completed
+// shutdown.
+// TODO: Refactor this to a `Recipient`.
+pub struct ShutdownHandle(watch::Receiver<Option<Shutdown>>);
+
+impl ShutdownHandle {
+    /// Wait for a shutdown.
+    ///
+    /// This method is cancellation safe and can be used in `select!`.
+    pub async fn notified(&mut self) -> Shutdown {
+        while self.0.changed().await.is_ok() {
+            if let Some(shutdown) = &*self.0.borrow() {
+                return shutdown.clone();
+            }
+        }
+
+        Shutdown { timeout: None }
+    }
+}
 
 /// Actor to start and gracefully stop an actix system.
 ///
@@ -64,10 +93,6 @@ pub struct Controller {
     timeout: Duration,
     /// Subscribed actors for the shutdown message.
     subscribers: Vec<Recipient<Shutdown>>,
-    /// Handed out to actors who wish to subscribe to the [`Shutdown`] message.
-    shutdown_receiver: watch::Receiver<Option<Shutdown>>,
-    /// The sender for the [`Shutdown`] message.
-    shutdown_sender: watch::Sender<Option<Shutdown>>,
 }
 
 impl Controller {
@@ -117,20 +142,10 @@ impl Controller {
         Controller::from_registry().do_send(Subscribe(addr.recipient()))
     }
 
-    /// Subscribes to the [`Shutdown`] message to handle graceful shutdown.
-    ///
-    /// Returns a receiver for the [`Shutdown`] message, to be used to gracefully
-    /// shutdown.  This sends a message to the [`Controller`] actor so will
-    /// block until this actor is running.
-    ///
-    /// TODO(tobias): The receiver of this message can not yet signal they have completed
-    /// shutdown.
-    pub async fn subscribe_v2() -> watch::Receiver<Option<Shutdown>> {
-        Controller::from_registry()
-            .send(SubscribeV2())
-            .compat()
-            .await
-            .unwrap() // FIXME: Remove this later
+    /// Returns a [handle](ShutdownHandle) to receive shutdown notifications.
+    pub fn shutdown_handle() -> ShutdownHandle {
+        let (_, ref rx) = SHUTDOWN.get_or_init(|| watch::channel(None));
+        ShutdownHandle(rx.clone())
     }
 
     /// Performs a graceful shutdown with the given timeout.
@@ -141,7 +156,8 @@ impl Controller {
         // Send a shutdown signal to all registered subscribers (including self). They will report
         // when the shutdown has completed. Note that we ignore all errors to make sure that we
         // don't cancel the shutdown of other actors if one actor fails.
-        self.shutdown_sender.send(Some(Shutdown { timeout })).ok();
+        let (tx, _) = SHUTDOWN.get_or_init(|| watch::channel(None));
+        tx.send(Some(Shutdown { timeout })).ok();
 
         let futures: Vec<_> = self
             .subscribers
@@ -174,13 +190,9 @@ impl Controller {
 
 impl Default for Controller {
     fn default() -> Self {
-        let (shutdown_sender, shutdown_receiver) = watch::channel(None);
-
         Controller {
             timeout: Duration::from_secs(0),
             subscribers: Vec::new(),
-            shutdown_receiver,
-            shutdown_sender,
         }
     }
 }
@@ -270,22 +282,6 @@ impl Handler<Subscribe> for Controller {
     }
 }
 
-/// Internal message to handle subscribing to the [`Shutdown`] message.
-#[derive(Debug)]
-pub struct SubscribeV2();
-
-impl Message for SubscribeV2 {
-    type Result = watch::Receiver<Option<Shutdown>>;
-}
-
-impl Handler<SubscribeV2> for Controller {
-    type Result = MessageResult<SubscribeV2>;
-
-    fn handle(&mut self, _: SubscribeV2, _: &mut Self::Context) -> Self::Result {
-        MessageResult(self.shutdown_receiver.clone())
-    }
-}
-
 /// Shutdown request message sent by the [`Controller`] to subscribed actors.
 ///
 /// A handler has to ensure that it doesn't take longer than `timeout` to resolve the future.
@@ -297,7 +293,7 @@ impl Handler<SubscribeV2> for Controller {
 ///
 /// The return value is fully ignored. It is only `Result` such that futures can be executed inside
 /// a handler.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Shutdown {
     /// The timeout for this shutdown. `None` indicates an immediate forced shutdown.
     pub timeout: Option<Duration>,

@@ -2,9 +2,7 @@ use std::collections::{BTreeSet, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use actix::prelude::*;
 use chrono::{DateTime, Utc};
-use futures01::{future::Shared, sync::oneshot, Future};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use smallvec::SmallVec;
@@ -21,11 +19,13 @@ use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric, MetricsContaine
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::SamplingConfig;
 use relay_statsd::metric;
+use relay_system::BroadcastChannel;
 
+use crate::actors::envelopes::{EnvelopeManager, SendMetrics};
 use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::processor::{EnvelopeProcessor, ProcessEnvelope};
 use crate::actors::project_cache::{
-    AddSamplingState, CheckedEnvelope, ProjectCache, ProjectError, UpdateProjectState,
+    AddSamplingState, CheckedEnvelope, ProjectCache, RequestUpdate,
 };
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
@@ -34,9 +34,10 @@ use crate::metrics_extraction::transactions::TransactionMetricsConfig;
 use crate::metrics_extraction::TaggingRule;
 use crate::service::Registry;
 use crate::statsd::RelayCounters;
-use crate::utils::{
-    self, EnvelopeContext, EnvelopeLimiter, ErrorBoundary, MetricsLimiter, Response,
-};
+use crate::utils::{self, EnvelopeContext, EnvelopeLimiter, ErrorBoundary, MetricsLimiter};
+
+#[cfg(feature = "processing")]
+use crate::actors::processor::RateLimitFlushBuckets;
 
 /// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -61,6 +62,9 @@ pub enum ExpiryState {
     /// An expired project state that should not be used. See [`Expiry::Expired`].
     Expired,
 }
+
+/// Sender type for messages that respond with project states.
+pub type ProjectSender = relay_system::BroadcastSender<Arc<ProjectState>>;
 
 /// Features exposed by project config.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -492,17 +496,14 @@ pub struct PublicKeyConfig {
 }
 
 struct StateChannel {
-    sender: oneshot::Sender<Arc<ProjectState>>,
-    receiver: Shared<oneshot::Receiver<Arc<ProjectState>>>,
+    inner: BroadcastChannel<Arc<ProjectState>>,
     no_cache: bool,
 }
 
 impl StateChannel {
     pub fn new() -> Self {
-        let (sender, receiver) = oneshot::channel();
         Self {
-            sender,
-            receiver: receiver.shared(),
+            inner: BroadcastChannel::new(),
             no_cache: false,
         }
     }
@@ -511,14 +512,11 @@ impl StateChannel {
         self.no_cache = no_cache;
         self
     }
+}
 
-    pub fn receiver(&self) -> Shared<oneshot::Receiver<Arc<ProjectState>>> {
-        self.receiver.clone()
-    }
-
-    pub fn send(self, state: Arc<ProjectState>) {
-        self.sender.send(state).ok();
-    }
+enum GetOrFetch<'a> {
+    Cached(Arc<ProjectState>),
+    Scheduled(&'a mut StateChannel),
 }
 
 /// Structure representing organization and project configuration for a project key.
@@ -583,7 +581,7 @@ impl Project {
     /// Returns the project state if it is not expired.
     ///
     /// Convenience wrapper around [`expiry_state`](Self::expiry_state).
-    pub fn valid_state(&self) -> Option<Arc<ProjectState>> {
+    fn valid_state(&self) -> Option<Arc<ProjectState>> {
         match self.expiry_state() {
             ExpiryState::Updated(state) => Some(state),
             ExpiryState::Stale(state) => Some(state),
@@ -650,24 +648,27 @@ impl Project {
         }
     }
 
-    /// Ensures the project state gets updated and returns it once valid.
+    /// Triggers a debounced refresh of the project state.
     ///
-    /// This first checks if the state needs to be updated. This is the case if the project state
-    /// has passed its cache timeout. The `no_cache` flag forces an update. This does nothing if an
-    /// update is already running in the background.
-    ///
-    /// Independent of updating, _stale_ states can still be returned immediately as long as they
-    /// are in the [grace period](Config::project_grace_period). This function returns:
-    ///
-    ///  - [`Response::Reply(Ok)`](Response::Reply) if the state is updated or stale, and `no_cache`
-    ///    was not specified. This case is infallible.
-    ///  - [`Response::Future`] if the state was expired or `no_cache` was specified. This future
-    ///    may fail if the state repeatedly cannot be fetched. The future does not have to be
-    ///    awaited for the update to pass.
-    pub fn get_or_fetch_state(
-        &mut self,
-        mut no_cache: bool,
-    ) -> Response<Arc<ProjectState>, ProjectError> {
+    /// If the state is already being updated in the background, this method checks if the request
+    /// needs to be upgraded with the `no_cache` flag to ensure a more recent update.
+    fn fetch_state(&mut self, no_cache: bool) -> &mut StateChannel {
+        // If there is a running request and we do not need to upgrade it to no_cache, skip
+        // scheduling a new fetch.
+        let should_fetch =
+            !matches!(self.state_channel, Some(ref channel) if channel.no_cache || !no_cache);
+        let channel = self.state_channel.get_or_insert_with(StateChannel::new);
+
+        if should_fetch {
+            channel.no_cache(no_cache);
+            relay_log::debug!("project {} state requested", self.project_key);
+            ProjectCache::from_registry().send(RequestUpdate::new(self.project_key, no_cache));
+        }
+
+        channel
+    }
+
+    fn get_or_fetch_state(&mut self, mut no_cache: bool) -> GetOrFetch<'_> {
         // count number of times we are looking for the project state
         metric!(counter(RelayCounters::ProjectStateGet) += 1);
 
@@ -689,41 +690,66 @@ impl Project {
             // The project is semi-outdated, fetch new state but return old one.
             ExpiryState::Stale(state) => Some(state),
             // The project is not outdated, return early here to jump over fetching logic below.
-            ExpiryState::Updated(state) => return Response::ok(state),
+            ExpiryState::Updated(state) => return GetOrFetch::Cached(state),
         };
 
-        let receiver = match self.state_channel {
-            Some(ref channel) if channel.no_cache || !no_cache => {
-                relay_log::debug!("project {} state request amended", self.project_key);
-                channel.receiver()
-            }
-            _ => {
-                relay_log::debug!("project {} state requested", self.project_key);
+        let channel = self.fetch_state(no_cache);
 
-                let receiver = self
-                    .state_channel
-                    .get_or_insert_with(StateChannel::new)
-                    .no_cache(no_cache)
-                    .receiver();
-
-                // Either there is no running request, or the current request does not have
-                // `no_cache` set. In both cases, start a new request. All in-flight receivers will
-                // get the latest state.
-                self.fetch_state(no_cache);
-
-                receiver
-            }
-        };
-
-        if let Some(rv) = cached_state {
-            return Response::ok(rv);
+        match cached_state {
+            Some(state) => GetOrFetch::Cached(state),
+            None => GetOrFetch::Scheduled(channel),
         }
+    }
 
-        let future = receiver
-            .map(|shared| (*shared).clone())
-            .map_err(|_| ProjectError::FetchFailed);
+    /// Returns the cached project state if it is valid.
+    ///
+    /// Depending on the state of the cache, this method takes different action:
+    ///
+    ///  - If the cached state is up-to-date, this method simply returns `Some`.
+    ///  - If the cached state is stale, this method triggers a refresh in the background and
+    ///    returns `Some`. The stale period can be configured through
+    ///    [`Config::project_grace_period`].
+    ///  - If there is no cached state or the cached state is fully outdated, this method triggers a
+    ///    refresh in the background and returns `None`.
+    ///
+    /// If `no_cache` is set to true, this method always returns `None` and always triggers a
+    /// background refresh.
+    ///
+    /// To wait for a valid state instead, use [`get_state`](Self::get_state).
+    pub fn get_cached_state(&mut self, no_cache: bool) -> Option<Arc<ProjectState>> {
+        match self.get_or_fetch_state(no_cache) {
+            GetOrFetch::Cached(state) => Some(state),
+            GetOrFetch::Scheduled(_) => None,
+        }
+    }
 
-        Response::future(future)
+    /// Obtains a valid project state and passes it to the sender once ready.
+    ///
+    /// This first checks if the state needs to be updated. This is the case if the project state
+    /// has passed its cache timeout. The `no_cache` flag forces an update. This does nothing if an
+    /// update is already running in the background.
+    ///
+    /// Independent of updating, _stale_ states are passed to the sender immediately as long as they
+    /// are in the [grace period](Config::project_grace_period).
+    pub fn get_state(&mut self, sender: ProjectSender, no_cache: bool) {
+        match self.get_or_fetch_state(no_cache) {
+            GetOrFetch::Cached(state) => sender.send(state),
+            GetOrFetch::Scheduled(channel) => channel.inner.attach(sender),
+        }
+    }
+
+    /// Ensures the project state gets updated.
+    ///
+    /// This first checks if the state needs to be updated. This is the case if the project state
+    /// has passed its cache timeout. The `no_cache` flag forces another update unless one is
+    /// already running in the background.
+    ///
+    /// If an update is required, the update will start in the background and complete at a later
+    /// point. Therefore, this method is useful to trigger an update early if it is already clear
+    /// that the project state will be needed soon. To retrieve an updated state, use
+    /// [`Project::get_state`] instead.
+    pub fn prefetch(&mut self, no_cache: bool) {
+        self.get_cached_state(no_cache);
     }
 
     /// Validates the envelope and submits the envelope to the next stage.
@@ -750,7 +776,7 @@ impl Project {
 
                 if let Some(sampling_key) = utils::get_sampling_key(&process.envelope) {
                     ProjectCache::from_registry()
-                        .do_send(AddSamplingState::new(sampling_key, process));
+                        .send(AddSamplingState::new(sampling_key, process));
                 } else {
                     EnvelopeProcessor::from_registry().send(process);
                 }
@@ -766,9 +792,9 @@ impl Project {
     /// This method will trigger an update of the project state internally if the state is stale or
     /// outdated.
     pub fn enqueue_validation(&mut self, envelope: Envelope, context: EnvelopeContext) {
-        match self.get_or_fetch_state(envelope.meta().no_cache()) {
-            Response::Reply(Ok(state)) => self.flush_validation(envelope, context, state),
-            _ => self.pending_validations.push_back((envelope, context)),
+        match self.get_cached_state(envelope.meta().no_cache()) {
+            Some(state) => self.flush_validation(envelope, context, state),
+            None => self.pending_validations.push_back((envelope, context)),
         }
     }
 
@@ -788,16 +814,16 @@ impl Project {
     /// This method will trigger an update of the project state internally if the state is stale or
     /// outdated.
     pub fn enqueue_sampling(&mut self, message: ProcessEnvelope) {
-        match self.get_or_fetch_state(message.envelope.meta().no_cache()) {
-            Response::Reply(_) => self.flush_sampling(message),
-            Response::Future(_) => self.pending_sampling.push_back(message),
+        match self.get_cached_state(message.envelope.meta().no_cache()) {
+            Some(_) => self.flush_sampling(message),
+            None => self.pending_sampling.push_back(message),
         }
     }
 
     /// Replaces the internal project state with a new one and triggers pending actions.
     ///
     /// This flushes pending envelopes from [`ValidateEnvelope`] and [`AddSamplingState`] and
-    /// notifies all pending receivers from [`get_or_fetch_state`](Self::get_or_fetch_state).
+    /// notifies all pending receivers from [`get_state`](Self::get_state).
     ///
     /// `no_cache` should be passed from the requesting call. Updates with `no_cache` will always
     /// take precedence.
@@ -835,12 +861,7 @@ impl Project {
 
         // Flush all waiting recipients.
         relay_log::debug!("project state {} updated", self.project_key);
-        channel.send(state);
-    }
-
-    fn fetch_state(&mut self, no_cache: bool) {
-        debug_assert!(self.state_channel.is_some());
-        ProjectCache::from_registry().do_send(UpdateProjectState::new(self.project_key, no_cache));
+        channel.inner.send(state);
     }
 
     /// Creates `Scoping` for this project if the state is loaded.
@@ -903,6 +924,63 @@ impl Project {
             envelope,
             rate_limits,
         })
+    }
+
+    pub fn flush_buckets(&mut self, partition_key: Option<u64>, buckets: Vec<Bucket>) {
+        let config = self.config.clone();
+
+        // Schedule an update to the project state if it is outdated, regardless of whether the
+        // metrics can be forwarded or not. We never wait for this update.
+        let Some(project_state) = self.get_cached_state(false) else {
+            relay_log::trace!("project expired: merging back {} buckets", buckets.len());
+            // If the state is outdated, we need to wait for an updated state. Put them back into
+            // the aggregator.
+            Registry::aggregator().send(MergeBuckets::new(self.project_key, buckets));
+            return;
+        };
+
+        let Some(scoping) = self.scoping() else {
+            relay_log::trace!("there is no scoping: merging back {} buckets", buckets.len());
+            Registry::aggregator().send(MergeBuckets::new(self.project_key, buckets));
+            return;
+        };
+
+        // Only send if the project state is valid, otherwise drop this bucket.
+        if project_state.check_disabled(config.as_ref()).is_err() {
+            return;
+        }
+
+        // Check rate limits if necessary:
+        let quotas = project_state.config.quotas.clone();
+        let buckets = match MetricsLimiter::create(buckets, quotas, scoping) {
+            Ok(mut bucket_limiter) => {
+                let cached_rate_limits = self.rate_limits().clone();
+                #[allow(unused_variables)]
+                let was_rate_limited = bucket_limiter.enforce_limits(Ok(&cached_rate_limits));
+
+                #[cfg(feature = "processing")]
+                if !was_rate_limited && config.processing_enabled() {
+                    // If there were no cached rate limits active, let the processor check redis:
+                    EnvelopeProcessor::from_registry().send(RateLimitFlushBuckets {
+                        bucket_limiter,
+                        partition_key,
+                    });
+
+                    return;
+                }
+
+                bucket_limiter.into_metrics()
+            }
+            Err(buckets) => buckets,
+        };
+
+        if !buckets.is_empty() {
+            EnvelopeManager::from_registry().send(SendMetrics {
+                buckets,
+                scoping,
+                partition_key,
+            });
+        }
     }
 }
 

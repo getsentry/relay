@@ -1,3 +1,5 @@
+use std::fmt;
+
 use failure::Fail;
 use r2d2::{Pool, PooledConnection};
 use redis::ConnectionLike;
@@ -98,6 +100,15 @@ enum RedisPoolInner {
     Single(Pool<redis::Client>),
 }
 
+impl fmt::Debug for RedisPoolInner {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Cluster(_) => f.debug_tuple("Cluster").finish(),
+            Self::Single(_) => f.debug_tuple("Single").finish(),
+        }
+    }
+}
+
 /// Abstraction over cluster vs non-cluster mode.
 ///
 /// Even just writing a method that takes a command and executes it doesn't really work because
@@ -106,7 +117,7 @@ enum RedisPoolInner {
 ///
 /// Basically don't waste your time here, if you want to abstract over this, consider
 /// upstreaming to the redis crate.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RedisPool {
     inner: RedisPoolInner,
 }

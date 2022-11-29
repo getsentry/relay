@@ -3338,7 +3338,6 @@ dependencies = [
 name = "relay-kafka"
 version = "22.11.0"
 dependencies = [
- "failure",
  "rdkafka",
  "rdkafka-sys",
  "relay-log",
@@ -3347,6 +3346,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
+ "thiserror",
 ]
 
 [[package]]
@@ -3370,12 +3370,9 @@ dependencies = [
 name = "relay-metrics"
 version = "22.11.0"
 dependencies = [
- "actix",
  "criterion",
- "failure",
  "float-ord",
  "fnv",
- "futures 0.1.31",
  "hash32",
  "insta",
  "relay-common",
@@ -3385,6 +3382,7 @@ dependencies = [
  "relay-test",
  "serde",
  "serde_json",
+ "thiserror",
  "tokio 1.19.2",
 ]
 
@@ -3558,7 +3556,6 @@ dependencies = [
  "relay-log",
  "relay-system",
  "tokio 1.19.2",
- "tokio-timer",
 ]
 
 [[package]]

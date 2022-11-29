@@ -1796,8 +1796,7 @@ impl EnvelopeProcessorService {
         });
 
         if limits.is_limited() {
-            ProjectCache::from_registry()
-                .do_send(UpdateRateLimits::new(scoping.project_key, limits));
+            ProjectCache::from_registry().send(UpdateRateLimits::new(scoping.project_key, limits));
         }
 
         if enforcement.event_active() {
@@ -2114,7 +2113,7 @@ impl EnvelopeProcessorService {
                         if !state.extracted_metrics.is_empty() {
                             let project_cache = ProjectCache::from_registry();
                             project_cache
-                                .do_send(InsertMetrics::new(project_key, state.extracted_metrics));
+                                .send(InsertMetrics::new(project_key, state.extracted_metrics));
                         }
 
                         Ok(ProcessEnvelopeResponse {
@@ -2129,7 +2128,7 @@ impl EnvelopeProcessorService {
                         if !state.extracted_metrics.is_empty() && err.should_keep_metrics() {
                             let project_cache = ProjectCache::from_registry();
                             project_cache
-                                .do_send(InsertMetrics::new(project_key, state.extracted_metrics));
+                                .send(InsertMetrics::new(project_key, state.extracted_metrics));
                         }
 
                         Err(err)
@@ -2202,7 +2201,7 @@ impl EnvelopeProcessorService {
                         Metric::parse_all(&payload, timestamp).filter_map(|result| result.ok());
 
                     relay_log::trace!("inserting metrics into project cache");
-                    project_cache.do_send(InsertMetrics::new(public_key, metrics));
+                    project_cache.send(InsertMetrics::new(public_key, metrics));
                 }
             } else if item.ty() == &ItemType::MetricBuckets {
                 match Bucket::parse_all(&payload) {
@@ -2212,7 +2211,7 @@ impl EnvelopeProcessorService {
                         }
 
                         relay_log::trace!("merging metric buckets into project cache");
-                        project_cache.do_send(MergeBuckets::new(public_key, buckets));
+                        project_cache.send(MergeBuckets::new(public_key, buckets));
                     }
                     Err(error) => {
                         relay_log::debug!("failed to parse metric bucket: {}", LogError(&error));
@@ -2260,7 +2259,7 @@ impl EnvelopeProcessorService {
                 if let Ok(limits) = rate_limits {
                     // Update the rate limits in the project cache.
                     ProjectCache::from_registry()
-                        .do_send(UpdateRateLimits::new(scoping.project_key, limits));
+                        .send(UpdateRateLimits::new(scoping.project_key, limits));
                 }
             }
         }
