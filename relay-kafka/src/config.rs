@@ -1,16 +1,16 @@
 use std::collections::BTreeMap;
 
-use failure::Fail;
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 /// Kafka configuration errors.
-#[derive(Fail, Debug)]
+#[derive(Error, Debug)]
 pub enum ConfigError {
     /// The user referenced a kafka config name that does not exist.
-    #[fail(display = "unknown kafka config name")]
+    #[error("unknown kafka config name")]
     UnknownKafkaConfigName,
     /// The user did not configure 0 shard
-    #[fail(display = "invalid kafka shard configuration: must have shard with index 0")]
+    #[error("invalid kafka shard configuration: must have shard with index 0")]
     InvalidShard,
 }
 
