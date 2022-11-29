@@ -1,5 +1,5 @@
 use crate::protocol::{
-    ClientSdkInfo, Contexts, IpAddr, LenientString, Request, Tags, Timestamp, User, VALID_PLATFORMS,
+    ClientSdkInfo, Contexts, IpAddr, LenientString, Request, Tags, Timestamp, User,
 };
 use crate::store::user_agent::normalize_user_agent_generic;
 use crate::types::{Annotated, Array};
@@ -72,15 +72,6 @@ impl Replay {
                 }
             }
         };
-    }
-
-    pub fn normalize_platform(&mut self) -> bool {
-        let platform = self
-            .platform
-            .get_or_insert_with(|| "javascript".to_string());
-
-        // Return "True" if a valid platform was provided.
-        VALID_PLATFORMS.contains(&platform.as_str())
     }
 
     pub fn normalize_user_agent(&mut self) {
