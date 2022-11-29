@@ -385,7 +385,7 @@ impl fmt::Display for AttachmentType {
             AttachmentType::Breadcrumbs => write!(f, "event.breadcrumbs"),
             AttachmentType::UnrealContext => write!(f, "unreal.context"),
             AttachmentType::UnrealLogs => write!(f, "unreal.logs"),
-            AttachmentType::ViewHierarchy => write!(f, "event.viewhierarchy"),
+            AttachmentType::ViewHierarchy => write!(f, "event.view_hierarchy"),
             AttachmentType::Unknown(s) => s.fmt(f),
         }
     }
@@ -401,7 +401,7 @@ impl std::str::FromStr for AttachmentType {
             "event.applecrashreport" => AttachmentType::AppleCrashReport,
             "event.payload" => AttachmentType::EventPayload,
             "event.breadcrumbs" => AttachmentType::Breadcrumbs,
-            "event.viewhierarchy" => AttachmentType::ViewHierarchy,
+            "event.view_hierarchy" => AttachmentType::ViewHierarchy,
             "unreal.context" => AttachmentType::UnrealContext,
             "unreal.logs" => AttachmentType::UnrealLogs,
             other => AttachmentType::Unknown(other.to_owned()),
@@ -1445,7 +1445,7 @@ mod tests {
         let bytes = Bytes::from(
             "\
              {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
-             {\"type\":\"attachment\",\"length\":44,\"content_type\":\"application/json\",\"attachment_type\":\"event.viewhierarchy\"}\n\
+             {\"type\":\"attachment\",\"length\":44,\"content_type\":\"application/json\",\"attachment_type\":\"event.view_hierarchy\"}\n\
              {\"rendering_system\":\"compose\",\"windows\":[]}\n\
              ",
         );
