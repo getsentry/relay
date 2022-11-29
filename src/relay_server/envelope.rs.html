@@ -1610,6 +1610,32 @@
 <span id="1608">1608</span>
 <span id="1609">1609</span>
 <span id="1610">1610</span>
+<span id="1611">1611</span>
+<span id="1612">1612</span>
+<span id="1613">1613</span>
+<span id="1614">1614</span>
+<span id="1615">1615</span>
+<span id="1616">1616</span>
+<span id="1617">1617</span>
+<span id="1618">1618</span>
+<span id="1619">1619</span>
+<span id="1620">1620</span>
+<span id="1621">1621</span>
+<span id="1622">1622</span>
+<span id="1623">1623</span>
+<span id="1624">1624</span>
+<span id="1625">1625</span>
+<span id="1626">1626</span>
+<span id="1627">1627</span>
+<span id="1628">1628</span>
+<span id="1629">1629</span>
+<span id="1630">1630</span>
+<span id="1631">1631</span>
+<span id="1632">1632</span>
+<span id="1633">1633</span>
+<span id="1634">1634</span>
+<span id="1635">1635</span>
+<span id="1636">1636</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
@@ -1973,6 +1999,9 @@
     /// [`symbolic_unreal::Unreal4LogEntry`]: https://docs.rs/symbolic/*/symbolic/unreal/struct.Unreal4LogEntry.html
     </span>UnrealLogs,
 
+    <span class="doccomment">/// An application UI view hierarchy (json payload).
+    </span>ViewHierarchy,
+
     <span class="doccomment">/// Unknown attachment type, forwarded for compatibility.
     /// Attachments with this type will be dropped if `accept_unknown_items` is set to false.
     </span>Unknown(String),
@@ -1994,6 +2023,7 @@
             AttachmentType::Breadcrumbs =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;event.breadcrumbs&quot;</span>),
             AttachmentType::UnrealContext =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;unreal.context&quot;</span>),
             AttachmentType::UnrealLogs =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;unreal.logs&quot;</span>),
+            AttachmentType::ViewHierarchy =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;event.view_hierarchy&quot;</span>),
             AttachmentType::Unknown(s) =&gt; s.fmt(f),
         }
     }
@@ -2009,6 +2039,7 @@
             <span class="string">&quot;event.applecrashreport&quot; </span>=&gt; AttachmentType::AppleCrashReport,
             <span class="string">&quot;event.payload&quot; </span>=&gt; AttachmentType::EventPayload,
             <span class="string">&quot;event.breadcrumbs&quot; </span>=&gt; AttachmentType::Breadcrumbs,
+            <span class="string">&quot;event.view_hierarchy&quot; </span>=&gt; AttachmentType::ViewHierarchy,
             <span class="string">&quot;unreal.context&quot; </span>=&gt; AttachmentType::UnrealContext,
             <span class="string">&quot;unreal.logs&quot; </span>=&gt; AttachmentType::UnrealLogs,
             other =&gt; AttachmentType::Unknown(other.to_owned()),
@@ -2261,7 +2292,8 @@
                     | AttachmentType::Breadcrumbs =&gt; <span class="bool-val">true</span>,
                     AttachmentType::Attachment
                     | AttachmentType::UnrealContext
-                    | AttachmentType::UnrealLogs =&gt; <span class="bool-val">false</span>,
+                    | AttachmentType::UnrealLogs
+                    | AttachmentType::ViewHierarchy =&gt; <span class="bool-val">false</span>,
                     <span class="comment">// When an outdated Relay instance forwards an unknown attachment type for compatibility,
                     // we assume that the attachment does not create a new event. This will make it hard
                     // to introduce new attachment types which _do_ create a new event.
@@ -3044,6 +3076,26 @@
         <span class="macro">assert_eq!</span>(envelope.len(), <span class="number">1</span>);
         <span class="kw">let </span>items: Vec&lt;<span class="kw">_</span>&gt; = envelope.items().collect();
         <span class="macro">assert_eq!</span>(items[<span class="number">0</span>].ty(), <span class="kw-2">&amp;</span>ItemType::ReplayRecording);
+    }
+
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_deserialize_envelope_view_hierarchy() {
+        <span class="kw">let </span>bytes = Bytes::from(
+            <span class="string">&quot;\
+             {\&quot;event_id\&quot;:\&quot;9ec79c33ec9942ab8353589fcb2e04dc\&quot;,\&quot;dsn\&quot;:\&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\&quot;}\n\
+             {\&quot;type\&quot;:\&quot;attachment\&quot;,\&quot;length\&quot;:44,\&quot;content_type\&quot;:\&quot;application/json\&quot;,\&quot;attachment_type\&quot;:\&quot;event.view_hierarchy\&quot;}\n\
+             {\&quot;rendering_system\&quot;:\&quot;compose\&quot;,\&quot;windows\&quot;:[]}\n\
+             &quot;</span>,
+        );
+
+        <span class="kw">let </span>envelope = Envelope::parse_bytes(bytes).unwrap();
+        <span class="macro">assert_eq!</span>(envelope.len(), <span class="number">1</span>);
+        <span class="kw">let </span>items: Vec&lt;<span class="kw">_</span>&gt; = envelope.items().collect();
+        <span class="macro">assert_eq!</span>(items[<span class="number">0</span>].ty(), <span class="kw-2">&amp;</span>ItemType::Attachment);
+        <span class="macro">assert_eq!</span>(
+            items[<span class="number">0</span>].attachment_type(),
+            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::ViewHierarchy)
+        );
     }
 
     <span class="attribute">#[test]
