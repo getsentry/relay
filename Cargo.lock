@@ -3419,11 +3419,11 @@ dependencies = [
 name = "relay-redis"
 version = "22.11.0"
 dependencies = [
- "failure",
  "r2d2",
  "redis",
  "serde",
  "serde_yaml",
+ "thiserror",
 ]
 
 [[package]]
