@@ -7,7 +7,6 @@ use std::fmt;
 use std::str::FromStr;
 
 use chrono::{DateTime, Duration, TimeZone, Utc};
-use failure::Fail;
 use hmac::{Hmac, Mac};
 use rand::{rngs::OsRng, thread_rng, RngCore};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -74,8 +73,8 @@ impl fmt::Display for RelayVersion {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, Fail)]
-#[fail(display = "hello")]
+#[derive(Clone, Copy, Debug, Default, thiserror::Error)]
+#[error("invalid relay version string")]
 pub struct ParseRelayVersionError;
 
 impl FromStr for RelayVersion {
@@ -97,30 +96,30 @@ impl FromStr for RelayVersion {
 relay_common::impl_str_serde!(RelayVersion, "a version string");
 
 /// Raised if a key could not be parsed.
-#[derive(Debug, Fail, PartialEq, Eq, Hash)]
+#[derive(Debug, Eq, Hash, PartialEq, thiserror::Error)]
 pub enum KeyParseError {
     /// Invalid key encoding.
-    #[fail(display = "bad key encoding")]
+    #[error("bad key encoding")]
     BadEncoding,
     /// Invalid key data.
-    #[fail(display = "bad key data")]
+    #[error("bad key data")]
     BadKey,
 }
 
 /// Raised to indicate failure on unpacking.
-#[derive(Debug, Fail)]
+#[derive(Debug, thiserror::Error)]
 pub enum UnpackError {
     /// Raised if the signature is invalid.
-    #[fail(display = "invalid signature on data")]
+    #[error("invalid signature on data")]
     BadSignature,
     /// Invalid key encoding.
-    #[fail(display = "bad key encoding")]
+    #[error("bad key encoding")]
     BadEncoding,
     /// Raised if deserializing of data failed.
-    #[fail(display = "could not deserialize payload")]
-    BadPayload(#[cause] serde_json::Error),
+    #[error("could not deserialize payload")]
+    BadPayload(#[source] serde_json::Error),
     /// Raised on unpacking if the data is too old.
-    #[fail(display = "signature is too old")]
+    #[error("signature is too old")]
     SignatureExpired,
 }
 
