@@ -361,7 +361,7 @@ pub enum AttachmentType {
     /// [`symbolic_unreal::Unreal4LogEntry`]: https://docs.rs/symbolic/*/symbolic/unreal/struct.Unreal4LogEntry.html
     UnrealLogs,
 
-    /// An application ui view hierarchy (json payload)
+    /// An application UI view hierarchy (json payload).
     ViewHierarchy,
 
     /// Unknown attachment type, forwarded for compatibility.
