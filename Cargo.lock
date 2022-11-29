@@ -3393,11 +3393,11 @@ dependencies = [
  "base64 0.10.1",
  "bytes 0.4.12",
  "chrono",
- "failure",
  "relay-general",
  "serde",
  "serde_json",
  "serde_test",
+ "thiserror",
 ]
 
 [[package]]
