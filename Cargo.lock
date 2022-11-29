@@ -3166,13 +3166,13 @@ dependencies = [
  "base64 0.10.1",
  "chrono",
  "ed25519-dalek",
- "failure",
  "hmac",
  "rand 0.6.5",
  "relay-common",
  "serde",
  "serde_json",
  "sha2",
+ "thiserror",
 ]
 
 [[package]]
