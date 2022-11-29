@@ -1950,9 +1950,7 @@ impl AggregatorService {
             Aggregator::InsertMetrics(msg) => self.handle_insert_metrics(msg),
             Aggregator::MergeBuckets(msg) => self.handle_merge_buckets(msg),
             #[cfg(test)]
-            Aggregator::BucketCountInquiry(_, sender) => {
-                sender.send(self.buckets.len());
-            }
+            Aggregator::BucketCountInquiry(_, sender) => sender.send(self.buckets.len()),
         }
     }
 
