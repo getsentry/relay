@@ -1,12 +1,10 @@
 use crate::protocol::{
-    ClientSdkInfo, Contexts, IpAddr, LenientString, Request, Tags, Timestamp, User,
+    ClientSdkInfo, Contexts, IpAddr, LenientString, Request, Tags, Timestamp, User, VALID_PLATFORMS,
 };
 use crate::store::user_agent::normalize_user_agent_generic;
 use crate::types::{Annotated, Array};
 use crate::user_agent;
 use std::net::IpAddr as RealIpAddr;
-
-pub const VALID_REPLAY_PLATFORMS: &[&str] = &["javascript"];
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
@@ -82,7 +80,7 @@ impl Replay {
             .get_or_insert_with(|| "javascript".to_string());
 
         // Return "True" if a valid platform was provided.
-        VALID_REPLAY_PLATFORMS.contains(&platform.as_str())
+        VALID_PLATFORMS.contains(&platform.as_str())
     }
 
     pub fn normalize_user_agent(&mut self) {
