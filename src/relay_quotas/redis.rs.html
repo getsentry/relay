@@ -773,7 +773,7 @@
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
 
-<span class="kw">use </span>failure::Fail;
+<span class="kw">use </span>thiserror::Error;
 
 <span class="kw">use </span>relay_common::UnixTimestamp;
 <span class="kw">use </span>relay_log::protocol::value;
@@ -789,11 +789,11 @@
 </span><span class="kw">const </span>GRACE: u64 = <span class="number">60</span>;
 
 <span class="doccomment">/// An error returned by `RedisRateLimiter`.
-</span><span class="attribute">#[derive(Debug, Fail)]
+</span><span class="attribute">#[derive(Debug, Error)]
 </span><span class="kw">pub enum </span>RateLimitingError {
     <span class="doccomment">/// Failed to communicate with Redis.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;failed to communicate with redis&quot;</span>)]
-    </span>Redis(<span class="attribute">#[cause] </span>RedisError),
+    </span><span class="attribute">#[error(<span class="string">&quot;failed to communicate with redis&quot;</span>)]
+    </span>Redis(<span class="attribute">#[source] </span>RedisError),
 }
 
 <span class="kw">fn </span>load_lua_script() -&gt; Script {

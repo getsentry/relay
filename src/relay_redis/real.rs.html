@@ -183,24 +183,24 @@
 <span id="181">181</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
-<span class="kw">use </span>failure::Fail;
 <span class="kw">use </span>r2d2::{Pool, PooledConnection};
 <span class="kw">use </span>redis::ConnectionLike;
+<span class="kw">use </span>thiserror::Error;
 
 <span class="kw">use </span><span class="kw">crate</span>::config::{RedisConfig, RedisConfigOptions};
 
 <span class="kw">pub use </span>redis;
 
 <span class="doccomment">/// An error returned from `RedisPool`.
-</span><span class="attribute">#[derive(Debug, Fail)]
+</span><span class="attribute">#[derive(Debug, Error)]
 </span><span class="kw">pub enum </span>RedisError {
     <span class="doccomment">/// Failure in r2d2 pool.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;failed to pool redis connection&quot;</span>)]
-    </span>Pool(<span class="attribute">#[cause] </span>r2d2::Error),
+    </span><span class="attribute">#[error(<span class="string">&quot;failed to pool redis connection&quot;</span>)]
+    </span>Pool(<span class="attribute">#[source] </span>r2d2::Error),
 
     <span class="doccomment">/// Failure in Redis communication.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;failed to communicate with redis&quot;</span>)]
-    </span>Redis(<span class="attribute">#[cause] </span>redis::RedisError),
+    </span><span class="attribute">#[error(<span class="string">&quot;failed to communicate with redis&quot;</span>)]
+    </span>Redis(<span class="attribute">#[source] </span>redis::RedisError),
 }
 
 <span class="kw">enum </span>ConnectionInner&lt;<span class="lifetime">&#39;a</span>&gt; {
