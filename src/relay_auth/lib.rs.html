@@ -905,6 +905,7 @@
 <span id="903">903</span>
 <span id="904">904</span>
 <span id="905">905</span>
+<span id="906">906</span>
 </pre><pre class="rust"><code><span class="attribute">#![doc(
     html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
     html_favicon_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;
@@ -914,6 +915,7 @@
 <span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>chrono::{DateTime, Duration, TimeZone, Utc};
+<span class="kw">use </span>failure::Fail;
 <span class="kw">use </span>hmac::{Hmac, Mac};
 <span class="kw">use </span>rand::{rngs::OsRng, thread_rng, RngCore};
 <span class="kw">use </span>serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -980,8 +982,8 @@
     }
 }
 
-<span class="attribute">#[derive(Clone, Copy, Debug, Default, thiserror::Error)]
-#[error(<span class="string">&quot;invalid relay version string&quot;</span>)]
+<span class="attribute">#[derive(Clone, Copy, Debug, Default, Fail)]
+#[fail(display = <span class="string">&quot;hello&quot;</span>)]
 </span><span class="kw">pub struct </span>ParseRelayVersionError;
 
 <span class="kw">impl </span>FromStr <span class="kw">for </span>RelayVersion {
@@ -1003,30 +1005,30 @@
 <span class="macro">relay_common::impl_str_serde!</span>(RelayVersion, <span class="string">&quot;a version string&quot;</span>);
 
 <span class="doccomment">/// Raised if a key could not be parsed.
-</span><span class="attribute">#[derive(Debug, Eq, Hash, PartialEq, thiserror::Error)]
+</span><span class="attribute">#[derive(Debug, Fail, PartialEq, Eq, Hash)]
 </span><span class="kw">pub enum </span>KeyParseError {
     <span class="doccomment">/// Invalid key encoding.
-    </span><span class="attribute">#[error(<span class="string">&quot;bad key encoding&quot;</span>)]
+    </span><span class="attribute">#[fail(display = <span class="string">&quot;bad key encoding&quot;</span>)]
     </span>BadEncoding,
     <span class="doccomment">/// Invalid key data.
-    </span><span class="attribute">#[error(<span class="string">&quot;bad key data&quot;</span>)]
+    </span><span class="attribute">#[fail(display = <span class="string">&quot;bad key data&quot;</span>)]
     </span>BadKey,
 }
 
 <span class="doccomment">/// Raised to indicate failure on unpacking.
-</span><span class="attribute">#[derive(Debug, thiserror::Error)]
+</span><span class="attribute">#[derive(Debug, Fail)]
 </span><span class="kw">pub enum </span>UnpackError {
     <span class="doccomment">/// Raised if the signature is invalid.
-    </span><span class="attribute">#[error(<span class="string">&quot;invalid signature on data&quot;</span>)]
+    </span><span class="attribute">#[fail(display = <span class="string">&quot;invalid signature on data&quot;</span>)]
     </span>BadSignature,
     <span class="doccomment">/// Invalid key encoding.
-    </span><span class="attribute">#[error(<span class="string">&quot;bad key encoding&quot;</span>)]
+    </span><span class="attribute">#[fail(display = <span class="string">&quot;bad key encoding&quot;</span>)]
     </span>BadEncoding,
     <span class="doccomment">/// Raised if deserializing of data failed.
-    </span><span class="attribute">#[error(<span class="string">&quot;could not deserialize payload&quot;</span>)]
-    </span>BadPayload(<span class="attribute">#[source] </span>serde_json::Error),
+    </span><span class="attribute">#[fail(display = <span class="string">&quot;could not deserialize payload&quot;</span>)]
+    </span>BadPayload(<span class="attribute">#[cause] </span>serde_json::Error),
     <span class="doccomment">/// Raised on unpacking if the data is too old.
-    </span><span class="attribute">#[error(<span class="string">&quot;signature is too old&quot;</span>)]
+    </span><span class="attribute">#[fail(display = <span class="string">&quot;signature is too old&quot;</span>)]
     </span>SignatureExpired,
 }
 
