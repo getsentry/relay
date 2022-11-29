@@ -4,7 +4,6 @@ use std::time::Instant;
 use actix::{Actor, Message};
 use actix_web::ResponseError;
 use failure::Fail;
-use futures::compat::Future01CompatExt;
 
 use relay_common::ProjectKey;
 use relay_config::{Config, RelayMode};
@@ -12,7 +11,7 @@ use relay_metrics::{self, FlushBuckets, InsertMetrics, MergeBuckets};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
 use relay_statsd::metric;
-use relay_system::{Addr, FromMessage, Interface, Sender, Service};
+use relay_system::{compat, Addr, FromMessage, Interface, Sender, Service};
 use tokio::sync::mpsc;
 
 use crate::actors::outcome::DiscardReason;
@@ -356,15 +355,8 @@ impl ProjectSource {
         }
     }
 
-    async fn fetch(
-        &self,
-        project_key: ProjectKey,
-        no_cache: bool,
-    ) -> Result<Arc<ProjectState>, ()> {
-        let state_opt = self
-            .local_source
-            .send(FetchOptionalProjectState { project_key })
-            .compat()
+    async fn fetch(self, project_key: ProjectKey, no_cache: bool) -> Result<Arc<ProjectState>, ()> {
+        let state_opt = compat::send(self.local_source, FetchOptionalProjectState { project_key })
             .await
             .map_err(|_| ())?;
 
@@ -380,10 +372,8 @@ impl ProjectSource {
         }
 
         #[cfg(feature = "processing")]
-        if let Some(ref redis_source) = self.redis_source {
-            let state_opt = redis_source
-                .send(FetchOptionalProjectState { project_key })
-                .compat()
+        if let Some(redis_source) = self.redis_source {
+            let state_opt = compat::send(redis_source, FetchOptionalProjectState { project_key })
                 .await
                 .map_err(|_| ())?;
 
@@ -392,14 +382,15 @@ impl ProjectSource {
             }
         };
 
-        self.upstream_source
-            .send(FetchProjectState {
+        compat::send(
+            self.upstream_source,
+            FetchProjectState {
                 project_key,
                 no_cache,
-            })
-            .compat()
-            .await
-            .map_err(|_| ())?
+            },
+        )
+        .await
+        .map_err(|_| ())?
     }
 }
 
