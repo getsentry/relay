@@ -661,64 +661,340 @@
 <span id="659">659</span>
 <span id="660">660</span>
 <span id="661">661</span>
-<span id="662">662</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Instant;
 
-<span class="kw">use </span>actix::prelude::<span class="kw-2">*</span>;
+<span class="kw">use </span>actix::{Actor, Message};
 <span class="kw">use </span>actix_web::ResponseError;
 <span class="kw">use </span>failure::Fail;
-<span class="kw">use </span>futures01::{future, Future};
+<span class="kw">use </span>futures::compat::Future01CompatExt;
 
 <span class="kw">use </span>relay_common::ProjectKey;
 <span class="kw">use </span>relay_config::{Config, RelayMode};
-<span class="kw">use </span>relay_metrics::{<span class="self">self</span>, AggregateMetricsError, FlushBuckets, InsertMetrics, MergeBuckets};
-
+<span class="kw">use </span>relay_metrics::{<span class="self">self</span>, FlushBuckets, InsertMetrics, MergeBuckets};
 <span class="kw">use </span>relay_quotas::RateLimits;
-
 <span class="kw">use </span>relay_redis::RedisPool;
 <span class="kw">use </span>relay_statsd::metric;
+<span class="kw">use </span>relay_system::{Addr, FromMessage, Interface, Sender, Service};
+<span class="kw">use </span>tokio::sync::mpsc;
 
-<span class="kw">use </span><span class="kw">crate</span>::actors::envelopes::{EnvelopeManager, SendMetrics};
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::DiscardReason;
 <span class="kw">use </span><span class="kw">crate</span>::actors::processor::ProcessEnvelope;
-<span class="kw">use </span><span class="kw">crate</span>::actors::project::{ExpiryState, Project, ProjectState};
+<span class="kw">use </span><span class="kw">crate</span>::actors::project::{Project, ProjectSender, ProjectState};
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_local::LocalProjectSource;
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_upstream::UpstreamProjectSource;
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
-<span class="kw">use </span><span class="kw">crate</span>::service::Registry;
+<span class="kw">use </span><span class="kw">crate</span>::service::REGISTRY;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
-<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, EnvelopeContext, GarbageDisposal, MetricsLimiter, Response};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, EnvelopeContext, GarbageDisposal};
 
 <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-</span><span class="kw">use </span>{
-    <span class="kw">crate</span>::actors::processor::{EnvelopeProcessor, RateLimitFlushBuckets},
-    <span class="kw">crate</span>::actors::project_redis::RedisProjectSource,
-    relay_common::clone,
-};
+</span><span class="kw">use </span>{<span class="kw">crate</span>::actors::project_redis::RedisProjectSource, actix::SyncArbiter, relay_common::clone};
 
-<span class="attribute">#[derive(Fail, Debug)]
+<span class="attribute">#[derive(Fail, Debug, Clone)]
 </span><span class="kw">pub enum </span>ProjectError {
-    <span class="attribute">#[fail(display = <span class="string">&quot;failed to fetch project state from upstream&quot;</span>)]
-    </span>FetchFailed,
-
     <span class="attribute">#[fail(display = <span class="string">&quot;could not schedule project fetching&quot;</span>)]
     </span>ScheduleFailed,
 }
 
 <span class="kw">impl </span>ResponseError <span class="kw">for </span>ProjectError {}
 
-<span class="kw">pub struct </span>ProjectCache {
-    config: Arc&lt;Config&gt;,
-    projects: hashbrown::HashMap&lt;ProjectKey, Project&gt;, <span class="comment">// need hashbrown because drain_filter is not stable in std yet
-    </span>local_source: Addr&lt;LocalProjectSource&gt;,
-    upstream_source: Addr&lt;UpstreamProjectSource&gt;,
-    <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-    </span>redis_source: <span class="prelude-ty">Option</span>&lt;Addr&lt;RedisProjectSource&gt;&gt;,
-    garbage_disposal: GarbageDisposal&lt;Project&gt;,
+<span class="doccomment">/// Requests a refresh of a project state from one of the available sources.
+///
+/// The project state is resolved in the following precedence:
+///
+///  1. Local file system
+///  2. Redis cache (processing mode only)
+///  3. Upstream (managed and processing mode only)
+///
+/// Requests to the upstream are performed via `UpstreamProjectSource`, which internally batches
+/// individual requests.
+</span><span class="attribute">#[derive(Clone)]
+</span><span class="kw">pub struct </span>RequestUpdate {
+    <span class="doccomment">/// The public key to fetch the project by.
+    </span>project_key: ProjectKey,
+
+    <span class="doccomment">/// If true, all caches should be skipped and a fresh state should be computed.
+    </span>no_cache: bool,
+}
+
+<span class="kw">impl </span>RequestUpdate {
+    <span class="kw">pub fn </span>new(project_key: ProjectKey, no_cache: bool) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            project_key,
+            no_cache,
+        }
+    }
+}
+
+<span class="doccomment">/// Returns the project state.
+///
+/// The project state is fetched if it is missing or outdated. If `no_cache` is specified, then the
+/// state is always refreshed.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>GetProjectState {
+    project_key: ProjectKey,
+    no_cache: bool,
+}
+
+<span class="kw">impl </span>GetProjectState {
+    <span class="doccomment">/// Fetches the project state and uses the cached version if up-to-date.
+    </span><span class="kw">pub fn </span>new(project_key: ProjectKey) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            project_key,
+            no_cache: <span class="bool-val">false</span>,
+        }
+    }
+
+    <span class="doccomment">/// Fetches the project state and conditionally skips the cache.
+    </span><span class="kw">pub fn </span>no_cache(<span class="kw-2">mut </span><span class="self">self</span>, no_cache: bool) -&gt; <span class="self">Self </span>{
+        <span class="self">self</span>.no_cache = no_cache;
+        <span class="self">self
+    </span>}
+}
+
+<span class="doccomment">/// Returns the project state if it is already cached.
+///
+/// This is used for cases when we only want to perform operations that do
+/// not require waiting for network requests.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>GetCachedProjectState {
+    project_key: ProjectKey,
+}
+
+<span class="kw">impl </span>GetCachedProjectState {
+    <span class="kw">pub fn </span>new(project_key: ProjectKey) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ project_key }
+    }
+}
+
+<span class="doccomment">/// A checked envelope and associated rate limits.
+///
+/// Items violating the rate limits have been removed from the envelope. If all items are removed
+/// from the envelope, `None` is returned in place of the envelope.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>CheckedEnvelope {
+    <span class="kw">pub </span>envelope: <span class="prelude-ty">Option</span>&lt;(Envelope, EnvelopeContext)&gt;,
+    <span class="kw">pub </span>rate_limits: RateLimits,
+}
+
+<span class="doccomment">/// Checks the envelope against project configuration and rate limits.
+///
+/// When `fetched`, then the project state is ensured to be up to date. When `cached`, an outdated
+/// project state may be used, or otherwise the envelope is passed through unaltered.
+///
+/// To check the envelope, this runs:
+///  - Validate origins and public keys
+///  - Quotas with a limit of `0`
+///  - Cached rate limits
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>CheckEnvelope {
+    envelope: Envelope,
+    context: EnvelopeContext,
+}
+
+<span class="kw">impl </span>CheckEnvelope {
+    <span class="doccomment">/// Uses a cached project state and checks the envelope.
+    </span><span class="kw">pub fn </span>new(envelope: Envelope, context: EnvelopeContext) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ envelope, context }
+    }
+}
+
+<span class="doccomment">/// Validates the envelope against project configuration and rate limits.
+///
+/// This ensures internally that the project state is up to date and then runs the same checks as
+/// [`CheckEnvelope`]. Once the envelope has been validated, remaining items are forwarded to the
+/// next stage:
+///
+///  - If the envelope needs dynamic sampling, this sends [`AddSamplingState`] to the
+///    [`ProjectCache`] to add the required project state.
+///  - Otherwise, the envelope is directly submitted to the [`EnvelopeProcessor`].
+///
+/// [`EnvelopeProcessor`]: crate::actors::processor::EnvelopeProcessor
+</span><span class="kw">pub struct </span>ValidateEnvelope {
+    envelope: Envelope,
+    context: EnvelopeContext,
+}
+
+<span class="kw">impl </span>ValidateEnvelope {
+    <span class="kw">pub fn </span>new(envelope: Envelope, context: EnvelopeContext) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ envelope, context }
+    }
+}
+
+<span class="doccomment">/// Adds the project state for dynamic sampling and sends the envelope to processing.
+///
+/// If the project state is up to date, the envelope will be immediately submitted for processing.
+/// Otherwise, this queues the envelope and flushes it when the project has been updated.
+///
+/// This message will trigger an update of the project state internally if the state is stale or
+/// outdated.
+</span><span class="kw">pub struct </span>AddSamplingState {
+    project_key: ProjectKey,
+    message: ProcessEnvelope,
+}
+
+<span class="kw">impl </span>AddSamplingState {
+    <span class="kw">pub fn </span>new(project_key: ProjectKey, message: ProcessEnvelope) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            project_key,
+            message,
+        }
+    }
+}
+
+<span class="kw">pub struct </span>UpdateRateLimits {
+    project_key: ProjectKey,
+    rate_limits: RateLimits,
+}
+
+<span class="kw">impl </span>UpdateRateLimits {
+    <span class="kw">pub fn </span>new(project_key: ProjectKey, rate_limits: RateLimits) -&gt; UpdateRateLimits {
+        <span class="self">Self </span>{
+            project_key,
+            rate_limits,
+        }
+    }
+}
+
+<span class="doccomment">/// A cache for [`ProjectState`]s.
+///
+/// The project maintains information about organizations, projects, and project keys along with
+/// settings required to ingest traffic to Sentry. Internally, it tries to keep information
+/// up-to-date and automatically retires unused old data.
+///
+/// To retrieve information from the cache, use [`GetProjectState`] for guaranteed up-to-date
+/// information, or [`GetCachedProjectState`] for immediately available but potentially older
+/// information.
+///
+/// There are also higher-level operations, such as [`CheckEnvelope`] and [`ValidateEnvelope`] that
+/// inspect contents of envelopes for ingestion, as well as [`InsertMetrics`] and [`MergeBuckets`]
+/// to aggregate metrics associated with a project.
+///
+/// See the enumerated variants for a full list of available messages for this service.
+</span><span class="kw">pub enum </span>ProjectCache {
+    RequestUpdate(RequestUpdate),
+    Get(GetProjectState, ProjectSender),
+    GetCached(GetCachedProjectState, Sender&lt;<span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;&gt;),
+    CheckEnvelope(
+        CheckEnvelope,
+        Sender&lt;<span class="prelude-ty">Result</span>&lt;CheckedEnvelope, DiscardReason&gt;&gt;,
+    ),
+    ValidateEnvelope(ValidateEnvelope),
+    AddSamplingState(AddSamplingState),
+    UpdateRateLimits(UpdateRateLimits),
+    InsertMetrics(InsertMetrics),
+    MergeBuckets(MergeBuckets),
+    FlushBuckets(FlushBuckets),
 }
 
 <span class="kw">impl </span>ProjectCache {
+    <span class="kw">pub fn </span>from_registry() -&gt; Addr&lt;<span class="self">Self</span>&gt; {
+        REGISTRY.get().unwrap().project_cache.clone()
+    }
+}
+
+<span class="kw">impl </span>Interface <span class="kw">for </span>ProjectCache {}
+
+<span class="kw">impl </span>FromMessage&lt;RequestUpdate&gt; <span class="kw">for </span>ProjectCache {
+    <span class="kw">type </span>Response = relay_system::NoResponse;
+
+    <span class="kw">fn </span>from_message(message: RequestUpdate, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::RequestUpdate(message)
+    }
+}
+
+<span class="kw">impl </span>FromMessage&lt;GetProjectState&gt; <span class="kw">for </span>ProjectCache {
+    <span class="kw">type </span>Response = relay_system::BroadcastResponse&lt;Arc&lt;ProjectState&gt;&gt;;
+
+    <span class="kw">fn </span>from_message(message: GetProjectState, sender: ProjectSender) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::Get(message, sender)
+    }
+}
+
+<span class="kw">impl </span>FromMessage&lt;GetCachedProjectState&gt; <span class="kw">for </span>ProjectCache {
+    <span class="kw">type </span>Response = relay_system::AsyncResponse&lt;<span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;&gt;;
+
+    <span class="kw">fn </span>from_message(
+        message: GetCachedProjectState,
+        sender: Sender&lt;<span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;&gt;,
+    ) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::GetCached(message, sender)
+    }
+}
+
+<span class="kw">impl </span>FromMessage&lt;CheckEnvelope&gt; <span class="kw">for </span>ProjectCache {
+    <span class="kw">type </span>Response = relay_system::AsyncResponse&lt;<span class="prelude-ty">Result</span>&lt;CheckedEnvelope, DiscardReason&gt;&gt;;
+
+    <span class="kw">fn </span>from_message(
+        message: CheckEnvelope,
+        sender: Sender&lt;<span class="prelude-ty">Result</span>&lt;CheckedEnvelope, DiscardReason&gt;&gt;,
+    ) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::CheckEnvelope(message, sender)
+    }
+}
+
+<span class="kw">impl </span>FromMessage&lt;ValidateEnvelope&gt; <span class="kw">for </span>ProjectCache {
+    <span class="kw">type </span>Response = relay_system::NoResponse;
+
+    <span class="kw">fn </span>from_message(message: ValidateEnvelope, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::ValidateEnvelope(message)
+    }
+}
+
+<span class="kw">impl </span>FromMessage&lt;AddSamplingState&gt; <span class="kw">for </span>ProjectCache {
+    <span class="kw">type </span>Response = relay_system::NoResponse;
+
+    <span class="kw">fn </span>from_message(message: AddSamplingState, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::AddSamplingState(message)
+    }
+}
+
+<span class="kw">impl </span>FromMessage&lt;UpdateRateLimits&gt; <span class="kw">for </span>ProjectCache {
+    <span class="kw">type </span>Response = relay_system::NoResponse;
+
+    <span class="kw">fn </span>from_message(message: UpdateRateLimits, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::UpdateRateLimits(message)
+    }
+}
+
+<span class="kw">impl </span>FromMessage&lt;InsertMetrics&gt; <span class="kw">for </span>ProjectCache {
+    <span class="kw">type </span>Response = relay_system::NoResponse;
+
+    <span class="kw">fn </span>from_message(message: InsertMetrics, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::InsertMetrics(message)
+    }
+}
+
+<span class="kw">impl </span>FromMessage&lt;MergeBuckets&gt; <span class="kw">for </span>ProjectCache {
+    <span class="kw">type </span>Response = relay_system::NoResponse;
+
+    <span class="kw">fn </span>from_message(message: MergeBuckets, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::MergeBuckets(message)
+    }
+}
+
+<span class="kw">impl </span>FromMessage&lt;FlushBuckets&gt; <span class="kw">for </span>ProjectCache {
+    <span class="kw">type </span>Response = relay_system::NoResponse;
+
+    <span class="kw">fn </span>from_message(message: FlushBuckets, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::FlushBuckets(message)
+    }
+}
+
+<span class="doccomment">/// Helper type that contains all configured sources for project cache fetching.
+///
+/// See [`RequestUpdate`] for a description on how project states are fetched.
+</span><span class="attribute">#[derive(Clone, Debug)]
+</span><span class="kw">struct </span>ProjectSource {
+    config: Arc&lt;Config&gt;,
+    local_source: actix::Addr&lt;LocalProjectSource&gt;,
+    upstream_source: actix::Addr&lt;UpstreamProjectSource&gt;,
+    <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span>redis_source: <span class="prelude-ty">Option</span>&lt;actix::Addr&lt;RedisProjectSource&gt;&gt;,
+}
+
+<span class="kw">impl </span>ProjectSource {
     <span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;, _redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>local_source = LocalProjectSource::new(config.clone()).start();
         <span class="kw">let </span>upstream_source = UpstreamProjectSource::new(config.clone()).start();
@@ -734,14 +1010,95 @@
             )
         });
 
-        ProjectCache {
+        <span class="self">Self </span>{
             config,
-            projects: hashbrown::HashMap::new(),
             local_source,
             upstream_source,
             <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
             </span>redis_source,
+        }
+    }
+
+    <span class="kw">async fn </span>fetch(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        project_key: ProjectKey,
+        no_cache: bool,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Arc&lt;ProjectState&gt;, ()&gt; {
+        <span class="kw">let </span>state_opt = <span class="self">self
+            </span>.local_source
+            .send(FetchOptionalProjectState { project_key })
+            .compat()
+            .<span class="kw">await
+            </span>.map_err(|<span class="kw">_</span>| ())<span class="question-mark">?</span>;
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(state) = state_opt {
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(state);
+        }
+
+        <span class="kw">match </span><span class="self">self</span>.config.relay_mode() {
+            RelayMode::Proxy =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(Arc::new(ProjectState::allowed())),
+            RelayMode::Static =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(Arc::new(ProjectState::missing())),
+            RelayMode::Capture =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(Arc::new(ProjectState::allowed())),
+            RelayMode::Managed =&gt; (), <span class="comment">// Proceed with loading the config from redis or upstream
+        </span>}
+
+        <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>redis_source) = <span class="self">self</span>.redis_source {
+            <span class="kw">let </span>state_opt = redis_source
+                .send(FetchOptionalProjectState { project_key })
+                .compat()
+                .<span class="kw">await
+                </span>.map_err(|<span class="kw">_</span>| ())<span class="question-mark">?</span>;
+
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(state) = state_opt {
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(state);
+            }
+        };
+
+        <span class="self">self</span>.upstream_source
+            .send(FetchProjectState {
+                project_key,
+                no_cache,
+            })
+            .compat()
+            .<span class="kw">await
+            </span>.map_err(|<span class="kw">_</span>| ())<span class="question-mark">?
+    </span>}
+}
+
+<span class="doccomment">/// Updates the cache with new project state information.
+</span><span class="kw">struct </span>UpdateProjectState {
+    <span class="doccomment">/// The public key to fetch the project by.
+    </span>project_key: ProjectKey,
+
+    <span class="doccomment">/// New project state information.
+    </span>state: Arc&lt;ProjectState&gt;,
+
+    <span class="doccomment">/// If true, all caches should be skipped and a fresh state should be computed.
+    </span>no_cache: bool,
+}
+
+<span class="doccomment">/// Service implementing the [`ProjectCache`] interface.
+</span><span class="kw">pub struct </span>ProjectCacheService {
+    config: Arc&lt;Config&gt;,
+    <span class="comment">// need hashbrown because drain_filter is not stable in std yet
+    </span>projects: hashbrown::HashMap&lt;ProjectKey, Project&gt;,
+    garbage_disposal: GarbageDisposal&lt;Project&gt;,
+    source: ProjectSource,
+    state_tx: mpsc::UnboundedSender&lt;UpdateProjectState&gt;,
+    state_rx: mpsc::UnboundedReceiver&lt;UpdateProjectState&gt;,
+}
+
+<span class="kw">impl </span>ProjectCacheService {
+    <span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;, redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>(state_tx, state_rx) = mpsc::unbounded_channel();
+        <span class="self">Self </span>{
+            config: config.clone(),
+            projects: hashbrown::HashMap::new(),
             garbage_disposal: GarbageDisposal::new(),
+            source: ProjectSource::new(config, redis),
+            state_tx,
+            state_rx,
         }
     }
 
@@ -789,48 +1146,150 @@
                 Project::new(project_key, config)
             })
     }
-}
 
-<span class="kw">impl </span>Actor <span class="kw">for </span>ProjectCache {
-    <span class="kw">type </span>Context = Context&lt;<span class="self">Self</span>&gt;;
+    <span class="kw">fn </span>merge_state(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: UpdateProjectState) {
+        <span class="kw">let </span>UpdateProjectState {
+            project_key,
+            state,
+            no_cache,
+        } = message;
 
-    <span class="kw">fn </span>started(<span class="kw-2">&amp;mut </span><span class="self">self</span>, context: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) {
-        <span class="comment">// Set the mailbox size to the size of the envelope buffer. This is a rough estimate but
-        // should ensure that we&#39;re not dropping messages if the main arbiter running this actor
-        // gets hammered a bit.
-        </span><span class="kw">let </span>mailbox_size = <span class="self">self</span>.config.envelope_buffer_size();
-        context.set_mailbox_capacity(mailbox_size);
+        <span class="self">self</span>.get_or_create_project(project_key)
+            .update_state(state, no_cache);
+    }
 
-        context.run_interval(<span class="self">self</span>.config.cache_eviction_interval(), |slf, <span class="kw">_</span>| {
-            slf.evict_stale_project_caches()
+    <span class="kw">fn </span>handle_request_update(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: RequestUpdate) {
+        <span class="kw">let </span>RequestUpdate {
+            project_key,
+            no_cache,
+        } = message;
+
+        <span class="comment">// Bump the update time of the project in our hashmap to evade eviction.
+        </span><span class="self">self</span>.get_or_create_project(project_key)
+            .refresh_updated_timestamp();
+
+        <span class="kw">let </span>source = <span class="self">self</span>.source.clone();
+        <span class="kw">let </span>sender = <span class="self">self</span>.state_tx.clone();
+
+        tokio::spawn(<span class="kw">async move </span>{
+            <span class="kw">let </span>state = source
+                .fetch(project_key, no_cache)
+                .<span class="kw">await
+                </span>.unwrap_or_else(|()| Arc::new(ProjectState::err()));
+
+            <span class="kw">let </span>message = UpdateProjectState {
+                project_key,
+                state,
+                no_cache,
+            };
+
+            sender.send(message).ok();
         });
-
-        <span class="macro">relay_log::info!</span>(<span class="string">&quot;project cache started&quot;</span>);
     }
 
-    <span class="kw">fn </span>stopped(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _ctx: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) {
-        <span class="macro">relay_log::info!</span>(<span class="string">&quot;project cache stopped&quot;</span>);
+    <span class="kw">fn </span>handle_get(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: GetProjectState, sender: ProjectSender) {
+        <span class="self">self</span>.get_or_create_project(message.project_key)
+            .get_state(sender, message.no_cache);
+    }
+
+    <span class="kw">fn </span>handle_get_cached(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: GetCachedProjectState) -&gt; <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt; {
+        <span class="self">self</span>.get_or_create_project(message.project_key)
+            .get_cached_state(<span class="bool-val">false</span>)
+    }
+
+    <span class="kw">fn </span>handle_check_envelope(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        message: CheckEnvelope,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;CheckedEnvelope, DiscardReason&gt; {
+        <span class="kw">let </span>project = <span class="self">self</span>.get_or_create_project(message.envelope.meta().public_key());
+
+        <span class="comment">// Preload the project cache so that it arrives a little earlier in processing. However,
+        // do not pass `no_cache`. In case the project is rate limited, we do not want to force
+        // a full reload. Fetching must not block the store request.
+        </span>project.prefetch(<span class="bool-val">false</span>);
+
+        project.check_envelope(message.envelope, message.context)
+    }
+
+    <span class="kw">fn </span>handle_validate_envelope(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: ValidateEnvelope) {
+        <span class="comment">// Preload the project cache for dynamic sampling in parallel to the main one.
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(sampling_key) = utils::get_sampling_key(<span class="kw-2">&amp;</span>message.envelope) {
+            <span class="self">self</span>.get_or_create_project(sampling_key)
+                .prefetch(message.envelope.meta().no_cache());
+        }
+
+        <span class="self">self</span>.get_or_create_project(message.envelope.meta().public_key())
+            .enqueue_validation(message.envelope, message.context);
+    }
+
+    <span class="kw">fn </span>handle_add_sampling_state(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: AddSamplingState) {
+        <span class="self">self</span>.get_or_create_project(message.project_key)
+            .enqueue_sampling(message.message);
+    }
+
+    <span class="kw">fn </span>handle_rate_limits(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: UpdateRateLimits) {
+        <span class="self">self</span>.get_or_create_project(message.project_key)
+            .merge_rate_limits(message.rate_limits);
+    }
+
+    <span class="kw">fn </span>handle_insert_metrics(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: InsertMetrics) {
+        <span class="comment">// Only keep if we have an aggregator, otherwise drop because we know that we were disabled.
+        </span><span class="self">self</span>.get_or_create_project(message.project_key())
+            .insert_metrics(message.metrics());
+    }
+
+    <span class="kw">fn </span>handle_merge_buckets(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: MergeBuckets) {
+        <span class="comment">// Only keep if we have an aggregator, otherwise drop because we know that we were disabled.
+        </span><span class="self">self</span>.get_or_create_project(message.project_key())
+            .merge_buckets(message.buckets());
+    }
+
+    <span class="kw">fn </span>handle_flush_buckets(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: FlushBuckets) {
+        <span class="self">self</span>.get_or_create_project(message.project_key)
+            .flush_buckets(message.partition_key, message.buckets);
+    }
+
+    <span class="kw">async fn </span>handle_message(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: ProjectCache) {
+        <span class="kw">match </span>message {
+            ProjectCache::RequestUpdate(message) =&gt; <span class="self">self</span>.handle_request_update(message),
+            ProjectCache::Get(message, sender) =&gt; <span class="self">self</span>.handle_get(message, sender),
+            ProjectCache::GetCached(message, sender) =&gt; {
+                sender.send(<span class="self">self</span>.handle_get_cached(message))
+            }
+            ProjectCache::CheckEnvelope(message, sender) =&gt; {
+                sender.send(<span class="self">self</span>.handle_check_envelope(message))
+            }
+            ProjectCache::ValidateEnvelope(message) =&gt; <span class="self">self</span>.handle_validate_envelope(message),
+            ProjectCache::AddSamplingState(message) =&gt; <span class="self">self</span>.handle_add_sampling_state(message),
+            ProjectCache::UpdateRateLimits(message) =&gt; <span class="self">self</span>.handle_rate_limits(message),
+            ProjectCache::InsertMetrics(message) =&gt; <span class="self">self</span>.handle_insert_metrics(message),
+            ProjectCache::MergeBuckets(message) =&gt; <span class="self">self</span>.handle_merge_buckets(message),
+            ProjectCache::FlushBuckets(message) =&gt; <span class="self">self</span>.handle_flush_buckets(message),
+        }
     }
 }
 
-<span class="kw">impl </span>Supervised <span class="kw">for </span>ProjectCache {}
+<span class="kw">impl </span>Service <span class="kw">for </span>ProjectCacheService {
+    <span class="kw">type </span>Interface = ProjectCache;
 
-<span class="kw">impl </span>SystemService <span class="kw">for </span>ProjectCache {}
+    <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+        tokio::spawn(<span class="kw">async move </span>{
+            <span class="kw">let </span><span class="kw-2">mut </span>ticker = tokio::time::interval(<span class="self">self</span>.config.cache_eviction_interval());
+            <span class="macro">relay_log::info!</span>(<span class="string">&quot;project cache started&quot;</span>);
 
-<span class="kw">impl </span>Default <span class="kw">for </span>ProjectCache {
-    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-        <span class="macro">unimplemented!</span>(<span class="string">&quot;register with the SystemRegistry instead&quot;</span>)
-    }
-}
+            <span class="kw">loop </span>{
+                <span class="macro">tokio::select! </span>{
+                    biased;
 
-<span class="attribute">#[derive(Debug)]
-</span><span class="kw">pub struct </span>ProjectStateResponse {
-    <span class="kw">pub </span>state: Arc&lt;ProjectState&gt;,
-}
+                    <span class="prelude-val">Some</span>(message) = <span class="self">self</span>.state_rx.recv() =&gt; <span class="self">self</span>.merge_state(message),
+                    <span class="kw">_ </span>= ticker.tick() =&gt; <span class="self">self</span>.evict_stale_project_caches(),
+                    <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; <span class="self">self</span>.handle_message(message).<span class="kw">await</span>,
+                    <span class="kw">else </span>=&gt; <span class="kw">break</span>,
+                }
+            }
 
-<span class="kw">impl </span>ProjectStateResponse {
-    <span class="kw">pub fn </span>new(state: Arc&lt;ProjectState&gt;) -&gt; <span class="self">Self </span>{
-        ProjectStateResponse { state }
+            <span class="macro">relay_log::info!</span>(<span class="string">&quot;project cache stopped&quot;</span>);
+        });
     }
 }
 
@@ -843,8 +1302,9 @@
     </span><span class="kw">pub </span>no_cache: bool,
 }
 
-<span class="kw">impl </span>Message <span class="kw">for </span>FetchProjectState {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= <span class="prelude-ty">Result</span>&lt;ProjectStateResponse, ()&gt;;
+<span class="comment">// TODO: Remove once `UpstreamProjectSource` was moved to tokio
+</span><span class="kw">impl </span>Message <span class="kw">for </span>FetchProjectState {
+    <span class="kw">type </span><span class="prelude-ty">Result </span>= <span class="prelude-ty">Result</span>&lt;Arc&lt;ProjectState&gt;, ()&gt;;
 }
 
 <span class="attribute">#[derive(Clone, Debug)]
@@ -858,471 +1318,9 @@
     }
 }
 
-<span class="kw">impl </span>Message <span class="kw">for </span>FetchOptionalProjectState {
+<span class="comment">// TODO: Remove once `RedisProjectSource` and `LocalProjectSource` were moved to tokio
+</span><span class="kw">impl </span>Message <span class="kw">for </span>FetchOptionalProjectState {
     <span class="kw">type </span><span class="prelude-ty">Result </span>= <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;;
-}
-
-<span class="doccomment">/// Fetches a project state from one of the available sources.
-///
-/// The project state is resolved in the following precedence:
-///
-///  1. Local file system
-///  2. Redis cache (processing mode only)
-///  3. Upstream (managed and processing mode only)
-///
-/// Requests to the upstream are performed via `UpstreamProjectSource`, which internally batches
-/// individual requests.
-</span><span class="attribute">#[derive(Clone)]
-</span><span class="kw">pub struct </span>UpdateProjectState {
-    <span class="doccomment">/// The public key to fetch the project by.
-    </span>project_key: ProjectKey,
-
-    <span class="doccomment">/// If true, all caches should be skipped and a fresh state should be computed.
-    </span>no_cache: bool,
-}
-
-<span class="kw">impl </span>UpdateProjectState {
-    <span class="kw">pub fn </span>new(project_key: ProjectKey, no_cache: bool) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            project_key,
-            no_cache,
-        }
-    }
-}
-
-<span class="kw">impl </span>Message <span class="kw">for </span>UpdateProjectState {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= ();
-}
-
-<span class="kw">impl </span>Handler&lt;UpdateProjectState&gt; <span class="kw">for </span>ProjectCache {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= ();
-
-    <span class="kw">fn </span>handle(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: UpdateProjectState, context: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) -&gt; <span class="self">Self</span>::Result {
-        <span class="kw">let </span>UpdateProjectState {
-            project_key,
-            no_cache,
-        } = message;
-
-        <span class="kw">let </span>project = <span class="self">self</span>.get_or_create_project(project_key);
-
-        <span class="comment">// Bump the update time of the project in our hashmap to evade eviction.
-        </span>project.refresh_updated_timestamp();
-
-        <span class="kw">let </span>relay_mode = <span class="self">self</span>.config.relay_mode();
-
-        <span class="kw">let </span>upstream_source = <span class="self">self</span>.upstream_source.clone();
-        <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-        </span><span class="kw">let </span>redis_source = <span class="self">self</span>.redis_source.clone();
-
-        <span class="self">self</span>.local_source
-            .send(FetchOptionalProjectState { project_key })
-            .map_err(|<span class="kw">_</span>| ())
-            .and_then(<span class="kw">move </span>|response| {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(state) = response {
-                    <span class="kw">return </span>Box::new(future::ok(ProjectStateResponse::new(state)))
-                        <span class="kw">as </span>ResponseFuture&lt;<span class="kw">_</span>, <span class="kw">_</span>&gt;;
-                }
-
-                <span class="kw">match </span>relay_mode {
-                    RelayMode::Proxy =&gt; {
-                        <span class="kw">return </span>Box::new(future::ok(ProjectStateResponse::new(Arc::new(
-                            ProjectState::allowed(),
-                        ))));
-                    }
-                    RelayMode::Static =&gt; {
-                        <span class="kw">return </span>Box::new(future::ok(ProjectStateResponse::new(Arc::new(
-                            ProjectState::missing(),
-                        ))));
-                    }
-                    RelayMode::Capture =&gt; {
-                        <span class="kw">return </span>Box::new(future::ok(ProjectStateResponse::new(Arc::new(
-                            ProjectState::allowed(),
-                        ))));
-                    }
-                    RelayMode::Managed =&gt; {
-                        <span class="comment">// Proceed with loading the config from redis or upstream
-                    </span>}
-                }
-
-                <span class="attribute">#[cfg(not(feature = <span class="string">&quot;processing&quot;</span>))]
-                </span><span class="kw">let </span>fetch_redis = future::ok(<span class="prelude-val">None</span>);
-
-                <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-                </span><span class="kw">let </span>fetch_redis: ResponseFuture&lt;<span class="kw">_</span>, <span class="kw">_</span>&gt; = <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>redis_source) = redis_source
-                {
-                    Box::new(
-                        redis_source
-                            .send(FetchOptionalProjectState { project_key })
-                            .map_err(|<span class="kw">_</span>| ()),
-                    )
-                } <span class="kw">else </span>{
-                    Box::new(future::ok(<span class="prelude-val">None</span>))
-                };
-
-                <span class="kw">let </span>fetch_redis = fetch_redis.and_then(<span class="kw">move </span>|response| {
-                    <span class="kw">if let </span><span class="prelude-val">Some</span>(state) = response {
-                        <span class="kw">return </span>Box::new(future::ok(ProjectStateResponse::new(state)))
-                            <span class="kw">as </span>ResponseFuture&lt;<span class="kw">_</span>, <span class="kw">_</span>&gt;;
-                    }
-
-                    <span class="kw">let </span>fetch_upstream = upstream_source
-                        .send(FetchProjectState {
-                            project_key,
-                            no_cache,
-                        })
-                        .map_err(|<span class="kw">_</span>| ())
-                        .and_then(<span class="kw">move </span>|result| result.map_err(|<span class="kw">_</span>| ()));
-
-                    Box::new(fetch_upstream)
-                });
-
-                Box::new(fetch_redis)
-            })
-            .into_actor(<span class="self">self</span>)
-            .then(<span class="kw">move </span>|state_result, slf, _context| {
-                <span class="kw">let </span>state = <span class="kw">match </span>state_result {
-                    <span class="prelude-val">Ok</span>(response) =&gt; response.state,
-                    <span class="prelude-val">Err</span>(()) =&gt; Arc::new(ProjectState::err()),
-                };
-
-                slf.get_or_create_project(project_key)
-                    .update_state(state, no_cache);
-
-                fut::ok(())
-            })
-            .spawn(context);
-    }
-}
-
-<span class="doccomment">/// Returns the project state.
-///
-/// The project state is fetched if it is missing or outdated. If `no_cache` is specified, then the
-/// state is always refreshed.
-</span><span class="attribute">#[derive(Debug)]
-</span><span class="kw">pub struct </span>GetProjectState {
-    project_key: ProjectKey,
-    no_cache: bool,
-}
-
-<span class="kw">impl </span>GetProjectState {
-    <span class="doccomment">/// Fetches the project state and uses the cached version if up-to-date.
-    </span><span class="kw">pub fn </span>new(project_key: ProjectKey) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            project_key,
-            no_cache: <span class="bool-val">false</span>,
-        }
-    }
-
-    <span class="doccomment">/// Fetches the project state and conditionally skips the cache.
-    </span><span class="kw">pub fn </span>no_cache(<span class="kw-2">mut </span><span class="self">self</span>, no_cache: bool) -&gt; <span class="self">Self </span>{
-        <span class="self">self</span>.no_cache = no_cache;
-        <span class="self">self
-    </span>}
-}
-
-<span class="kw">impl </span>Message <span class="kw">for </span>GetProjectState {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= <span class="prelude-ty">Result</span>&lt;Arc&lt;ProjectState&gt;, ProjectError&gt;;
-}
-
-<span class="kw">impl </span>Handler&lt;GetProjectState&gt; <span class="kw">for </span>ProjectCache {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= Response&lt;Arc&lt;ProjectState&gt;, ProjectError&gt;;
-
-    <span class="kw">fn </span>handle(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: GetProjectState, _context: <span class="kw-2">&amp;mut </span>Context&lt;<span class="self">Self</span>&gt;) -&gt; <span class="self">Self</span>::Result {
-        <span class="kw">let </span>project = <span class="self">self</span>.get_or_create_project(message.project_key);
-        project.get_or_fetch_state(message.no_cache)
-    }
-}
-
-<span class="doccomment">/// Returns the project state if it is already cached.
-///
-/// This is used for cases when we only want to perform operations that do
-/// not require waiting for network requests.
-</span><span class="attribute">#[derive(Debug)]
-</span><span class="kw">pub struct </span>GetCachedProjectState {
-    project_key: ProjectKey,
-}
-
-<span class="kw">impl </span>GetCachedProjectState {
-    <span class="kw">pub fn </span>new(project_key: ProjectKey) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ project_key }
-    }
-}
-
-<span class="kw">impl </span>Message <span class="kw">for </span>GetCachedProjectState {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;;
-}
-
-<span class="kw">impl </span>Handler&lt;GetCachedProjectState&gt; <span class="kw">for </span>ProjectCache {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;;
-
-    <span class="kw">fn </span>handle(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        message: GetCachedProjectState,
-        _context: <span class="kw-2">&amp;mut </span>Context&lt;<span class="self">Self</span>&gt;,
-    ) -&gt; <span class="self">Self</span>::Result {
-        <span class="kw">let </span>project = <span class="self">self</span>.get_or_create_project(message.project_key);
-        project.get_or_fetch_state(<span class="bool-val">false</span>);
-        project.valid_state()
-    }
-}
-
-<span class="doccomment">/// Checks the envelope against project configuration and rate limits.
-///
-/// When `fetched`, then the project state is ensured to be up to date. When `cached`, an outdated
-/// project state may be used, or otherwise the envelope is passed through unaltered.
-///
-/// To check the envelope, this runs:
-///  - Validate origins and public keys
-///  - Quotas with a limit of `0`
-///  - Cached rate limits
-</span><span class="attribute">#[derive(Debug)]
-</span><span class="kw">pub struct </span>CheckEnvelope {
-    envelope: Envelope,
-    context: EnvelopeContext,
-}
-
-<span class="kw">impl </span>CheckEnvelope {
-    <span class="doccomment">/// Uses a cached project state and checks the envelope.
-    </span><span class="kw">pub fn </span>new(envelope: Envelope, context: EnvelopeContext) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ envelope, context }
-    }
-}
-
-<span class="doccomment">/// A checked envelope and associated rate limits.
-///
-/// Items violating the rate limits have been removed from the envelope. If all items are removed
-/// from the envelope, `None` is returned in place of the envelope.
-</span><span class="attribute">#[derive(Debug)]
-</span><span class="kw">pub struct </span>CheckedEnvelope {
-    <span class="kw">pub </span>envelope: <span class="prelude-ty">Option</span>&lt;(Envelope, EnvelopeContext)&gt;,
-    <span class="kw">pub </span>rate_limits: RateLimits,
-}
-
-<span class="kw">impl </span>Message <span class="kw">for </span>CheckEnvelope {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= <span class="prelude-ty">Result</span>&lt;CheckedEnvelope, DiscardReason&gt;;
-}
-
-<span class="kw">impl </span>Handler&lt;CheckEnvelope&gt; <span class="kw">for </span>ProjectCache {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= <span class="prelude-ty">Result</span>&lt;CheckedEnvelope, DiscardReason&gt;;
-
-    <span class="kw">fn </span>handle(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: CheckEnvelope, <span class="kw">_</span>: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) -&gt; <span class="self">Self</span>::Result {
-        <span class="kw">let </span>project = <span class="self">self</span>.get_or_create_project(message.envelope.meta().public_key());
-
-        <span class="comment">// Preload the project cache so that it arrives a little earlier in processing. However,
-        // do not pass `no_cache`. In case the project is rate limited, we do not want to force
-        // a full reload. Fetching must not block the store request.
-        </span>project.get_or_fetch_state(<span class="bool-val">false</span>);
-
-        project.check_envelope(message.envelope, message.context)
-    }
-}
-
-<span class="doccomment">/// Validates the envelope against project configuration and rate limits.
-///
-/// This ensures internally that the project state is up to date and then runs the same checks as
-/// [`CheckEnvelope`]. Once the envelope has been validated, remaining items are forwarded to the
-/// next stage:
-///
-///  - If the envelope needs dynamic sampling, this sends [`AddSamplingState`] to the
-///    [`ProjectCache`] to add the required project state.
-///  - Otherwise, the envelope is directly submitted to the [`EnvelopeProcessor`].
-///
-/// [`EnvelopeProcessor`]: crate::actors::processor::EnvelopeProcessor
-</span><span class="kw">pub struct </span>ValidateEnvelope {
-    envelope: Envelope,
-    context: EnvelopeContext,
-}
-
-<span class="kw">impl </span>ValidateEnvelope {
-    <span class="kw">pub fn </span>new(envelope: Envelope, context: EnvelopeContext) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ envelope, context }
-    }
-}
-
-<span class="kw">impl </span>Message <span class="kw">for </span>ValidateEnvelope {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= ();
-}
-
-<span class="kw">impl </span>Handler&lt;ValidateEnvelope&gt; <span class="kw">for </span>ProjectCache {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= ();
-
-    <span class="kw">fn </span>handle(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: ValidateEnvelope, <span class="kw">_</span>: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) -&gt; <span class="self">Self</span>::Result {
-        <span class="comment">// Preload the project cache for dynamic sampling in parallel to the main one.
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(sampling_key) = utils::get_sampling_key(<span class="kw-2">&amp;</span>message.envelope) {
-            <span class="self">self</span>.get_or_create_project(sampling_key)
-                .get_or_fetch_state(message.envelope.meta().no_cache());
-        }
-
-        <span class="self">self</span>.get_or_create_project(message.envelope.meta().public_key())
-            .enqueue_validation(message.envelope, message.context);
-    }
-}
-
-<span class="doccomment">/// Adds the project state for dynamic sampling and sends the envelope to processing.
-///
-/// If the project state is up to date, the envelope will be immediately submitted for processing.
-/// Otherwise, this queues the envelope and flushes it when the project has been updated.
-///
-/// This message will trigger an update of the project state internally if the state is stale or
-/// outdated.
-</span><span class="kw">pub struct </span>AddSamplingState {
-    project_key: ProjectKey,
-    message: ProcessEnvelope,
-}
-
-<span class="kw">impl </span>AddSamplingState {
-    <span class="kw">pub fn </span>new(project_key: ProjectKey, message: ProcessEnvelope) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            project_key,
-            message,
-        }
-    }
-}
-
-<span class="kw">impl </span>Message <span class="kw">for </span>AddSamplingState {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= ();
-}
-
-<span class="kw">impl </span>Handler&lt;AddSamplingState&gt; <span class="kw">for </span>ProjectCache {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= ();
-
-    <span class="kw">fn </span>handle(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: AddSamplingState, <span class="kw">_</span>: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) -&gt; <span class="self">Self</span>::Result {
-        <span class="self">self</span>.get_or_create_project(message.project_key)
-            .enqueue_sampling(message.message);
-    }
-}
-
-<span class="kw">pub struct </span>UpdateRateLimits {
-    project_key: ProjectKey,
-    rate_limits: RateLimits,
-}
-
-<span class="kw">impl </span>UpdateRateLimits {
-    <span class="kw">pub fn </span>new(project_key: ProjectKey, rate_limits: RateLimits) -&gt; UpdateRateLimits {
-        <span class="self">Self </span>{
-            project_key,
-            rate_limits,
-        }
-    }
-}
-
-<span class="kw">impl </span>Message <span class="kw">for </span>UpdateRateLimits {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= ();
-}
-
-<span class="kw">impl </span>Handler&lt;UpdateRateLimits&gt; <span class="kw">for </span>ProjectCache {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= ();
-
-    <span class="kw">fn </span>handle(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: UpdateRateLimits, _context: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) -&gt; <span class="self">Self</span>::Result {
-        <span class="kw">let </span>UpdateRateLimits {
-            project_key,
-            rate_limits,
-        } = message;
-        <span class="kw">let </span>project = <span class="self">self</span>.get_or_create_project(project_key);
-        project.merge_rate_limits(rate_limits);
-    }
-}
-
-<span class="kw">impl </span>Handler&lt;InsertMetrics&gt; <span class="kw">for </span>ProjectCache {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= <span class="prelude-ty">Result</span>&lt;(), AggregateMetricsError&gt;;
-
-    <span class="kw">fn </span>handle(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: InsertMetrics, _context: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) -&gt; <span class="self">Self</span>::Result {
-        <span class="comment">// Only keep if we have an aggregator, otherwise drop because we know that we were disabled.
-        </span><span class="kw">let </span>project = <span class="self">self</span>.get_or_create_project(message.project_key());
-        project.insert_metrics(message.metrics());
-        <span class="prelude-val">Ok</span>(())
-    }
-}
-
-<span class="kw">impl </span>Handler&lt;MergeBuckets&gt; <span class="kw">for </span>ProjectCache {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= <span class="prelude-ty">Result</span>&lt;(), AggregateMetricsError&gt;;
-
-    <span class="kw">fn </span>handle(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: MergeBuckets, _context: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) -&gt; <span class="self">Self</span>::Result {
-        <span class="comment">// Only keep if we have an aggregator, otherwise drop because we know that we were disabled.
-        </span><span class="kw">let </span>project = <span class="self">self</span>.get_or_create_project(message.project_key());
-        project.merge_buckets(message.buckets());
-        <span class="prelude-val">Ok</span>(())
-    }
-}
-
-<span class="kw">impl </span>Handler&lt;FlushBuckets&gt; <span class="kw">for </span>ProjectCache {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= ();
-
-    <span class="kw">fn </span>handle(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: FlushBuckets, _context: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) -&gt; <span class="self">Self</span>::Result {
-        <span class="kw">let </span>FlushBuckets {
-            project_key,
-            partition_key,
-            buckets,
-        } = message;
-
-        <span class="kw">let </span>config = <span class="self">self</span>.config.clone();
-        <span class="kw">let </span>project = <span class="self">self</span>.get_or_create_project(project_key);
-        <span class="kw">let </span>expiry_state = project.expiry_state();
-
-        <span class="comment">// Schedule an update to the project state if it is outdated, regardless of whether the
-        // metrics can be forwarded or not. We never wait for this update.
-        </span>project.get_or_fetch_state(<span class="bool-val">false</span>);
-
-        <span class="kw">let </span>project_state = <span class="kw">match </span>expiry_state {
-            ExpiryState::Updated(state) | ExpiryState::Stale(state) =&gt; state,
-            ExpiryState::Expired =&gt; {
-                <span class="macro">relay_log::trace!</span>(<span class="string">&quot;project expired: merging back {} buckets&quot;</span>, buckets.len());
-                <span class="comment">// If the state is outdated, we need to wait for an updated state. Put them back into the
-                // aggregator.
-                </span>Registry::aggregator().send(MergeBuckets::new(project_key, buckets));
-                <span class="kw">return</span>;
-            }
-        };
-
-        <span class="kw">let </span>scoping = <span class="kw">match </span>project.scoping() {
-            <span class="prelude-val">Some</span>(scoping) =&gt; scoping,
-            <span class="kw">_ </span>=&gt; {
-                <span class="macro">relay_log::trace!</span>(
-                    <span class="string">&quot;there is no scoping: merging back {} buckets&quot;</span>,
-                    buckets.len()
-                );
-                Registry::aggregator().send(MergeBuckets::new(project_key, buckets));
-                <span class="kw">return</span>;
-            }
-        };
-
-        <span class="comment">// Only send if the project state is valid, otherwise drop this bucket.
-        </span><span class="kw">if </span>project_state.check_disabled(config.as_ref()).is_err() {
-            <span class="kw">return</span>;
-        }
-
-        <span class="comment">// Check rate limits if necessary:
-        </span><span class="kw">let </span>quotas = project_state.config.quotas.clone();
-        <span class="kw">let </span>buckets = <span class="kw">match </span>MetricsLimiter::create(buckets, quotas, scoping) {
-            <span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>bucket_limiter) =&gt; {
-                <span class="kw">let </span>cached_rate_limits = project.rate_limits().clone();
-                <span class="attribute">#[allow(unused_variables)]
-                </span><span class="kw">let </span>was_rate_limited = bucket_limiter.enforce_limits(<span class="prelude-val">Ok</span>(<span class="kw-2">&amp;</span>cached_rate_limits));
-
-                <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-                </span><span class="kw">if </span>!was_rate_limited &amp;&amp; config.processing_enabled() {
-                    <span class="comment">// If there were no cached rate limits active, let the processor check redis:
-                    </span>EnvelopeProcessor::from_registry().send(RateLimitFlushBuckets {
-                        bucket_limiter,
-                        partition_key,
-                    });
-
-                    <span class="kw">return</span>;
-                }
-
-                bucket_limiter.into_metrics()
-            }
-            <span class="prelude-val">Err</span>(buckets) =&gt; buckets,
-        };
-
-        <span class="kw">if </span>!buckets.is_empty() {
-            EnvelopeManager::from_registry().send(SendMetrics {
-                buckets,
-                scoping,
-                partition_key,
-            });
-        }
-    }
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

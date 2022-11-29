@@ -120,50 +120,6 @@
 <span id="118">118</span>
 <span id="119">119</span>
 <span id="120">120</span>
-<span id="121">121</span>
-<span id="122">122</span>
-<span id="123">123</span>
-<span id="124">124</span>
-<span id="125">125</span>
-<span id="126">126</span>
-<span id="127">127</span>
-<span id="128">128</span>
-<span id="129">129</span>
-<span id="130">130</span>
-<span id="131">131</span>
-<span id="132">132</span>
-<span id="133">133</span>
-<span id="134">134</span>
-<span id="135">135</span>
-<span id="136">136</span>
-<span id="137">137</span>
-<span id="138">138</span>
-<span id="139">139</span>
-<span id="140">140</span>
-<span id="141">141</span>
-<span id="142">142</span>
-<span id="143">143</span>
-<span id="144">144</span>
-<span id="145">145</span>
-<span id="146">146</span>
-<span id="147">147</span>
-<span id="148">148</span>
-<span id="149">149</span>
-<span id="150">150</span>
-<span id="151">151</span>
-<span id="152">152</span>
-<span id="153">153</span>
-<span id="154">154</span>
-<span id="155">155</span>
-<span id="156">156</span>
-<span id="157">157</span>
-<span id="158">158</span>
-<span id="159">159</span>
-<span id="160">160</span>
-<span id="161">161</span>
-<span id="162">162</span>
-<span id="163">163</span>
-<span id="164">164</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Helpers for testing the web server and services.
 //!
 //! When writing tests, keep the following points in mind:
@@ -193,17 +149,12 @@
 </span>)]
 #![allow(clippy::derive_partial_eq_without_eq)]
 
-</span><span class="kw">use </span>std::{
-    cell::RefCell,
-    future::Future,
-    time::{Duration, Instant},
-};
+</span><span class="kw">use </span>std::cell::RefCell;
 
 <span class="kw">use </span>actix::{System, SystemRunner};
 <span class="kw">use </span>futures01::{future, IntoFuture};
 
 <span class="kw">pub use </span>actix_web::test::<span class="kw-2">*</span>;
-<span class="kw">use </span>tokio_timer::Delay;
 
 <span class="macro">thread_local! </span>{
     <span class="kw">static </span>SYSTEM: RefCell&lt;Inner&gt; = RefCell::new(Inner::new());
@@ -288,45 +239,6 @@
     </span>F: FnOnce() -&gt; R,
 {
     block_fn(<span class="kw">move </span>|| future::ok::&lt;<span class="kw">_</span>, ()&gt;(func())).unwrap()
-}
-
-<span class="doccomment">/// Returns a future which completes after the requested delay.
-/// ```
-/// use std::time::Duration;
-/// use futures01::future::Future;
-///
-/// relay_test::setup();
-/// relay_test::block_fn(|| {
-///     relay_test::delay(Duration::from_millis(1000)).and_then(|_| {
-///         println!(&quot;One second has passed.&quot;);
-///         Ok(())
-///     })
-/// });
-/// ```
-</span><span class="kw">pub fn </span>delay(timeout: Duration) -&gt; Delay {
-    Delay::new(Instant::now() + timeout)
-}
-
-<span class="doccomment">/// Creates a new runtime for the future to run on, and also keeps [`actix::System`] around for
-/// things which are still depend on it.
-</span><span class="kw">pub fn </span>block_with_actix(f: <span class="kw">impl </span>Future&lt;Output = ()&gt; + Send + <span class="lifetime">&#39;static</span>) {
-    <span class="kw">let </span>system = actix::System::current();
-    <span class="kw">let </span>(tx, rx) = futures01::sync::oneshot::channel();
-
-    <span class="kw">let </span>rt = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(<span class="number">1</span>)
-        .enable_all()
-        .build()
-        .unwrap();
-
-    rt.spawn(<span class="kw">async move </span>{
-        actix::System::set_current(system);
-        f.<span class="kw">await</span>;
-        tx.send(()).ok();
-    });
-
-    <span class="comment">// Note that this also resolves with error if `f` panics.
-    </span>block_fn(|| rx).unwrap()
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_test" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

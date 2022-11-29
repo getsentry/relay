@@ -2942,7 +2942,6 @@
 <span id="2940">2940</span>
 <span id="2941">2941</span>
 <span id="2942">2942</span>
-<span id="2943">2943</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::cmp::max;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
@@ -4741,8 +4740,7 @@
         </span>});
 
         <span class="kw">if </span>limits.is_limited() {
-            ProjectCache::from_registry()
-                .do_send(UpdateRateLimits::new(scoping.project_key, limits));
+            ProjectCache::from_registry().send(UpdateRateLimits::new(scoping.project_key, limits));
         }
 
         <span class="kw">if </span>enforcement.event_active() {
@@ -5059,7 +5057,7 @@
                         <span class="kw">if </span>!state.extracted_metrics.is_empty() {
                             <span class="kw">let </span>project_cache = ProjectCache::from_registry();
                             project_cache
-                                .do_send(InsertMetrics::new(project_key, state.extracted_metrics));
+                                .send(InsertMetrics::new(project_key, state.extracted_metrics));
                         }
 
                         <span class="prelude-val">Ok</span>(ProcessEnvelopeResponse {
@@ -5074,7 +5072,7 @@
                         <span class="kw">if </span>!state.extracted_metrics.is_empty() &amp;&amp; err.should_keep_metrics() {
                             <span class="kw">let </span>project_cache = ProjectCache::from_registry();
                             project_cache
-                                .do_send(InsertMetrics::new(project_key, state.extracted_metrics));
+                                .send(InsertMetrics::new(project_key, state.extracted_metrics));
                         }
 
                         <span class="prelude-val">Err</span>(err)
@@ -5147,7 +5145,7 @@
                         Metric::parse_all(<span class="kw-2">&amp;</span>payload, timestamp).filter_map(|result| result.ok());
 
                     <span class="macro">relay_log::trace!</span>(<span class="string">&quot;inserting metrics into project cache&quot;</span>);
-                    project_cache.do_send(InsertMetrics::new(public_key, metrics));
+                    project_cache.send(InsertMetrics::new(public_key, metrics));
                 }
             } <span class="kw">else if </span>item.ty() == <span class="kw-2">&amp;</span>ItemType::MetricBuckets {
                 <span class="kw">match </span>Bucket::parse_all(<span class="kw-2">&amp;</span>payload) {
@@ -5157,7 +5155,7 @@
                         }
 
                         <span class="macro">relay_log::trace!</span>(<span class="string">&quot;merging metric buckets into project cache&quot;</span>);
-                        project_cache.do_send(MergeBuckets::new(public_key, buckets));
+                        project_cache.send(MergeBuckets::new(public_key, buckets));
                     }
                     <span class="prelude-val">Err</span>(error) =&gt; {
                         <span class="macro">relay_log::debug!</span>(<span class="string">&quot;failed to parse metric bucket: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error));
@@ -5205,7 +5203,7 @@
                 <span class="kw">if let </span><span class="prelude-val">Ok</span>(limits) = rate_limits {
                     <span class="comment">// Update the rate limits in the project cache.
                     </span>ProjectCache::from_registry()
-                        .do_send(UpdateRateLimits::new(scoping.project_key, limits));
+                        .send(UpdateRateLimits::new(scoping.project_key, limits));
                 }
             }
         }

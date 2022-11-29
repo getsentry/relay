@@ -138,7 +138,6 @@
 <span id="136">136</span>
 <span id="137">137</span>
 <span id="138">138</span>
-<span id="139">139</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::sync::atomic::{AtomicBool, Ordering};
 <span class="kw">use </span>std::sync::Arc;
 
@@ -258,21 +257,20 @@
     <span class="kw">fn </span>spawn_handler(<span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
         <span class="kw">let </span>service = Arc::new(<span class="self">self</span>);
 
-        <span class="kw">let </span>main_service = service.clone();
         tokio::spawn(<span class="kw">async move </span>{
-            <span class="kw">while let </span><span class="prelude-val">Some</span>(message) = rx.recv().<span class="kw">await </span>{
-                <span class="kw">let </span>service = main_service.clone();
-                tokio::spawn(<span class="kw">async move </span>{ service.handle_message(message).<span class="kw">await </span>});
-            }
-        });
+            <span class="kw">let </span><span class="kw-2">mut </span>shutdown = Controller::shutdown_handle();
 
-        <span class="comment">// Handle the shutdown signals
-        </span>tokio::spawn(<span class="kw">async move </span>{
-            <span class="kw">let </span><span class="kw-2">mut </span>shutdown_rx = Controller::subscribe_v2().<span class="kw">await</span>;
+            <span class="kw">loop </span>{
+                <span class="macro">tokio::select! </span>{
+                    biased;
 
-            <span class="kw">while </span>shutdown_rx.changed().<span class="kw">await</span>.is_ok() {
-                <span class="kw">if </span>shutdown_rx.borrow_and_update().is_some() {
-                    service.is_shutting_down.store(<span class="bool-val">true</span>, Ordering::Relaxed);
+                    <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; {
+                        <span class="kw">let </span>service = service.clone();
+                        tokio::spawn(<span class="kw">async move </span>{ service.handle_message(message).<span class="kw">await </span>});
+                    }
+                    <span class="kw">_ </span>= shutdown.notified() =&gt; {
+                        service.is_shutting_down.store(<span class="bool-val">true</span>, Ordering::Relaxed);
+                    }
                 }
             }
         });

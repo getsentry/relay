@@ -385,6 +385,13 @@
 <span id="383">383</span>
 <span id="384">384</span>
 <span id="385">385</span>
+<span id="386">386</span>
+<span id="387">387</span>
+<span id="388">388</span>
+<span id="389">389</span>
+<span id="390">390</span>
+<span id="391">391</span>
+<span id="392">392</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -405,7 +412,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome_aggregator::OutcomeAggregator;
 <span class="kw">use </span><span class="kw">crate</span>::actors::processor::{EnvelopeProcessor, EnvelopeProcessorService};
-<span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::ProjectCache;
+<span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{ProjectCache, ProjectCacheService};
 <span class="kw">use </span><span class="kw">crate</span>::actors::relays::{RelayCache, RelayCacheService};
 <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::actors::store::StoreService;
@@ -508,6 +515,7 @@
     <span class="kw">pub </span>envelope_manager: Addr&lt;EnvelopeManager&gt;,
     <span class="kw">pub </span>test_store: Addr&lt;TestStore&gt;,
     <span class="kw">pub </span>relay_cache: Addr&lt;RelayCache&gt;,
+    <span class="kw">pub </span>project_cache: Addr&lt;ProjectCache&gt;,
 }
 
 <span class="kw">impl </span>Registry {
@@ -540,6 +548,7 @@
     _aggregator_runtime: Arc&lt;tokio::runtime::Runtime&gt;,
     _outcome_runtime: Arc&lt;tokio::runtime::Runtime&gt;,
     _main_runtime: Arc&lt;tokio::runtime::Runtime&gt;,
+    _project_runtime: Arc&lt;tokio::runtime::Runtime&gt;,
     _store_runtime: <span class="prelude-ty">Option</span>&lt;Arc&lt;tokio::runtime::Runtime&gt;&gt;,
 }
 
@@ -550,6 +559,7 @@
         <span class="kw">let </span>registry = system.registry();
 
         <span class="kw">let </span>main_runtime = utils::create_runtime(config.cpu_concurrency());
+        <span class="kw">let </span>project_runtime = utils::create_runtime(<span class="number">1</span>);
         <span class="kw">let </span>aggregator_runtime = utils::create_runtime(<span class="number">1</span>);
         <span class="kw">let </span>outcome_runtime = utils::create_runtime(<span class="number">1</span>);
         <span class="kw">let </span><span class="kw-2">mut </span>_store_runtime = <span class="prelude-val">None</span>;
@@ -588,9 +598,9 @@
         <span class="kw">let </span>envelope_manager = envelope_manager.start();
         <span class="kw">let </span>test_store = TestStoreService::new(config.clone()).start();
 
-        <span class="kw">let </span>project_cache = ProjectCache::new(config.clone(), redis_pool);
-        <span class="kw">let </span>project_cache = Arbiter::start(|<span class="kw">_</span>| project_cache);
-        registry.set(project_cache.clone());
+        <span class="kw">let </span>guard = project_runtime.enter();
+        <span class="kw">let </span>project_cache = ProjectCacheService::new(config.clone(), redis_pool).start();
+        drop(guard);
 
         <span class="kw">let </span>health_check = HealthCheckService::new(config.clone()).start();
         <span class="kw">let </span>relay_cache = RelayCacheService::new(config.clone()).start();
@@ -602,9 +612,11 @@
         }
 
         <span class="kw">let </span>guard = aggregator_runtime.enter();
-        <span class="kw">let </span>aggregator =
-            AggregatorService::new(config.aggregator_config(), <span class="prelude-val">Some</span>(project_cache.recipient()))
-                .start();
+        <span class="kw">let </span>aggregator = AggregatorService::new(
+            config.aggregator_config(),
+            <span class="prelude-val">Some</span>(project_cache.clone().recipient()),
+        )
+        .start();
         drop(guard);
 
         REGISTRY
@@ -617,6 +629,7 @@
                 envelope_manager,
                 test_store,
                 relay_cache,
+                project_cache,
             }))
             .unwrap();
 
@@ -626,6 +639,7 @@
             _aggregator_runtime: Arc::new(aggregator_runtime),
             _outcome_runtime: Arc::new(outcome_runtime),
             _main_runtime: Arc::new(main_runtime),
+            _project_runtime: Arc::new(project_runtime),
             _store_runtime: _store_runtime.map(Arc::new),
         })
     }

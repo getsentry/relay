@@ -202,8 +202,6 @@
 <span id="200">200</span>
 <span id="201">201</span>
 <span id="202">202</span>
-<span id="203">203</span>
-<span id="204">204</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the outcomes aggregator, which collects similar outcomes into groups
 //! and flushed them periodically.
 
@@ -281,12 +279,10 @@
         }
     }
 
-    <span class="kw">fn </span>handle_shutdown(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;Shutdown&gt;) {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(message) = message {
-            <span class="kw">if </span>message.timeout.is_some() {
-                <span class="self">self</span>.flush();
-                <span class="macro">relay_log::info!</span>(<span class="string">&quot;outcome aggregator stopped&quot;</span>);
-            }
+    <span class="kw">fn </span>handle_shutdown(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: Shutdown) {
+        <span class="kw">if </span>message.timeout.is_some() {
+            <span class="self">self</span>.flush();
+            <span class="macro">relay_log::info!</span>(<span class="string">&quot;outcome aggregator stopped&quot;</span>);
         }
     }
 
@@ -388,7 +384,7 @@
 
     <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
         tokio::spawn(<span class="kw">async move </span>{
-            <span class="kw">let </span><span class="kw-2">mut </span>shutdown = Controller::subscribe_v2().<span class="kw">await</span>;
+            <span class="kw">let </span><span class="kw-2">mut </span>shutdown = Controller::shutdown_handle();
             <span class="macro">relay_log::info!</span>(<span class="string">&quot;outcome aggregator started&quot;</span>);
 
             <span class="kw">loop </span>{
@@ -399,7 +395,7 @@
 
                     () = <span class="kw-2">&amp;mut </span><span class="self">self</span>.flush_handle =&gt; <span class="self">self</span>.flush(),
                     <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; <span class="self">self</span>.handle_track_outcome(message),
-                    <span class="kw">_ </span>= shutdown.changed() =&gt; <span class="self">self</span>.handle_shutdown(<span class="kw-2">&amp;</span>shutdown.borrow_and_update()),
+                    shutdown = shutdown.notified() =&gt; <span class="self">self</span>.handle_shutdown(shutdown),
                     <span class="kw">else </span>=&gt; <span class="kw">break</span>,
                 }
             }

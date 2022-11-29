@@ -1735,7 +1735,7 @@
 }
 
 <span class="doccomment">/// Abstraction over address types for service channels.
-</span><span class="kw">trait </span>SendDispatch&lt;M&gt; {
+</span><span class="kw">trait </span>SendDispatch&lt;M&gt;: Send + Sync {
     <span class="doccomment">/// The behavior declaring the return value when sending this message.
     ///
     /// When this is implemented for a type bound to an [`Interface`], this is the same behavior as

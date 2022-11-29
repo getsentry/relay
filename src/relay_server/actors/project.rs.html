@@ -1081,13 +1081,89 @@
 <span id="1079">1079</span>
 <span id="1080">1080</span>
 <span id="1081">1081</span>
+<span id="1082">1082</span>
+<span id="1083">1083</span>
+<span id="1084">1084</span>
+<span id="1085">1085</span>
+<span id="1086">1086</span>
+<span id="1087">1087</span>
+<span id="1088">1088</span>
+<span id="1089">1089</span>
+<span id="1090">1090</span>
+<span id="1091">1091</span>
+<span id="1092">1092</span>
+<span id="1093">1093</span>
+<span id="1094">1094</span>
+<span id="1095">1095</span>
+<span id="1096">1096</span>
+<span id="1097">1097</span>
+<span id="1098">1098</span>
+<span id="1099">1099</span>
+<span id="1100">1100</span>
+<span id="1101">1101</span>
+<span id="1102">1102</span>
+<span id="1103">1103</span>
+<span id="1104">1104</span>
+<span id="1105">1105</span>
+<span id="1106">1106</span>
+<span id="1107">1107</span>
+<span id="1108">1108</span>
+<span id="1109">1109</span>
+<span id="1110">1110</span>
+<span id="1111">1111</span>
+<span id="1112">1112</span>
+<span id="1113">1113</span>
+<span id="1114">1114</span>
+<span id="1115">1115</span>
+<span id="1116">1116</span>
+<span id="1117">1117</span>
+<span id="1118">1118</span>
+<span id="1119">1119</span>
+<span id="1120">1120</span>
+<span id="1121">1121</span>
+<span id="1122">1122</span>
+<span id="1123">1123</span>
+<span id="1124">1124</span>
+<span id="1125">1125</span>
+<span id="1126">1126</span>
+<span id="1127">1127</span>
+<span id="1128">1128</span>
+<span id="1129">1129</span>
+<span id="1130">1130</span>
+<span id="1131">1131</span>
+<span id="1132">1132</span>
+<span id="1133">1133</span>
+<span id="1134">1134</span>
+<span id="1135">1135</span>
+<span id="1136">1136</span>
+<span id="1137">1137</span>
+<span id="1138">1138</span>
+<span id="1139">1139</span>
+<span id="1140">1140</span>
+<span id="1141">1141</span>
+<span id="1142">1142</span>
+<span id="1143">1143</span>
+<span id="1144">1144</span>
+<span id="1145">1145</span>
+<span id="1146">1146</span>
+<span id="1147">1147</span>
+<span id="1148">1148</span>
+<span id="1149">1149</span>
+<span id="1150">1150</span>
+<span id="1151">1151</span>
+<span id="1152">1152</span>
+<span id="1153">1153</span>
+<span id="1154">1154</span>
+<span id="1155">1155</span>
+<span id="1156">1156</span>
+<span id="1157">1157</span>
+<span id="1158">1158</span>
+<span id="1159">1159</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeSet, VecDeque};
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::{Duration, Instant};
 
-<span class="kw">use </span>actix::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>chrono::{DateTime, Utc};
-<span class="kw">use </span>futures01::{future::Shared, sync::oneshot, Future};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>serde_json::Value;
 <span class="kw">use </span>smallvec::SmallVec;
@@ -1104,11 +1180,13 @@
 <span class="kw">use </span>relay_quotas::{Quota, RateLimits, Scoping};
 <span class="kw">use </span>relay_sampling::SamplingConfig;
 <span class="kw">use </span>relay_statsd::metric;
+<span class="kw">use </span>relay_system::BroadcastChannel;
 
+<span class="kw">use </span><span class="kw">crate</span>::actors::envelopes::{EnvelopeManager, SendMetrics};
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{DiscardReason, Outcome};
 <span class="kw">use </span><span class="kw">crate</span>::actors::processor::{EnvelopeProcessor, ProcessEnvelope};
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{
-    AddSamplingState, CheckedEnvelope, ProjectCache, ProjectError, UpdateProjectState,
+    AddSamplingState, CheckedEnvelope, ProjectCache, RequestUpdate,
 };
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
 <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
@@ -1117,9 +1195,10 @@
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::TaggingRule;
 <span class="kw">use </span><span class="kw">crate</span>::service::Registry;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
-<span class="kw">use </span><span class="kw">crate</span>::utils::{
-    <span class="self">self</span>, EnvelopeContext, EnvelopeLimiter, ErrorBoundary, MetricsLimiter, Response,
-};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, EnvelopeContext, EnvelopeLimiter, ErrorBoundary, MetricsLimiter};
+
+<span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+</span><span class="kw">use </span><span class="kw">crate</span>::actors::processor::RateLimitFlushBuckets;
 
 <span class="doccomment">/// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
 </span><span class="attribute">#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -1144,6 +1223,9 @@
     <span class="doccomment">/// An expired project state that should not be used. See [`Expiry::Expired`].
     </span>Expired,
 }
+
+<span class="doccomment">/// Sender type for messages that respond with project states.
+</span><span class="kw">pub type </span>ProjectSender = relay_system::BroadcastSender&lt;Arc&lt;ProjectState&gt;&gt;;
 
 <span class="doccomment">/// Features exposed by project config.
 </span><span class="attribute">#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -1575,17 +1657,14 @@
 }
 
 <span class="kw">struct </span>StateChannel {
-    sender: oneshot::Sender&lt;Arc&lt;ProjectState&gt;&gt;,
-    receiver: Shared&lt;oneshot::Receiver&lt;Arc&lt;ProjectState&gt;&gt;&gt;,
+    inner: BroadcastChannel&lt;Arc&lt;ProjectState&gt;&gt;,
     no_cache: bool,
 }
 
 <span class="kw">impl </span>StateChannel {
     <span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>(sender, receiver) = oneshot::channel();
         <span class="self">Self </span>{
-            sender,
-            receiver: receiver.shared(),
+            inner: BroadcastChannel::new(),
             no_cache: <span class="bool-val">false</span>,
         }
     }
@@ -1594,14 +1673,11 @@
         <span class="self">self</span>.no_cache = no_cache;
         <span class="self">self
     </span>}
+}
 
-    <span class="kw">pub fn </span>receiver(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Shared&lt;oneshot::Receiver&lt;Arc&lt;ProjectState&gt;&gt;&gt; {
-        <span class="self">self</span>.receiver.clone()
-    }
-
-    <span class="kw">pub fn </span>send(<span class="self">self</span>, state: Arc&lt;ProjectState&gt;) {
-        <span class="self">self</span>.sender.send(state).ok();
-    }
+<span class="kw">enum </span>GetOrFetch&lt;<span class="lifetime">&#39;a</span>&gt; {
+    Cached(Arc&lt;ProjectState&gt;),
+    Scheduled(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>StateChannel),
 }
 
 <span class="doccomment">/// Structure representing organization and project configuration for a project key.
@@ -1666,7 +1742,7 @@
     <span class="doccomment">/// Returns the project state if it is not expired.
     ///
     /// Convenience wrapper around [`expiry_state`](Self::expiry_state).
-    </span><span class="kw">pub fn </span>valid_state(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt; {
+    </span><span class="kw">fn </span>valid_state(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt; {
         <span class="kw">match </span><span class="self">self</span>.expiry_state() {
             ExpiryState::Updated(state) =&gt; <span class="prelude-val">Some</span>(state),
             ExpiryState::Stale(state) =&gt; <span class="prelude-val">Some</span>(state),
@@ -1733,24 +1809,27 @@
         }
     }
 
-    <span class="doccomment">/// Ensures the project state gets updated and returns it once valid.
+    <span class="doccomment">/// Triggers a debounced refresh of the project state.
     ///
-    /// This first checks if the state needs to be updated. This is the case if the project state
-    /// has passed its cache timeout. The `no_cache` flag forces an update. This does nothing if an
-    /// update is already running in the background.
-    ///
-    /// Independent of updating, _stale_ states can still be returned immediately as long as they
-    /// are in the [grace period](Config::project_grace_period). This function returns:
-    ///
-    ///  - [`Response::Reply(Ok)`](Response::Reply) if the state is updated or stale, and `no_cache`
-    ///    was not specified. This case is infallible.
-    ///  - [`Response::Future`] if the state was expired or `no_cache` was specified. This future
-    ///    may fail if the state repeatedly cannot be fetched. The future does not have to be
-    ///    awaited for the update to pass.
-    </span><span class="kw">pub fn </span>get_or_fetch_state(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        <span class="kw-2">mut </span>no_cache: bool,
-    ) -&gt; Response&lt;Arc&lt;ProjectState&gt;, ProjectError&gt; {
+    /// If the state is already being updated in the background, this method checks if the request
+    /// needs to be upgraded with the `no_cache` flag to ensure a more recent update.
+    </span><span class="kw">fn </span>fetch_state(<span class="kw-2">&amp;mut </span><span class="self">self</span>, no_cache: bool) -&gt; <span class="kw-2">&amp;mut </span>StateChannel {
+        <span class="comment">// If there is a running request and we do not need to upgrade it to no_cache, skip
+        // scheduling a new fetch.
+        </span><span class="kw">let </span>should_fetch =
+            !<span class="macro">matches!</span>(<span class="self">self</span>.state_channel, <span class="prelude-val">Some</span>(<span class="kw-2">ref </span>channel) <span class="kw">if </span>channel.no_cache || !no_cache);
+        <span class="kw">let </span>channel = <span class="self">self</span>.state_channel.get_or_insert_with(StateChannel::new);
+
+        <span class="kw">if </span>should_fetch {
+            channel.no_cache(no_cache);
+            <span class="macro">relay_log::debug!</span>(<span class="string">&quot;project {} state requested&quot;</span>, <span class="self">self</span>.project_key);
+            ProjectCache::from_registry().send(RequestUpdate::new(<span class="self">self</span>.project_key, no_cache));
+        }
+
+        channel
+    }
+
+    <span class="kw">fn </span>get_or_fetch_state(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw-2">mut </span>no_cache: bool) -&gt; GetOrFetch&lt;<span class="lifetime">&#39;_</span>&gt; {
         <span class="comment">// count number of times we are looking for the project state
         </span><span class="macro">metric!</span>(counter(RelayCounters::ProjectStateGet) += <span class="number">1</span>);
 
@@ -1772,41 +1851,66 @@
             <span class="comment">// The project is semi-outdated, fetch new state but return old one.
             </span>ExpiryState::Stale(state) =&gt; <span class="prelude-val">Some</span>(state),
             <span class="comment">// The project is not outdated, return early here to jump over fetching logic below.
-            </span>ExpiryState::Updated(state) =&gt; <span class="kw">return </span>Response::ok(state),
+            </span>ExpiryState::Updated(state) =&gt; <span class="kw">return </span>GetOrFetch::Cached(state),
         };
 
-        <span class="kw">let </span>receiver = <span class="kw">match </span><span class="self">self</span>.state_channel {
-            <span class="prelude-val">Some</span>(<span class="kw-2">ref </span>channel) <span class="kw">if </span>channel.no_cache || !no_cache =&gt; {
-                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;project {} state request amended&quot;</span>, <span class="self">self</span>.project_key);
-                channel.receiver()
-            }
-            <span class="kw">_ </span>=&gt; {
-                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;project {} state requested&quot;</span>, <span class="self">self</span>.project_key);
+        <span class="kw">let </span>channel = <span class="self">self</span>.fetch_state(no_cache);
 
-                <span class="kw">let </span>receiver = <span class="self">self
-                    </span>.state_channel
-                    .get_or_insert_with(StateChannel::new)
-                    .no_cache(no_cache)
-                    .receiver();
-
-                <span class="comment">// Either there is no running request, or the current request does not have
-                // `no_cache` set. In both cases, start a new request. All in-flight receivers will
-                // get the latest state.
-                </span><span class="self">self</span>.fetch_state(no_cache);
-
-                receiver
-            }
-        };
-
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(rv) = cached_state {
-            <span class="kw">return </span>Response::ok(rv);
+        <span class="kw">match </span>cached_state {
+            <span class="prelude-val">Some</span>(state) =&gt; GetOrFetch::Cached(state),
+            <span class="prelude-val">None </span>=&gt; GetOrFetch::Scheduled(channel),
         }
+    }
 
-        <span class="kw">let </span>future = receiver
-            .map(|shared| (<span class="kw-2">*</span>shared).clone())
-            .map_err(|<span class="kw">_</span>| ProjectError::FetchFailed);
+    <span class="doccomment">/// Returns the cached project state if it is valid.
+    ///
+    /// Depending on the state of the cache, this method takes different action:
+    ///
+    ///  - If the cached state is up-to-date, this method simply returns `Some`.
+    ///  - If the cached state is stale, this method triggers a refresh in the background and
+    ///    returns `Some`. The stale period can be configured through
+    ///    [`Config::project_grace_period`].
+    ///  - If there is no cached state or the cached state is fully outdated, this method triggers a
+    ///    refresh in the background and returns `None`.
+    ///
+    /// If `no_cache` is set to true, this method always returns `None` and always triggers a
+    /// background refresh.
+    ///
+    /// To wait for a valid state instead, use [`get_state`](Self::get_state).
+    </span><span class="kw">pub fn </span>get_cached_state(<span class="kw-2">&amp;mut </span><span class="self">self</span>, no_cache: bool) -&gt; <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt; {
+        <span class="kw">match </span><span class="self">self</span>.get_or_fetch_state(no_cache) {
+            GetOrFetch::Cached(state) =&gt; <span class="prelude-val">Some</span>(state),
+            GetOrFetch::Scheduled(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
+        }
+    }
 
-        Response::future(future)
+    <span class="doccomment">/// Obtains a valid project state and passes it to the sender once ready.
+    ///
+    /// This first checks if the state needs to be updated. This is the case if the project state
+    /// has passed its cache timeout. The `no_cache` flag forces an update. This does nothing if an
+    /// update is already running in the background.
+    ///
+    /// Independent of updating, _stale_ states are passed to the sender immediately as long as they
+    /// are in the [grace period](Config::project_grace_period).
+    </span><span class="kw">pub fn </span>get_state(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sender: ProjectSender, no_cache: bool) {
+        <span class="kw">match </span><span class="self">self</span>.get_or_fetch_state(no_cache) {
+            GetOrFetch::Cached(state) =&gt; sender.send(state),
+            GetOrFetch::Scheduled(channel) =&gt; channel.inner.attach(sender),
+        }
+    }
+
+    <span class="doccomment">/// Ensures the project state gets updated.
+    ///
+    /// This first checks if the state needs to be updated. This is the case if the project state
+    /// has passed its cache timeout. The `no_cache` flag forces another update unless one is
+    /// already running in the background.
+    ///
+    /// If an update is required, the update will start in the background and complete at a later
+    /// point. Therefore, this method is useful to trigger an update early if it is already clear
+    /// that the project state will be needed soon. To retrieve an updated state, use
+    /// [`Project::get_state`] instead.
+    </span><span class="kw">pub fn </span>prefetch(<span class="kw-2">&amp;mut </span><span class="self">self</span>, no_cache: bool) {
+        <span class="self">self</span>.get_cached_state(no_cache);
     }
 
     <span class="doccomment">/// Validates the envelope and submits the envelope to the next stage.
@@ -1833,7 +1937,7 @@
 
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(sampling_key) = utils::get_sampling_key(<span class="kw-2">&amp;</span>process.envelope) {
                     ProjectCache::from_registry()
-                        .do_send(AddSamplingState::new(sampling_key, process));
+                        .send(AddSamplingState::new(sampling_key, process));
                 } <span class="kw">else </span>{
                     EnvelopeProcessor::from_registry().send(process);
                 }
@@ -1849,9 +1953,9 @@
     /// This method will trigger an update of the project state internally if the state is stale or
     /// outdated.
     </span><span class="kw">pub fn </span>enqueue_validation(<span class="kw-2">&amp;mut </span><span class="self">self</span>, envelope: Envelope, context: EnvelopeContext) {
-        <span class="kw">match </span><span class="self">self</span>.get_or_fetch_state(envelope.meta().no_cache()) {
-            Response::Reply(<span class="prelude-val">Ok</span>(state)) =&gt; <span class="self">self</span>.flush_validation(envelope, context, state),
-            <span class="kw">_ </span>=&gt; <span class="self">self</span>.pending_validations.push_back((envelope, context)),
+        <span class="kw">match </span><span class="self">self</span>.get_cached_state(envelope.meta().no_cache()) {
+            <span class="prelude-val">Some</span>(state) =&gt; <span class="self">self</span>.flush_validation(envelope, context, state),
+            <span class="prelude-val">None </span>=&gt; <span class="self">self</span>.pending_validations.push_back((envelope, context)),
         }
     }
 
@@ -1871,16 +1975,16 @@
     /// This method will trigger an update of the project state internally if the state is stale or
     /// outdated.
     </span><span class="kw">pub fn </span>enqueue_sampling(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: ProcessEnvelope) {
-        <span class="kw">match </span><span class="self">self</span>.get_or_fetch_state(message.envelope.meta().no_cache()) {
-            Response::Reply(<span class="kw">_</span>) =&gt; <span class="self">self</span>.flush_sampling(message),
-            Response::Future(<span class="kw">_</span>) =&gt; <span class="self">self</span>.pending_sampling.push_back(message),
+        <span class="kw">match </span><span class="self">self</span>.get_cached_state(message.envelope.meta().no_cache()) {
+            <span class="prelude-val">Some</span>(<span class="kw">_</span>) =&gt; <span class="self">self</span>.flush_sampling(message),
+            <span class="prelude-val">None </span>=&gt; <span class="self">self</span>.pending_sampling.push_back(message),
         }
     }
 
     <span class="doccomment">/// Replaces the internal project state with a new one and triggers pending actions.
     ///
     /// This flushes pending envelopes from [`ValidateEnvelope`] and [`AddSamplingState`] and
-    /// notifies all pending receivers from [`get_or_fetch_state`](Self::get_or_fetch_state).
+    /// notifies all pending receivers from [`get_state`](Self::get_state).
     ///
     /// `no_cache` should be passed from the requesting call. Updates with `no_cache` will always
     /// take precedence.
@@ -1918,12 +2022,7 @@
 
         <span class="comment">// Flush all waiting recipients.
         </span><span class="macro">relay_log::debug!</span>(<span class="string">&quot;project state {} updated&quot;</span>, <span class="self">self</span>.project_key);
-        channel.send(state);
-    }
-
-    <span class="kw">fn </span>fetch_state(<span class="kw-2">&amp;mut </span><span class="self">self</span>, no_cache: bool) {
-        <span class="macro">debug_assert!</span>(<span class="self">self</span>.state_channel.is_some());
-        ProjectCache::from_registry().do_send(UpdateProjectState::new(<span class="self">self</span>.project_key, no_cache));
+        channel.inner.send(state);
     }
 
     <span class="doccomment">/// Creates `Scoping` for this project if the state is loaded.
@@ -1986,6 +2085,63 @@
             envelope,
             rate_limits,
         })
+    }
+
+    <span class="kw">pub fn </span>flush_buckets(<span class="kw-2">&amp;mut </span><span class="self">self</span>, partition_key: <span class="prelude-ty">Option</span>&lt;u64&gt;, buckets: Vec&lt;Bucket&gt;) {
+        <span class="kw">let </span>config = <span class="self">self</span>.config.clone();
+
+        <span class="comment">// Schedule an update to the project state if it is outdated, regardless of whether the
+        // metrics can be forwarded or not. We never wait for this update.
+        </span><span class="kw">let </span><span class="prelude-val">Some</span>(project_state) = <span class="self">self</span>.get_cached_state(<span class="bool-val">false</span>) <span class="kw">else </span>{
+            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;project expired: merging back {} buckets&quot;</span>, buckets.len());
+            <span class="comment">// If the state is outdated, we need to wait for an updated state. Put them back into
+            // the aggregator.
+            </span>Registry::aggregator().send(MergeBuckets::new(<span class="self">self</span>.project_key, buckets));
+            <span class="kw">return</span>;
+        };
+
+        <span class="kw">let </span><span class="prelude-val">Some</span>(scoping) = <span class="self">self</span>.scoping() <span class="kw">else </span>{
+            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;there is no scoping: merging back {} buckets&quot;</span>, buckets.len());
+            Registry::aggregator().send(MergeBuckets::new(<span class="self">self</span>.project_key, buckets));
+            <span class="kw">return</span>;
+        };
+
+        <span class="comment">// Only send if the project state is valid, otherwise drop this bucket.
+        </span><span class="kw">if </span>project_state.check_disabled(config.as_ref()).is_err() {
+            <span class="kw">return</span>;
+        }
+
+        <span class="comment">// Check rate limits if necessary:
+        </span><span class="kw">let </span>quotas = project_state.config.quotas.clone();
+        <span class="kw">let </span>buckets = <span class="kw">match </span>MetricsLimiter::create(buckets, quotas, scoping) {
+            <span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>bucket_limiter) =&gt; {
+                <span class="kw">let </span>cached_rate_limits = <span class="self">self</span>.rate_limits().clone();
+                <span class="attribute">#[allow(unused_variables)]
+                </span><span class="kw">let </span>was_rate_limited = bucket_limiter.enforce_limits(<span class="prelude-val">Ok</span>(<span class="kw-2">&amp;</span>cached_rate_limits));
+
+                <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+                </span><span class="kw">if </span>!was_rate_limited &amp;&amp; config.processing_enabled() {
+                    <span class="comment">// If there were no cached rate limits active, let the processor check redis:
+                    </span>EnvelopeProcessor::from_registry().send(RateLimitFlushBuckets {
+                        bucket_limiter,
+                        partition_key,
+                    });
+
+                    <span class="kw">return</span>;
+                }
+
+                bucket_limiter.into_metrics()
+            }
+            <span class="prelude-val">Err</span>(buckets) =&gt; buckets,
+        };
+
+        <span class="kw">if </span>!buckets.is_empty() {
+            EnvelopeManager::from_registry().send(SendMetrics {
+                buckets,
+                scoping,
+                partition_key,
+            });
+        }
     }
 }
 

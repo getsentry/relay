@@ -533,6 +533,9 @@
 <span id="531">531</span>
 <span id="532">532</span>
 <span id="533">533</span>
+<span id="534">534</span>
+<span id="535">535</span>
+<span id="536">536</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Common facilities for ingesting events through store-like endpoints.
 
 </span><span class="kw">use </span>std::cell::RefCell;
@@ -544,6 +547,7 @@
 <span class="kw">use </span>actix_web::middleware::cors::{Cors, CorsBuilder};
 <span class="kw">use </span>actix_web::{error::PayloadError, HttpRequest, HttpResponse, ResponseError};
 <span class="kw">use </span>failure::Fail;
+<span class="kw">use </span>futures::{FutureExt, TryFutureExt};
 <span class="kw">use </span>futures01::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>serde::Deserialize;
 
@@ -839,7 +843,7 @@
 
         <span class="comment">// Update the old context after successful forking.
         </span>envelope_context.update(<span class="kw-2">&amp;</span>envelope);
-        ProjectCache::from_registry().do_send(ValidateEnvelope::new(event_envelope, event_context));
+        ProjectCache::from_registry().send(ValidateEnvelope::new(event_envelope, event_context));
     }
 
     <span class="kw">if </span>envelope.is_empty() {
@@ -848,7 +852,7 @@
         </span>envelope_context.accept();
     } <span class="kw">else </span>{
         <span class="macro">relay_log::trace!</span>(<span class="string">&quot;queueing envelope&quot;</span>);
-        ProjectCache::from_registry().do_send(ValidateEnvelope::new(envelope, envelope_context));
+        ProjectCache::from_registry().send(ValidateEnvelope::new(envelope, envelope_context));
     }
 
     <span class="prelude-val">Ok</span>(())
@@ -916,6 +920,8 @@
         .and_then(<span class="kw">move </span>|(envelope, envelope_context)| {
             ProjectCache::from_registry()
                 .send(CheckEnvelope::new(envelope, envelope_context))
+                .boxed_local()
+                .compat()
                 .map_err(|<span class="kw">_</span>| BadStoreRequest::ScheduleFailed)
         })
         .and_then(<span class="kw">move </span>|response| {

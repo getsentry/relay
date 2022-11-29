@@ -198,11 +198,13 @@
 <span id="196">196</span>
 <span id="197">197</span>
 <span id="198">198</span>
+<span id="199">199</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>actix::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>actix_web::{Error, FromRequest, Json};
+<span class="kw">use </span>futures::{FutureExt, TryFutureExt};
 <span class="kw">use </span>futures01::{future, Future};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
@@ -332,17 +334,20 @@
         <span class="kw">let </span>project_future = <span class="kw">if </span>version.version &gt;= ENDPOINT_V3 &amp;&amp; !no_cache {
             <span class="kw">let </span>future = project_cache
                 .send(GetCachedProjectState::new(project_key))
-                .map(<span class="prelude-val">Ok</span>);
-            Box::new(future) <span class="kw">as </span>ResponseFuture&lt;<span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;, <span class="kw">_</span>&gt;, <span class="kw">_</span>&gt;
+                .boxed()
+                .compat();
+            Box::new(future) <span class="kw">as </span>ResponseFuture&lt;<span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;, <span class="kw">_</span>&gt;
         } <span class="kw">else </span>{
             <span class="kw">let </span>future = project_cache
                 .send(GetProjectState::new(project_key).no_cache(no_cache))
-                .map(|state_result| state_result.map(<span class="prelude-val">Some</span>));
-            Box::new(future) <span class="kw">as </span>ResponseFuture&lt;<span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;, <span class="kw">_</span>&gt;, <span class="kw">_</span>&gt;
+                .boxed()
+                .compat()
+                .map(<span class="prelude-val">Some</span>);
+            Box::new(future) <span class="kw">as </span>ResponseFuture&lt;<span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;, <span class="kw">_</span>&gt;
         };
 
         project_future
-            .map_err(Error::from)
+            .map_err(|<span class="kw">_</span>| Error::from(MailboxError::Closed))
             .map(<span class="kw">move </span>|state_result| (project_key, state_result))
     });
 
@@ -352,7 +357,7 @@
 
         <span class="kw">for </span>(project_key, result) <span class="kw">in </span>project_states {
             <span class="kw">match </span>result {
-                <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(project_state)) =&gt; {
+                <span class="prelude-val">Some</span>(project_state) =&gt; {
                     <span class="comment">// If public key is known (even if rate-limited, which is Some(false)), it has
                     // access to the project config
                     </span><span class="kw">let </span>has_access = relay.internal
@@ -372,11 +377,8 @@
                         );
                     };
                 }
-                <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) =&gt; {
+                <span class="prelude-val">None </span>=&gt; {
                     pending.push(project_key);
-                }
-                <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-                    configs.insert(project_key, <span class="prelude-val">None</span>);
                 }
             }
         }

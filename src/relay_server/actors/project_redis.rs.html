@@ -145,6 +145,7 @@
 <span id="143">143</span>
 <span id="144">144</span>
 <span id="145">145</span>
+<span id="146">146</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>actix::prelude::<span class="kw-2">*</span>;
@@ -159,7 +160,8 @@
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::FetchOptionalProjectState;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 
-<span class="kw">pub struct </span>RedisProjectSource {
+<span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>RedisProjectSource {
     config: Arc&lt;Config&gt;,
     redis: RedisPool,
 }

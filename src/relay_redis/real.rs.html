@@ -170,7 +170,20 @@
 <span id="168">168</span>
 <span id="169">169</span>
 <span id="170">170</span>
-</pre><pre class="rust"><code><span class="kw">use </span>failure::Fail;
+<span id="171">171</span>
+<span id="172">172</span>
+<span id="173">173</span>
+<span id="174">174</span>
+<span id="175">175</span>
+<span id="176">176</span>
+<span id="177">177</span>
+<span id="178">178</span>
+<span id="179">179</span>
+<span id="180">180</span>
+<span id="181">181</span>
+</pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
+
+<span class="kw">use </span>failure::Fail;
 <span class="kw">use </span>r2d2::{Pool, PooledConnection};
 <span class="kw">use </span>redis::ConnectionLike;
 
@@ -270,6 +283,15 @@
     Single(Pool&lt;redis::Client&gt;),
 }
 
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>RedisPoolInner {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::Cluster(<span class="kw">_</span>) =&gt; f.debug_tuple(<span class="string">&quot;Cluster&quot;</span>).finish(),
+            <span class="self">Self</span>::Single(<span class="kw">_</span>) =&gt; f.debug_tuple(<span class="string">&quot;Single&quot;</span>).finish(),
+        }
+    }
+}
+
 <span class="doccomment">/// Abstraction over cluster vs non-cluster mode.
 ///
 /// Even just writing a method that takes a command and executes it doesn&#39;t really work because
@@ -278,7 +300,7 @@
 ///
 /// Basically don&#39;t waste your time here, if you want to abstract over this, consider
 /// upstreaming to the redis crate.
-</span><span class="attribute">#[derive(Clone)]
+</span><span class="attribute">#[derive(Clone, Debug)]
 </span><span class="kw">pub struct </span>RedisPool {
     inner: RedisPoolInner,
 }

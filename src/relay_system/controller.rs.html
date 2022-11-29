@@ -304,25 +304,50 @@
 <span id="302">302</span>
 <span id="303">303</span>
 <span id="304">304</span>
-<span id="305">305</span>
-<span id="306">306</span>
-<span id="307">307</span>
-<span id="308">308</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>actix::actors::signal;
 <span class="kw">use </span>actix::fut;
 <span class="kw">use </span>actix::prelude::<span class="kw-2">*</span>;
-<span class="kw">use </span>futures::compat::Future01CompatExt;
 <span class="kw">use </span>futures01::future;
 <span class="kw">use </span>futures01::prelude::<span class="kw-2">*</span>;
+<span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>tokio::sync::watch;
 
 <span class="attribute">#[doc(inline)]
 </span><span class="kw">pub use </span>actix::actors::signal::{Signal, SignalType};
 
 <span class="kw">use </span><span class="kw">crate</span>::compat;
+
+<span class="kw">type </span>ShutdownChannel = (
+    watch::Sender&lt;<span class="prelude-ty">Option</span>&lt;Shutdown&gt;&gt;,
+    watch::Receiver&lt;<span class="prelude-ty">Option</span>&lt;Shutdown&gt;&gt;,
+);
+
+<span class="doccomment">/// Global [`ShutdownChannel`] for all services.
+</span><span class="kw">static </span>SHUTDOWN: OnceCell&lt;ShutdownChannel&gt; = OnceCell::new();
+
+<span class="doccomment">/// Notifies a service about an upcoming shutdown.
+</span><span class="comment">// TODO: The receiver of this message can not yet signal they have completed
+// shutdown.
+// TODO: Refactor this to a `Recipient`.
+</span><span class="kw">pub struct </span>ShutdownHandle(watch::Receiver&lt;<span class="prelude-ty">Option</span>&lt;Shutdown&gt;&gt;);
+
+<span class="kw">impl </span>ShutdownHandle {
+    <span class="doccomment">/// Wait for a shutdown.
+    ///
+    /// This method is cancellation safe and can be used in `select!`.
+    </span><span class="kw">pub async fn </span>notified(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Shutdown {
+        <span class="kw">while </span><span class="self">self</span>.<span class="number">0</span>.changed().<span class="kw">await</span>.is_ok() {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(shutdown) = <span class="kw-2">&amp;*</span><span class="self">self</span>.<span class="number">0</span>.borrow() {
+                <span class="kw">return </span>shutdown.clone();
+            }
+        }
+
+        Shutdown { timeout: <span class="prelude-val">None </span>}
+    }
+}
 
 <span class="doccomment">/// Actor to start and gracefully stop an actix system.
 ///
@@ -374,10 +399,6 @@
     </span>timeout: Duration,
     <span class="doccomment">/// Subscribed actors for the shutdown message.
     </span>subscribers: Vec&lt;Recipient&lt;Shutdown&gt;&gt;,
-    <span class="doccomment">/// Handed out to actors who wish to subscribe to the [`Shutdown`] message.
-    </span>shutdown_receiver: watch::Receiver&lt;<span class="prelude-ty">Option</span>&lt;Shutdown&gt;&gt;,
-    <span class="doccomment">/// The sender for the [`Shutdown`] message.
-    </span>shutdown_sender: watch::Sender&lt;<span class="prelude-ty">Option</span>&lt;Shutdown&gt;&gt;,
 }
 
 <span class="kw">impl </span>Controller {
@@ -427,21 +448,11 @@
         Controller::from_registry().do_send(Subscribe(addr.recipient()))
     }
 
-    <span class="doccomment">/// Subscribes to the [`Shutdown`] message to handle graceful shutdown.
-    ///
-    /// Returns a receiver for the [`Shutdown`] message, to be used to gracefully
-    /// shutdown.  This sends a message to the [`Controller`] actor so will
-    /// block until this actor is running.
-    ///
-    /// TODO(tobias): The receiver of this message can not yet signal they have completed
-    /// shutdown.
-    </span><span class="kw">pub async fn </span>subscribe_v2() -&gt; watch::Receiver&lt;<span class="prelude-ty">Option</span>&lt;Shutdown&gt;&gt; {
-        Controller::from_registry()
-            .send(SubscribeV2())
-            .compat()
-            .<span class="kw">await
-            </span>.unwrap() <span class="comment">// FIXME: Remove this later
-    </span>}
+    <span class="doccomment">/// Returns a [handle](ShutdownHandle) to receive shutdown notifications.
+    </span><span class="kw">pub fn </span>shutdown_handle() -&gt; ShutdownHandle {
+        <span class="kw">let </span>(<span class="kw">_</span>, <span class="kw-2">ref </span>rx) = SHUTDOWN.get_or_init(|| watch::channel(<span class="prelude-val">None</span>));
+        ShutdownHandle(rx.clone())
+    }
 
     <span class="doccomment">/// Performs a graceful shutdown with the given timeout.
     ///
@@ -451,7 +462,8 @@
         <span class="comment">// Send a shutdown signal to all registered subscribers (including self). They will report
         // when the shutdown has completed. Note that we ignore all errors to make sure that we
         // don&#39;t cancel the shutdown of other actors if one actor fails.
-        </span><span class="self">self</span>.shutdown_sender.send(<span class="prelude-val">Some</span>(Shutdown { timeout })).ok();
+        </span><span class="kw">let </span>(tx, <span class="kw">_</span>) = SHUTDOWN.get_or_init(|| watch::channel(<span class="prelude-val">None</span>));
+        tx.send(<span class="prelude-val">Some</span>(Shutdown { timeout })).ok();
 
         <span class="kw">let </span>futures: Vec&lt;<span class="kw">_</span>&gt; = <span class="self">self
             </span>.subscribers
@@ -484,13 +496,9 @@
 
 <span class="kw">impl </span>Default <span class="kw">for </span>Controller {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>(shutdown_sender, shutdown_receiver) = watch::channel(<span class="prelude-val">None</span>);
-
         Controller {
             timeout: Duration::from_secs(<span class="number">0</span>),
             subscribers: Vec::new(),
-            shutdown_receiver,
-            shutdown_sender,
         }
     }
 }
@@ -580,22 +588,6 @@
     }
 }
 
-<span class="doccomment">/// Internal message to handle subscribing to the [`Shutdown`] message.
-</span><span class="attribute">#[derive(Debug)]
-</span><span class="kw">pub struct </span>SubscribeV2();
-
-<span class="kw">impl </span>Message <span class="kw">for </span>SubscribeV2 {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= watch::Receiver&lt;<span class="prelude-ty">Option</span>&lt;Shutdown&gt;&gt;;
-}
-
-<span class="kw">impl </span>Handler&lt;SubscribeV2&gt; <span class="kw">for </span>Controller {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= MessageResult&lt;SubscribeV2&gt;;
-
-    <span class="kw">fn </span>handle(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw">_</span>: SubscribeV2, <span class="kw">_</span>: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) -&gt; <span class="self">Self</span>::Result {
-        MessageResult(<span class="self">self</span>.shutdown_receiver.clone())
-    }
-}
-
 <span class="doccomment">/// Shutdown request message sent by the [`Controller`] to subscribed actors.
 ///
 /// A handler has to ensure that it doesn&#39;t take longer than `timeout` to resolve the future.
@@ -607,7 +599,7 @@
 ///
 /// The return value is fully ignored. It is only `Result` such that futures can be executed inside
 /// a handler.
-</span><span class="attribute">#[derive(Debug)]
+</span><span class="attribute">#[derive(Debug, Clone)]
 </span><span class="kw">pub struct </span>Shutdown {
     <span class="doccomment">/// The timeout for this shutdown. `None` indicates an immediate forced shutdown.
     </span><span class="kw">pub </span>timeout: <span class="prelude-ty">Option</span>&lt;Duration&gt;,
