@@ -238,9 +238,11 @@ fn normalize_transaction_name(transaction: &mut Annotated<String>) -> Processing
         let changed = TRANSACTION_NAME_NORMALIZER_REGEX
             .replace_all(trans, "*")
             .to_string();
-        if *trans != changed {
+        if *trans != changed && changed != "*" {
             meta.set_original_value(Some(trans.to_string()));
             *trans = changed
+        } else {
+            meta.clear_remarks();
         }
         Ok(())
     })
@@ -1329,6 +1331,7 @@ mod tests {
         }
         "###);
     }
+
     #[test]
     fn test_transaction_name_normalize() {
         let json = r#"
@@ -1411,4 +1414,83 @@ mod tests {
         }
         "###);
     }
+
+    macro_rules! transaction_name_test {
+        ($name:ident, $input:literal, $output:literal) => {
+            #[test]
+            fn $name() {
+                let json = format!(
+                    r#"
+                    {{
+                        "type": "transaction",
+                        "transaction": "{}",
+                        "transaction_info": {{
+                          "source": "url"
+                        }},
+                        "timestamp": "2021-04-26T08:00:00+0100",
+                        "start_timestamp": "2021-04-26T07:59:01+0100",
+                        "contexts": {{
+                            "trace": {{
+                                "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                                "span_id": "fa90fdead5f74053",
+                                "op": "rails.request",
+                                "status": "ok"
+                            }}
+                        }}
+                    }}
+                "#,
+                    $input
+                );
+
+                let mut event = Annotated::<Event>::from_json(&json).unwrap();
+
+                process_value(
+                    &mut event,
+                    &mut TransactionsProcessor::new(true),
+                    ProcessingState::root(),
+                )
+                .unwrap();
+
+                assert_eq!($output, event.value().unwrap().transaction.value().unwrap());
+            }
+        };
+    }
+
+    transaction_name_test!(test_transaction_name_normalize_id, "/1234", "/*");
+    transaction_name_test!(
+        test_transaction_name_normalize_in_segments_1,
+        "/user/path-with-1234/",
+        "/user/*/"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_in_segments_2,
+        "/testing/open-19-close/1",
+        "/testing/*/1"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_sha,
+        "/hash/4c79f60c11214eb38604f4ae0781bfb2/diff",
+        "/hash/*/diff"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_uuid,
+        "/u/7b25feea-ed2d-4132-bcbd-6232b7922add/edit",
+        "/u/*/edit"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_hex,
+        "/u/0x3707344A4093822299F31D008/profile/123123213",
+        "/u/*/profile/*"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_windows_path,
+        r#"C:\\\\Program Files\\1234\\Files"#,
+        r#"C:\\Program Files\*\Files"#
+    );
+    transaction_name_test!(test_transaction_name_skip_replace_all, "12345", "12345");
+    transaction_name_test!(
+        test_transaction_name_skip_replace_all2,
+        "open-12345-close",
+        "open-12345-close"
+    );
 }
