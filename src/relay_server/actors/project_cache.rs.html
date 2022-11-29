@@ -652,22 +652,12 @@
 <span id="650">650</span>
 <span id="651">651</span>
 <span id="652">652</span>
-<span id="653">653</span>
-<span id="654">654</span>
-<span id="655">655</span>
-<span id="656">656</span>
-<span id="657">657</span>
-<span id="658">658</span>
-<span id="659">659</span>
-<span id="660">660</span>
-<span id="661">661</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Instant;
 
 <span class="kw">use </span>actix::{Actor, Message};
 <span class="kw">use </span>actix_web::ResponseError;
 <span class="kw">use </span>failure::Fail;
-<span class="kw">use </span>futures::compat::Future01CompatExt;
 
 <span class="kw">use </span>relay_common::ProjectKey;
 <span class="kw">use </span>relay_config::{Config, RelayMode};
@@ -675,7 +665,7 @@
 <span class="kw">use </span>relay_quotas::RateLimits;
 <span class="kw">use </span>relay_redis::RedisPool;
 <span class="kw">use </span>relay_statsd::metric;
-<span class="kw">use </span>relay_system::{Addr, FromMessage, Interface, Sender, Service};
+<span class="kw">use </span>relay_system::{compat, Addr, FromMessage, Interface, Sender, Service};
 <span class="kw">use </span>tokio::sync::mpsc;
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::DiscardReason;
@@ -1019,15 +1009,8 @@
         }
     }
 
-    <span class="kw">async fn </span>fetch(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        project_key: ProjectKey,
-        no_cache: bool,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Arc&lt;ProjectState&gt;, ()&gt; {
-        <span class="kw">let </span>state_opt = <span class="self">self
-            </span>.local_source
-            .send(FetchOptionalProjectState { project_key })
-            .compat()
+    <span class="kw">async fn </span>fetch(<span class="self">self</span>, project_key: ProjectKey, no_cache: bool) -&gt; <span class="prelude-ty">Result</span>&lt;Arc&lt;ProjectState&gt;, ()&gt; {
+        <span class="kw">let </span>state_opt = compat::send(<span class="self">self</span>.local_source, FetchOptionalProjectState { project_key })
             .<span class="kw">await
             </span>.map_err(|<span class="kw">_</span>| ())<span class="question-mark">?</span>;
 
@@ -1043,10 +1026,8 @@
         </span>}
 
         <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>redis_source) = <span class="self">self</span>.redis_source {
-            <span class="kw">let </span>state_opt = redis_source
-                .send(FetchOptionalProjectState { project_key })
-                .compat()
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(redis_source) = <span class="self">self</span>.redis_source {
+            <span class="kw">let </span>state_opt = compat::send(redis_source, FetchOptionalProjectState { project_key })
                 .<span class="kw">await
                 </span>.map_err(|<span class="kw">_</span>| ())<span class="question-mark">?</span>;
 
@@ -1055,14 +1036,15 @@
             }
         };
 
-        <span class="self">self</span>.upstream_source
-            .send(FetchProjectState {
+        compat::send(
+            <span class="self">self</span>.upstream_source,
+            FetchProjectState {
                 project_key,
                 no_cache,
-            })
-            .compat()
-            .<span class="kw">await
-            </span>.map_err(|<span class="kw">_</span>| ())<span class="question-mark">?
+            },
+        )
+        .<span class="kw">await
+        </span>.map_err(|<span class="kw">_</span>| ())<span class="question-mark">?
     </span>}
 }
 

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":[["init","Initializes the compatibility layer."],["send","Sends a message to an actor using `actix` 0.7 from a `tokio` 1.0 context."],["send_to_recipient","Sends a message to a recipient using `actix` 0.7 from a `tokio` 1.0 context."]]};
+window.SIDEBAR_ITEMS = {"fn":[["init","Initializes the compatibility layer."],["send","Sends a message to an actor using `actix` 0.7 from a `tokio` 1.0 context."]]};

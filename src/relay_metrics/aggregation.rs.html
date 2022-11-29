@@ -3170,8 +3170,6 @@
 <span id="3168">3168</span>
 <span id="3169">3169</span>
 <span id="3170">3170</span>
-<span id="3171">3171</span>
-<span id="3172">3172</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{btree_map, hash_map::Entry, BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::hash::Hasher;
@@ -5124,9 +5122,7 @@
             Aggregator::InsertMetrics(msg) =&gt; <span class="self">self</span>.handle_insert_metrics(msg),
             Aggregator::MergeBuckets(msg) =&gt; <span class="self">self</span>.handle_merge_buckets(msg),
             <span class="attribute">#[cfg(test)]
-            </span>Aggregator::BucketCountInquiry(<span class="kw">_</span>, sender) =&gt; {
-                sender.send(<span class="self">self</span>.buckets.len());
-            }
+            </span>Aggregator::BucketCountInquiry(<span class="kw">_</span>, sender) =&gt; sender.send(<span class="self">self</span>.buckets.len()),
         }
     }
 
