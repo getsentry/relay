@@ -18,7 +18,7 @@ use crate::actors::health_check::{HealthCheck, HealthCheckService};
 use crate::actors::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::actors::processor::{EnvelopeProcessor, EnvelopeProcessorService};
-use crate::actors::project_cache::ProjectCache;
+use crate::actors::project_cache::{ProjectCache, ProjectCacheService};
 use crate::actors::relays::{RelayCache, RelayCacheService};
 #[cfg(feature = "processing")]
 use crate::actors::store::StoreService;
@@ -121,6 +121,7 @@ pub struct Registry {
     pub envelope_manager: Addr<EnvelopeManager>,
     pub test_store: Addr<TestStore>,
     pub relay_cache: Addr<RelayCache>,
+    pub project_cache: Addr<ProjectCache>,
 }
 
 impl Registry {
@@ -153,6 +154,7 @@ pub struct ServiceState {
     _aggregator_runtime: Arc<tokio::runtime::Runtime>,
     _outcome_runtime: Arc<tokio::runtime::Runtime>,
     _main_runtime: Arc<tokio::runtime::Runtime>,
+    _project_runtime: Arc<tokio::runtime::Runtime>,
     _store_runtime: Option<Arc<tokio::runtime::Runtime>>,
 }
 
@@ -163,6 +165,7 @@ impl ServiceState {
         let registry = system.registry();
 
         let main_runtime = utils::create_runtime(config.cpu_concurrency());
+        let project_runtime = utils::create_runtime(1);
         let aggregator_runtime = utils::create_runtime(1);
         let outcome_runtime = utils::create_runtime(1);
         let mut _store_runtime = None;
@@ -201,9 +204,9 @@ impl ServiceState {
         let envelope_manager = envelope_manager.start();
         let test_store = TestStoreService::new(config.clone()).start();
 
-        let project_cache = ProjectCache::new(config.clone(), redis_pool);
-        let project_cache = Arbiter::start(|_| project_cache);
-        registry.set(project_cache.clone());
+        let guard = project_runtime.enter();
+        let project_cache = ProjectCacheService::new(config.clone(), redis_pool).start();
+        drop(guard);
 
         let health_check = HealthCheckService::new(config.clone()).start();
         let relay_cache = RelayCacheService::new(config.clone()).start();
@@ -215,9 +218,11 @@ impl ServiceState {
         }
 
         let guard = aggregator_runtime.enter();
-        let aggregator =
-            AggregatorService::new(config.aggregator_config(), Some(project_cache.recipient()))
-                .start();
+        let aggregator = AggregatorService::new(
+            config.aggregator_config(),
+            Some(project_cache.clone().recipient()),
+        )
+        .start();
         drop(guard);
 
         REGISTRY
@@ -230,6 +235,7 @@ impl ServiceState {
                 envelope_manager,
                 test_store,
                 relay_cache,
+                project_cache,
             }))
             .unwrap();
 
@@ -239,6 +245,7 @@ impl ServiceState {
             _aggregator_runtime: Arc::new(aggregator_runtime),
             _outcome_runtime: Arc::new(outcome_runtime),
             _main_runtime: Arc::new(main_runtime),
+            _project_runtime: Arc::new(project_runtime),
             _store_runtime: _store_runtime.map(Arc::new),
         })
     }

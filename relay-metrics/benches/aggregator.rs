@@ -1,25 +1,10 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-use actix::prelude::*;
-
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 
 use relay_common::{ProjectKey, UnixTimestamp};
-use relay_metrics::{AggregatorConfig, AggregatorService, FlushBuckets, Metric, MetricValue};
-
-#[derive(Clone, Default)]
-struct TestReceiver;
-
-impl Actor for TestReceiver {
-    type Context = Context<Self>;
-}
-
-impl Handler<FlushBuckets> for TestReceiver {
-    type Result = ();
-
-    fn handle(&mut self, _msg: FlushBuckets, _ctx: &mut Self::Context) -> Self::Result {}
-}
+use relay_metrics::{AggregatorConfig, AggregatorService, Metric, MetricValue};
 
 /// Struct representing a testcase for which insert + flush are timed.
 struct MetricInput {
@@ -72,8 +57,6 @@ fn bench_insert_and_flush(c: &mut Criterion) {
         debounce_delay: 0,
         ..Default::default()
     };
-
-    let flush_receiver = TestReceiver.start().recipient();
 
     let counter = Metric {
         name: "c:transactions/foo@none".to_owned(),
@@ -138,7 +121,7 @@ fn bench_insert_and_flush(c: &mut Criterion) {
                 b.iter_batched(
                     || {
                         (
-                            AggregatorService::new(config.clone(), Some(flush_receiver.clone())),
+                            AggregatorService::new(config.clone(), None),
                             input.get_metrics(),
                         )
                     },
@@ -158,8 +141,7 @@ fn bench_insert_and_flush(c: &mut Criterion) {
             |b, &input| {
                 b.iter_batched(
                     || {
-                        let mut aggregator =
-                            AggregatorService::new(config.clone(), Some(flush_receiver.clone()));
+                        let mut aggregator = AggregatorService::new(config.clone(), None);
                         for (project_key, metric) in input.get_metrics() {
                             aggregator.insert(project_key, metric).unwrap();
                         }

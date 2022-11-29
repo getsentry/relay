@@ -12,6 +12,7 @@ use crate::actors::project::ProjectState;
 use crate::actors::project_cache::FetchOptionalProjectState;
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 
+#[derive(Debug)]
 pub struct RedisProjectSource {
     config: Arc<Config>,
     redis: RedisPool,

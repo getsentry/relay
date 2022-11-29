@@ -115,7 +115,7 @@ impl UpstreamRequest for SendEnvelope {
             Err(error) => {
                 match error {
                     UpstreamRequestError::RateLimited(upstream_limits) => {
-                        ProjectCache::from_registry().do_send(UpdateRateLimits::new(
+                        ProjectCache::from_registry().send(UpdateRateLimits::new(
                             self.project_key,
                             upstream_limits.clone().scope(&self.scoping),
                         ));
