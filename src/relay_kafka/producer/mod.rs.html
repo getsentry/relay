@@ -335,9 +335,9 @@
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
 
-<span class="kw">use </span>failure::Fail;
 <span class="kw">use </span>rdkafka::producer::BaseRecord;
 <span class="kw">use </span>rdkafka::ClientConfig;
+<span class="kw">use </span>thiserror::Error;
 
 <span class="kw">use </span>relay_statsd::metric;
 
@@ -348,30 +348,30 @@
 <span class="kw">use </span>utils::{CaptureErrorContext, ThreadedProducer};
 
 <span class="doccomment">/// Kafka producer errors.
-</span><span class="attribute">#[derive(Fail, Debug)]
+</span><span class="attribute">#[derive(Error, Debug)]
 </span><span class="kw">pub enum </span>ClientError {
     <span class="doccomment">/// Failed to send a kafka message.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;failed to send kafka message&quot;</span>)]
-    </span>SendFailed(<span class="attribute">#[cause] </span>rdkafka::error::KafkaError),
+    </span><span class="attribute">#[error(<span class="string">&quot;failed to send kafka message&quot;</span>)]
+    </span>SendFailed(<span class="attribute">#[source] </span>rdkafka::error::KafkaError),
 
     <span class="doccomment">/// Failed to find configured producer for the requested kafka topic.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;failed to find producer for the requested kafka topic&quot;</span>)]
+    </span><span class="attribute">#[error(<span class="string">&quot;failed to find producer for the requested kafka topic&quot;</span>)]
     </span>InvalidTopicName,
 
     <span class="doccomment">/// Failed to create a kafka producer because of the invalid configuration.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;failed to create kafka producer: invalid kafka config&quot;</span>)]
-    </span>InvalidConfig(<span class="attribute">#[cause] </span>rdkafka::error::KafkaError),
+    </span><span class="attribute">#[error(<span class="string">&quot;failed to create kafka producer: invalid kafka config&quot;</span>)]
+    </span>InvalidConfig(<span class="attribute">#[source] </span>rdkafka::error::KafkaError),
 
     <span class="doccomment">/// Failed to serialize the message.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;failed to serialize kafka message&quot;</span>)]
-    </span>InvalidMsgPack(<span class="attribute">#[cause] </span>rmp_serde::encode::Error),
+    </span><span class="attribute">#[error(<span class="string">&quot;failed to serialize kafka message&quot;</span>)]
+    </span>InvalidMsgPack(<span class="attribute">#[source] </span>rmp_serde::encode::Error),
 
     <span class="doccomment">/// Failed to serialize the json message using serde.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;failed to serialize json message&quot;</span>)]
-    </span>InvalidJson(<span class="attribute">#[cause] </span>serde_json::Error),
+    </span><span class="attribute">#[error(<span class="string">&quot;failed to serialize json message&quot;</span>)]
+    </span>InvalidJson(<span class="attribute">#[source] </span>serde_json::Error),
 
     <span class="doccomment">/// Configuration is wrong and it cannot be used to identify the number of a shard.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;invalid kafka shard&quot;</span>)]
+    </span><span class="attribute">#[error(<span class="string">&quot;invalid kafka shard&quot;</span>)]
     </span>InvalidShard,
 }
 

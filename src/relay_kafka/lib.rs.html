@@ -63,7 +63,7 @@
 //!     builder = builder.add_kafka_topic_config(KafkaTopic::Events, &amp;kafka_config_events).unwrap();
 //!
 //!     // And add potentially another topic config.
-//!     builder.add_kafka_topic_config(&amp;kafka_config_metrics)?;
+//!     builder = builder.add_kafka_topic_config(KafkaTopic::Transactions, &amp;kafka_config_metrics).unwrap();
 //!
 //!     // build the client
 //!     let kafka_client = builder.build();

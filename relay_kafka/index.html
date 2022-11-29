@@ -14,7 +14,7 @@ broker.</p>
     </span>builder = builder.add_kafka_topic_config(KafkaTopic::Events, <span class="kw-2">&amp;</span>kafka_config_events).unwrap();
 
     <span class="comment">// And add potentially another topic config.
-    </span>builder.add_kafka_topic_config(<span class="kw-2">&amp;</span>kafka_config_metrics)<span class="question-mark">?</span>;
+    </span>builder = builder.add_kafka_topic_config(KafkaTopic::Transactions, <span class="kw-2">&amp;</span>kafka_config_metrics).unwrap();
 
     <span class="comment">// build the client
     </span><span class="kw">let </span>kafka_client = builder.build();

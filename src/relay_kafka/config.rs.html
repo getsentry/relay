@@ -392,17 +392,17 @@
 <span id="390">390</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
-<span class="kw">use </span>failure::Fail;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
+<span class="kw">use </span>thiserror::Error;
 
 <span class="doccomment">/// Kafka configuration errors.
-</span><span class="attribute">#[derive(Fail, Debug)]
+</span><span class="attribute">#[derive(Error, Debug)]
 </span><span class="kw">pub enum </span>ConfigError {
     <span class="doccomment">/// The user referenced a kafka config name that does not exist.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;unknown kafka config name&quot;</span>)]
+    </span><span class="attribute">#[error(<span class="string">&quot;unknown kafka config name&quot;</span>)]
     </span>UnknownKafkaConfigName,
     <span class="doccomment">/// The user did not configure 0 shard
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;invalid kafka shard configuration: must have shard with index 0&quot;</span>)]
+    </span><span class="attribute">#[error(<span class="string">&quot;invalid kafka shard configuration: must have shard with index 0&quot;</span>)]
     </span>InvalidShard,
 }
 
