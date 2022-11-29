@@ -1488,5 +1488,9 @@ mod tests {
         r#"C:\\Program Files\*\Files"#
     );
     transaction_name_test!(test_transaction_name_skip_replace_all, "12345", "12345");
-    transaction_name_test!(test_transaction_name_skip_replace_all2, "open-12345-close", "open-12345-close");
+    transaction_name_test!(
+        test_transaction_name_skip_replace_all2,
+        "open-12345-close",
+        "open-12345-close"
+    );
 }
