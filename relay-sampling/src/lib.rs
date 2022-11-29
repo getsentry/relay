@@ -33,6 +33,10 @@ pub enum RuleType {
     /// A non transaction rule applies to Errors, Security events...every type of event that
     /// is not a Transaction
     Error,
+
+    /// If the sampling config contains new rule types, do not sample at all.
+    #[serde(other)]
+    Unsupported,
 }
 
 /// A condition that checks the values using the equality operator.
@@ -372,7 +376,7 @@ pub struct SamplingRule {
 
 impl SamplingRule {
     fn supported(&self) -> bool {
-        self.condition.supported()
+        self.condition.supported() && self.ty != RuleType::Unsupported
     }
 
     /// Returns whether the sampling rule is active.
@@ -688,6 +692,10 @@ pub enum SamplingMode {
     /// In this mode, the server sampling rate is capped by the client's sampling rate. Rules with a
     /// higher sample rate than what the client is sending are effectively inactive.
     Total,
+
+    /// Catch-all variant for forward compatibility.
+    #[serde(other)]
+    Unsupported,
 }
 
 impl Default for SamplingMode {
@@ -2199,7 +2207,7 @@ mod tests {
             // supported in the code, so intentionally not implementing any logic for
             // that. This whole helper method should be revisited when the Error variant
             // is supported.
-            RuleType::Error => unimplemented!(),
+            RuleType::Error | RuleType::Unsupported => unimplemented!(),
         };
         let release_condition = format!("{}.release", rule_prefix);
         let env_condition = format!("{}.environment", rule_prefix);
@@ -2572,5 +2580,29 @@ mod tests {
 
         dsc.sample_rate = Some(-0.5);
         assert_eq!(dsc.adjusted_sample_rate(0.5), 0.5);
+    }
+
+    #[test]
+    fn test_supported() {
+        let rule: SamplingRule = serde_json::from_value(serde_json::json!({
+            "id": 1,
+            "type": "trace",
+            "sampleRate": 1,
+            "condition": {"op": "and", "inner": []}
+        }))
+        .unwrap();
+        assert!(rule.supported());
+    }
+
+    #[test]
+    fn test_unsupported_rule_type() {
+        let rule: SamplingRule = serde_json::from_value(serde_json::json!({
+            "id": 1,
+            "type": "new_rule_type_unknown_to_this_relay",
+            "sampleRate": 1,
+            "condition": {"op": "and", "inner": []}
+        }))
+        .unwrap();
+        assert!(!rule.supported());
     }
 }

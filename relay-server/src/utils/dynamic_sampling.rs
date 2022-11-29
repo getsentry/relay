@@ -72,6 +72,12 @@ fn get_trace_sampling_rule(
     let sample_rate = match sampling_config.mode {
         SamplingMode::Received => rule.sample_rate,
         SamplingMode::Total => sampling_context.adjusted_sample_rate(rule.sample_rate),
+        SamplingMode::Unsupported => {
+            if processing_enabled {
+                relay_log::error!("Found unsupported sampling mode even as processing Relay, keep");
+            }
+            return Err(SamplingResult::Keep);
+        }
     };
 
     Ok(Some(SamplingSpec {
@@ -436,6 +442,16 @@ mod tests {
         );
 
         assert_eq!(spec.unwrap().unwrap().sample_rate, 0.2);
+    }
+
+    #[test]
+    fn test_trace_rule_unsupported() {
+        let project_state = state_with_rule(Some(0.1), RuleType::Trace, SamplingMode::Unsupported);
+        let sampling_context = create_sampling_context(Some(0.5));
+        let spec =
+            get_trace_sampling_rule(true, Some(&project_state), Some(&sampling_context), None);
+
+        assert!(matches!(spec, Err(SamplingResult::Keep)));
     }
 
     #[test]
