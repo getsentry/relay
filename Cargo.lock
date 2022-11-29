@@ -3338,7 +3338,6 @@ dependencies = [
 name = "relay-kafka"
 version = "22.11.0"
 dependencies = [
- "failure",
  "rdkafka",
  "rdkafka-sys",
  "relay-log",
@@ -3347,6 +3346,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
+ "thiserror",
 ]
 
 [[package]]
