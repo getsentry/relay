@@ -1,7 +1,6 @@
 use std::fmt;
 use std::str::FromStr;
 
-use failure::Fail;
 use pest::error::Error;
 use pest::iterators::Pair;
 use pest::Parser;
@@ -9,24 +8,24 @@ use pest::Parser;
 use crate::processor::{Pii, ProcessingState, ValueType};
 
 /// Error for invalid selectors
-#[derive(Debug, Fail)]
+#[derive(Debug, thiserror::Error)]
 pub enum InvalidSelectorError {
-    #[fail(display = "invalid selector: deep wildcard used more than once")]
+    #[error("invalid selector: deep wildcard used more than once")]
     InvalidDeepWildcard,
 
-    #[fail(display = "invalid selector: wildcard must be part of a path")]
+    #[error("invalid selector: wildcard must be part of a path")]
     InvalidWildcard,
 
-    #[fail(display = "invalid selector: {}", _0)]
+    #[error("invalid selector: {}", .0)]
     ParseError(Box<Error<Rule>>),
 
-    #[fail(display = "invalid selector: invalid index")]
+    #[error("invalid selector: invalid index")]
     InvalidIndex,
 
-    #[fail(display = "invalid selector: unknown value")]
+    #[error("invalid selector: unknown value")]
     UnknownType,
 
-    #[fail(display = "parser bug: consumed {} (expected {})", _0, _1)]
+    #[error("parser bug: consumed {} (expected {})", .0, .1)]
     UnexpectedToken(String, &'static str),
 }
 
