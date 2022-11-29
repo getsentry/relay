@@ -183,33 +183,7 @@ impl StoreService {
                     item,
                 )?,
                 ItemType::ReplayRecording => {
-                    let replay_recording = self.produce_replay_recording_chunks(
-                        event_id.ok_or(StoreError::NoEventId)?,
-                        scoping.organization_id,
-                        scoping.project_id,
-                        item,
-                    )?;
-                    relay_log::trace!("Sending individual replay_recordings of envelope to kafka");
-                    let replay_recording_message =
-                        KafkaMessage::ReplayRecording(ReplayRecordingKafkaMessage {
-                            replay_id: event_id.ok_or(StoreError::NoEventId)?,
-                            project_id: scoping.project_id,
-                            key_id: scoping.key_id,
-                            org_id: scoping.organization_id,
-                            received: UnixTimestamp::from_instant(start_time).as_secs(),
-                            retention_days: retention,
-                            replay_recording,
-                        });
-
-                    self.produce(
-                        KafkaTopic::ReplayRecordings,
-                        scoping.organization_id,
-                        replay_recording_message,
-                    )?;
-                    metric!(
-                        counter(RelayCounters::ProcessingMessageProduced) += 1,
-                        event_type = "replay_recording"
-                    );
+                    self.produce_replay_recording(event_id, scoping, item, start_time, retention)?
                 }
                 ItemType::ReplayEvent => self.produce_replay_event(
                     event_id.ok_or(StoreError::NoEventId)?,
@@ -621,6 +595,80 @@ impl StoreService {
         Ok(())
     }
 
+    fn produce_replay_recording(
+        &self,
+        event_id: Option<EventId>,
+        scoping: Scoping,
+        item: &Item,
+        start_time: Instant,
+        retention: u16,
+    ) -> Result<(), StoreError> {
+        // Payloads must be chunked if they exceed a certain threshold. We do not chunk every
+        // message because we can achieve better parallelism when dealing with a single
+        // message.
+
+        // 2000 bytes are reserved for the message metadata.
+        let max_message_metadata_size = 2000;
+
+        // Remaining bytes can be filled by the payload.
+        let max_payload_size = self.config.attachment_chunk_size() - max_message_metadata_size;
+
+        if item.payload().len() < max_payload_size {
+            let message = KafkaMessage::ReplayRecording(ReplayRecordingKafkaMessage {
+                replay_id: event_id.ok_or(StoreError::NoEventId)?,
+                project_id: scoping.project_id,
+                key_id: scoping.key_id,
+                org_id: scoping.organization_id,
+                received: UnixTimestamp::from_instant(start_time).as_secs(),
+                retention_days: retention,
+                payload: item.payload(),
+            });
+
+            self.produce(
+                KafkaTopic::ReplayRecordings,
+                scoping.organization_id,
+                message,
+            )?;
+
+            metric!(
+                counter(RelayCounters::ProcessingMessageProduced) += 1,
+                event_type = "replay_recording_not_chunked"
+            );
+        } else {
+            // Produce chunks to the topic first. Ordering matters.
+            let replay_recording = self.produce_replay_recording_chunks(
+                event_id.ok_or(StoreError::NoEventId)?,
+                scoping.organization_id,
+                scoping.project_id,
+                item,
+            )?;
+
+            let message =
+                KafkaMessage::ChunkedReplayRecording(ChunkedReplayRecordingKafkaMessage {
+                    replay_id: event_id.ok_or(StoreError::NoEventId)?,
+                    project_id: scoping.project_id,
+                    key_id: scoping.key_id,
+                    org_id: scoping.organization_id,
+                    received: UnixTimestamp::from_instant(start_time).as_secs(),
+                    retention_days: retention,
+                    replay_recording,
+                });
+
+            self.produce(
+                KafkaTopic::ReplayRecordings,
+                scoping.organization_id,
+                message,
+            )?;
+
+            metric!(
+                counter(RelayCounters::ProcessingMessageProduced) += 1,
+                event_type = "replay_recording"
+            );
+        };
+
+        Ok(())
+    }
+
     fn produce_replay_recording_chunks(
         &self,
         replay_id: EventId,
@@ -644,14 +692,15 @@ impl StoreService {
             let max_chunk_size = self.config.attachment_chunk_size() - 2000;
             let chunk_size = std::cmp::min(max_chunk_size, size - offset);
 
-            let replay_recording_chunk_message =
-                KafkaMessage::ReplayRecordingChunk(ReplayRecordingChunkKafkaMessage {
+            let replay_recording_chunk_message = KafkaMessage::ChunkedReplayRecordingChunk(
+                ChunkedReplayRecordingChunkKafkaMessage {
                     payload: payload.slice(offset, offset + chunk_size),
                     replay_id,
                     project_id,
                     id: id.clone(),
                     chunk_index,
-                });
+                },
+            );
             self.produce(
                 KafkaTopic::ReplayRecordings,
                 organization_id,
@@ -721,22 +770,6 @@ struct ChunkedAttachment {
     /// not be persisted after processing.
     #[serde(skip_serializing_if = "Option::is_none")]
     rate_limited: Option<bool>,
-}
-
-/// attributes for Replay Recordings
-#[derive(Debug, Serialize)]
-struct ChunkedReplayRecording {
-    /// The attachment ID within the event.
-    ///
-    /// The triple `(project_id, event_id, id)` identifies an attachment uniquely.
-    id: String,
-
-    /// Number of chunks. Must be greater than zero.
-    chunks: usize,
-
-    /// The size of the attachment in bytes.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    size: Option<usize>,
 }
 
 /// A hack to make rmp-serde behave more like serde-json when serializing enums.
@@ -817,35 +850,46 @@ struct AttachmentKafkaMessage {
 
 /// Container payload for chunks of attachments.
 #[derive(Debug, Serialize)]
-struct ReplayRecordingChunkKafkaMessage {
-    /// Chunk payload of the replay recording.
-    payload: Bytes,
-    /// The replay id.
-    replay_id: EventId,
-    /// The project id for the current replay.
-    project_id: ProjectId,
-    /// The recording ID within the replay.
+struct ChunkedReplayRecordingChunkKafkaMessage {
     id: String,
+    replay_id: EventId,
+    project_id: ProjectId,
+    payload: Bytes,
     /// Sequence number of chunk. Starts at 0 and ends at `ReplayRecordingKafkaMessage.num_chunks - 1`.
     /// the tuple (id, chunk_index) is the unique identifier for a single chunk.
     chunk_index: usize,
 }
 
+/// attributes for Replay Recordings
 #[derive(Debug, Serialize)]
-struct ReplayRecordingKafkaMessage {
-    /// The replay id.
+struct ChunkedReplayRecording {
+    /// The triple `(project_id, event_id, id)` identifies an attachment uniquely.
+    id: String,
+    chunks: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    size: Option<usize>,
+}
+
+#[derive(Debug, Serialize)]
+struct ChunkedReplayRecordingKafkaMessage {
     replay_id: EventId,
-    /// The project id for the current recording.
     project_id: ProjectId,
-    /// The key_id for the current recording.
     key_id: Option<u64>,
-    /// The org id for the current recording.
     org_id: u64,
-    /// The timestamp of when the recording was Received by relay
     received: u64,
-    /// The recording attachment.
     replay_recording: ChunkedReplayRecording,
     retention_days: u16,
+}
+
+#[derive(Debug, Serialize)]
+struct ReplayRecordingKafkaMessage {
+    replay_id: EventId,
+    key_id: Option<u64>,
+    org_id: u64,
+    project_id: ProjectId,
+    received: u64,
+    retention_days: u16,
+    payload: Bytes,
 }
 
 /// User report for an event wrapped up in a message ready for consumption in Kafka.
@@ -917,7 +961,8 @@ enum KafkaMessage {
     Profile(ProfileKafkaMessage),
     ReplayEvent(ReplayEventKafkaMessage),
     ReplayRecording(ReplayRecordingKafkaMessage),
-    ReplayRecordingChunk(ReplayRecordingChunkKafkaMessage),
+    ChunkedReplayRecording(ChunkedReplayRecordingKafkaMessage),
+    ChunkedReplayRecordingChunk(ChunkedReplayRecordingChunkKafkaMessage),
 }
 
 impl Message for KafkaMessage {
@@ -931,8 +976,9 @@ impl Message for KafkaMessage {
             KafkaMessage::Metric(_) => "metric",
             KafkaMessage::Profile(_) => "profile",
             KafkaMessage::ReplayEvent(_) => "replay_event",
-            KafkaMessage::ReplayRecording(_) => "replay_recording",
-            KafkaMessage::ReplayRecordingChunk(_) => "replay_recording_chunk",
+            KafkaMessage::ReplayRecording(_) => "replay_recording_not_chunked",
+            KafkaMessage::ChunkedReplayRecording(_) => "replay_recording",
+            KafkaMessage::ChunkedReplayRecordingChunk(_) => "replay_recording_chunk",
         }
     }
 
@@ -948,7 +994,8 @@ impl Message for KafkaMessage {
             Self::Profile(_message) => Uuid::nil(),
             Self::ReplayEvent(message) => message.replay_id.0,
             Self::ReplayRecording(message) => message.replay_id.0,
-            Self::ReplayRecordingChunk(message) => message.replay_id.0,
+            Self::ChunkedReplayRecording(message) => message.replay_id.0,
+            Self::ChunkedReplayRecordingChunk(message) => message.replay_id.0,
         };
 
         if uuid.is_nil() {
