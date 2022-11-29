@@ -2576,6 +2576,38 @@
 <span id="2574">2574</span>
 <span id="2575">2575</span>
 <span id="2576">2576</span>
+<span id="2577">2577</span>
+<span id="2578">2578</span>
+<span id="2579">2579</span>
+<span id="2580">2580</span>
+<span id="2581">2581</span>
+<span id="2582">2582</span>
+<span id="2583">2583</span>
+<span id="2584">2584</span>
+<span id="2585">2585</span>
+<span id="2586">2586</span>
+<span id="2587">2587</span>
+<span id="2588">2588</span>
+<span id="2589">2589</span>
+<span id="2590">2590</span>
+<span id="2591">2591</span>
+<span id="2592">2592</span>
+<span id="2593">2593</span>
+<span id="2594">2594</span>
+<span id="2595">2595</span>
+<span id="2596">2596</span>
+<span id="2597">2597</span>
+<span id="2598">2598</span>
+<span id="2599">2599</span>
+<span id="2600">2600</span>
+<span id="2601">2601</span>
+<span id="2602">2602</span>
+<span id="2603">2603</span>
+<span id="2604">2604</span>
+<span id="2605">2605</span>
+<span id="2606">2606</span>
+<span id="2607">2607</span>
+<span id="2608">2608</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Functionality for calculating if a trace should be processed or dropped.
 </span><span class="attribute">#![doc(
     html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
@@ -2611,6 +2643,10 @@
     <span class="doccomment">/// A non transaction rule applies to Errors, Security events...every type of event that
     /// is not a Transaction
     </span>Error,
+
+    <span class="doccomment">/// If the sampling config contains new rule types, do not sample at all.
+    </span><span class="attribute">#[serde(other)]
+    </span>Unsupported,
 }
 
 <span class="doccomment">/// A condition that checks the values using the equality operator.
@@ -2950,7 +2986,7 @@
 
 <span class="kw">impl </span>SamplingRule {
     <span class="kw">fn </span>supported(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="self">self</span>.condition.supported()
+        <span class="self">self</span>.condition.supported() &amp;&amp; <span class="self">self</span>.ty != RuleType::Unsupported
     }
 
     <span class="doccomment">/// Returns whether the sampling rule is active.
@@ -3266,6 +3302,10 @@
     /// In this mode, the server sampling rate is capped by the client&#39;s sampling rate. Rules with a
     /// higher sample rate than what the client is sending are effectively inactive.
     </span>Total,
+
+    <span class="doccomment">/// Catch-all variant for forward compatibility.
+    </span><span class="attribute">#[serde(other)]
+    </span>Unsupported,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>SamplingMode {
@@ -4777,7 +4817,7 @@
             // supported in the code, so intentionally not implementing any logic for
             // that. This whole helper method should be revisited when the Error variant
             // is supported.
-            </span>RuleType::Error =&gt; <span class="macro">unimplemented!</span>(),
+            </span>RuleType::Error | RuleType::Unsupported =&gt; <span class="macro">unimplemented!</span>(),
         };
         <span class="kw">let </span>release_condition = <span class="macro">format!</span>(<span class="string">&quot;{}.release&quot;</span>, rule_prefix);
         <span class="kw">let </span>env_condition = <span class="macro">format!</span>(<span class="string">&quot;{}.environment&quot;</span>, rule_prefix);
@@ -5150,6 +5190,30 @@
 
         dsc.sample_rate = <span class="prelude-val">Some</span>(-<span class="number">0.5</span>);
         <span class="macro">assert_eq!</span>(dsc.adjusted_sample_rate(<span class="number">0.5</span>), <span class="number">0.5</span>);
+    }
+
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_supported() {
+        <span class="kw">let </span>rule: SamplingRule = serde_json::from_value(<span class="macro">serde_json::json!</span>({
+            <span class="string">&quot;id&quot;</span>: <span class="number">1</span>,
+            <span class="string">&quot;type&quot;</span>: <span class="string">&quot;trace&quot;</span>,
+            <span class="string">&quot;sampleRate&quot;</span>: <span class="number">1</span>,
+            <span class="string">&quot;condition&quot;</span>: {<span class="string">&quot;op&quot;</span>: <span class="string">&quot;and&quot;</span>, <span class="string">&quot;inner&quot;</span>: []}
+        }))
+        .unwrap();
+        <span class="macro">assert!</span>(rule.supported());
+    }
+
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_unsupported_rule_type() {
+        <span class="kw">let </span>rule: SamplingRule = serde_json::from_value(<span class="macro">serde_json::json!</span>({
+            <span class="string">&quot;id&quot;</span>: <span class="number">1</span>,
+            <span class="string">&quot;type&quot;</span>: <span class="string">&quot;new_rule_type_unknown_to_this_relay&quot;</span>,
+            <span class="string">&quot;sampleRate&quot;</span>: <span class="number">1</span>,
+            <span class="string">&quot;condition&quot;</span>: {<span class="string">&quot;op&quot;</span>: <span class="string">&quot;and&quot;</span>, <span class="string">&quot;inner&quot;</span>: []}
+        }))
+        .unwrap();
+        <span class="macro">assert!</span>(!rule.supported());
     }
 }
 </code></pre></div>
