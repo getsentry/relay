@@ -37,7 +37,7 @@ pub fn ensure_error<E: AsRef<dyn Error>>(error: E) {
     }
 }
 
-/// A wrapper around a [`Fail`](failure::Fail) that prints its causes.
+/// A wrapper around an error that prints its causes.
 ///
 /// # Example
 ///

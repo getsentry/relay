@@ -66,9 +66,9 @@
 //!
 //! ## Logging Error Types
 //!
-//! To log [`Fail`](failure::Fail) errors to both Sentry and the error stream, use the [`LogError`] wrapper. It
-//! formats the error with all its causes, and ensures the format is suitable for error reporting to
-//! Sentry.
+//! To log [errors](std::error::Error) to both Sentry and the error stream, use the [`LogError`]
+//! wrapper. It formats the error with all its causes, and ensures the format is suitable for error
+//! reporting to Sentry.
 //!
 //! ```
 //! use std::io::{Error, ErrorKind};

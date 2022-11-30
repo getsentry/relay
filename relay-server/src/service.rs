@@ -53,10 +53,12 @@ pub enum ServerErrorKind {
     TlsNotSupported,
 
     /// GeoIp construction failed.
+    #[cfg(feature = "processing")]
     #[error("could not load the Geoip Db")]
     GeoIpError,
 
     /// Initializing the Kafka producer failed.
+    #[cfg(feature = "processing")]
     #[error("could not initialize kafka producer")]
     KafkaError,
 

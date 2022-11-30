@@ -15,9 +15,9 @@ use std::time::Duration;
 
 use actix::prelude::SystemService;
 use actix_web::http::Method;
+#[cfg(feature = "processing")]
 use anyhow::Context;
 use chrono::{DateTime, SecondsFormat, Utc};
-#[cfg(feature = "processing")]
 use relay_system::{Interface, NoResponse};
 use serde::{Deserialize, Serialize};
 
@@ -27,6 +27,7 @@ use relay_filter::FilterStatKey;
 use relay_general::protocol::{ClientReport, DiscardedEvent, EventId};
 #[cfg(feature = "processing")]
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic};
+#[cfg(feature = "processing")]
 use relay_log::LogError;
 use relay_quotas::{ReasonCode, Scoping};
 use relay_sampling::RuleId;

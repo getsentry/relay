@@ -49,6 +49,7 @@ pub enum SendEnvelopeError {
     UpstreamRequestFailed(#[from] UpstreamRequestError),
 }
 
+#[cfg(feature = "processing")]
 impl From<relay_system::SendError> for SendEnvelopeError {
     fn from(_: relay_system::SendError) -> Self {
         Self::ScheduleFailed

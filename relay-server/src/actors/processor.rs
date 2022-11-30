@@ -7,7 +7,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use actix::SystemService;
-use anyhow::Context;
 use brotli2::write::BrotliEncoder;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use flate2::write::{GzEncoder, ZlibEncoder};
@@ -58,6 +57,7 @@ use {
     crate::actors::project_cache::UpdateRateLimits,
     crate::service::ServerErrorKind,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
+    anyhow::Context,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::ItemScoping,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
