@@ -1,10 +1,12 @@
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::Display;
 use std::io::{Read, Write};
 
-use relay_general::pii::{DataScrubbingConfig, PiiProcessor};
-use relay_general::processor::{FieldAttrs, Pii, ProcessingState, Processor, ValueType};
+use relay_general::pii::{PiiConfig, PiiProcessor};
+use relay_general::processor::{
+    FieldAttrs, Pii, ProcessingState, Processor, SelectorSpec, ValueType,
+};
 use relay_general::types::{Meta, ProcessingAction};
 
 use flate2::read::ZlibDecoder;
@@ -54,11 +56,10 @@ fn dumps(rrweb: Vec<Event>) -> Result<Vec<u8>, RecordingParseError> {
 }
 
 fn strip_pii(events: &mut Vec<Event>) -> Result<(), ProcessingAction> {
-    let mut scrub_config = DataScrubbingConfig::default();
-    scrub_config.scrub_data = true;
-    scrub_config.scrub_defaults = true;
+    let mut pii_config = PiiConfig::default();
+    pii_config.applications =
+        BTreeMap::from([(SelectorSpec::And(vec![]), vec!["@common".to_string()])]);
 
-    let pii_config = scrub_config.pii_config().unwrap().as_ref().unwrap();
     let pii_processor = PiiProcessor::new(pii_config.compiled());
     let mut processor = RecordingProcessor::new(pii_processor);
     processor.mask_pii(events)?;
@@ -578,7 +579,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pii_removal() {
+    fn test_pii_credit_card_removal() {
         let payload = include_bytes!("../tests/fixtures/rrweb-pii.json");
         let mut events: Vec<Event> = serde_json::from_slice(payload).unwrap();
 
@@ -591,7 +592,31 @@ mod tests {
                 if let recording::NodeVariant::T2(mut ee) = dd.node.variant {
                     let ff = ee.child_nodes.pop().unwrap();
                     if let recording::NodeVariant::Rest(gg) = ff.variant {
-                        assert!(gg.text_content.as_str() == "[Filtered]");
+                        assert!(gg.text_content.as_str() == "[creditcard]");
+                        return;
+                    }
+                }
+            }
+        }
+        unreachable!();
+    }
+
+    #[test]
+    fn test_pii_ip_address_removal() {
+        let payload = include_bytes!("../tests/fixtures/rrweb-pii-ip-address.json");
+        let mut events: Vec<Event> = serde_json::from_slice(payload).unwrap();
+
+        recording::strip_pii(&mut events).unwrap();
+
+        let aa = events.pop().unwrap();
+        if let recording::Event::T3(bb) = aa {
+            if let recording::IncrementalSourceDataVariant::Mutation(mut cc) = bb.data {
+                let dd = cc.adds.pop().unwrap();
+                if let recording::NodeVariant::T2(mut ee) = dd.node.variant {
+                    let ff = ee.child_nodes.pop().unwrap();
+                    if let recording::NodeVariant::Rest(gg) = ff.variant {
+                        println!("{}", gg.text_content.as_str());
+                        assert!(gg.text_content.as_str() == "[ip]");
                         return;
                     }
                 }
