@@ -1755,7 +1755,7 @@ impl Config {
         Duration::from_secs(self.values.limits.shutdown_timeout)
     }
 
-    /// Set server keep-alive setting.
+    /// Returns the server keep-alive timeout in seconds.
     ///
     /// By default keep alive is set to a 5 seconds.
     pub fn keepalive_timeout(&self) -> usize {
