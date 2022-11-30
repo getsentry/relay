@@ -271,8 +271,6 @@ use relay_system::Controller;
 
 use crate::actors::server::Server;
 
-// pub use crate::service::ServerError; // TODO(ja): Remove
-
 /// Runs a relay web server and spawns all internal worker threads.
 ///
 /// This effectively boots the entire server application. It blocks the current thread until a

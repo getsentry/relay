@@ -1024,7 +1024,7 @@ pub struct MinimalConfig {
 
 impl MinimalConfig {
     /// Saves the config in the given config folder as config.yml
-    pub fn save_in_folder<P: AsRef<Path>>(&self, p: P) -> Result<(), anyhow::Error> {
+    pub fn save_in_folder<P: AsRef<Path>>(&self, p: P) -> anyhow::Result<()> {
         let path = p.as_ref();
         if fs::metadata(path).is_err() {
             fs::create_dir_all(path)
@@ -1178,7 +1178,7 @@ impl fmt::Debug for Config {
 
 impl Config {
     /// Loads a config from a given config folder.
-    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Config, anyhow::Error> {
+    pub fn from_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Config> {
         let path = env::current_dir()
             .map(|x| x.join(path.as_ref()))
             .unwrap_or_else(|_| path.as_ref().to_path_buf());
@@ -1203,7 +1203,7 @@ impl Config {
     /// Creates a config from a JSON value.
     ///
     /// This is mostly useful for tests.
-    pub fn from_json_value(value: serde_json::Value) -> Result<Config, anyhow::Error> {
+    pub fn from_json_value(value: serde_json::Value) -> anyhow::Result<Config> {
         Ok(Config {
             values: serde_json::from_value(value)
                 .with_context(|| ConfigError::new(ConfigErrorKind::BadJson))?,
@@ -1217,7 +1217,7 @@ impl Config {
     pub fn apply_override(
         &mut self,
         mut overrides: OverridableConfig,
-    ) -> Result<&mut Self, anyhow::Error> {
+    ) -> anyhow::Result<&mut Self> {
         let relay = &mut self.values.relay;
 
         if let Some(mode) = overrides.mode {
@@ -1364,7 +1364,7 @@ impl Config {
     }
 
     /// Dumps out a YAML string of the values.
-    pub fn to_yaml_string(&self) -> Result<String, anyhow::Error> {
+    pub fn to_yaml_string(&self) -> anyhow::Result<String> {
         serde_yaml::to_string(&self.values)
             .with_context(|| ConfigError::new(ConfigErrorKind::CouldNotWriteFile))
     }
@@ -1372,7 +1372,7 @@ impl Config {
     /// Regenerates the relay credentials.
     ///
     /// This also writes the credentials back to the file.
-    pub fn regenerate_credentials(&mut self) -> Result<(), anyhow::Error> {
+    pub fn regenerate_credentials(&mut self) -> anyhow::Result<()> {
         let creds = Credentials::generate();
         creds.save(&self.path)?;
         self.credentials = Some(creds);
@@ -1390,7 +1390,7 @@ impl Config {
     pub fn replace_credentials(
         &mut self,
         credentials: Option<Credentials>,
-    ) -> Result<bool, anyhow::Error> {
+    ) -> anyhow::Result<bool> {
         if self.credentials == credentials {
             return Ok(false);
         }
@@ -1572,7 +1572,7 @@ impl Config {
     /// Returns the socket addresses for statsd.
     ///
     /// If stats is disabled an empty vector is returned.
-    pub fn statsd_addrs(&self) -> Result<Vec<SocketAddr>, anyhow::Error> {
+    pub fn statsd_addrs(&self) -> anyhow::Result<Vec<SocketAddr>> {
         if let Some(ref addr) = self.values.metrics.statsd {
             let addrs = addr
                 .as_str()

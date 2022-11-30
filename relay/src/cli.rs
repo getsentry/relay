@@ -7,12 +7,29 @@ use clap::{ArgMatches, Shell};
 use dialoguer::{Confirmation, Select};
 
 use relay_common::Uuid;
-use relay_config::{Config, Credentials, MinimalConfig, OverridableConfig, RelayMode};
+use relay_config::{
+    Config, ConfigError, ConfigErrorKind, Credentials, MinimalConfig, OverridableConfig, RelayMode,
+};
 
 use crate::cliapp::make_app;
 use crate::setup;
 use crate::utils;
 use crate::utils::get_theme;
+
+fn load_config(path: impl AsRef<Path>, require: bool) -> Result<Config> {
+    match Config::from_path(path) {
+        Ok(config) => Ok(config),
+        Err(error) => {
+            if let Some(config_error) = error.downcast_ref::<ConfigError>() {
+                if !require && config_error.kind() == ConfigErrorKind::CouldNotOpenFile {
+                    return Ok(Config::default());
+                }
+            }
+
+            Err(error)
+        }
+    }
+}
 
 /// Runs the command line application.
 pub fn execute() -> Result<()> {
@@ -30,17 +47,7 @@ pub fn execute() -> Result<()> {
     }
 
     // Commands that need a loaded config:
-    let mut config = match Config::from_path(config_path) {
-        Ok(config) => config,
-        // TODO(ja): Bring this back
-        // Err(e)
-        //     if matches.value_of("config").is_none()
-        //         && e.kind() == ConfigErrorKind::CouldNotOpenFile =>
-        // {
-        //     Config::default()
-        // }
-        Err(e) => return Err(e),
-    };
+    let mut config = load_config(config_path, matches.value_of("config").is_some())?;
     // override file config with environment variables
     let env_config = extract_config_env_vars();
     config.apply_override(env_config)?;
