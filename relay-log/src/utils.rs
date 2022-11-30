@@ -21,14 +21,6 @@ pub fn backtrace_enabled() -> bool {
 /// Prefer to use [`relay_log::error`](crate::error) over this function whenever possible. This
 /// function is intended to be used during startup, where initializing the logger may fail or when
 /// errors need to be logged before the logger has been initialized.
-///
-/// # Example
-///
-/// ```
-/// if let Err(error) = std::env::var("FOO") {
-///     relay_log::ensure_error(&error);
-/// }
-/// ```
 pub fn ensure_error<E: AsRef<dyn Error>>(error: E) {
     if log::log_enabled!(log::Level::Error) {
         log::error!("{}", LogError(error.as_ref()));
