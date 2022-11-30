@@ -32,21 +32,27 @@ use crate::utils::EnvelopeContext;
 use crate::actors::store::{Store, StoreEnvelope, StoreError};
 
 /// Error created while handling [`SendEnvelope`].
-#[derive(Debug, failure::Fail)]
+#[derive(Debug, thiserror::Error)]
 #[allow(clippy::enum_variant_names)]
 pub enum SendEnvelopeError {
     #[cfg(feature = "processing")]
-    #[fail(display = "could not schedule submission of envelope")]
+    #[error("could not schedule submission of envelope")]
     ScheduleFailed,
     #[cfg(feature = "processing")]
-    #[fail(display = "could not store envelope")]
-    StoreFailed(#[cause] StoreError),
-    #[fail(display = "could not build envelope for upstream")]
-    EnvelopeBuildFailed(#[cause] EnvelopeError),
-    #[fail(display = "could not encode request body")]
-    BodyEncodingFailed(#[cause] std::io::Error),
-    #[fail(display = "could not send request to upstream")]
-    UpstreamRequestFailed(#[cause] UpstreamRequestError),
+    #[error("could not store envelope")]
+    StoreFailed(#[from] StoreError),
+    #[error("could not build envelope for upstream")]
+    EnvelopeBuildFailed(#[from] EnvelopeError),
+    #[error("could not encode request body")]
+    BodyEncodingFailed(#[source] std::io::Error),
+    #[error("could not send request to upstream")]
+    UpstreamRequestFailed(#[from] UpstreamRequestError),
+}
+
+impl From<relay_system::SendError> for SendEnvelopeError {
+    fn from(_: relay_system::SendError) -> Self {
+        Self::ScheduleFailed
+    }
 }
 
 /// An upstream request that submits an envelope via HTTP.
@@ -102,39 +108,24 @@ impl UpstreamRequest for SendEnvelope {
                     .map_err(UpstreamRequestError::Http)
                     .map(|_| ())
                     .then(move |body_result| {
-                        sender.map(|sender| {
-                            sender
-                                .send(body_result.map_err(SendEnvelopeError::UpstreamRequestFailed))
-                                .ok()
-                        });
+                        sender.map(|sender| sender.send(body_result.map_err(Into::into)).ok());
                         Ok(())
                     });
 
                 Box::new(future)
             }
             Err(error) => {
-                match error {
-                    UpstreamRequestError::RateLimited(upstream_limits) => {
-                        ProjectCache::from_registry().send(UpdateRateLimits::new(
-                            self.project_key,
-                            upstream_limits.clone().scope(&self.scoping),
-                        ));
-                        if let Some(sender) = sender {
-                            sender
-                                .send(Err(SendEnvelopeError::UpstreamRequestFailed(
-                                    UpstreamRequestError::RateLimited(upstream_limits),
-                                )))
-                                .ok();
-                        }
-                    }
-                    error => {
-                        if let Some(sender) = sender {
-                            sender
-                                .send(Err(SendEnvelopeError::UpstreamRequestFailed(error)))
-                                .ok();
-                        }
-                    }
-                };
+                if let UpstreamRequestError::RateLimited(ref upstream_limits) = error {
+                    ProjectCache::from_registry().send(UpdateRateLimits::new(
+                        self.project_key,
+                        upstream_limits.clone().scope(&self.scoping),
+                    ));
+                }
+
+                if let Some(sender) = sender {
+                    sender.send(Err(error.into())).ok();
+                }
+
                 Box::new(future::err(()))
             }
         }
@@ -259,10 +250,7 @@ impl EnvelopeManagerService {
                     envelope,
                 });
 
-                return future
-                    .await
-                    .map_err(|_| SendEnvelopeError::ScheduleFailed)
-                    .and_then(|result| result.map_err(SendEnvelopeError::StoreFailed));
+                return Ok(future.await??);
             }
         }
 
@@ -281,10 +269,7 @@ impl EnvelopeManagerService {
         // possible so that we avoid internal delays.
         envelope.set_sent_at(Utc::now());
 
-        let envelope_body = match envelope.to_vec() {
-            Ok(v) => v,
-            Err(e) => return Err(SendEnvelopeError::EnvelopeBuildFailed(e)),
-        };
+        let envelope_body = envelope.to_vec()?;
 
         let (tx, rx) = oneshot::channel();
         let request = SendEnvelope {
@@ -306,9 +291,7 @@ impl EnvelopeManagerService {
         match rx.compat().await {
             Ok(Ok(())) => Ok(()),
             Ok(Err(err)) => Err(err),
-            Err(_canceled) => Err(SendEnvelopeError::UpstreamRequestFailed(
-                UpstreamRequestError::ChannelClosed,
-            )),
+            Err(_canceled) => Err(UpstreamRequestError::ChannelClosed.into()),
         }
     }
 

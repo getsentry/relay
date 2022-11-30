@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use actix::prelude::*;
-use failure::Fail;
 use relay_common::ProjectKey;
 use relay_config::Config;
 use relay_log::LogError;
@@ -18,25 +17,13 @@ pub struct RedisProjectSource {
     redis: RedisPool,
 }
 
-#[derive(Debug, Fail)]
+#[derive(Debug, thiserror::Error)]
 enum RedisProjectError {
-    #[fail(display = "failed to parse projectconfig from redis")]
-    Parsing(#[cause] serde_json::Error),
+    #[error("failed to parse projectconfig from redis")]
+    Parsing(#[from] serde_json::Error),
 
-    #[fail(display = "failed to talk to redis")]
-    Redis(#[cause] RedisError),
-}
-
-impl From<RedisError> for RedisProjectError {
-    fn from(e: RedisError) -> RedisProjectError {
-        RedisProjectError::Redis(e)
-    }
-}
-
-impl From<serde_json::Error> for RedisProjectError {
-    fn from(e: serde_json::Error) -> RedisProjectError {
-        RedisProjectError::Parsing(e)
-    }
+    #[error("failed to talk to redis")]
+    Redis(#[from] RedisError),
 }
 
 fn parse_redis_response(raw_response: &[u8]) -> Result<ProjectState, RedisProjectError> {

@@ -258,11 +258,10 @@ impl UpstreamProjectSource {
                                     .remove(&key)
                                     .unwrap_or(ErrorBoundary::Ok(None))
                                     .unwrap_or_else(|error| {
-                                        let e = LogError(error);
                                         relay_log::error!(
                                             "error fetching project state {}: {}",
                                             key,
-                                            e
+                                            LogError(error)
                                         );
                                         Some(ProjectState::err())
                                     })

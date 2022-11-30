@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use actix::prelude::*;
 use actix_web::{server, App};
-use failure::{Backtrace, Context, Fail, ResultExt};
+use anyhow::{Context, Result};
 use listenfd::ListenFd;
 use once_cell::race::OnceBox;
 
@@ -32,83 +32,37 @@ use crate::{endpoints, utils};
 
 pub static REGISTRY: OnceBox<Registry> = OnceBox::new();
 
-/// Common error type for the relay server.
-#[derive(Debug)]
-pub struct ServerError {
-    inner: Context<ServerErrorKind>,
-}
-
 /// Indicates the type of failure of the server.
-#[derive(Debug, Fail, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
 pub enum ServerErrorKind {
     /// Binding failed.
-    #[fail(display = "bind to interface failed")]
+    #[error("bind to interface failed")]
     BindFailed,
 
     /// Listening on the HTTP socket failed.
-    #[fail(display = "listening failed")]
+    #[error("listening failed")]
     ListenFailed,
 
     /// A TLS error ocurred.
-    #[fail(display = "could not initialize the TLS server")]
+    #[error("could not initialize the TLS server")]
     TlsInitFailed,
 
     /// TLS support was not compiled in.
-    #[fail(display = "compile with the `ssl` feature to enable SSL support")]
+    #[cfg(not(feature = "ssl"))]
+    #[error("compile with the `ssl` feature to enable SSL support")]
     TlsNotSupported,
 
     /// GeoIp construction failed.
-    #[fail(display = "could not load the Geoip Db")]
+    #[error("could not load the Geoip Db")]
     GeoIpError,
 
-    /// Configuration failed.
-    #[fail(display = "configuration error")]
-    ConfigError,
-
     /// Initializing the Kafka producer failed.
-    #[fail(display = "could not initialize kafka producer")]
+    #[error("could not initialize kafka producer")]
     KafkaError,
 
     /// Initializing the Redis cluster client failed.
-    #[fail(display = "could not initialize redis cluster client")]
+    #[error("could not initialize redis cluster client")]
     RedisError,
-}
-
-impl Fail for ServerError {
-    fn cause(&self) -> Option<&dyn Fail> {
-        self.inner.cause()
-    }
-
-    fn backtrace(&self) -> Option<&Backtrace> {
-        self.inner.backtrace()
-    }
-}
-
-impl fmt::Display for ServerError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(&self.inner, f)
-    }
-}
-
-impl ServerError {
-    /// Returns the error kind of the error.
-    pub fn kind(&self) -> ServerErrorKind {
-        *self.inner.get_context()
-    }
-}
-
-impl From<ServerErrorKind> for ServerError {
-    fn from(kind: ServerErrorKind) -> ServerError {
-        ServerError {
-            inner: Context::new(kind),
-        }
-    }
-}
-
-impl From<Context<ServerErrorKind>> for ServerError {
-    fn from(inner: Context<ServerErrorKind>) -> ServerError {
-        ServerError { inner }
-    }
 }
 
 #[derive(Clone)]
@@ -160,7 +114,7 @@ pub struct ServiceState {
 
 impl ServiceState {
     /// Starts all services and returns addresses to all of them.
-    pub fn start(config: Arc<Config>) -> Result<Self, ServerError> {
+    pub fn start(config: Arc<Config>) -> Result<Self> {
         let system = System::current();
         let registry = system.registry();
 
@@ -291,7 +245,7 @@ where
 fn listen<H, F>(
     server: server::HttpServer<H, F>,
     config: &Config,
-) -> Result<server::HttpServer<H, F>, ServerError>
+) -> Result<server::HttpServer<H, F>>
 where
     H: server::IntoHttpHandler + 'static,
     F: Fn() -> H + Send + Clone + 'static,
@@ -299,7 +253,7 @@ where
     Ok(
         match ListenFd::from_env()
             .take_tcp_listener(0)
-            .context(ServerErrorKind::BindFailed)?
+            .context(ServerErrorKind::ListenFailed)?
         {
             Some(listener) => server.listen(listener),
             None => server
@@ -313,7 +267,7 @@ where
 fn listen_ssl<H, F>(
     mut server: server::HttpServer<H, F>,
     config: &Config,
-) -> Result<server::HttpServer<H, F>, ServerError>
+) -> Result<server::HttpServer<H, F>>
 where
     H: server::IntoHttpHandler + 'static,
     F: Fn() -> H + Send + Clone + 'static,
@@ -367,7 +321,7 @@ where
 /// Given a relay config spawns the server together with all actors and lets them run forever.
 ///
 /// Effectively this boots the server.
-pub fn start(config: Config) -> Result<Recipient<server::StopServer>, ServerError> {
+pub fn start(config: Config) -> Result<Recipient<server::StopServer>> {
     let config = Arc::new(config);
 
     Controller::from_registry().do_send(Configure {

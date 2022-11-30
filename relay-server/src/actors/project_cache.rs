@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use actix::{Actor, Message};
 use actix_web::ResponseError;
-use failure::Fail;
+use tokio::sync::mpsc;
 
 use relay_common::ProjectKey;
 use relay_config::{Config, RelayMode};
@@ -12,7 +12,6 @@ use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
 use relay_statsd::metric;
 use relay_system::{compat, Addr, FromMessage, Interface, Sender, Service};
-use tokio::sync::mpsc;
 
 use crate::actors::outcome::DiscardReason;
 use crate::actors::processor::ProcessEnvelope;
@@ -27,9 +26,9 @@ use crate::utils::{self, EnvelopeContext, GarbageDisposal};
 #[cfg(feature = "processing")]
 use {crate::actors::project_redis::RedisProjectSource, actix::SyncArbiter, relay_common::clone};
 
-#[derive(Fail, Debug, Clone)]
+#[derive(Clone, Debug, thiserror::Error)]
 pub enum ProjectError {
-    #[fail(display = "could not schedule project fetching")]
+    #[error("could not schedule project fetching")]
     ScheduleFailed,
 }
 

@@ -37,7 +37,6 @@ use std::io::{self, Write};
 
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use failure::Fail;
 use relay_common::UnixTimestamp;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use smallvec::SmallVec;
@@ -52,24 +51,24 @@ use crate::utils::ErrorBoundary;
 
 pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 
-#[derive(Debug, Fail)]
+#[derive(Debug, thiserror::Error)]
 pub enum EnvelopeError {
-    #[fail(display = "unexpected end of file")]
+    #[error("unexpected end of file")]
     UnexpectedEof,
-    #[fail(display = "missing envelope header")]
+    #[error("missing envelope header")]
     MissingHeader,
-    #[fail(display = "missing newline after header or payload")]
+    #[error("missing newline after header or payload")]
     MissingNewline,
-    #[fail(display = "invalid envelope header")]
-    InvalidHeader(#[cause] serde_json::Error),
-    #[fail(display = "{} header mismatch between envelope and request", _0)]
+    #[error("invalid envelope header")]
+    InvalidHeader(#[source] serde_json::Error),
+    #[error("{0} header mismatch between envelope and request")]
     HeaderMismatch(&'static str),
-    #[fail(display = "invalid item header")]
-    InvalidItemHeader(#[cause] serde_json::Error),
-    #[fail(display = "failed to write header")]
-    HeaderIoFailed(#[cause] serde_json::Error),
-    #[fail(display = "failed to write payload")]
-    PayloadIoFailed(#[cause] io::Error),
+    #[error("invalid item header")]
+    InvalidItemHeader(#[source] serde_json::Error),
+    #[error("failed to write header")]
+    HeaderIoFailed(#[source] serde_json::Error),
+    #[error("failed to write payload")]
+    PayloadIoFailed(#[source] io::Error),
 }
 
 /// The type of an envelope item.
