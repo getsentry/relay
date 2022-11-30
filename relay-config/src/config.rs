@@ -554,10 +554,10 @@ struct Limits {
     /// The maximum number of seconds to wait for pending envelopes after receiving a shutdown
     /// signal.
     shutdown_timeout: u64,
-    /// Set server keep-alive setting.
+    /// server keep-alive timeout in seconds.
     ///
-    /// By default keep alive is set to a 5 seconds.
-    keepalive_timeout: usize,
+    /// By default keep-alive is set to a 5 seconds.
+    keepalive_timeout: u64,
 }
 
 impl Default for Limits {
@@ -1758,8 +1758,8 @@ impl Config {
     /// Returns the server keep-alive timeout in seconds.
     ///
     /// By default keep alive is set to a 5 seconds.
-    pub fn keepalive_timeout(&self) -> usize {
-        self.values.limits.keepalive_timeout
+    pub fn keepalive_timeout(&self) -> Duration {
+        Duration::from_secs(self.values.limits.keepalive_timeout)
     }
 
     /// Returns the number of cores to use for thread pools.
