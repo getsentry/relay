@@ -1,6 +1,5 @@
+use std::error::Error;
 use std::fmt;
-
-use failure::AsFail;
 
 /// Returns `true` if backtrace printing is enabled.
 ///
@@ -30,11 +29,11 @@ pub fn backtrace_enabled() -> bool {
 ///     relay_log::ensure_error(&error);
 /// }
 /// ```
-pub fn ensure_error<E: failure::AsFail>(error: &E) {
+pub fn ensure_error<E: AsRef<dyn Error>>(error: E) {
     if log::log_enabled!(log::Level::Error) {
-        log::error!("{}", LogError(error));
+        log::error!("{}", LogError(error.as_ref()));
     } else {
-        eprintln!("error: {}", LogError(error));
+        eprintln!("error: {}", LogError(error.as_ref()));
     }
 }
 
@@ -49,22 +48,19 @@ pub fn ensure_error<E: failure::AsFail>(error: &E) {
 ///     relay_log::error!("env failed: {}", LogError(&error));
 /// }
 /// ```
-pub struct LogError<'a, E: AsFail + ?Sized>(pub &'a E);
+pub struct LogError<'a, E: Error + ?Sized>(pub &'a E);
 
-impl<'a, E: AsFail + ?Sized> fmt::Display for LogError<'a, E> {
+impl<'a, E: Error + ?Sized> fmt::Display for LogError<'a, E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let fail = self.0.as_fail();
+        write!(f, "{}", self.0)?;
 
-        write!(f, "{}", fail)?;
-        for cause in fail.iter_causes() {
-            write!(f, "\n  caused by: {}", cause)?;
+        let mut source = self.0.source();
+        while let Some(s) = source {
+            write!(f, "\n  caused by: {s}")?;
+            source = s.source();
         }
 
-        if backtrace_enabled() {
-            if let Some(backtrace) = fail.backtrace() {
-                write!(f, "\n\n{:?}", backtrace)?;
-            }
-        }
+        // NOTE: This is where we would print a backtrace, once stabilized.
 
         Ok(())
     }
