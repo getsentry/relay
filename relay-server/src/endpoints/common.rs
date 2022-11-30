@@ -31,7 +31,7 @@ use crate::utils::{
 
 #[derive(Debug, thiserror::Error)]
 pub enum BadStoreRequest {
-    #[error("unsupported protocol version ({})", .0)]
+    #[error("unsupported protocol version ({0})")]
     UnsupportedProtocolVersion(u16),
 
     #[error("could not schedule event processing")]
@@ -75,7 +75,7 @@ pub enum BadStoreRequest {
     )]
     RateLimited(RateLimits),
 
-    #[error("event submission rejected with_reason: {:?}", _0)]
+    #[error("event submission rejected with_reason: {0:?}")]
     EventRejected(DiscardReason),
 }
 

@@ -89,7 +89,7 @@ pub enum ProcessingError {
     #[error("envelope processor failed")]
     ProcessingFailed(#[from] ProcessingAction),
 
-    #[error("duplicate {} in event", _0)]
+    #[error("duplicate {0} in event")]
     DuplicateItem(ItemType),
 
     #[error("failed to extract event payload")]
@@ -104,7 +104,7 @@ pub enum ProcessingError {
     #[error("invalid security report")]
     InvalidSecurityReport(#[source] serde_json::Error),
 
-    #[error("event filtered with reason: {:?}", _0)]
+    #[error("event filtered with reason: {0:?}")]
     EventFiltered(FilterStatKey),
 
     #[error("could not serialize event payload")]
@@ -114,7 +114,7 @@ pub enum ProcessingError {
     #[error("failed to apply quotas")]
     QuotasFailed(#[from] RateLimitingError),
 
-    #[error("event dropped by sampling rule {}", _0)]
+    #[error("event dropped by sampling rule {0}")]
     Sampled(RuleId),
 
     #[error("invalid pii config")]
