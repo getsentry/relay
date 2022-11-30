@@ -165,7 +165,7 @@ trait ConfigObject: DeserializeOwned + Serialize {
     }
 
     /// Loads the config file from a file within the given directory location.
-    fn load(base: &Path) -> Result<Self, anyhow::Error> {
+    fn load(base: &Path) -> anyhow::Result<Self> {
         let path = Self::path(base);
 
         let f = fs::File::open(&path)
@@ -179,18 +179,8 @@ trait ConfigObject: DeserializeOwned + Serialize {
         }
     }
 
-    /// Writes the configuration object to the given writer.
-    fn write<W: Write>(&self, writer: &mut W) -> Result<(), anyhow::Error> {
-        match Self::format() {
-            ConfigFormat::Yaml => serde_yaml::to_writer(writer, self)
-                .with_context(|| ConfigError::new(ConfigErrorKind::CouldNotWriteFile)),
-            ConfigFormat::Json => serde_json::to_writer_pretty(writer, self)
-                .with_context(|| ConfigError::new(ConfigErrorKind::CouldNotWriteFile)),
-        }
-    }
-
     /// Writes the configuration to a file within the given directory location.
-    fn save(&self, base: &Path) -> Result<(), anyhow::Error> {
+    fn save(&self, base: &Path) -> anyhow::Result<()> {
         let path = Self::path(base);
         let mut options = fs::OpenOptions::new();
         options.write(true).truncate(true).create(true);
@@ -277,7 +267,7 @@ impl Credentials {
     }
 
     /// Serializes this configuration to JSON.
-    pub fn to_json_string(&self) -> Result<String, anyhow::Error> {
+    pub fn to_json_string(&self) -> anyhow::Result<String> {
         serde_json::to_string(self)
             .with_context(|| ConfigError::new(ConfigErrorKind::CouldNotWriteFile))
     }
