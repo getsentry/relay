@@ -34,7 +34,7 @@ pub static REGISTRY: OnceBox<Registry> = OnceBox::new();
 
 /// Indicates the type of failure of the server.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
-pub enum ServerErrorKind {
+pub enum ServerError {
     /// Binding failed.
     #[error("bind to interface failed")]
     BindFailed,
@@ -136,7 +136,7 @@ impl ServiceState {
 
         let redis_pool = match config.redis() {
             Some(redis_config) if config.processing_enabled() => {
-                Some(RedisPool::new(redis_config).context(ServerErrorKind::RedisError)?)
+                Some(RedisPool::new(redis_config).context(ServerError::RedisError)?)
             }
             _ => None,
         };
@@ -255,12 +255,12 @@ where
     Ok(
         match ListenFd::from_env()
             .take_tcp_listener(0)
-            .context(ServerErrorKind::ListenFailed)?
+            .context(ServerError::ListenFailed)?
         {
             Some(listener) => server.listen(listener),
             None => server
                 .bind(config.listen_addr())
-                .context(ServerErrorKind::BindFailed)?,
+                .context(ServerError::BindFailed)?,
         },
     )
 }
@@ -287,15 +287,15 @@ where
         let mut data = vec![];
         file.read_to_end(&mut data).unwrap();
         let identity =
-            Identity::from_pkcs12(&data, password).context(ServerErrorKind::TlsInitFailed)?;
+            Identity::from_pkcs12(&data, password).context(ServerError::TlsInitFailed)?;
 
         let acceptor = TlsAcceptor::builder(identity)
             .build()
-            .context(ServerErrorKind::TlsInitFailed)?;
+            .context(ServerError::TlsInitFailed)?;
 
         server = server
             .bind_tls(addr, acceptor)
-            .context(ServerErrorKind::BindFailed)?;
+            .context(ServerError::BindFailed)?;
     }
 
     Ok(server)
@@ -314,7 +314,7 @@ where
         || config.tls_identity_path().is_some()
         || config.tls_identity_password().is_some()
     {
-        Err(ServerErrorKind::TlsNotSupported.into())
+        Err(ServerError::TlsNotSupported.into())
     } else {
         Ok(server)
     }

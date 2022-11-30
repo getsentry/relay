@@ -37,7 +37,7 @@ use relay_system::{compat, Addr, FromMessage, Service};
 use crate::actors::envelopes::{EnvelopeManager, SendClientReports};
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 #[cfg(feature = "processing")]
-use crate::service::ServerErrorKind;
+use crate::service::ServerError;
 use crate::service::REGISTRY;
 use crate::statsd::RelayCounters;
 use crate::utils::SleepHandle;
@@ -708,10 +708,10 @@ impl KafkaOutcomesProducer {
         for topic in &[KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
             let kafka_config = &config
                 .kafka_config(*topic)
-                .context(ServerErrorKind::KafkaError)?;
+                .context(ServerError::KafkaError)?;
             client_builder = client_builder
                 .add_kafka_topic_config(*topic, kafka_config)
-                .context(ServerErrorKind::KafkaError)?;
+                .context(ServerError::KafkaError)?;
         }
 
         Ok(Self {

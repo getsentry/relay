@@ -20,7 +20,7 @@ use relay_statsd::metric;
 use relay_system::{AsyncResponse, FromMessage, Interface, Sender, Service};
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
-use crate::service::ServerErrorKind;
+use crate::service::ServerError;
 use crate::statsd::RelayCounters;
 
 /// The maximum number of individual session updates generated for each aggregate item.
@@ -59,10 +59,10 @@ impl Producer {
         {
             let kafka_config = &config
                 .kafka_config(*topic)
-                .map_err(|_| ServerErrorKind::KafkaError)?;
+                .map_err(|_| ServerError::KafkaError)?;
             client_builder = client_builder
                 .add_kafka_topic_config(*topic, kafka_config)
-                .map_err(|_| ServerErrorKind::KafkaError)?
+                .map_err(|_| ServerError::KafkaError)?
         }
 
         Ok(Self {

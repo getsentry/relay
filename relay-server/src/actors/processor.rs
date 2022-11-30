@@ -55,7 +55,7 @@ use crate::utils::{
 use {
     crate::actors::envelopes::SendMetrics,
     crate::actors::project_cache::UpdateRateLimits,
-    crate::service::ServerErrorKind,
+    crate::service::ServerError,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
     anyhow::Context,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
@@ -594,7 +594,7 @@ impl EnvelopeProcessorService {
         #[cfg(feature = "processing")]
         {
             let geoip_lookup = match config.geoip_path() {
-                Some(p) => Some(GeoIpLookup::open(p).context(ServerErrorKind::GeoIpError)?),
+                Some(p) => Some(GeoIpLookup::open(p).context(ServerError::GeoIpError)?),
                 None => None,
             };
 
