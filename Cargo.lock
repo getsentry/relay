@@ -3145,10 +3145,10 @@ checksum = "49b3de9ec5dc0a3417da371aab17d729997c15010e7fd24ff707773a33bddb64"
 name = "relay"
 version = "22.11.0"
 dependencies = [
+ "anyhow",
  "clap",
  "console 0.10.3",
  "dialoguer",
- "failure",
  "futures 0.1.31",
  "hostname",
  "once_cell",
@@ -3356,7 +3356,6 @@ dependencies = [
  "chrono",
  "console 0.10.3",
  "env_logger 0.7.1",
- "failure",
  "log",
  "pretty_env_logger",
  "relay-crash",
@@ -3467,6 +3466,7 @@ version = "22.11.0"
 dependencies = [
  "actix",
  "actix-web",
+ "anyhow",
  "base64 0.10.1",
  "brotli2",
  "bytes 0.4.12",
@@ -3514,6 +3514,7 @@ dependencies = [
  "symbolic-common",
  "symbolic-unreal",
  "take_mut",
+ "thiserror",
  "tokio 1.19.2",
  "tokio-timer",
  "url 2.2.2",

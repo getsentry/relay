@@ -2,14 +2,12 @@ use std::env;
 use std::io;
 use std::path::{Path, PathBuf};
 
+use anyhow::{anyhow, bail, Result};
 use clap::{ArgMatches, Shell};
 use dialoguer::{Confirmation, Select};
-use failure::{err_msg, Error};
 
 use relay_common::Uuid;
-use relay_config::{
-    Config, ConfigErrorKind, Credentials, MinimalConfig, OverridableConfig, RelayMode,
-};
+use relay_config::{Config, Credentials, MinimalConfig, OverridableConfig, RelayMode};
 
 use crate::cliapp::make_app;
 use crate::setup;
@@ -17,7 +15,7 @@ use crate::utils;
 use crate::utils::get_theme;
 
 /// Runs the command line application.
-pub fn execute() -> Result<(), Error> {
+pub fn execute() -> Result<()> {
     let app = make_app();
     let matches = app.get_matches();
     let config_path = matches.value_of("config").unwrap_or(".relay");
@@ -34,13 +32,14 @@ pub fn execute() -> Result<(), Error> {
     // Commands that need a loaded config:
     let mut config = match Config::from_path(config_path) {
         Ok(config) => config,
-        Err(e)
-            if matches.value_of("config").is_none()
-                && e.kind() == ConfigErrorKind::CouldNotOpenFile =>
-        {
-            Config::default()
-        }
-        Err(e) => return Err(e.into()),
+        // TODO(ja): Bring this back
+        // Err(e)
+        //     if matches.value_of("config").is_none()
+        //         && e.kind() == ConfigErrorKind::CouldNotOpenFile =>
+        // {
+        //     Config::default()
+        // }
+        Err(e) => return Err(e),
     };
     // override file config with environment variables
     let env_config = extract_config_env_vars();
@@ -110,13 +109,11 @@ pub fn extract_config_env_vars() -> OverridableConfig {
     }
 }
 
-pub fn manage_credentials(mut config: Config, matches: &ArgMatches) -> Result<(), Error> {
+pub fn manage_credentials(mut config: Config, matches: &ArgMatches) -> Result<()> {
     // generate completely new credentials
     if let Some(matches) = matches.subcommand_matches("generate") {
         if config.has_credentials() && !matches.is_present("overwrite") {
-            return Err(err_msg(
-                "aborting because credentials already exist. Pass --overwrite to force.",
-            ));
+            bail!("aborting because credentials already exist. Pass --overwrite to force.");
         }
         let credentials = Credentials::generate();
         if matches.is_present("stdout") {
@@ -132,7 +129,7 @@ pub fn manage_credentials(mut config: Config, matches: &ArgMatches) -> Result<()
             Some(value) => Some(
                 value
                     .parse()
-                    .map_err(|_| err_msg("invalid secret key supplied"))?,
+                    .map_err(|_| anyhow!("invalid secret key supplied"))?,
             ),
             None => config.credentials().map(|x| x.secret_key.clone()),
         };
@@ -140,7 +137,7 @@ pub fn manage_credentials(mut config: Config, matches: &ArgMatches) -> Result<()
             Some(value) => Some(
                 value
                     .parse()
-                    .map_err(|_| err_msg("invalid public key supplied"))?,
+                    .map_err(|_| anyhow!("invalid public key supplied"))?,
             ),
             None => config.credentials().map(|x| x.public_key.clone()),
         };
@@ -149,7 +146,7 @@ pub fn manage_credentials(mut config: Config, matches: &ArgMatches) -> Result<()
             Some(value) => Some(
                 value
                     .parse()
-                    .map_err(|_| err_msg("invalid relay id supplied"))?,
+                    .map_err(|_| anyhow!("invalid relay id supplied"))?,
             ),
             None => config.credentials().map(|x| x.id),
         };
@@ -207,7 +204,7 @@ pub fn manage_credentials(mut config: Config, matches: &ArgMatches) -> Result<()
         }
     } else if let Some(..) = matches.subcommand_matches("show") {
         if !config.has_credentials() {
-            return Err(err_msg("no stored credentials"));
+            bail!("no stored credentials");
         } else {
             println!("Credentials:");
             setup::dump_credentials(&config);
@@ -219,7 +216,7 @@ pub fn manage_credentials(mut config: Config, matches: &ArgMatches) -> Result<()
     Ok(())
 }
 
-pub fn manage_config<'a>(config: &Config, matches: &ArgMatches<'a>) -> Result<(), Error> {
+pub fn manage_config<'a>(config: &Config, matches: &ArgMatches<'a>) -> Result<()> {
     if let Some(matches) = matches.subcommand_matches("init") {
         init_config(config.path(), matches)
     } else if let Some(matches) = matches.subcommand_matches("show") {
@@ -234,7 +231,7 @@ pub fn manage_config<'a>(config: &Config, matches: &ArgMatches<'a>) -> Result<()
     }
 }
 
-pub fn init_config<P: AsRef<Path>>(config_path: P, _matches: &ArgMatches) -> Result<(), Error> {
+pub fn init_config<P: AsRef<Path>>(config_path: P, _matches: &ArgMatches) -> Result<()> {
     let mut done_something = false;
     let config_path = env::current_dir()?.join(config_path.as_ref());
     println!("Initializing relay in {}", config_path.display());
@@ -324,7 +321,7 @@ pub fn init_config<P: AsRef<Path>>(config_path: P, _matches: &ArgMatches) -> Res
     Ok(())
 }
 
-pub fn generate_completions(matches: &ArgMatches) -> Result<(), Error> {
+pub fn generate_completions(matches: &ArgMatches) -> Result<()> {
     let shell = match matches
         .value_of("format")
         .map(|x| x.parse::<Shell>().unwrap())
@@ -354,7 +351,7 @@ pub fn generate_completions(matches: &ArgMatches) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn run(config: Config, _matches: &ArgMatches) -> Result<(), Error> {
+pub fn run(config: Config, _matches: &ArgMatches) -> Result<()> {
     setup::dump_spawn_infos(&config);
     setup::check_config(&config)?;
     setup::init_metrics(&config)?;
