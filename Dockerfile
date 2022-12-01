@@ -1,22 +1,13 @@
-ARG DOCKER_ARCH=amd64
-
 ##################
 ### Deps stage ###
 ##################
 
 FROM getsentry/sentry-cli:1 AS sentry-cli
-FROM $DOCKER_ARCH/centos:7 AS relay-deps
+FROM centos:7 AS relay-deps
 
-ARG DOCKER_ARCH
-ARG BUILD_ARCH=x86_64
 # Pin the Rust version for now
 ARG RUST_TOOLCHAIN_VERSION=1.65.0
-
-ENV DOCKER_ARCH=${DOCKER_ARCH}
-ENV BUILD_ARCH=${BUILD_ARCH}
 ENV RUST_TOOLCHAIN_VERSION=${RUST_TOOLCHAIN_VERSION}
-
-ENV BUILD_TARGET=${BUILD_ARCH}-unknown-linux-gnu
 
 RUN yum -y update \
     && yum -y install centos-release-scl epel-release \
@@ -51,17 +42,23 @@ ENV RELAY_FEATURES=${RELAY_FEATURES}
 COPY . .
 
 # Build with the modern compiler toolchain enabled
-RUN echo -e "[net]\ngit-fetch-with-cli = true" > $CARGO_HOME/config \
+RUN : \
+    && export BUILD_TARGET="$(arch)-unknown-linux-gnu" \
+    && echo -e "[net]\ngit-fetch-with-cli = true" > $CARGO_HOME/config \
     && scl enable devtoolset-10 llvm-toolset-7.0 -- \
     make build-linux-release \
     TARGET=${BUILD_TARGET} \
     RELAY_FEATURES=${RELAY_FEATURES}
 
-RUN cp ./target/$BUILD_TARGET/release/relay /bin/relay \
+RUN : \
+    && export BUILD_TARGET="$(arch)-unknown-linux-gnu" \
+    && cp ./target/$BUILD_TARGET/release/relay /bin/relay \
     && zip /opt/relay-debug.zip target/$BUILD_TARGET/release/relay.debug
 
 # Collect source bundle
-RUN sentry-cli --version \
+RUN : \
+    && export BUILD_TARGET="$(arch)-unknown-linux-gnu" \
+    && sentry-cli --version \
     && sentry-cli difutil bundle-sources ./target/$BUILD_TARGET/release/relay.debug \
     && mv ./target/$BUILD_TARGET/release/relay.src.zip /opt/relay.src.zip
 
