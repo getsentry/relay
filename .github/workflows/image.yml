@@ -6,7 +6,8 @@ jobs:
   build:
     strategy:
       matrix:
-        arch: [amd64, arm64]
+        # the arm64 build takes too long, so disable for now
+        arch: [amd64]
     runs-on: ubuntu-latest
     env:
       IMG_CACHE: ghcr.io/getsentry/relay:${{ matrix.arch }}-latest
@@ -35,17 +36,8 @@ jobs:
         docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' ghcr.io
         docker push "$IMG_VERSIONED"
         docker push "$IMG_CACHE"
-      if: github.event_name != 'pull_request'
 
-  multiarch:
-    if: github.event_name != 'pull_request'
-    needs: [build]
-    runs-on: ubuntu-latest
-    steps:
-    - run: |
-        set -euxo pipefail
-        docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' ghcr.io
-        docker manifest create ghcr.io/getsentry/relay:latest \
-          ghcr.io/getsentry/relay:arm64-latest \
-          ghcr.io/getsentry/relay:amd64-latest
-        docker manifest push ghcr.io/getsentry/relay:latest
+        # for now arm64 is too slow so just retag this as latest
+        docker tag "$IMG_VERSIONED" ghcr.io/getsentry/relay:latest
+        docker push ghcr.io/getsentry/relay:latest
+      if: github.event_name != 'pull_request'
