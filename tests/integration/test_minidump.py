@@ -370,7 +370,7 @@ def test_minidump_with_processing(
     relay = relay_with_processing(
         {
             # Prevent normalization from overwriting the minidump timestamp
-            "processing": {"max_secs_in_past": 2 ** 32 - 1}
+            "processing": {"max_secs_in_past": 2**32 - 1}
         }
     )
 
@@ -513,7 +513,7 @@ def test_crashpad_annotations(mini_sentry, relay_with_processing, attachments_co
     relay = relay_with_processing(
         {
             # Prevent normalization from overwriting the minidump timestamp
-            "processing": {"max_secs_in_past": 2 ** 32 - 1}
+            "processing": {"max_secs_in_past": 2**32 - 1}
         }
     )
 
