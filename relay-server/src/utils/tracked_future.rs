@@ -82,8 +82,8 @@ mod test {
     use super::*;
 
     use actix::{Actor, Context, Handler};
-    use failure::_core::time::Duration;
     use futures01::sync::oneshot::{channel, Sender};
+    use std::time::Duration;
     use tokio_timer::Timeout;
 
     struct TestActor {

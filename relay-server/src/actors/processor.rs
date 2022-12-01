@@ -9,7 +9,6 @@ use std::time::{Duration, Instant};
 use actix::SystemService;
 use brotli2::write::BrotliEncoder;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
-use failure::Fail;
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use once_cell::sync::OnceCell;
@@ -46,7 +45,7 @@ use crate::actors::upstream::{SendRequest, UpstreamRelay};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::metrics_extraction::sessions::{extract_session_metrics, SessionMetricsConfig};
 use crate::metrics_extraction::transactions::extract_transaction_metrics;
-use crate::service::{ServerError, REGISTRY};
+use crate::service::REGISTRY;
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
     self, ChunkedFormDataAggregator, EnvelopeContext, ErrorBoundary, FormDataIter, SamplingResult,
@@ -56,9 +55,9 @@ use crate::utils::{
 use {
     crate::actors::envelopes::SendMetrics,
     crate::actors::project_cache::UpdateRateLimits,
-    crate::service::ServerErrorKind,
+    crate::service::ServerError,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
-    failure::ResultExt,
+    anyhow::Context,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::ItemScoping,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
@@ -69,56 +68,56 @@ use {
 const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
 
 /// An error returned when handling [`ProcessEnvelope`].
-#[derive(Debug, Fail)]
+#[derive(Debug, thiserror::Error)]
 pub enum ProcessingError {
-    #[fail(display = "invalid json in event")]
-    InvalidJson(#[cause] serde_json::Error),
+    #[error("invalid json in event")]
+    InvalidJson(#[source] serde_json::Error),
 
-    #[fail(display = "invalid message pack event payload")]
-    InvalidMsgpack(#[cause] rmp_serde::decode::Error),
+    #[error("invalid message pack event payload")]
+    InvalidMsgpack(#[from] rmp_serde::decode::Error),
 
     #[cfg(feature = "processing")]
-    #[fail(display = "invalid unreal crash report")]
-    InvalidUnrealReport(#[cause] Unreal4Error),
+    #[error("invalid unreal crash report")]
+    InvalidUnrealReport(#[source] Unreal4Error),
 
-    #[fail(display = "event payload too large")]
+    #[error("event payload too large")]
     PayloadTooLarge,
 
-    #[fail(display = "invalid transaction event")]
+    #[error("invalid transaction event")]
     InvalidTransaction,
 
-    #[fail(display = "envelope processor failed")]
-    ProcessingFailed(#[cause] ProcessingAction),
+    #[error("envelope processor failed")]
+    ProcessingFailed(#[from] ProcessingAction),
 
-    #[fail(display = "duplicate {} in event", _0)]
+    #[error("duplicate {0} in event")]
     DuplicateItem(ItemType),
 
-    #[fail(display = "failed to extract event payload")]
+    #[error("failed to extract event payload")]
     NoEventPayload,
 
-    #[fail(display = "missing project id in DSN")]
+    #[error("missing project id in DSN")]
     MissingProjectId,
 
-    #[fail(display = "invalid security report type")]
+    #[error("invalid security report type")]
     InvalidSecurityType,
 
-    #[fail(display = "invalid security report")]
-    InvalidSecurityReport(#[cause] serde_json::Error),
+    #[error("invalid security report")]
+    InvalidSecurityReport(#[source] serde_json::Error),
 
-    #[fail(display = "event filtered with reason: {:?}", _0)]
+    #[error("event filtered with reason: {0:?}")]
     EventFiltered(FilterStatKey),
 
-    #[fail(display = "could not serialize event payload")]
-    SerializeFailed(#[cause] serde_json::Error),
+    #[error("could not serialize event payload")]
+    SerializeFailed(#[source] serde_json::Error),
 
     #[cfg(feature = "processing")]
-    #[fail(display = "failed to apply quotas")]
-    QuotasFailed(#[cause] RateLimitingError),
+    #[error("failed to apply quotas")]
+    QuotasFailed(#[from] RateLimitingError),
 
-    #[fail(display = "event dropped by sampling rule {}", _0)]
+    #[error("event dropped by sampling rule {0}")]
     Sampled(RuleId),
 
-    #[fail(display = "invalid pii config")]
+    #[error("invalid pii config")]
     PiiConfigError(PiiConfigError),
 }
 
@@ -591,11 +590,11 @@ pub struct EnvelopeProcessorService {
 
 impl EnvelopeProcessorService {
     /// Creates a multi-threaded envelope processor.
-    pub fn new(config: Arc<Config>, _redis: Option<RedisPool>) -> Result<Self, ServerError> {
+    pub fn new(config: Arc<Config>, _redis: Option<RedisPool>) -> anyhow::Result<Self> {
         #[cfg(feature = "processing")]
         {
             let geoip_lookup = match config.geoip_path() {
-                Some(p) => Some(GeoIpLookup::open(p).context(ServerErrorKind::GeoIpError)?),
+                Some(p) => Some(GeoIpLookup::open(p).context(ServerError::GeoIpError)?),
                 None => None,
             };
 
@@ -1357,8 +1356,7 @@ impl EnvelopeProcessorService {
         let mut deserializer = rmp_serde::Deserializer::new(payload.as_ref());
 
         while !deserializer.get_ref().is_empty() {
-            let breadcrumb = Annotated::deserialize_with_meta(&mut deserializer)
-                .map_err(ProcessingError::InvalidMsgpack)?;
+            let breadcrumb = Annotated::deserialize_with_meta(&mut deserializer)?;
             breadcrumbs.push(breadcrumb);
         }
 
@@ -1790,9 +1788,7 @@ impl EnvelopeProcessorService {
 
         let scoping = state.envelope_context.scoping();
         let (enforcement, limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
-            envelope_limiter
-                .enforce(&mut state.envelope, &scoping)
-                .map_err(ProcessingError::QuotasFailed)?
+            envelope_limiter.enforce(&mut state.envelope, &scoping)?
         });
 
         if limits.is_limited() {
@@ -1869,8 +1865,7 @@ impl EnvelopeProcessorService {
         metric!(timer(RelayTimers::EventProcessingPii), {
             if let Some(ref config) = config.pii_config {
                 let mut processor = PiiProcessor::new(config.compiled());
-                process_value(event, &mut processor, ProcessingState::root())
-                    .map_err(ProcessingError::ProcessingFailed)?;
+                process_value(event, &mut processor, ProcessingState::root())?;
             }
             let pii_config = config
                 .datascrubbing_settings
@@ -1878,8 +1873,7 @@ impl EnvelopeProcessorService {
                 .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
             if let Some(config) = pii_config {
                 let mut processor = PiiProcessor::new(config.compiled());
-                process_value(event, &mut processor, ProcessingState::root())
-                    .map_err(ProcessingError::ProcessingFailed)?;
+                process_value(event, &mut processor, ProcessingState::root())?;
             }
         });
 
