@@ -12,7 +12,9 @@ use serde::{ser::Error, Serialize};
 
 use relay_common::{ProjectId, UnixTimestamp, Uuid};
 use relay_config::Config;
-use relay_general::protocol::{self, EventId, SessionAggregates, SessionStatus, SessionUpdate};
+use relay_general::protocol::{
+    self, AbnormalMechanism, EventId, SessionAggregates, SessionStatus, SessionUpdate,
+};
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 use relay_log::LogError;
 use relay_metrics::{Bucket, BucketValue, MetricNamespace, MetricResourceIdentifier};
@@ -411,6 +413,7 @@ impl StoreService {
             sdk: client.map(str::to_owned),
             retention_days: event_retention,
             status: SessionStatus::Exited,
+            abnormal_mechanism: None,
         };
 
         if aggregates.len() > MAX_EXPLODED_SESSIONS {
@@ -478,6 +481,7 @@ impl StoreService {
                 started: protocol::datetime_to_timestamp(session.started),
                 duration: session.duration,
                 status: session.status,
+                abnormal_mechanism: session.abnormal_mechanism,
                 errors: session
                     .errors
                     .min(u16::max_value().into())
@@ -876,6 +880,7 @@ struct SessionKafkaMessage {
     started: f64,
     duration: Option<f64>,
     status: SessionStatus,
+    abnormal_mechanism: Option<AbnormalMechanism>,
     errors: u16,
     release: String,
     environment: Option<String>,

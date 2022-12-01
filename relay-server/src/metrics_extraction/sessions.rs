@@ -152,13 +152,24 @@ pub fn extract_session_metrics<T: SessionLike>(
         ));
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
+            let mut tags_for_abnormal_session = tags.clone();
+            if let Some(ref abnormal_mechanism) = session.abnormal_mechanism() {
+                tags_for_abnormal_session.insert(
+                    "abnormal_mechanism".to_owned(),
+                    abnormal_mechanism.to_string(),
+                );
+            }
             target.push(Metric::new_mri(
                 METRIC_NAMESPACE,
                 "user",
                 MetricUnit::None,
                 MetricValue::set_from_str(distinct_id),
                 timestamp,
-                with_tag(&tags, "session.status", SessionStatus::Abnormal),
+                with_tag(
+                    &tags_for_abnormal_session,
+                    "session.status",
+                    SessionStatus::Abnormal,
+                ),
             ));
         }
     }
@@ -348,7 +359,9 @@ mod tests {
 
     #[test]
     fn test_extract_session_metrics_fatal() {
-        for status in &[SessionStatus::Crashed, SessionStatus::Abnormal] {
+        for (status, expected_metrics) in
+            vec![(&SessionStatus::Crashed, 4), (&SessionStatus::Abnormal, 4)]
+        {
             let mut session = SessionUpdate::parse(
                 r#"{
                     "init": false,
@@ -356,7 +369,8 @@ mod tests {
                     "attrs": {
                         "release": "1.0.0"
                     },
-                    "did": "user123"
+                    "did": "user123",
+                    "abnormal_mechanism": "anr_foreground"
                 }"#
                 .as_bytes(),
             )
@@ -367,7 +381,9 @@ mod tests {
 
             extract_session_metrics(&session.attributes, &session, None, &mut metrics);
 
-            assert_eq!(metrics.len(), 4);
+            println!("{:?}", metrics);
+
+            assert_eq!(metrics.len(), expected_metrics);
 
             assert_eq!(metrics[0].name, "s:sessions/error@none");
             assert_eq!(metrics[1].name, "s:sessions/user@none");

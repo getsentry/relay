@@ -1,3 +1,4 @@
+use std::string;
 use std::time::SystemTime;
 
 use chrono::{DateTime, Utc};
@@ -62,6 +63,53 @@ derive_fromstr_and_display!(SessionStatus, ParseSessionStatusError, {
     SessionStatus::Errored => "errored",
 });
 
+// #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+// pub struct AbnormalMechanism {
+//     /// Specifies whether this filter is enabled.
+//     pub mechanism: Option<String>,
+// }
+
+// impl AbnormalMechanism {
+//     /// Returns true if value is not in allow list.
+//     pub fn is_incompatible(&self) -> bool {
+//         match &self.mechanism {
+//             Some(mechanism) => VALID_SESSION_MECHANISMS.contains(&mechanism.as_str()),
+//             None => false,
+//         }
+//     }
+// }
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AbnormalMechanism {
+    AnrForeground,
+    AnrBackground,
+    #[serde(other)]
+    None,
+}
+
+#[derive(Debug, Fail)]
+#[fail(display = "invalid abnormal mechanism")]
+pub struct ParseSessionAbnormalMechanism;
+
+derive_fromstr_and_display!(AbnormalMechanism, ParseSessionAbnormalMechanism, {
+    AbnormalMechanism::AnrForeground => "anr_foreground",
+    AbnormalMechanism::AnrBackground => "anr_background",
+    AbnormalMechanism::None => "",
+});
+
+// impl AbnormalMechanism {
+//     fn is_none(&self) -> bool {
+//         *self == Self::None
+//     }
+// }
+
+impl Default for AbnormalMechanism {
+    fn default() -> Self {
+        AbnormalMechanism::None
+    }
+}
+
 /// Additional attributes for Sessions.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SessionAttributes {
@@ -111,6 +159,7 @@ pub trait SessionLike {
     fn crashed_count(&self) -> u32;
     fn all_errors(&self) -> Option<SessionErrored>;
     fn final_duration(&self) -> Option<(f64, SessionStatus)>;
+    fn abnormal_mechanism(&self) -> Option<AbnormalMechanism>;
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -144,6 +193,9 @@ pub struct SessionUpdate {
     /// The session event attributes.
     #[serde(rename = "attrs")]
     pub attributes: SessionAttributes,
+    /// The abnormal mechanism.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub abnormal_mechanism: Option<AbnormalMechanism>,
 }
 
 impl SessionUpdate {
@@ -200,6 +252,10 @@ impl SessionLike for SessionUpdate {
         } else {
             None
         }
+    }
+
+    fn abnormal_mechanism(&self) -> Option<AbnormalMechanism> {
+        self.abnormal_mechanism
     }
 }
 
@@ -264,6 +320,9 @@ impl SessionLike for SessionAggregateItem {
             None
         }
     }
+    fn abnormal_mechanism(&self) -> Option<AbnormalMechanism> {
+        None
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -327,6 +386,7 @@ mod tests {
             duration: None,
             init: false,
             status: SessionStatus::Ok,
+            abnormal_mechanism: None,
             errors: 0,
             attributes: SessionAttributes {
                 release: "sentry-test@1.0.0".to_owned(),
@@ -387,6 +447,7 @@ mod tests {
             started: "2020-02-07T14:16:00Z".parse().unwrap(),
             duration: Some(1947.49),
             status: SessionStatus::Exited,
+            abnormal_mechanism: None,
             errors: 0,
             init: true,
             attributes: SessionAttributes {
