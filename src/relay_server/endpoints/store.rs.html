@@ -234,7 +234,7 @@
     };
 
     <span class="kw">let </span>future = StoreBody::new(request, max_payload_size)
-        .map_err(BadStoreRequest::PayloadError)
+        .map_err(BadStoreRequest::from)
         .and_then(<span class="kw">move </span>|data| {
             <span class="kw">if </span>data.is_empty() {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::EmptyBody);

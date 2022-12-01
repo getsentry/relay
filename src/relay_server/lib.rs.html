@@ -284,8 +284,6 @@
 <span id="282">282</span>
 <span id="283">283</span>
 <span id="284">284</span>
-<span id="285">285</span>
-<span id="286">286</span>
 </pre><pre class="rust"><code><span class="doccomment">//! The Sentry relay server application.
 //!
 //! This module contains the [`run`] function which starts the relay server. It responds on
@@ -559,14 +557,12 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::server::Server;
 
-<span class="kw">pub use </span><span class="kw">crate</span>::service::ServerError;
-
 <span class="doccomment">/// Runs a relay web server and spawns all internal worker threads.
 ///
 /// This effectively boots the entire server application. It blocks the current thread until a
 /// shutdown signal is received or a fatal error happens. Behavior of the server is determined by
 /// the `config` passed into this funciton.
-</span><span class="kw">pub fn </span>run(config: Config) -&gt; <span class="prelude-ty">Result</span>&lt;(), ServerError&gt; {
+</span><span class="kw">pub fn </span>run(config: Config) -&gt; anyhow::Result&lt;()&gt; {
     <span class="comment">// Run the controller and block until a shutdown signal is sent to this process. This will
     // create an actix system, start a web server and run all relevant actors inside. See the
     // `actors` module documentation for more information on all actors.

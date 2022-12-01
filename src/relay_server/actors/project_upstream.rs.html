@@ -381,7 +381,6 @@
 <span id="379">379</span>
 <span id="380">380</span>
 <span id="381">381</span>
-<span id="382">382</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::sync::Arc;
@@ -642,11 +641,10 @@
                                     .remove(<span class="kw-2">&amp;</span>key)
                                     .unwrap_or(ErrorBoundary::Ok(<span class="prelude-val">None</span>))
                                     .unwrap_or_else(|error| {
-                                        <span class="kw">let </span>e = LogError(error);
                                         <span class="macro">relay_log::error!</span>(
                                             <span class="string">&quot;error fetching project state {}: {}&quot;</span>,
                                             key,
-                                            e
+                                            LogError(error)
                                         );
                                         <span class="prelude-val">Some</span>(ProjectState::err())
                                     })

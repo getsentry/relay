@@ -133,23 +133,9 @@
 <span id="131">131</span>
 <span id="132">132</span>
 <span id="133">133</span>
-<span id="134">134</span>
-<span id="135">135</span>
-<span id="136">136</span>
-<span id="137">137</span>
-<span id="138">138</span>
-<span id="139">139</span>
-<span id="140">140</span>
-<span id="141">141</span>
-<span id="142">142</span>
-<span id="143">143</span>
-<span id="144">144</span>
-<span id="145">145</span>
-<span id="146">146</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>actix::prelude::<span class="kw-2">*</span>;
-<span class="kw">use </span>failure::Fail;
 <span class="kw">use </span>relay_common::ProjectKey;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_log::LogError;
@@ -166,25 +152,13 @@
     redis: RedisPool,
 }
 
-<span class="attribute">#[derive(Debug, Fail)]
+<span class="attribute">#[derive(Debug, thiserror::Error)]
 </span><span class="kw">enum </span>RedisProjectError {
-    <span class="attribute">#[fail(display = <span class="string">&quot;failed to parse projectconfig from redis&quot;</span>)]
-    </span>Parsing(<span class="attribute">#[cause] </span>serde_json::Error),
+    <span class="attribute">#[error(<span class="string">&quot;failed to parse projectconfig from redis&quot;</span>)]
+    </span>Parsing(<span class="attribute">#[from] </span>serde_json::Error),
 
-    <span class="attribute">#[fail(display = <span class="string">&quot;failed to talk to redis&quot;</span>)]
-    </span>Redis(<span class="attribute">#[cause] </span>RedisError),
-}
-
-<span class="kw">impl </span>From&lt;RedisError&gt; <span class="kw">for </span>RedisProjectError {
-    <span class="kw">fn </span>from(e: RedisError) -&gt; RedisProjectError {
-        RedisProjectError::Redis(e)
-    }
-}
-
-<span class="kw">impl </span>From&lt;serde_json::Error&gt; <span class="kw">for </span>RedisProjectError {
-    <span class="kw">fn </span>from(e: serde_json::Error) -&gt; RedisProjectError {
-        RedisProjectError::Parsing(e)
-    }
+    <span class="attribute">#[error(<span class="string">&quot;failed to talk to redis&quot;</span>)]
+    </span>Redis(<span class="attribute">#[from] </span>RedisError),
 }
 
 <span class="kw">fn </span>parse_redis_response(raw_response: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;ProjectState, RedisProjectError&gt; {

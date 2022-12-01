@@ -1893,9 +1893,11 @@
 <span id="1891">1891</span>
 <span id="1892">1892</span>
 <span id="1893">1893</span>
+<span id="1894">1894</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::convert::TryInto;
 <span class="kw">use </span>std::env;
+<span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::fs;
 <span class="kw">use </span>std::io;
@@ -1905,7 +1907,7 @@
 <span class="kw">use </span>std::str::FromStr;
 <span class="kw">use </span>std::time::Duration;
 
-<span class="kw">use </span>failure::{Backtrace, Context, Fail};
+<span class="kw">use </span>anyhow::Context;
 <span class="kw">use </span>serde::de::{Unexpected, Visitor};
 <span class="kw">use </span>serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize, Serializer};
 
@@ -1921,6 +1923,41 @@
 <span class="kw">use </span><span class="kw">crate</span>::upstream::UpstreamDescriptor;
 
 <span class="kw">const </span>DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD: u64 = <span class="number">10</span>;
+
+<span class="doccomment">/// Indicates config related errors.
+</span><span class="attribute">#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+</span><span class="kw">pub enum </span>ConfigErrorKind {
+    <span class="doccomment">/// Failed to open the file.
+    </span>CouldNotOpenFile,
+    <span class="doccomment">/// Failed to save a file.
+    </span>CouldNotWriteFile,
+    <span class="doccomment">/// Parsing YAML failed.
+    </span>BadYaml,
+    <span class="doccomment">/// Parsing JSON failed.
+    </span>BadJson,
+    <span class="doccomment">/// Invalid config value
+    </span>InvalidValue,
+    <span class="doccomment">/// The user attempted to run Relay with processing enabled, but uses a binary that was
+    /// compiled without the processing feature.
+    </span>ProcessingNotAvailable,
+}
+
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>ConfigErrorKind {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::CouldNotOpenFile =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;could not open config file&quot;</span>),
+            <span class="self">Self</span>::CouldNotWriteFile =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;could not write config file&quot;</span>),
+            <span class="self">Self</span>::BadYaml =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;could not parse yaml config file&quot;</span>),
+            <span class="self">Self</span>::BadJson =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;could not parse json config file&quot;</span>),
+            <span class="self">Self</span>::InvalidValue =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;invalid config value&quot;</span>),
+            <span class="self">Self</span>::ProcessingNotAvailable =&gt; <span class="macro">write!</span>(
+                f,
+                <span class="string">&quot;was not compiled with processing, cannot enable processing&quot;
+            </span>),
+        }
+    }
+}
 
 <span class="doccomment">/// Defines the source of a config error
 </span><span class="attribute">#[derive(Debug)]
@@ -1939,104 +1976,63 @@
     }
 }
 
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>ConfigErrorSource {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">match </span><span class="self">self </span>{
+            ConfigErrorSource::None =&gt; <span class="prelude-val">Ok</span>(()),
+            ConfigErrorSource::File(file_name) =&gt; {
+                <span class="macro">write!</span>(f, <span class="string">&quot; (file {})&quot;</span>, file_name.display())
+            }
+            ConfigErrorSource::FieldOverride(name) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot; (field {})&quot;</span>, name),
+        }
+    }
+}
+
 <span class="doccomment">/// Indicates config related errors.
 </span><span class="attribute">#[derive(Debug)]
 </span><span class="kw">pub struct </span>ConfigError {
     source: ConfigErrorSource,
-    inner: Context&lt;ConfigErrorKind&gt;,
+    kind: ConfigErrorKind,
 }
 
 <span class="kw">impl </span>ConfigError {
     <span class="attribute">#[inline]
-    </span><span class="kw">fn </span>new&lt;C&gt;(context: C) -&gt; <span class="self">Self
-    </span><span class="kw">where
-        </span>C: Into&lt;Context&lt;ConfigErrorKind&gt;&gt;,
-    {
+    </span><span class="kw">fn </span>new(kind: ConfigErrorKind) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             source: ConfigErrorSource::None,
-            inner: context.into(),
+            kind,
         }
     }
 
     <span class="attribute">#[inline]
-    </span><span class="kw">fn </span>wrap&lt;E&gt;(inner: E, kind: ConfigErrorKind) -&gt; <span class="self">Self
-    </span><span class="kw">where
-        </span>E: Fail,
-    {
-        <span class="self">Self</span>::new(inner.context(kind))
+    </span><span class="kw">fn </span>field(field: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            source: ConfigErrorSource::FieldOverride(field.to_owned()),
+            kind: ConfigErrorKind::InvalidValue,
+        }
     }
 
     <span class="attribute">#[inline]
-    </span><span class="kw">fn </span>for_field&lt;E&gt;(inner: E, field: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str) -&gt; <span class="self">Self
-    </span><span class="kw">where
-        </span>E: Fail,
-    {
-        <span class="self">Self</span>::wrap(inner, ConfigErrorKind::InvalidValue).field(field)
+    </span><span class="kw">fn </span>file(kind: ConfigErrorKind, p: <span class="kw">impl </span>AsRef&lt;Path&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            source: ConfigErrorSource::File(p.as_ref().to_path_buf()),
+            kind,
+        }
     }
-
-    <span class="attribute">#[inline]
-    </span><span class="kw">fn </span>file&lt;P: AsRef&lt;Path&gt;&gt;(<span class="kw-2">mut </span><span class="self">self</span>, p: P) -&gt; <span class="self">Self </span>{
-        <span class="self">self</span>.source = ConfigErrorSource::File(p.as_ref().to_path_buf());
-        <span class="self">self
-    </span>}
-
-    <span class="attribute">#[inline]
-    </span><span class="kw">fn </span>field(<span class="kw-2">mut </span><span class="self">self</span>, name: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str) -&gt; <span class="self">Self </span>{
-        <span class="self">self</span>.source = ConfigErrorSource::FieldOverride(name.to_owned());
-        <span class="self">self
-    </span>}
 
     <span class="doccomment">/// Returns the error kind of the error.
     </span><span class="kw">pub fn </span>kind(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ConfigErrorKind {
-        <span class="kw-2">*</span><span class="self">self</span>.inner.get_context()
-    }
-}
-
-<span class="kw">impl </span>Fail <span class="kw">for </span>ConfigError {
-    <span class="kw">fn </span>cause(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="kw">dyn </span>Fail&gt; {
-        <span class="self">self</span>.inner.cause()
-    }
-
-    <span class="kw">fn </span>backtrace(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Backtrace&gt; {
-        <span class="self">self</span>.inner.backtrace()
+        <span class="self">self</span>.kind
     }
 }
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>ConfigError {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.source {
-            ConfigErrorSource::None =&gt; <span class="self">self</span>.inner.fmt(f),
-            ConfigErrorSource::File(file_name) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">&quot;{} (file {})&quot;</span>, <span class="self">self</span>.inner, file_name.display())
-            }
-            ConfigErrorSource::FieldOverride(name) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{} (field {})&quot;</span>, <span class="self">self</span>.inner, name),
-        }
+        <span class="macro">write!</span>(f, <span class="string">&quot;{}{}&quot;</span>, <span class="self">self</span>.kind(), <span class="self">self</span>.source)
     }
 }
 
-<span class="doccomment">/// Indicates config related errors.
-</span><span class="attribute">#[derive(Fail, Debug, Copy, Clone, PartialEq, Eq, Hash)]
-</span><span class="kw">pub enum </span>ConfigErrorKind {
-    <span class="doccomment">/// Failed to open the file.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;could not open config file&quot;</span>)]
-    </span>CouldNotOpenFile,
-    <span class="doccomment">/// Failed to save a file.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;could not write config file&quot;</span>)]
-    </span>CouldNotWriteFile,
-    <span class="doccomment">/// Parsing YAML failed.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;could not parse yaml config file&quot;</span>)]
-    </span>BadYaml,
-    <span class="doccomment">/// Parsing JSON failed.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;could not parse json config file&quot;</span>)]
-    </span>BadJson,
-    <span class="doccomment">/// Invalid config value
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;invalid config value&quot;</span>)]
-    </span>InvalidValue,
-    <span class="doccomment">/// The user attempted to run Relay with processing enabled, but uses a binary that was
-    /// compiled without the processing feature.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;was not compiled with processing, cannot enable processing&quot;</span>)]
-    </span>ProcessingNotAvailable,
-}
+<span class="kw">impl </span>Error <span class="kw">for </span>ConfigError {}
 
 <span class="kw">enum </span>ConfigFormat {
     Yaml,
@@ -2065,32 +2061,22 @@
     }
 
     <span class="doccomment">/// Loads the config file from a file within the given directory location.
-    </span><span class="kw">fn </span>load(base: <span class="kw-2">&amp;</span>Path) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ConfigError&gt; {
+    </span><span class="kw">fn </span>load(base: <span class="kw-2">&amp;</span>Path) -&gt; anyhow::Result&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>path = <span class="self">Self</span>::path(base);
 
         <span class="kw">let </span>f = fs::File::open(<span class="kw-2">&amp;</span>path)
-            .map_err(|e| ConfigError::wrap(e, ConfigErrorKind::CouldNotOpenFile).file(<span class="kw-2">&amp;</span>path))<span class="question-mark">?</span>;
+            .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotOpenFile, <span class="kw-2">&amp;</span>path))<span class="question-mark">?</span>;
 
         <span class="kw">match </span><span class="self">Self</span>::format() {
             ConfigFormat::Yaml =&gt; serde_yaml::from_reader(io::BufReader::new(f))
-                .map_err(|e| ConfigError::wrap(e, ConfigErrorKind::BadYaml).file(<span class="kw-2">&amp;</span>path)),
+                .with_context(|| ConfigError::file(ConfigErrorKind::BadYaml, <span class="kw-2">&amp;</span>path)),
             ConfigFormat::Json =&gt; serde_json::from_reader(io::BufReader::new(f))
-                .map_err(|e| ConfigError::wrap(e, ConfigErrorKind::BadJson).file(<span class="kw-2">&amp;</span>path)),
-        }
-    }
-
-    <span class="doccomment">/// Writes the configuration object to the given writer.
-    </span><span class="kw">fn </span>write&lt;W: Write&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, writer: <span class="kw-2">&amp;mut </span>W) -&gt; <span class="prelude-ty">Result</span>&lt;(), ConfigError&gt; {
-        <span class="kw">match </span><span class="self">Self</span>::format() {
-            ConfigFormat::Yaml =&gt; serde_yaml::to_writer(writer, <span class="self">self</span>)
-                .map_err(|e| ConfigError::wrap(e, ConfigErrorKind::CouldNotWriteFile)),
-            ConfigFormat::Json =&gt; serde_json::to_writer_pretty(writer, <span class="self">self</span>)
-                .map_err(|e| ConfigError::wrap(e, ConfigErrorKind::CouldNotWriteFile)),
+                .with_context(|| ConfigError::file(ConfigErrorKind::BadJson, <span class="kw-2">&amp;</span>path)),
         }
     }
 
     <span class="doccomment">/// Writes the configuration to a file within the given directory location.
-    </span><span class="kw">fn </span>save(<span class="kw-2">&amp;</span><span class="self">self</span>, base: <span class="kw-2">&amp;</span>Path) -&gt; <span class="prelude-ty">Result</span>&lt;(), ConfigError&gt; {
+    </span><span class="kw">fn </span>save(<span class="kw-2">&amp;</span><span class="self">self</span>, base: <span class="kw-2">&amp;</span>Path) -&gt; anyhow::Result&lt;()&gt; {
         <span class="kw">let </span>path = <span class="self">Self</span>::path(base);
         <span class="kw">let </span><span class="kw-2">mut </span>options = fs::OpenOptions::new();
         options.write(<span class="bool-val">true</span>).truncate(<span class="bool-val">true</span>).create(<span class="bool-val">true</span>);
@@ -2104,9 +2090,15 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>f = options
             .open(<span class="kw-2">&amp;</span>path)
-            .map_err(|e| ConfigError::wrap(e, ConfigErrorKind::CouldNotWriteFile).file(<span class="kw-2">&amp;</span>path))<span class="question-mark">?</span>;
+            .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotWriteFile, <span class="kw-2">&amp;</span>path))<span class="question-mark">?</span>;
 
-        <span class="self">self</span>.write(<span class="kw-2">&amp;mut </span>f).map_err(|e| e.file(<span class="kw-2">&amp;</span>path))<span class="question-mark">?</span>;
+        <span class="kw">match </span><span class="self">Self</span>::format() {
+            ConfigFormat::Yaml =&gt; serde_yaml::to_writer(<span class="kw-2">&amp;mut </span>f, <span class="self">self</span>)
+                .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotWriteFile, <span class="kw-2">&amp;</span>path))<span class="question-mark">?</span>,
+            ConfigFormat::Json =&gt; serde_json::to_writer_pretty(<span class="kw-2">&amp;mut </span>f, <span class="self">self</span>)
+                .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotWriteFile, <span class="kw-2">&amp;</span>path))<span class="question-mark">?</span>,
+        }
+
         f.write_all(<span class="string">b&quot;\n&quot;</span>).ok();
 
         <span class="prelude-val">Ok</span>(())
@@ -2171,9 +2163,9 @@
     }
 
     <span class="doccomment">/// Serializes this configuration to JSON.
-    </span><span class="kw">pub fn </span>to_json_string(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;String, ConfigError&gt; {
+    </span><span class="kw">pub fn </span>to_json_string(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; anyhow::Result&lt;String&gt; {
         serde_json::to_string(<span class="self">self</span>)
-            .map_err(|e| ConfigError::wrap(e, ConfigErrorKind::CouldNotWriteFile))
+            .with_context(|| ConfigError::new(ConfigErrorKind::CouldNotWriteFile))
     }
 }
 
@@ -2249,8 +2241,23 @@
     }
 }
 
+<span class="doccomment">/// Error returned when parsing an invalid [`RelayMode`].
+</span><span class="attribute">#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+</span><span class="kw">pub struct </span>ParseRelayModeError;
+
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>ParseRelayModeError {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(
+            f,
+            <span class="string">&quot;Relay mode must be one of: managed, static, proxy, capture&quot;
+        </span>)
+    }
+}
+
+<span class="kw">impl </span>Error <span class="kw">for </span>ParseRelayModeError {}
+
 <span class="kw">impl </span>FromStr <span class="kw">for </span>RelayMode {
-    <span class="kw">type </span><span class="prelude-val">Err </span>= Context&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str&gt;;
+    <span class="kw">type </span><span class="prelude-val">Err </span>= ParseRelayModeError;
 
     <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
         <span class="kw">match </span>s {
@@ -2258,9 +2265,7 @@
             <span class="string">&quot;static&quot; </span>=&gt; <span class="prelude-val">Ok</span>(RelayMode::Static),
             <span class="string">&quot;managed&quot; </span>=&gt; <span class="prelude-val">Ok</span>(RelayMode::Managed),
             <span class="string">&quot;capture&quot; </span>=&gt; <span class="prelude-val">Ok</span>(RelayMode::Capture),
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Context::new(
-                <span class="string">&quot;Relay mode must be one of: managed, static, proxy, capture&quot;</span>,
-            )),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(ParseRelayModeError),
         }
     }
 }
@@ -2905,11 +2910,11 @@
 
 <span class="kw">impl </span>MinimalConfig {
     <span class="doccomment">/// Saves the config in the given config folder as config.yml
-    </span><span class="kw">pub fn </span>save_in_folder&lt;P: AsRef&lt;Path&gt;&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, p: P) -&gt; <span class="prelude-ty">Result</span>&lt;(), ConfigError&gt; {
+    </span><span class="kw">pub fn </span>save_in_folder&lt;P: AsRef&lt;Path&gt;&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, p: P) -&gt; anyhow::Result&lt;()&gt; {
         <span class="kw">let </span>path = p.as_ref();
         <span class="kw">if </span>fs::metadata(path).is_err() {
             fs::create_dir_all(path)
-                .map_err(|e| ConfigError::wrap(e, ConfigErrorKind::CouldNotOpenFile).file(path))<span class="question-mark">?</span>;
+                .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotOpenFile, path))<span class="question-mark">?</span>;
         }
         <span class="self">self</span>.save(path)
     }
@@ -3059,7 +3064,7 @@
 
 <span class="kw">impl </span>Config {
     <span class="doccomment">/// Loads a config from a given config folder.
-    </span><span class="kw">pub fn </span>from_path&lt;P: AsRef&lt;Path&gt;&gt;(path: P) -&gt; <span class="prelude-ty">Result</span>&lt;Config, ConfigError&gt; {
+    </span><span class="kw">pub fn </span>from_path&lt;P: AsRef&lt;Path&gt;&gt;(path: P) -&gt; anyhow::Result&lt;Config&gt; {
         <span class="kw">let </span>path = env::current_dir()
             .map(|x| x.join(path.as_ref()))
             .unwrap_or_else(|<span class="kw">_</span>| path.as_ref().to_path_buf());
@@ -3075,7 +3080,7 @@
         };
 
         <span class="kw">if </span><span class="macro">cfg!</span>(not(feature = <span class="string">&quot;processing&quot;</span>)) &amp;&amp; config.processing_enabled() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(ConfigError::new(ConfigErrorKind::ProcessingNotAvailable).file(<span class="kw-2">&amp;</span>path));
+            <span class="kw">return </span><span class="prelude-val">Err</span>(ConfigError::file(ConfigErrorKind::ProcessingNotAvailable, <span class="kw-2">&amp;</span>path).into());
         }
 
         <span class="prelude-val">Ok</span>(config)
@@ -3084,10 +3089,10 @@
     <span class="doccomment">/// Creates a config from a JSON value.
     ///
     /// This is mostly useful for tests.
-    </span><span class="kw">pub fn </span>from_json_value(value: serde_json::Value) -&gt; <span class="prelude-ty">Result</span>&lt;Config, ConfigError&gt; {
+    </span><span class="kw">pub fn </span>from_json_value(value: serde_json::Value) -&gt; anyhow::Result&lt;Config&gt; {
         <span class="prelude-val">Ok</span>(Config {
             values: serde_json::from_value(value)
-                .map_err(|err| ConfigError::wrap(err, ConfigErrorKind::BadJson))<span class="question-mark">?</span>,
+                .with_context(|| ConfigError::new(ConfigErrorKind::BadJson))<span class="question-mark">?</span>,
             credentials: <span class="prelude-val">None</span>,
             path: PathBuf::new(),
         })
@@ -3098,37 +3103,37 @@
     </span><span class="kw">pub fn </span>apply_override(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         <span class="kw-2">mut </span>overrides: OverridableConfig,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw-2">&amp;mut </span><span class="self">Self</span>, ConfigError&gt; {
+    ) -&gt; anyhow::Result&lt;<span class="kw-2">&amp;mut </span><span class="self">Self</span>&gt; {
         <span class="kw">let </span>relay = <span class="kw-2">&amp;mut </span><span class="self">self</span>.values.relay;
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(mode) = overrides.mode {
             relay.mode = mode
                 .parse::&lt;RelayMode&gt;()
-                .map_err(|err| ConfigError::for_field(err, <span class="string">&quot;mode&quot;</span>))<span class="question-mark">?</span>;
+                .with_context(|| ConfigError::field(<span class="string">&quot;mode&quot;</span>))<span class="question-mark">?</span>;
         }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(upstream) = overrides.upstream {
             relay.upstream = upstream
                 .parse::&lt;UpstreamDescriptor&gt;()
-                .map_err(|err| ConfigError::for_field(err, <span class="string">&quot;upstream&quot;</span>))<span class="question-mark">?</span>;
+                .with_context(|| ConfigError::field(<span class="string">&quot;upstream&quot;</span>))<span class="question-mark">?</span>;
         } <span class="kw">else if let </span><span class="prelude-val">Some</span>(upstream_dsn) = overrides.upstream_dsn {
             relay.upstream = upstream_dsn
                 .parse::&lt;Dsn&gt;()
                 .map(|dsn| UpstreamDescriptor::from_dsn(<span class="kw-2">&amp;</span>dsn).into_owned())
-                .map_err(|err| ConfigError::for_field(err, <span class="string">&quot;upstream_dsn&quot;</span>))<span class="question-mark">?</span>;
+                .with_context(|| ConfigError::field(<span class="string">&quot;upstream_dsn&quot;</span>))<span class="question-mark">?</span>;
         }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(host) = overrides.host {
             relay.host = host
                 .parse::&lt;IpAddr&gt;()
-                .map_err(|err| ConfigError::for_field(err, <span class="string">&quot;host&quot;</span>))<span class="question-mark">?</span>;
+                .with_context(|| ConfigError::field(<span class="string">&quot;host&quot;</span>))<span class="question-mark">?</span>;
         }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(port) = overrides.port {
             relay.port = port
                 .as_str()
                 .parse()
-                .map_err(|err| ConfigError::for_field(err, <span class="string">&quot;port&quot;</span>))<span class="question-mark">?</span>;
+                .with_context(|| ConfigError::field(<span class="string">&quot;port&quot;</span>))<span class="question-mark">?</span>;
         }
 
         <span class="kw">let </span>processing = <span class="kw-2">&amp;mut </span><span class="self">self</span>.values.processing;
@@ -3136,9 +3141,7 @@
             <span class="kw">match </span>enabled.to_lowercase().as_str() {
                 <span class="string">&quot;true&quot; </span>| <span class="string">&quot;1&quot; </span>=&gt; processing.enabled = <span class="bool-val">true</span>,
                 <span class="string">&quot;false&quot; </span>| <span class="string">&quot;0&quot; </span>| <span class="string">&quot;&quot; </span>=&gt; processing.enabled = <span class="bool-val">false</span>,
-                <span class="kw">_ </span>=&gt; {
-                    <span class="kw">return </span><span class="prelude-val">Err</span>(ConfigError::new(ConfigErrorKind::InvalidValue).field(<span class="string">&quot;processing&quot;</span>));
-                }
+                <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(ConfigError::field(<span class="string">&quot;processing&quot;</span>).into()),
             }
         }
 
@@ -3163,7 +3166,7 @@
         }
         <span class="comment">// credentials overrides
         </span><span class="kw">let </span>id = <span class="kw">if let </span><span class="prelude-val">Some</span>(id) = overrides.id {
-            <span class="kw">let </span>id = Uuid::parse_str(<span class="kw-2">&amp;</span>id).map_err(|err| ConfigError::for_field(err, <span class="string">&quot;id&quot;</span>))<span class="question-mark">?</span>;
+            <span class="kw">let </span>id = Uuid::parse_str(<span class="kw-2">&amp;</span>id).with_context(|| ConfigError::field(<span class="string">&quot;id&quot;</span>))<span class="question-mark">?</span>;
             <span class="prelude-val">Some</span>(id)
         } <span class="kw">else </span>{
             <span class="prelude-val">None
@@ -3171,7 +3174,7 @@
         <span class="kw">let </span>public_key = <span class="kw">if let </span><span class="prelude-val">Some</span>(public_key) = overrides.public_key {
             <span class="kw">let </span>public_key = public_key
                 .parse::&lt;PublicKey&gt;()
-                .map_err(|err| ConfigError::for_field(err, <span class="string">&quot;public_key&quot;</span>))<span class="question-mark">?</span>;
+                .with_context(|| ConfigError::field(<span class="string">&quot;public_key&quot;</span>))<span class="question-mark">?</span>;
             <span class="prelude-val">Some</span>(public_key)
         } <span class="kw">else </span>{
             <span class="prelude-val">None
@@ -3180,7 +3183,7 @@
         <span class="kw">let </span>secret_key = <span class="kw">if let </span><span class="prelude-val">Some</span>(secret_key) = overrides.secret_key {
             <span class="kw">let </span>secret_key = secret_key
                 .parse::&lt;SecretKey&gt;()
-                .map_err(|err| ConfigError::for_field(err, <span class="string">&quot;secret_key&quot;</span>))<span class="question-mark">?</span>;
+                .with_context(|| ConfigError::field(<span class="string">&quot;secret_key&quot;</span>))<span class="question-mark">?</span>;
             <span class="prelude-val">Some</span>(secret_key)
         } <span class="kw">else </span>{
             <span class="prelude-val">None
@@ -3216,8 +3219,7 @@
                     // don&#39;t need them in the current command or we&#39;ll override them later
                 </span>}
                 <span class="kw">_ </span>=&gt; {
-                    <span class="kw">return </span><span class="prelude-val">Err</span>(ConfigError::new(ConfigErrorKind::InvalidValue)
-                        .field(<span class="string">&quot;incomplete credentials&quot;</span>));
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(ConfigError::field(<span class="string">&quot;incomplete credentials&quot;</span>).into());
                 }
             }
         }
@@ -3248,15 +3250,15 @@
     }
 
     <span class="doccomment">/// Dumps out a YAML string of the values.
-    </span><span class="kw">pub fn </span>to_yaml_string(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;String, ConfigError&gt; {
+    </span><span class="kw">pub fn </span>to_yaml_string(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; anyhow::Result&lt;String&gt; {
         serde_yaml::to_string(<span class="kw-2">&amp;</span><span class="self">self</span>.values)
-            .map_err(|e| ConfigError::wrap(e, ConfigErrorKind::CouldNotWriteFile))
+            .with_context(|| ConfigError::new(ConfigErrorKind::CouldNotWriteFile))
     }
 
     <span class="doccomment">/// Regenerates the relay credentials.
     ///
     /// This also writes the credentials back to the file.
-    </span><span class="kw">pub fn </span>regenerate_credentials(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), ConfigError&gt; {
+    </span><span class="kw">pub fn </span>regenerate_credentials(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; anyhow::Result&lt;()&gt; {
         <span class="kw">let </span>creds = Credentials::generate();
         creds.save(<span class="kw-2">&amp;</span><span class="self">self</span>.path)<span class="question-mark">?</span>;
         <span class="self">self</span>.credentials = <span class="prelude-val">Some</span>(creds);
@@ -3274,7 +3276,7 @@
     </span><span class="kw">pub fn </span>replace_credentials(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         credentials: <span class="prelude-ty">Option</span>&lt;Credentials&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;bool, ConfigError&gt; {
+    ) -&gt; anyhow::Result&lt;bool&gt; {
         <span class="kw">if </span><span class="self">self</span>.credentials == credentials {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="bool-val">false</span>);
         }
@@ -3286,8 +3288,8 @@
             <span class="prelude-val">None </span>=&gt; {
                 <span class="kw">let </span>path = Credentials::path(<span class="kw-2">&amp;</span><span class="self">self</span>.path);
                 <span class="kw">if </span>fs::metadata(<span class="kw-2">&amp;</span>path).is_ok() {
-                    fs::remove_file(<span class="kw-2">&amp;</span>path).map_err(|e| {
-                        ConfigError::wrap(e, ConfigErrorKind::CouldNotWriteFile).file(<span class="kw-2">&amp;</span>path)
+                    fs::remove_file(<span class="kw-2">&amp;</span>path).with_context(|| {
+                        ConfigError::file(ConfigErrorKind::CouldNotWriteFile, <span class="kw-2">&amp;</span>path)
                     })<span class="question-mark">?</span>;
                 }
             }
@@ -3456,12 +3458,12 @@
     <span class="doccomment">/// Returns the socket addresses for statsd.
     ///
     /// If stats is disabled an empty vector is returned.
-    </span><span class="kw">pub fn </span>statsd_addrs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;SocketAddr&gt;, ConfigError&gt; {
+    </span><span class="kw">pub fn </span>statsd_addrs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; anyhow::Result&lt;Vec&lt;SocketAddr&gt;&gt; {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>addr) = <span class="self">self</span>.values.metrics.statsd {
             <span class="kw">let </span>addrs = addr
                 .as_str()
                 .to_socket_addrs()
-                .map_err(|e| ConfigError::wrap(e, ConfigErrorKind::InvalidValue).file(<span class="kw-2">&amp;</span><span class="self">self</span>.path))<span class="question-mark">?
+                .with_context(|| ConfigError::file(ConfigErrorKind::InvalidValue, <span class="kw-2">&amp;</span><span class="self">self</span>.path))<span class="question-mark">?
                 </span>.collect();
             <span class="prelude-val">Ok</span>(addrs)
         } <span class="kw">else </span>{

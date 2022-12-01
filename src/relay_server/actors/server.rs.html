@@ -49,8 +49,6 @@
 <span id="47">47</span>
 <span id="48">48</span>
 <span id="49">49</span>
-<span id="50">50</span>
-<span id="51">51</span>
 </pre><pre class="rust"><code><span class="kw">use </span>::actix::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>actix_web::server::StopServer;
 <span class="kw">use </span>futures01::prelude::<span class="kw-2">*</span>;
@@ -62,14 +60,12 @@
 <span class="kw">use </span><span class="kw">crate</span>::service;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
 
-<span class="kw">pub use </span><span class="kw">crate</span>::service::ServerError;
-
 <span class="kw">pub struct </span>Server {
     http_server: Recipient&lt;StopServer&gt;,
 }
 
 <span class="kw">impl </span>Server {
-    <span class="kw">pub fn </span>start(config: Config) -&gt; <span class="prelude-ty">Result</span>&lt;Addr&lt;<span class="self">Self</span>&gt;, ServerError&gt; {
+    <span class="kw">pub fn </span>start(config: Config) -&gt; anyhow::Result&lt;Addr&lt;<span class="self">Self</span>&gt;&gt; {
         <span class="macro">metric!</span>(counter(RelayCounters::ServerStarting) += <span class="number">1</span>);
         <span class="kw">let </span>http_server = service::start(config)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(Server { http_server }.start())

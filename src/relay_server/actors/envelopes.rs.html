@@ -419,22 +419,6 @@
 <span id="417">417</span>
 <span id="418">418</span>
 <span id="419">419</span>
-<span id="420">420</span>
-<span id="421">421</span>
-<span id="422">422</span>
-<span id="423">423</span>
-<span id="424">424</span>
-<span id="425">425</span>
-<span id="426">426</span>
-<span id="427">427</span>
-<span id="428">428</span>
-<span id="429">429</span>
-<span id="430">430</span>
-<span id="431">431</span>
-<span id="432">432</span>
-<span id="433">433</span>
-<span id="434">434</span>
-<span id="435">435</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -469,21 +453,28 @@
 </span><span class="kw">use </span><span class="kw">crate</span>::actors::store::{Store, StoreEnvelope, StoreError};
 
 <span class="doccomment">/// Error created while handling [`SendEnvelope`].
-</span><span class="attribute">#[derive(Debug, failure::Fail)]
+</span><span class="attribute">#[derive(Debug, thiserror::Error)]
 #[allow(clippy::enum_variant_names)]
 </span><span class="kw">pub enum </span>SendEnvelopeError {
     <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-    #[fail(display = <span class="string">&quot;could not schedule submission of envelope&quot;</span>)]
+    #[error(<span class="string">&quot;could not schedule submission of envelope&quot;</span>)]
     </span>ScheduleFailed,
     <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-    #[fail(display = <span class="string">&quot;could not store envelope&quot;</span>)]
-    </span>StoreFailed(<span class="attribute">#[cause] </span>StoreError),
-    <span class="attribute">#[fail(display = <span class="string">&quot;could not build envelope for upstream&quot;</span>)]
-    </span>EnvelopeBuildFailed(<span class="attribute">#[cause] </span>EnvelopeError),
-    <span class="attribute">#[fail(display = <span class="string">&quot;could not encode request body&quot;</span>)]
-    </span>BodyEncodingFailed(<span class="attribute">#[cause] </span>std::io::Error),
-    <span class="attribute">#[fail(display = <span class="string">&quot;could not send request to upstream&quot;</span>)]
-    </span>UpstreamRequestFailed(<span class="attribute">#[cause] </span>UpstreamRequestError),
+    #[error(<span class="string">&quot;could not store envelope&quot;</span>)]
+    </span>StoreFailed(<span class="attribute">#[from] </span>StoreError),
+    <span class="attribute">#[error(<span class="string">&quot;could not build envelope for upstream&quot;</span>)]
+    </span>EnvelopeBuildFailed(<span class="attribute">#[from] </span>EnvelopeError),
+    <span class="attribute">#[error(<span class="string">&quot;could not encode request body&quot;</span>)]
+    </span>BodyEncodingFailed(<span class="attribute">#[source] </span>std::io::Error),
+    <span class="attribute">#[error(<span class="string">&quot;could not send request to upstream&quot;</span>)]
+    </span>UpstreamRequestFailed(<span class="attribute">#[from] </span>UpstreamRequestError),
+}
+
+<span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+</span><span class="kw">impl </span>From&lt;relay_system::SendError&gt; <span class="kw">for </span>SendEnvelopeError {
+    <span class="kw">fn </span>from(<span class="kw">_</span>: relay_system::SendError) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::ScheduleFailed
+    }
 }
 
 <span class="doccomment">/// An upstream request that submits an envelope via HTTP.
@@ -539,39 +530,24 @@
                     .map_err(UpstreamRequestError::Http)
                     .map(|<span class="kw">_</span>| ())
                     .then(<span class="kw">move </span>|body_result| {
-                        sender.map(|sender| {
-                            sender
-                                .send(body_result.map_err(SendEnvelopeError::UpstreamRequestFailed))
-                                .ok()
-                        });
+                        sender.map(|sender| sender.send(body_result.map_err(Into::into)).ok());
                         <span class="prelude-val">Ok</span>(())
                     });
 
                 Box::new(future)
             }
             <span class="prelude-val">Err</span>(error) =&gt; {
-                <span class="kw">match </span>error {
-                    UpstreamRequestError::RateLimited(upstream_limits) =&gt; {
-                        ProjectCache::from_registry().send(UpdateRateLimits::new(
-                            <span class="self">self</span>.project_key,
-                            upstream_limits.clone().scope(<span class="kw-2">&amp;</span><span class="self">self</span>.scoping),
-                        ));
-                        <span class="kw">if let </span><span class="prelude-val">Some</span>(sender) = sender {
-                            sender
-                                .send(<span class="prelude-val">Err</span>(SendEnvelopeError::UpstreamRequestFailed(
-                                    UpstreamRequestError::RateLimited(upstream_limits),
-                                )))
-                                .ok();
-                        }
-                    }
-                    error =&gt; {
-                        <span class="kw">if let </span><span class="prelude-val">Some</span>(sender) = sender {
-                            sender
-                                .send(<span class="prelude-val">Err</span>(SendEnvelopeError::UpstreamRequestFailed(error)))
-                                .ok();
-                        }
-                    }
-                };
+                <span class="kw">if let </span>UpstreamRequestError::RateLimited(<span class="kw-2">ref </span>upstream_limits) = error {
+                    ProjectCache::from_registry().send(UpdateRateLimits::new(
+                        <span class="self">self</span>.project_key,
+                        upstream_limits.clone().scope(<span class="kw-2">&amp;</span><span class="self">self</span>.scoping),
+                    ));
+                }
+
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(sender) = sender {
+                    sender.send(<span class="prelude-val">Err</span>(error.into())).ok();
+                }
+
                 Box::new(future::err(()))
             }
         }
@@ -696,10 +672,7 @@
                     envelope,
                 });
 
-                <span class="kw">return </span>future
-                    .<span class="kw">await
-                    </span>.map_err(|<span class="kw">_</span>| SendEnvelopeError::ScheduleFailed)
-                    .and_then(|result| result.map_err(SendEnvelopeError::StoreFailed));
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(future.<span class="kw">await</span><span class="question-mark">??</span>);
             }
         }
 
@@ -718,10 +691,7 @@
         // possible so that we avoid internal delays.
         </span>envelope.set_sent_at(Utc::now());
 
-        <span class="kw">let </span>envelope_body = <span class="kw">match </span>envelope.to_vec() {
-            <span class="prelude-val">Ok</span>(v) =&gt; v,
-            <span class="prelude-val">Err</span>(e) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(SendEnvelopeError::EnvelopeBuildFailed(e)),
-        };
+        <span class="kw">let </span>envelope_body = envelope.to_vec()<span class="question-mark">?</span>;
 
         <span class="kw">let </span>(tx, rx) = oneshot::channel();
         <span class="kw">let </span>request = SendEnvelope {
@@ -743,9 +713,7 @@
         <span class="kw">match </span>rx.compat().<span class="kw">await </span>{
             <span class="prelude-val">Ok</span>(<span class="prelude-val">Ok</span>(())) =&gt; <span class="prelude-val">Ok</span>(()),
             <span class="prelude-val">Ok</span>(<span class="prelude-val">Err</span>(err)) =&gt; <span class="prelude-val">Err</span>(err),
-            <span class="prelude-val">Err</span>(_canceled) =&gt; <span class="prelude-val">Err</span>(SendEnvelopeError::UpstreamRequestFailed(
-                UpstreamRequestError::ChannelClosed,
-            )),
+            <span class="prelude-val">Err</span>(_canceled) =&gt; <span class="prelude-val">Err</span>(UpstreamRequestError::ChannelClosed.into()),
         }
     }
 

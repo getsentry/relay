@@ -255,8 +255,8 @@
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="kw">use </span>actix::{Actor, Context, Handler};
-    <span class="kw">use </span>failure::_core::time::Duration;
     <span class="kw">use </span>futures01::sync::oneshot::{channel, Sender};
+    <span class="kw">use </span>std::time::Duration;
     <span class="kw">use </span>tokio_timer::Timeout;
 
     <span class="kw">struct </span>TestActor {

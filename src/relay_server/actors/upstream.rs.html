@@ -1277,7 +1277,6 @@
 <span id="1275">1275</span>
 <span id="1276">1276</span>
 <span id="1277">1277</span>
-<span id="1278">1278</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module implements the `UpstreamRelay` actor that can be used for sending requests to the
 //! upstream relay via HTTP.
 //!
@@ -1307,7 +1306,6 @@
 <span class="kw">use </span>::actix::fut;
 <span class="kw">use </span>::actix::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>actix_web::http::{header, Method};
-<span class="kw">use </span>failure::Fail;
 <span class="kw">use </span>futures01::{future, prelude::<span class="kw-2">*</span>, sync::oneshot};
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>serde::de::DeserializeOwned;
@@ -1326,26 +1324,26 @@
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayHistograms, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, ApiErrorResponse, IntoTracked, RelayErrorAction, TrackedFutureFinished};
 
-<span class="attribute">#[derive(Fail, Debug)]
+<span class="attribute">#[derive(Debug, thiserror::Error)]
 </span><span class="kw">pub enum </span>UpstreamRequestError {
-    <span class="attribute">#[fail(display = <span class="string">&quot;attempted to send upstream request without credentials configured&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;attempted to send upstream request without credentials configured&quot;</span>)]
     </span>NoCredentials,
 
     <span class="doccomment">/// As opposed to HTTP variant this contains all network errors.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;could not send request to upstream&quot;</span>)]
-    </span>SendFailed(<span class="attribute">#[cause] </span>reqwest::Error),
+    </span><span class="attribute">#[error(<span class="string">&quot;could not send request to upstream&quot;</span>)]
+    </span>SendFailed(<span class="attribute">#[source] </span>reqwest::Error),
 
     <span class="doccomment">/// Likely a bad HTTP status code or unparseable response.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;could not send request&quot;</span>)]
-    </span>Http(<span class="attribute">#[cause] </span>HttpError),
+    </span><span class="attribute">#[error(<span class="string">&quot;could not send request&quot;</span>)]
+    </span>Http(<span class="attribute">#[source] </span>HttpError),
 
-    <span class="attribute">#[fail(display = <span class="string">&quot;upstream requests rate limited&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;upstream requests rate limited&quot;</span>)]
     </span>RateLimited(UpstreamRateLimits),
 
-    <span class="attribute">#[fail(display = <span class="string">&quot;upstream request returned error {}&quot;</span>, _0)]
-    </span>ResponseError(StatusCode, <span class="attribute">#[cause] </span>ApiErrorResponse),
+    <span class="attribute">#[error(<span class="string">&quot;upstream request returned error {0}&quot;</span>)]
+    </span>ResponseError(StatusCode, <span class="attribute">#[source] </span>ApiErrorResponse),
 
-    <span class="attribute">#[fail(display = <span class="string">&quot;channel closed&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;channel closed&quot;</span>)]
     </span>ChannelClosed,
 }
 

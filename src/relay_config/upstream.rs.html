@@ -182,44 +182,42 @@
 <span id="180">180</span>
 <span id="181">181</span>
 <span id="182">182</span>
-<span id="183">183</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::io;
 <span class="kw">use </span>std::net::{SocketAddr, ToSocketAddrs};
 <span class="kw">use </span>std::str::FromStr;
 
-<span class="kw">use </span>failure::Fail;
 <span class="kw">use </span>url::Url;
 
 <span class="kw">use </span>relay_common::{Dsn, Scheme};
 
 <span class="doccomment">/// Indicates failures in the upstream error api.
-</span><span class="attribute">#[derive(Fail, Debug)]
+</span><span class="attribute">#[derive(Debug, thiserror::Error)]
 </span><span class="kw">pub enum </span>UpstreamError {
     <span class="doccomment">/// Raised if the DNS lookup for an upstream host failed.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;dns lookup failed&quot;</span>)]
-    </span>LookupFailed(<span class="attribute">#[cause] </span>io::Error),
+    </span><span class="attribute">#[error(<span class="string">&quot;dns lookup failed&quot;</span>)]
+    </span>LookupFailed(<span class="attribute">#[source] </span>io::Error),
     <span class="doccomment">/// Raised if the DNS lookup succeeded but an empty result was
     /// returned.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;dns lookup returned no results&quot;</span>)]
+    </span><span class="attribute">#[error(<span class="string">&quot;dns lookup returned no results&quot;</span>)]
     </span>EmptyLookupResult,
 }
 
 <span class="doccomment">/// Raised if a URL cannot be parsed into an upstream descriptor.
-</span><span class="attribute">#[derive(Fail, Debug, PartialEq, Eq, Hash)]
+</span><span class="attribute">#[derive(Debug, Eq, Hash, PartialEq, thiserror::Error)]
 </span><span class="kw">pub enum </span>UpstreamParseError {
     <span class="doccomment">/// Raised if an upstream could not be parsed as URL.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;invalid upstream URL: bad URL format&quot;</span>)]
+    </span><span class="attribute">#[error(<span class="string">&quot;invalid upstream URL: bad URL format&quot;</span>)]
     </span>BadUrl,
     <span class="doccomment">/// Raised if a path was added to a URL.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;invalid upstream URL: non root URL given&quot;</span>)]
+    </span><span class="attribute">#[error(<span class="string">&quot;invalid upstream URL: non root URL given&quot;</span>)]
     </span>NonOriginUrl,
     <span class="doccomment">/// Raised if an unknown or unsupported scheme is encountered.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;invalid upstream URL: unknown or unsupported URL scheme&quot;</span>)]
+    </span><span class="attribute">#[error(<span class="string">&quot;invalid upstream URL: unknown or unsupported URL scheme&quot;</span>)]
     </span>UnknownScheme,
     <span class="doccomment">/// Raised if no host was provided.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;invalid upstream URL: no host&quot;</span>)]
+    </span><span class="attribute">#[error(<span class="string">&quot;invalid upstream URL: no host&quot;</span>)]
     </span>NoHost,
 }
 

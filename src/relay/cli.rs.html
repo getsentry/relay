@@ -363,17 +363,21 @@
 <span id="361">361</span>
 <span id="362">362</span>
 <span id="363">363</span>
+<span id="364">364</span>
+<span id="365">365</span>
+<span id="366">366</span>
+<span id="367">367</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::env;
 <span class="kw">use </span>std::io;
 <span class="kw">use </span>std::path::{Path, PathBuf};
 
+<span class="kw">use </span>anyhow::{anyhow, bail, <span class="prelude-ty">Result</span>};
 <span class="kw">use </span>clap::{ArgMatches, Shell};
 <span class="kw">use </span>dialoguer::{Confirmation, Select};
-<span class="kw">use </span>failure::{err_msg, Error};
 
 <span class="kw">use </span>relay_common::Uuid;
 <span class="kw">use </span>relay_config::{
-    Config, ConfigErrorKind, Credentials, MinimalConfig, OverridableConfig, RelayMode,
+    Config, ConfigError, ConfigErrorKind, Credentials, MinimalConfig, OverridableConfig, RelayMode,
 };
 
 <span class="kw">use </span><span class="kw">crate</span>::cliapp::make_app;
@@ -381,8 +385,23 @@
 <span class="kw">use </span><span class="kw">crate</span>::utils;
 <span class="kw">use </span><span class="kw">crate</span>::utils::get_theme;
 
+<span class="kw">fn </span>load_config(path: <span class="kw">impl </span>AsRef&lt;Path&gt;, require: bool) -&gt; <span class="prelude-ty">Result</span>&lt;Config&gt; {
+    <span class="kw">match </span>Config::from_path(path) {
+        <span class="prelude-val">Ok</span>(config) =&gt; <span class="prelude-val">Ok</span>(config),
+        <span class="prelude-val">Err</span>(error) =&gt; {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(config_error) = error.downcast_ref::&lt;ConfigError&gt;() {
+                <span class="kw">if </span>!require &amp;&amp; config_error.kind() == ConfigErrorKind::CouldNotOpenFile {
+                    <span class="kw">return </span><span class="prelude-val">Ok</span>(Config::default());
+                }
+            }
+
+            <span class="prelude-val">Err</span>(error)
+        }
+    }
+}
+
 <span class="doccomment">/// Runs the command line application.
-</span><span class="kw">pub fn </span>execute() -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
+</span><span class="kw">pub fn </span>execute() -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
     <span class="kw">let </span>app = make_app();
     <span class="kw">let </span>matches = app.get_matches();
     <span class="kw">let </span>config_path = matches.value_of(<span class="string">&quot;config&quot;</span>).unwrap_or(<span class="string">&quot;.relay&quot;</span>);
@@ -397,16 +416,7 @@
     }
 
     <span class="comment">// Commands that need a loaded config:
-    </span><span class="kw">let </span><span class="kw-2">mut </span>config = <span class="kw">match </span>Config::from_path(config_path) {
-        <span class="prelude-val">Ok</span>(config) =&gt; config,
-        <span class="prelude-val">Err</span>(e)
-            <span class="kw">if </span>matches.value_of(<span class="string">&quot;config&quot;</span>).is_none()
-                &amp;&amp; e.kind() == ConfigErrorKind::CouldNotOpenFile =&gt;
-        {
-            Config::default()
-        }
-        <span class="prelude-val">Err</span>(e) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(e.into()),
-    };
+    </span><span class="kw">let </span><span class="kw-2">mut </span>config = load_config(config_path, matches.value_of(<span class="string">&quot;config&quot;</span>).is_some())<span class="question-mark">?</span>;
     <span class="comment">// override file config with environment variables
     </span><span class="kw">let </span>env_config = extract_config_env_vars();
     config.apply_override(env_config)<span class="question-mark">?</span>;
@@ -475,13 +485,11 @@
     }
 }
 
-<span class="kw">pub fn </span>manage_credentials(<span class="kw-2">mut </span>config: Config, matches: <span class="kw-2">&amp;</span>ArgMatches) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
+<span class="kw">pub fn </span>manage_credentials(<span class="kw-2">mut </span>config: Config, matches: <span class="kw-2">&amp;</span>ArgMatches) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
     <span class="comment">// generate completely new credentials
     </span><span class="kw">if let </span><span class="prelude-val">Some</span>(matches) = matches.subcommand_matches(<span class="string">&quot;generate&quot;</span>) {
         <span class="kw">if </span>config.has_credentials() &amp;&amp; !matches.is_present(<span class="string">&quot;overwrite&quot;</span>) {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(err_msg(
-                <span class="string">&quot;aborting because credentials already exist. Pass --overwrite to force.&quot;</span>,
-            ));
+            <span class="macro">bail!</span>(<span class="string">&quot;aborting because credentials already exist. Pass --overwrite to force.&quot;</span>);
         }
         <span class="kw">let </span>credentials = Credentials::generate();
         <span class="kw">if </span>matches.is_present(<span class="string">&quot;stdout&quot;</span>) {
@@ -497,7 +505,7 @@
             <span class="prelude-val">Some</span>(value) =&gt; <span class="prelude-val">Some</span>(
                 value
                     .parse()
-                    .map_err(|<span class="kw">_</span>| err_msg(<span class="string">&quot;invalid secret key supplied&quot;</span>))<span class="question-mark">?</span>,
+                    .map_err(|<span class="kw">_</span>| <span class="macro">anyhow!</span>(<span class="string">&quot;invalid secret key supplied&quot;</span>))<span class="question-mark">?</span>,
             ),
             <span class="prelude-val">None </span>=&gt; config.credentials().map(|x| x.secret_key.clone()),
         };
@@ -505,7 +513,7 @@
             <span class="prelude-val">Some</span>(value) =&gt; <span class="prelude-val">Some</span>(
                 value
                     .parse()
-                    .map_err(|<span class="kw">_</span>| err_msg(<span class="string">&quot;invalid public key supplied&quot;</span>))<span class="question-mark">?</span>,
+                    .map_err(|<span class="kw">_</span>| <span class="macro">anyhow!</span>(<span class="string">&quot;invalid public key supplied&quot;</span>))<span class="question-mark">?</span>,
             ),
             <span class="prelude-val">None </span>=&gt; config.credentials().map(|x| x.public_key.clone()),
         };
@@ -514,7 +522,7 @@
             <span class="prelude-val">Some</span>(value) =&gt; <span class="prelude-val">Some</span>(
                 value
                     .parse()
-                    .map_err(|<span class="kw">_</span>| err_msg(<span class="string">&quot;invalid relay id supplied&quot;</span>))<span class="question-mark">?</span>,
+                    .map_err(|<span class="kw">_</span>| <span class="macro">anyhow!</span>(<span class="string">&quot;invalid relay id supplied&quot;</span>))<span class="question-mark">?</span>,
             ),
             <span class="prelude-val">None </span>=&gt; config.credentials().map(|x| x.id),
         };
@@ -572,7 +580,7 @@
         }
     } <span class="kw">else if let </span><span class="prelude-val">Some</span>(..) = matches.subcommand_matches(<span class="string">&quot;show&quot;</span>) {
         <span class="kw">if </span>!config.has_credentials() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(err_msg(<span class="string">&quot;no stored credentials&quot;</span>));
+            <span class="macro">bail!</span>(<span class="string">&quot;no stored credentials&quot;</span>);
         } <span class="kw">else </span>{
             <span class="macro">println!</span>(<span class="string">&quot;Credentials:&quot;</span>);
             setup::dump_credentials(<span class="kw-2">&amp;</span>config);
@@ -584,7 +592,7 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">pub fn </span>manage_config&lt;<span class="lifetime">&#39;a</span>&gt;(config: <span class="kw-2">&amp;</span>Config, matches: <span class="kw-2">&amp;</span>ArgMatches&lt;<span class="lifetime">&#39;a</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
+<span class="kw">pub fn </span>manage_config&lt;<span class="lifetime">&#39;a</span>&gt;(config: <span class="kw-2">&amp;</span>Config, matches: <span class="kw-2">&amp;</span>ArgMatches&lt;<span class="lifetime">&#39;a</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
     <span class="kw">if let </span><span class="prelude-val">Some</span>(matches) = matches.subcommand_matches(<span class="string">&quot;init&quot;</span>) {
         init_config(config.path(), matches)
     } <span class="kw">else if let </span><span class="prelude-val">Some</span>(matches) = matches.subcommand_matches(<span class="string">&quot;show&quot;</span>) {
@@ -599,7 +607,7 @@
     }
 }
 
-<span class="kw">pub fn </span>init_config&lt;P: AsRef&lt;Path&gt;&gt;(config_path: P, _matches: <span class="kw-2">&amp;</span>ArgMatches) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
+<span class="kw">pub fn </span>init_config&lt;P: AsRef&lt;Path&gt;&gt;(config_path: P, _matches: <span class="kw-2">&amp;</span>ArgMatches) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>done_something = <span class="bool-val">false</span>;
     <span class="kw">let </span>config_path = env::current_dir()<span class="question-mark">?</span>.join(config_path.as_ref());
     <span class="macro">println!</span>(<span class="string">&quot;Initializing relay in {}&quot;</span>, config_path.display());
@@ -689,7 +697,7 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">pub fn </span>generate_completions(matches: <span class="kw-2">&amp;</span>ArgMatches) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
+<span class="kw">pub fn </span>generate_completions(matches: <span class="kw-2">&amp;</span>ArgMatches) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
     <span class="kw">let </span>shell = <span class="kw">match </span>matches
         .value_of(<span class="string">&quot;format&quot;</span>)
         .map(|x| x.parse::&lt;Shell&gt;().unwrap())
@@ -719,7 +727,7 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">pub fn </span>run(config: Config, _matches: <span class="kw-2">&amp;</span>ArgMatches) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
+<span class="kw">pub fn </span>run(config: Config, _matches: <span class="kw-2">&amp;</span>ArgMatches) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
     setup::dump_spawn_infos(<span class="kw-2">&amp;</span>config);
     setup::check_config(<span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
     setup::init_metrics(<span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;

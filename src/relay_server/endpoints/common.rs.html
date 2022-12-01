@@ -536,6 +536,9 @@
 <span id="534">534</span>
 <span id="535">535</span>
 <span id="536">536</span>
+<span id="537">537</span>
+<span id="538">538</span>
+<span id="539">539</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Common facilities for ingesting events through store-like endpoints.
 
 </span><span class="kw">use </span>std::cell::RefCell;
@@ -546,7 +549,6 @@
 <span class="kw">use </span>actix_web::http::{header, StatusCode};
 <span class="kw">use </span>actix_web::middleware::cors::{Cors, CorsBuilder};
 <span class="kw">use </span>actix_web::{error::PayloadError, HttpRequest, HttpResponse, ResponseError};
-<span class="kw">use </span>failure::Fail;
 <span class="kw">use </span>futures::{FutureExt, TryFutureExt};
 <span class="kw">use </span>futures01::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>serde::Deserialize;
@@ -568,59 +570,65 @@
     <span class="self">self</span>, ApiErrorResponse, BufferError, BufferGuard, EnvelopeContext, FormDataIter, MultipartError,
 };
 
-<span class="attribute">#[derive(Fail, Debug)]
+<span class="attribute">#[derive(Debug, thiserror::Error)]
 </span><span class="kw">pub enum </span>BadStoreRequest {
-    <span class="attribute">#[fail(display = <span class="string">&quot;unsupported protocol version ({})&quot;</span>, _0)]
+    <span class="attribute">#[error(<span class="string">&quot;unsupported protocol version ({0})&quot;</span>)]
     </span>UnsupportedProtocolVersion(u16),
 
-    <span class="attribute">#[fail(display = <span class="string">&quot;could not schedule event processing&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;could not schedule event processing&quot;</span>)]
     </span>ScheduleFailed,
 
-    <span class="attribute">#[fail(display = <span class="string">&quot;empty request body&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;empty request body&quot;</span>)]
     </span>EmptyBody,
 
-    <span class="attribute">#[fail(display = <span class="string">&quot;empty envelope&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;empty envelope&quot;</span>)]
     </span>EmptyEnvelope,
 
-    <span class="attribute">#[fail(display = <span class="string">&quot;invalid JSON data&quot;</span>)]
-    </span>InvalidJson(<span class="attribute">#[cause] </span>serde_json::Error),
+    <span class="attribute">#[error(<span class="string">&quot;invalid JSON data&quot;</span>)]
+    </span>InvalidJson(<span class="attribute">#[source] </span>serde_json::Error),
 
-    <span class="attribute">#[fail(display = <span class="string">&quot;invalid messagepack data&quot;</span>)]
-    </span>InvalidMsgpack(<span class="attribute">#[cause] </span>rmp_serde::decode::Error),
+    <span class="attribute">#[error(<span class="string">&quot;invalid messagepack data&quot;</span>)]
+    </span>InvalidMsgpack(<span class="attribute">#[source] </span>rmp_serde::decode::Error),
 
-    <span class="attribute">#[fail(display = <span class="string">&quot;invalid event envelope&quot;</span>)]
-    </span>InvalidEnvelope(<span class="attribute">#[cause] </span>EnvelopeError),
+    <span class="attribute">#[error(<span class="string">&quot;invalid event envelope&quot;</span>)]
+    </span>InvalidEnvelope(<span class="attribute">#[source] </span>EnvelopeError),
 
-    <span class="attribute">#[fail(display = <span class="string">&quot;invalid multipart data&quot;</span>)]
-    </span>InvalidMultipart(<span class="attribute">#[cause] </span>MultipartError),
+    <span class="attribute">#[error(<span class="string">&quot;invalid multipart data&quot;</span>)]
+    </span>InvalidMultipart(<span class="attribute">#[source] </span>MultipartError),
 
-    <span class="attribute">#[fail(display = <span class="string">&quot;invalid minidump&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;invalid minidump&quot;</span>)]
     </span>InvalidMinidump,
 
-    <span class="attribute">#[fail(display = <span class="string">&quot;missing minidump&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;missing minidump&quot;</span>)]
     </span>MissingMinidump,
 
-    <span class="attribute">#[fail(display = <span class="string">&quot;invalid event id&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;invalid event id&quot;</span>)]
     </span>InvalidEventId,
 
-    <span class="attribute">#[fail(display = <span class="string">&quot;failed to queue envelope&quot;</span>)]
-    </span>QueueFailed(<span class="attribute">#[cause] </span>BufferError),
+    <span class="attribute">#[error(<span class="string">&quot;failed to queue envelope&quot;</span>)]
+    </span>QueueFailed(<span class="attribute">#[from] </span>BufferError),
 
-    <span class="attribute">#[fail(display = <span class="string">&quot;failed to read request body&quot;</span>)]
-    </span>PayloadError(<span class="attribute">#[cause] </span>PayloadError),
+    <span class="attribute">#[error(<span class="string">&quot;failed to read request body&quot;</span>)]
+    </span>PayloadError(<span class="attribute">#[source] </span>failure::Compat&lt;PayloadError&gt;),
 
-    <span class="attribute">#[fail(
-        display = <span class="string">&quot;Sentry dropped data due to a quota or internal rate limit being reached. This will not affect your application. See https://docs.sentry.io/product/accounts/quotas/ for more information.&quot;
+    <span class="attribute">#[error(
+        <span class="string">&quot;Sentry dropped data due to a quota or internal rate limit being reached. This will not affect your application. See https://docs.sentry.io/product/accounts/quotas/ for more information.&quot;
     </span>)]
     </span>RateLimited(RateLimits),
 
-    <span class="attribute">#[fail(display = <span class="string">&quot;event submission rejected with_reason: {:?}&quot;</span>, _0)]
+    <span class="attribute">#[error(<span class="string">&quot;event submission rejected with_reason: {0:?}&quot;</span>)]
     </span>EventRejected(DiscardReason),
+}
+
+<span class="kw">impl </span>From&lt;PayloadError&gt; <span class="kw">for </span>BadStoreRequest {
+    <span class="kw">fn </span>from(error: PayloadError) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::PayloadError(failure::Fail::compat(error))
+    }
 }
 
 <span class="kw">impl </span>ResponseError <span class="kw">for </span>BadStoreRequest {
     <span class="kw">fn </span>error_response(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; HttpResponse {
-        <span class="kw">let </span>body = ApiErrorResponse::from_fail(<span class="self">self</span>);
+        <span class="kw">let </span>body = ApiErrorResponse::from_error(<span class="self">self</span>);
 
         <span class="kw">match </span><span class="self">self </span>{
             BadStoreRequest::RateLimited(rate_limits) =&gt; {
@@ -651,7 +659,7 @@
                 // now executed asynchronously in `EnvelopeProcessor`.
                 </span>HttpResponse::Forbidden().json(<span class="kw-2">&amp;</span>body)
             }
-            BadStoreRequest::PayloadError(PayloadError::Overflow) =&gt; {
+            BadStoreRequest::PayloadError(e) <span class="kw">if </span><span class="macro">matches!</span>(e.get_ref(), PayloadError::Overflow) =&gt; {
                 HttpResponse::PayloadTooLarge().json(<span class="kw-2">&amp;</span>body)
             }
             <span class="kw">_ </span>=&gt; {
@@ -837,9 +845,7 @@
         <span class="macro">relay_log::trace!</span>(<span class="string">&quot;queueing separate envelope for non-event items&quot;</span>);
 
         <span class="comment">// The envelope has been split, so we need to fork the context.
-        </span><span class="kw">let </span>event_context = buffer_guard
-            .enter(<span class="kw-2">&amp;</span>event_envelope)
-            .map_err(BadStoreRequest::QueueFailed)<span class="question-mark">?</span>;
+        </span><span class="kw">let </span>event_context = buffer_guard.enter(<span class="kw-2">&amp;</span>event_envelope)<span class="question-mark">?</span>;
 
         <span class="comment">// Update the old context after successful forking.
         </span>envelope_context.update(<span class="kw-2">&amp;</span>envelope);
@@ -930,7 +936,7 @@
             <span class="kw">if let </span><span class="prelude-val">Some</span>((envelope, <span class="kw-2">mut </span>envelope_context)) = checked.envelope {
                 <span class="kw">if </span>!utils::check_envelope_size_limits(<span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;</span>envelope) {
                     envelope_context.reject(Outcome::Invalid(DiscardReason::TooLarge));
-                    <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::PayloadError(PayloadError::Overflow));
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(PayloadError::Overflow.into());
                 }
 
                 <span class="kw">let </span>event_id = envelope.event_id();

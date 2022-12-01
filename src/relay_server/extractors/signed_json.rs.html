@@ -107,11 +107,9 @@
 <span id="105">105</span>
 <span id="106">106</span>
 <span id="107">107</span>
-<span id="108">108</span>
 </pre><pre class="rust"><code><span class="kw">use </span>actix_web::actix::<span class="kw-2">*</span>;
 <span class="kw">use </span>actix_web::http::StatusCode;
 <span class="kw">use </span>actix_web::{Error, FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
-<span class="kw">use </span>failure::Fail;
 <span class="kw">use </span>futures::{FutureExt, TryFutureExt};
 <span class="kw">use </span>futures01::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>serde::de::DeserializeOwned;
@@ -136,18 +134,18 @@
     <span class="kw">pub </span>relay: RelayInfo,
 }
 
-<span class="attribute">#[derive(Fail, Debug)]
+<span class="attribute">#[derive(Debug, thiserror::Error)]
 </span><span class="kw">enum </span>SignatureError {
-    <span class="attribute">#[fail(display = <span class="string">&quot;invalid relay signature&quot;</span>)]
-    </span>BadSignature(<span class="attribute">#[cause] </span>UnpackError),
-    <span class="attribute">#[fail(display = <span class="string">&quot;missing header: {}&quot;</span>, _0)]
+    <span class="attribute">#[error(<span class="string">&quot;invalid relay signature&quot;</span>)]
+    </span>BadSignature(<span class="attribute">#[source] </span>UnpackError),
+    <span class="attribute">#[error(<span class="string">&quot;missing header: {0}&quot;</span>)]
     </span>MissingHeader(<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str),
-    <span class="attribute">#[fail(display = <span class="string">&quot;malformed header: {}&quot;</span>, _0)]
+    <span class="attribute">#[error(<span class="string">&quot;malformed header: {0}&quot;</span>)]
     </span>MalformedHeader(<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str),
-    <span class="attribute">#[fail(display = <span class="string">&quot;Unknown relay id&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;Unknown relay id&quot;</span>)]
     </span>UnknownRelay,
-    <span class="attribute">#[fail(display = <span class="string">&quot;invalid JSON data&quot;</span>)]
-    </span>InvalidJson(<span class="attribute">#[cause] </span>serde_json::Error),
+    <span class="attribute">#[error(<span class="string">&quot;invalid JSON data&quot;</span>)]
+    </span>InvalidJson(<span class="attribute">#[source] </span>serde_json::Error),
 }
 
 <span class="kw">impl </span>ResponseError <span class="kw">for </span>SignatureError {
@@ -157,7 +155,7 @@
             <span class="kw">_ </span>=&gt; StatusCode::UNAUTHORIZED,
         };
 
-        HttpResponse::build(status).json(<span class="kw-2">&amp;</span>ApiErrorResponse::from_fail(<span class="self">self</span>))
+        HttpResponse::build(status).json(<span class="kw-2">&amp;</span>ApiErrorResponse::from_error(<span class="self">self</span>))
     }
 }
 

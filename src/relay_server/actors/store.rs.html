@@ -981,8 +981,6 @@
 <span id="979">979</span>
 <span id="980">980</span>
 <span id="981">981</span>
-<span id="982">982</span>
-<span id="983">983</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -991,7 +989,6 @@
 <span class="kw">use </span>std::time::Instant;
 
 <span class="kw">use </span>bytes::Bytes;
-<span class="kw">use </span>failure::Fail;
 <span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>serde::{ser::Error, Serialize};
 
@@ -1006,7 +1003,7 @@
 <span class="kw">use </span>relay_system::{AsyncResponse, FromMessage, Interface, Sender, Service};
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, Envelope, Item, ItemType};
-<span class="kw">use </span><span class="kw">crate</span>::service::{ServerError, ServerErrorKind};
+<span class="kw">use </span><span class="kw">crate</span>::service::ServerError;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
 
 <span class="doccomment">/// The maximum number of individual session updates generated for each aggregate item.
@@ -1015,11 +1012,11 @@
 <span class="doccomment">/// Fallback name used for attachment items without a `filename` header.
 </span><span class="kw">const </span>UNNAMED_ATTACHMENT: <span class="kw-2">&amp;</span>str = <span class="string">&quot;Unnamed Attachment&quot;</span>;
 
-<span class="attribute">#[derive(Fail, Debug)]
+<span class="attribute">#[derive(Debug, thiserror::Error)]
 </span><span class="kw">pub enum </span>StoreError {
-    <span class="attribute">#[fail(display = <span class="string">&quot;failed to send the message to kafka&quot;</span>)]
-    </span>SendFailed(<span class="attribute">#[cause] </span>ClientError),
-    <span class="attribute">#[fail(display = <span class="string">&quot;failed to store event because event id was missing&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;failed to send the message to kafka&quot;</span>)]
+    </span>SendFailed(<span class="attribute">#[from] </span>ClientError),
+    <span class="attribute">#[error(<span class="string">&quot;failed to store event because event id was missing&quot;</span>)]
     </span>NoEventId,
 }
 
@@ -1037,7 +1034,7 @@
 }
 
 <span class="kw">impl </span>Producer {
-    <span class="kw">pub fn </span>create(config: <span class="kw-2">&amp;</span>Arc&lt;Config&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ServerError&gt; {
+    <span class="kw">pub fn </span>create(config: <span class="kw-2">&amp;</span>Arc&lt;Config&gt;) -&gt; anyhow::Result&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>client_builder = KafkaClient::builder();
 
         <span class="kw">for </span>topic <span class="kw">in </span>KafkaTopic::iter()
@@ -1045,10 +1042,10 @@
         {
             <span class="kw">let </span>kafka_config = <span class="kw-2">&amp;</span>config
                 .kafka_config(<span class="kw-2">*</span>topic)
-                .map_err(|<span class="kw">_</span>| ServerErrorKind::KafkaError)<span class="question-mark">?</span>;
+                .map_err(|<span class="kw">_</span>| ServerError::KafkaError)<span class="question-mark">?</span>;
             client_builder = client_builder
                 .add_kafka_topic_config(<span class="kw-2">*</span>topic, kafka_config)
-                .map_err(|<span class="kw">_</span>| ServerErrorKind::KafkaError)<span class="question-mark">?
+                .map_err(|<span class="kw">_</span>| ServerError::KafkaError)<span class="question-mark">?
         </span>}
 
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
@@ -1086,7 +1083,7 @@
 }
 
 <span class="kw">impl </span>StoreService {
-    <span class="kw">pub fn </span>create(config: Arc&lt;Config&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ServerError&gt; {
+    <span class="kw">pub fn </span>create(config: Arc&lt;Config&gt;) -&gt; anyhow::Result&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>producer = Producer::create(<span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ config, producer })
     }
@@ -1252,8 +1249,7 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
         <span class="self">self</span>.producer
             .client
-            .send_message(topic, organization_id, <span class="kw-2">&amp;</span>message)
-            .map_err(StoreError::SendFailed)<span class="question-mark">?</span>;
+            .send_message(topic, organization_id, <span class="kw-2">&amp;</span>message)<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(())
     }

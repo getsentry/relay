@@ -59,21 +59,8 @@
 <span id="57">57</span>
 <span id="58">58</span>
 <span id="59">59</span>
-<span id="60">60</span>
-<span id="61">61</span>
-<span id="62">62</span>
-<span id="63">63</span>
-<span id="64">64</span>
-<span id="65">65</span>
-<span id="66">66</span>
-<span id="67">67</span>
-<span id="68">68</span>
-<span id="69">69</span>
-<span id="70">70</span>
-<span id="71">71</span>
-</pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
-
-<span class="kw">use </span>failure::AsFail;
+</pre><pre class="rust"><code><span class="kw">use </span>std::error::Error;
+<span class="kw">use </span>std::fmt;
 
 <span class="doccomment">/// Returns `true` if backtrace printing is enabled.
 ///
@@ -95,23 +82,15 @@
 /// Prefer to use [`relay_log::error`](crate::error) over this function whenever possible. This
 /// function is intended to be used during startup, where initializing the logger may fail or when
 /// errors need to be logged before the logger has been initialized.
-///
-/// # Example
-///
-/// ```
-/// if let Err(error) = std::env::var(&quot;FOO&quot;) {
-///     relay_log::ensure_error(&amp;error);
-/// }
-/// ```
-</span><span class="kw">pub fn </span>ensure_error&lt;E: failure::AsFail&gt;(error: <span class="kw-2">&amp;</span>E) {
+</span><span class="kw">pub fn </span>ensure_error&lt;E: AsRef&lt;<span class="kw">dyn </span>Error&gt;&gt;(error: E) {
     <span class="kw">if </span><span class="macro">log::log_enabled!</span>(log::Level::Error) {
-        <span class="macro">log::error!</span>(<span class="string">&quot;{}&quot;</span>, LogError(error));
+        <span class="macro">log::error!</span>(<span class="string">&quot;{}&quot;</span>, LogError(error.as_ref()));
     } <span class="kw">else </span>{
-        <span class="macro">eprintln!</span>(<span class="string">&quot;error: {}&quot;</span>, LogError(error));
+        <span class="macro">eprintln!</span>(<span class="string">&quot;error: {}&quot;</span>, LogError(error.as_ref()));
     }
 }
 
-<span class="doccomment">/// A wrapper around a [`Fail`](failure::Fail) that prints its causes.
+<span class="doccomment">/// A wrapper around an error that prints its causes.
 ///
 /// # Example
 ///
@@ -122,24 +101,21 @@
 ///     relay_log::error!(&quot;env failed: {}&quot;, LogError(&amp;error));
 /// }
 /// ```
-</span><span class="kw">pub struct </span>LogError&lt;<span class="lifetime">&#39;a</span>, E: AsFail + <span class="question-mark">?</span>Sized&gt;(<span class="kw">pub </span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>E);
+</span><span class="kw">pub struct </span>LogError&lt;<span class="lifetime">&#39;a</span>, E: Error + <span class="question-mark">?</span>Sized&gt;(<span class="kw">pub </span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>E);
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, E: AsFail + <span class="question-mark">?</span>Sized&gt; fmt::Display <span class="kw">for </span>LogError&lt;<span class="lifetime">&#39;a</span>, E&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, E: Error + <span class="question-mark">?</span>Sized&gt; fmt::Display <span class="kw">for </span>LogError&lt;<span class="lifetime">&#39;a</span>, E&gt; {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="kw">let </span>fail = <span class="self">self</span>.<span class="number">0</span>.as_fail();
+        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.<span class="number">0</span>)<span class="question-mark">?</span>;
 
-        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, fail)<span class="question-mark">?</span>;
-        <span class="kw">for </span>cause <span class="kw">in </span>fail.iter_causes() {
-            <span class="macro">write!</span>(f, <span class="string">&quot;\n  caused by: {}&quot;</span>, cause)<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>source = <span class="self">self</span>.<span class="number">0</span>.source();
+        <span class="kw">while let </span><span class="prelude-val">Some</span>(s) = source {
+            <span class="macro">write!</span>(f, <span class="string">&quot;\n  caused by: {s}&quot;</span>)<span class="question-mark">?</span>;
+            source = s.source();
         }
 
-        <span class="kw">if </span>backtrace_enabled() {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(backtrace) = fail.backtrace() {
-                <span class="macro">write!</span>(f, <span class="string">&quot;\n\n{:?}&quot;</span>, backtrace)<span class="question-mark">?</span>;
-            }
-        }
+        <span class="comment">// NOTE: This is where we would print a backtrace, once stabilized.
 
-        <span class="prelude-val">Ok</span>(())
+        </span><span class="prelude-val">Ok</span>(())
     }
 }
 </code></pre></div>

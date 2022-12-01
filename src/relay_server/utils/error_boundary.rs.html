@@ -115,93 +115,15 @@
 <span id="113">113</span>
 <span id="114">114</span>
 <span id="115">115</span>
-<span id="116">116</span>
-<span id="117">117</span>
-<span id="118">118</span>
-<span id="119">119</span>
-<span id="120">120</span>
-<span id="121">121</span>
-<span id="122">122</span>
-<span id="123">123</span>
-<span id="124">124</span>
-<span id="125">125</span>
-<span id="126">126</span>
-<span id="127">127</span>
-<span id="128">128</span>
-<span id="129">129</span>
-<span id="130">130</span>
-<span id="131">131</span>
-<span id="132">132</span>
-<span id="133">133</span>
-<span id="134">134</span>
-<span id="135">135</span>
-<span id="136">136</span>
-<span id="137">137</span>
-<span id="138">138</span>
-<span id="139">139</span>
-<span id="140">140</span>
-<span id="141">141</span>
-<span id="142">142</span>
-<span id="143">143</span>
-<span id="144">144</span>
-<span id="145">145</span>
-<span id="146">146</span>
-<span id="147">147</span>
-<span id="148">148</span>
-<span id="149">149</span>
-<span id="150">150</span>
-<span id="151">151</span>
-<span id="152">152</span>
-<span id="153">153</span>
-<span id="154">154</span>
-<span id="155">155</span>
-<span id="156">156</span>
-<span id="157">157</span>
-<span id="158">158</span>
-<span id="159">159</span>
-<span id="160">160</span>
-</pre><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Debug};
+</pre><pre class="rust"><code><span class="kw">use </span>std::error::Error;
+<span class="kw">use </span>std::sync::Arc;
 
-<span class="kw">use </span>failure::Fail;
 <span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
 <span class="kw">use </span>serde_json::Value;
 
-<span class="doccomment">/// Structure used in the implementation of Clone for ErrorBoundary
-/// Couldn&#39;t find a nicer way to do it.
-/// For the case where ErrorBoundary contains an error (Err enum) I copy
-/// the representation of the Fail trace object inside a ClonedFail object
-/// during a clone, that means that I loose the original Fail object and only
-/// retain the text message.
-</span><span class="attribute">#[derive(Fail, Debug, Clone)]
-</span><span class="kw">struct </span>ClonedFail(String);
-
-<span class="kw">impl </span>fmt::Display <span class="kw">for </span>ClonedFail {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;{}\n(cloned)&quot;</span>, <span class="self">self</span>.<span class="number">0</span>)
-    }
-}
-
-<span class="doccomment">/// Helper trait used to convert any Fail dyn object into a ClonedFail struct
-</span><span class="kw">trait </span>AsClonedFail {
-    <span class="kw">fn </span>as_cloned_fail(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ClonedFail;
-}
-
-<span class="kw">impl </span>AsClonedFail <span class="kw">for </span>ClonedFail {
-    <span class="doccomment">/// if the object is already a ClonedFail just clone the message
-    </span><span class="kw">fn </span>as_cloned_fail(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ClonedFail {
-        <span class="self">self</span>.clone()
-    }
-}
-
-<span class="kw">impl </span>AsClonedFail <span class="kw">for dyn </span>Fail {
-    <span class="kw">fn </span>as_cloned_fail(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ClonedFail {
-        ClonedFail(<span class="self">self</span>.to_string())
-    }
-}
-
-<span class="attribute">#[derive(Debug)]
+<span class="attribute">#[derive(Clone, Debug)]
 </span><span class="kw">pub enum </span>ErrorBoundary&lt;T&gt; {
-    <span class="prelude-val">Err</span>(Box&lt;<span class="kw">dyn </span>Fail&gt;),
+    <span class="prelude-val">Err</span>(Arc&lt;<span class="kw">dyn </span>Error + Send + Sync + <span class="lifetime">&#39;static</span>&gt;),
     <span class="prelude-val">Ok</span>(T),
 }
 
@@ -232,7 +154,7 @@
     <span class="attribute">#[inline]
     </span><span class="kw">pub fn </span>unwrap_or_else&lt;F&gt;(<span class="self">self</span>, op: F) -&gt; T
     <span class="kw">where
-        </span>F: FnOnce(<span class="kw-2">&amp;</span><span class="kw">dyn </span>Fail) -&gt; T,
+        </span>F: FnOnce(<span class="kw-2">&amp;</span>(<span class="kw">dyn </span>Error + <span class="lifetime">&#39;static</span>)) -&gt; T,
     {
         <span class="kw">match </span><span class="self">self </span>{
             <span class="self">Self</span>::Ok(t) =&gt; t,
@@ -252,7 +174,7 @@
         <span class="kw">let </span>value = Value::deserialize(deserializer)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="kw">match </span>T::deserialize(value) {
             <span class="prelude-val">Ok</span>(t) =&gt; <span class="self">Self</span>::Ok(t),
-            <span class="prelude-val">Err</span>(error) =&gt; <span class="self">Self</span>::Err(Box::new(error)),
+            <span class="prelude-val">Err</span>(error) =&gt; <span class="self">Self</span>::Err(Arc::new(error)),
         })
     }
 }
@@ -271,18 +193,6 @@
         };
 
         option.serialize(serializer)
-    }
-}
-
-<span class="kw">impl</span>&lt;T&gt; Clone <span class="kw">for </span>ErrorBoundary&lt;T&gt;
-<span class="kw">where
-    </span>T: Clone,
-{
-    <span class="kw">fn </span>clone(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
-        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self </span>{
-            <span class="self">Self</span>::Ok(x) =&gt; <span class="self">Self</span>::Ok(x.clone()),
-            <span class="self">Self</span>::Err(e) =&gt; <span class="self">Self</span>::Err(Box::new(e.as_cloned_fail())),
-        }
     }
 }
 
@@ -316,7 +226,7 @@
 
     <span class="attribute">#[test]
     </span><span class="kw">fn </span>test_serialize_err() {
-        <span class="kw">let </span>boundary = ErrorBoundary::&lt;u32&gt;::Err(Box::new(std::fmt::Error));
+        <span class="kw">let </span>boundary = ErrorBoundary::&lt;u32&gt;::Err(Arc::new(std::fmt::Error));
         <span class="macro">assert_eq!</span>(serde_json::to_string(<span class="kw-2">&amp;</span>boundary).unwrap(), <span class="string">&quot;null&quot;</span>);
     }
 }

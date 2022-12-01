@@ -325,6 +325,30 @@
 <span id="323">323</span>
 <span id="324">324</span>
 <span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
+<span id="329">329</span>
+<span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
+<span id="333">333</span>
+<span id="334">334</span>
+<span id="335">335</span>
+<span id="336">336</span>
+<span id="337">337</span>
+<span id="338">338</span>
+<span id="339">339</span>
+<span id="340">340</span>
+<span id="341">341</span>
+<span id="342">342</span>
+<span id="343">343</span>
+<span id="344">344</span>
+<span id="345">345</span>
+<span id="346">346</span>
+<span id="347">347</span>
+<span id="348">348</span>
+<span id="349">349</span>
 </pre><pre class="rust"><code><span class="attribute">#![allow(deprecated)]
 
 </span><span class="kw">use </span>std::borrow::Cow;
@@ -338,8 +362,9 @@
 <span class="kw">use </span>failure::Fail;
 <span class="kw">use </span>futures01::prelude::<span class="kw-2">*</span>;
 
+<span class="kw">use </span>relay_log::_sentry::{integrations::backtrace::parse_stacktrace, parse_type_from_debug};
 <span class="kw">use </span>relay_log::_sentry::{types::Uuid, Hub, Level, ScopeGuard};
-<span class="kw">use </span>relay_log::protocol::{ClientSdkPackage, Event, Request};
+<span class="kw">use </span>relay_log::protocol::{ClientSdkPackage, Event, Exception, Request};
 <span class="kw">use </span>relay_statsd::metric;
 
 <span class="kw">use </span><span class="kw">crate</span>::constants::SERVER;
@@ -598,6 +623,29 @@
     }
 }
 
+<span class="doccomment">/// Converts a single fail instance into an exception.
+///
+/// This is typically not very useful as the `event_from_error` and
+/// `event_from_fail` methods will assemble an entire event with all the
+/// causes of a failure, however for certain more complex situations where
+/// fails are contained within a non fail error type that might also carry
+/// useful information it can be useful to call this method instead.
+</span><span class="kw">fn </span>exception_from_single_fail&lt;F: Fail + <span class="question-mark">?</span>Sized&gt;(
+    f: <span class="kw-2">&amp;</span>F,
+    bt: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>failure::Backtrace&gt;,
+) -&gt; Exception {
+    <span class="kw">let </span>dbg = <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, f);
+    Exception {
+        ty: parse_type_from_debug(<span class="kw-2">&amp;</span>dbg).to_owned(),
+        value: <span class="prelude-val">Some</span>(f.to_string()),
+        stacktrace: bt
+            <span class="comment">// format the stack trace with alternate debug to get addresses
+            </span>.map(|bt| <span class="macro">format!</span>(<span class="string">&quot;{:#?}&quot;</span>, bt))
+            .and_then(|x| parse_stacktrace(<span class="kw-2">&amp;</span>x)),
+        ..Default::default()
+    }
+}
+
 <span class="doccomment">/// Hub extensions for actix.
 </span><span class="kw">pub trait </span>ActixWebHubExt {
     <span class="doccomment">/// Returns the hub from a given http request.
@@ -631,7 +679,7 @@
             </span><span class="kw">let </span>compat: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>failure::Compat&lt;failure::Error&gt;&gt; = fail.downcast_ref();
             <span class="kw">let </span>failure_err = compat.map(failure::Compat::get_ref);
             <span class="kw">let </span>fail = failure_err.map_or(fail, |x| x.as_fail());
-            exceptions.push(relay_log::exception_from_single_fail(
+            exceptions.push(exception_from_single_fail(
                 fail,
                 <span class="kw">if </span>idx == <span class="number">0 </span>{
                     <span class="prelude-val">Some</span>(failure_err.map_or_else(|| err.backtrace(), |err| err.backtrace()))

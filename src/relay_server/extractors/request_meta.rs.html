@@ -573,8 +573,6 @@
 <span id="571">571</span>
 <span id="572">572</span>
 <span id="573">573</span>
-<span id="574">574</span>
-<span id="575">575</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::net::IpAddr;
 <span class="kw">use </span>std::str::FromStr;
@@ -583,7 +581,6 @@
 <span class="kw">use </span>actix::ResponseFuture;
 <span class="kw">use </span>actix_web::http::header;
 <span class="kw">use </span>actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
-<span class="kw">use </span>failure::Fail;
 <span class="kw">use </span>futures01::{future, Future};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>url::Url;
@@ -600,25 +597,25 @@
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 <span class="kw">use </span><span class="kw">crate</span>::utils::ApiErrorResponse;
 
-<span class="attribute">#[derive(Debug, Fail)]
+<span class="attribute">#[derive(Debug, thiserror::Error)]
 </span><span class="kw">pub enum </span>BadEventMeta {
-    <span class="attribute">#[fail(display = <span class="string">&quot;missing authorization information&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;missing authorization information&quot;</span>)]
     </span>MissingAuth,
 
-    <span class="attribute">#[fail(display = <span class="string">&quot;multiple authorization payloads detected&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;multiple authorization payloads detected&quot;</span>)]
     </span>MultipleAuth,
 
-    <span class="attribute">#[fail(display = <span class="string">&quot;bad envelope authentication header&quot;</span>)]
-    </span>BadEnvelopeAuth(<span class="attribute">#[cause] </span>serde_json::Error),
+    <span class="attribute">#[error(<span class="string">&quot;bad envelope authentication header&quot;</span>)]
+    </span>BadEnvelopeAuth(<span class="attribute">#[source] </span>serde_json::Error),
 
-    <span class="attribute">#[fail(display = <span class="string">&quot;bad project path parameter&quot;</span>)]
-    </span>BadProject(<span class="attribute">#[cause] </span>ParseProjectIdError),
+    <span class="attribute">#[error(<span class="string">&quot;bad project path parameter&quot;</span>)]
+    </span>BadProject(<span class="attribute">#[from] </span>ParseProjectIdError),
 
-    <span class="attribute">#[fail(display = <span class="string">&quot;bad x-sentry-auth header&quot;</span>)]
-    </span>BadAuth(<span class="attribute">#[fail(cause)] </span>ParseAuthError),
+    <span class="attribute">#[error(<span class="string">&quot;bad x-sentry-auth header&quot;</span>)]
+    </span>BadAuth(<span class="attribute">#[from] </span>ParseAuthError),
 
-    <span class="attribute">#[fail(display = <span class="string">&quot;bad sentry DSN public key&quot;</span>)]
-    </span>BadPublicKey(ParseProjectKeyError),
+    <span class="attribute">#[error(<span class="string">&quot;bad sentry DSN public key&quot;</span>)]
+    </span>BadPublicKey(<span class="attribute">#[from] </span>ParseProjectKeyError),
 }
 
 <span class="kw">impl </span>ResponseError <span class="kw">for </span>BadEventMeta {
@@ -631,7 +628,7 @@
             <span class="self">Self</span>::BadProject(<span class="kw">_</span>) | <span class="self">Self</span>::BadPublicKey(<span class="kw">_</span>) =&gt; HttpResponse::BadRequest(),
         };
 
-        builder.json(<span class="kw-2">&amp;</span>ApiErrorResponse::from_fail(<span class="self">self</span>))
+        builder.json(<span class="kw-2">&amp;</span>ApiErrorResponse::from_error(<span class="self">self</span>))
     }
 }
 
@@ -1011,7 +1008,7 @@
 
     <span class="comment">// try to extract authentication info from http header &quot;x-sentry-auth&quot;
     </span><span class="kw">if let </span><span class="prelude-val">Some</span>(header) = get_auth_header(req, <span class="string">&quot;x-sentry-auth&quot;</span>) {
-        auth = <span class="prelude-val">Some</span>(header.parse::&lt;Auth&gt;().map_err(BadEventMeta::BadAuth)<span class="question-mark">?</span>);
+        auth = <span class="prelude-val">Some</span>(header.parse::&lt;Auth&gt;()<span class="question-mark">?</span>);
     }
 
     <span class="comment">// try to extract authentication info from http header &quot;authorization&quot;
@@ -1020,7 +1017,7 @@
             <span class="kw">return </span><span class="prelude-val">Err</span>(BadEventMeta::MultipleAuth);
         }
 
-        auth = <span class="prelude-val">Some</span>(header.parse::&lt;Auth&gt;().map_err(BadEventMeta::BadAuth)<span class="question-mark">?</span>);
+        auth = <span class="prelude-val">Some</span>(header.parse::&lt;Auth&gt;()<span class="question-mark">?</span>);
     }
 
     <span class="comment">// try to extract authentication info from URL query_param .../?sentry_...=&lt;key&gt;...
@@ -1030,7 +1027,7 @@
             <span class="kw">return </span><span class="prelude-val">Err</span>(BadEventMeta::MultipleAuth);
         }
 
-        auth = <span class="prelude-val">Some</span>(Auth::from_querystring(query.as_bytes()).map_err(BadEventMeta::BadAuth)<span class="question-mark">?</span>);
+        auth = <span class="prelude-val">Some</span>(Auth::from_querystring(query.as_bytes())<span class="question-mark">?</span>);
     }
 
     <span class="comment">// try to extract authentication info from URL path segment .../{sentry_key}/...
@@ -1069,7 +1066,7 @@
 
         <span class="kw">let </span>project_id = <span class="kw">match </span>request.match_info().get(<span class="string">&quot;project&quot;</span>) {
             <span class="comment">// The project_id was declared in the URL. Use it directly.
-            </span><span class="prelude-val">Some</span>(s) =&gt; <span class="prelude-val">Some</span>(s.parse().map_err(BadEventMeta::BadProject)<span class="question-mark">?</span>),
+            </span><span class="prelude-val">Some</span>(s) =&gt; <span class="prelude-val">Some</span>(s.parse()<span class="question-mark">?</span>),
 
             <span class="comment">// The legacy endpoint (/api/store) was hit without a project id. Fetch the project
             // id from the key lookup. Since this is the uncommon case, block the request until the
@@ -1080,8 +1077,7 @@
         <span class="kw">let </span>config = request.state().config();
         <span class="kw">let </span>upstream = config.upstream_descriptor();
 
-        <span class="kw">let </span>(public_key, key_flags) =
-            ProjectKey::parse_with_flags(auth.public_key()).map_err(BadEventMeta::BadPublicKey)<span class="question-mark">?</span>;
+        <span class="kw">let </span>(public_key, key_flags) = ProjectKey::parse_with_flags(auth.public_key())<span class="question-mark">?</span>;
 
         <span class="kw">let </span>dsn = PartialDsn {
             scheme: upstream.scheme(),

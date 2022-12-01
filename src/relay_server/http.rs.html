@@ -180,19 +180,6 @@
 <span id="178">178</span>
 <span id="179">179</span>
 <span id="180">180</span>
-<span id="181">181</span>
-<span id="182">182</span>
-<span id="183">183</span>
-<span id="184">184</span>
-<span id="185">185</span>
-<span id="186">186</span>
-<span id="187">187</span>
-<span id="188">188</span>
-<span id="189">189</span>
-<span id="190">190</span>
-<span id="191">191</span>
-<span id="192">192</span>
-<span id="193">193</span>
 </pre><pre class="rust"><code><span class="doccomment">///! Abstractions for dealing with either actix-web client structs or reqwest structs.
 ///!
 ///! All of it is implemented as enums because if they were traits, they&#39;d have to be boxed to be
@@ -205,7 +192,6 @@
 ///! logic.
 </span><span class="kw">use </span>std::io;
 
-<span class="kw">use </span>failure::Fail;
 <span class="kw">use </span>futures::{FutureExt, TryFutureExt, TryStreamExt};
 <span class="kw">use </span>futures01::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>serde::de::DeserializeOwned;
@@ -215,16 +201,16 @@
 <span class="attribute">#[doc(inline)]
 </span><span class="kw">pub use </span>reqwest::StatusCode;
 
-<span class="attribute">#[derive(Fail, Debug)]
+<span class="attribute">#[derive(Debug, thiserror::Error)]
 </span><span class="kw">pub enum </span>HttpError {
-    <span class="attribute">#[fail(display = <span class="string">&quot;payload too large&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;payload too large&quot;</span>)]
     </span>Overflow,
-    <span class="attribute">#[fail(display = <span class="string">&quot;could not send request&quot;</span>)]
-    </span>Reqwest(<span class="attribute">#[cause] </span>reqwest::Error),
-    <span class="attribute">#[fail(display = <span class="string">&quot;failed to stream payload&quot;</span>)]
-    </span>Io(<span class="attribute">#[cause] </span>io::Error),
-    <span class="attribute">#[fail(display = <span class="string">&quot;failed to parse JSON response&quot;</span>)]
-    </span>Json(<span class="attribute">#[cause] </span>serde_json::Error),
+    <span class="attribute">#[error(<span class="string">&quot;could not send request&quot;</span>)]
+    </span>Reqwest(<span class="attribute">#[from] </span>reqwest::Error),
+    <span class="attribute">#[error(<span class="string">&quot;failed to stream payload&quot;</span>)]
+    </span>Io(<span class="attribute">#[from] </span>io::Error),
+    <span class="attribute">#[error(<span class="string">&quot;failed to parse JSON response&quot;</span>)]
+    </span>Json(<span class="attribute">#[from] </span>serde_json::Error),
 }
 
 <span class="kw">impl </span>HttpError {
@@ -238,18 +224,6 @@
             <span class="self">Self</span>::Json(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
             HttpError::Overflow =&gt; <span class="bool-val">false</span>,
         }
-    }
-}
-
-<span class="kw">impl </span>From&lt;reqwest::Error&gt; <span class="kw">for </span>HttpError {
-    <span class="kw">fn </span>from(e: reqwest::Error) -&gt; <span class="self">Self </span>{
-        HttpError::Reqwest(e)
-    }
-}
-
-<span class="kw">impl </span>From&lt;io::Error&gt; <span class="kw">for </span>HttpError {
-    <span class="kw">fn </span>from(e: io::Error) -&gt; <span class="self">Self </span>{
-        HttpError::Io(e)
     }
 }
 

@@ -393,14 +393,12 @@
 <span id="391">391</span>
 <span id="392">392</span>
 <span id="393">393</span>
-<span id="394">394</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::convert::TryInto;
 <span class="kw">use </span>std::io;
 
 <span class="kw">use </span>actix::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>actix_web::{error::PayloadError, multipart, HttpMessage, HttpRequest};
 <span class="kw">use </span>bytes::Bytes;
-<span class="kw">use </span>failure::Fail;
 <span class="kw">use </span>futures01::{future, Async, Future, Poll, Stream};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
@@ -408,12 +406,12 @@
 <span class="kw">use </span><span class="kw">crate</span>::extractors::DecodingPayload;
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 
-<span class="attribute">#[derive(Debug, Fail)]
+<span class="attribute">#[derive(Debug, thiserror::Error)]
 </span><span class="kw">pub enum </span>MultipartError {
-    <span class="attribute">#[fail(display = <span class="string">&quot;payload reached its size limit&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;payload reached its size limit&quot;</span>)]
     </span>Overflow,
 
-    <span class="attribute">#[fail(display = <span class="string">&quot;{}&quot;</span>, _0)]
+    <span class="attribute">#[error(<span class="string">&quot;{0}&quot;</span>)]
     </span>InvalidMultipart(actix_web::error::MultipartError),
 }
 

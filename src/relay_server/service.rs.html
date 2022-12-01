@@ -348,56 +348,12 @@
 <span id="346">346</span>
 <span id="347">347</span>
 <span id="348">348</span>
-<span id="349">349</span>
-<span id="350">350</span>
-<span id="351">351</span>
-<span id="352">352</span>
-<span id="353">353</span>
-<span id="354">354</span>
-<span id="355">355</span>
-<span id="356">356</span>
-<span id="357">357</span>
-<span id="358">358</span>
-<span id="359">359</span>
-<span id="360">360</span>
-<span id="361">361</span>
-<span id="362">362</span>
-<span id="363">363</span>
-<span id="364">364</span>
-<span id="365">365</span>
-<span id="366">366</span>
-<span id="367">367</span>
-<span id="368">368</span>
-<span id="369">369</span>
-<span id="370">370</span>
-<span id="371">371</span>
-<span id="372">372</span>
-<span id="373">373</span>
-<span id="374">374</span>
-<span id="375">375</span>
-<span id="376">376</span>
-<span id="377">377</span>
-<span id="378">378</span>
-<span id="379">379</span>
-<span id="380">380</span>
-<span id="381">381</span>
-<span id="382">382</span>
-<span id="383">383</span>
-<span id="384">384</span>
-<span id="385">385</span>
-<span id="386">386</span>
-<span id="387">387</span>
-<span id="388">388</span>
-<span id="389">389</span>
-<span id="390">390</span>
-<span id="391">391</span>
-<span id="392">392</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>actix::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>actix_web::{server, App};
-<span class="kw">use </span>failure::{Backtrace, Context, Fail, ResultExt};
+<span class="kw">use </span>anyhow::{Context, <span class="prelude-ty">Result</span>};
 <span class="kw">use </span>listenfd::ListenFd;
 <span class="kw">use </span>once_cell::race::OnceBox;
 
@@ -426,83 +382,39 @@
 
 <span class="kw">pub static </span>REGISTRY: OnceBox&lt;Registry&gt; = OnceBox::new();
 
-<span class="doccomment">/// Common error type for the relay server.
-</span><span class="attribute">#[derive(Debug)]
-</span><span class="kw">pub struct </span>ServerError {
-    inner: Context&lt;ServerErrorKind&gt;,
-}
-
 <span class="doccomment">/// Indicates the type of failure of the server.
-</span><span class="attribute">#[derive(Debug, Fail, Copy, Clone, PartialEq, Eq, Hash)]
-</span><span class="kw">pub enum </span>ServerErrorKind {
+</span><span class="attribute">#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
+</span><span class="kw">pub enum </span>ServerError {
     <span class="doccomment">/// Binding failed.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;bind to interface failed&quot;</span>)]
+    </span><span class="attribute">#[error(<span class="string">&quot;bind to interface failed&quot;</span>)]
     </span>BindFailed,
 
     <span class="doccomment">/// Listening on the HTTP socket failed.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;listening failed&quot;</span>)]
+    </span><span class="attribute">#[error(<span class="string">&quot;listening failed&quot;</span>)]
     </span>ListenFailed,
 
     <span class="doccomment">/// A TLS error ocurred.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;could not initialize the TLS server&quot;</span>)]
+    </span><span class="attribute">#[error(<span class="string">&quot;could not initialize the TLS server&quot;</span>)]
     </span>TlsInitFailed,
 
     <span class="doccomment">/// TLS support was not compiled in.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;compile with the `ssl` feature to enable SSL support&quot;</span>)]
+    </span><span class="attribute">#[cfg(not(feature = <span class="string">&quot;ssl&quot;</span>))]
+    #[error(<span class="string">&quot;compile with the `ssl` feature to enable SSL support&quot;</span>)]
     </span>TlsNotSupported,
 
     <span class="doccomment">/// GeoIp construction failed.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;could not load the Geoip Db&quot;</span>)]
+    </span><span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    #[error(<span class="string">&quot;could not load the Geoip Db&quot;</span>)]
     </span>GeoIpError,
 
-    <span class="doccomment">/// Configuration failed.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;configuration error&quot;</span>)]
-    </span>ConfigError,
-
     <span class="doccomment">/// Initializing the Kafka producer failed.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;could not initialize kafka producer&quot;</span>)]
+    </span><span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    #[error(<span class="string">&quot;could not initialize kafka producer&quot;</span>)]
     </span>KafkaError,
 
     <span class="doccomment">/// Initializing the Redis cluster client failed.
-    </span><span class="attribute">#[fail(display = <span class="string">&quot;could not initialize redis cluster client&quot;</span>)]
+    </span><span class="attribute">#[error(<span class="string">&quot;could not initialize redis cluster client&quot;</span>)]
     </span>RedisError,
-}
-
-<span class="kw">impl </span>Fail <span class="kw">for </span>ServerError {
-    <span class="kw">fn </span>cause(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="kw">dyn </span>Fail&gt; {
-        <span class="self">self</span>.inner.cause()
-    }
-
-    <span class="kw">fn </span>backtrace(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Backtrace&gt; {
-        <span class="self">self</span>.inner.backtrace()
-    }
-}
-
-<span class="kw">impl </span>fmt::Display <span class="kw">for </span>ServerError {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        fmt::Display::fmt(<span class="kw-2">&amp;</span><span class="self">self</span>.inner, f)
-    }
-}
-
-<span class="kw">impl </span>ServerError {
-    <span class="doccomment">/// Returns the error kind of the error.
-    </span><span class="kw">pub fn </span>kind(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ServerErrorKind {
-        <span class="kw-2">*</span><span class="self">self</span>.inner.get_context()
-    }
-}
-
-<span class="kw">impl </span>From&lt;ServerErrorKind&gt; <span class="kw">for </span>ServerError {
-    <span class="kw">fn </span>from(kind: ServerErrorKind) -&gt; ServerError {
-        ServerError {
-            inner: Context::new(kind),
-        }
-    }
-}
-
-<span class="kw">impl </span>From&lt;Context&lt;ServerErrorKind&gt;&gt; <span class="kw">for </span>ServerError {
-    <span class="kw">fn </span>from(inner: Context&lt;ServerErrorKind&gt;) -&gt; ServerError {
-        ServerError { inner }
-    }
 }
 
 <span class="attribute">#[derive(Clone)]
@@ -554,7 +466,7 @@
 
 <span class="kw">impl </span>ServiceState {
     <span class="doccomment">/// Starts all services and returns addresses to all of them.
-    </span><span class="kw">pub fn </span>start(config: Arc&lt;Config&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ServerError&gt; {
+    </span><span class="kw">pub fn </span>start(config: Arc&lt;Config&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>system = System::current();
         <span class="kw">let </span>registry = system.registry();
 
@@ -574,7 +486,7 @@
 
         <span class="kw">let </span>redis_pool = <span class="kw">match </span>config.redis() {
             <span class="prelude-val">Some</span>(redis_config) <span class="kw">if </span>config.processing_enabled() =&gt; {
-                <span class="prelude-val">Some</span>(RedisPool::new(redis_config).context(ServerErrorKind::RedisError)<span class="question-mark">?</span>)
+                <span class="prelude-val">Some</span>(RedisPool::new(redis_config).context(ServerError::RedisError)<span class="question-mark">?</span>)
             }
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         };
@@ -685,7 +597,7 @@
 <span class="kw">fn </span>listen&lt;H, F&gt;(
     server: server::HttpServer&lt;H, F&gt;,
     config: <span class="kw-2">&amp;</span>Config,
-) -&gt; <span class="prelude-ty">Result</span>&lt;server::HttpServer&lt;H, F&gt;, ServerError&gt;
+) -&gt; <span class="prelude-ty">Result</span>&lt;server::HttpServer&lt;H, F&gt;&gt;
 <span class="kw">where
     </span>H: server::IntoHttpHandler + <span class="lifetime">&#39;static</span>,
     F: Fn() -&gt; H + Send + Clone + <span class="lifetime">&#39;static</span>,
@@ -693,12 +605,12 @@
     <span class="prelude-val">Ok</span>(
         <span class="kw">match </span>ListenFd::from_env()
             .take_tcp_listener(<span class="number">0</span>)
-            .context(ServerErrorKind::BindFailed)<span class="question-mark">?
+            .context(ServerError::ListenFailed)<span class="question-mark">?
         </span>{
             <span class="prelude-val">Some</span>(listener) =&gt; server.listen(listener),
             <span class="prelude-val">None </span>=&gt; server
                 .bind(config.listen_addr())
-                .context(ServerErrorKind::BindFailed)<span class="question-mark">?</span>,
+                .context(ServerError::BindFailed)<span class="question-mark">?</span>,
         },
     )
 }
@@ -707,7 +619,7 @@
 </span><span class="kw">fn </span>listen_ssl&lt;H, F&gt;(
     <span class="kw-2">mut </span>server: server::HttpServer&lt;H, F&gt;,
     config: <span class="kw-2">&amp;</span>Config,
-) -&gt; <span class="prelude-ty">Result</span>&lt;server::HttpServer&lt;H, F&gt;, ServerError&gt;
+) -&gt; <span class="prelude-ty">Result</span>&lt;server::HttpServer&lt;H, F&gt;&gt;
 <span class="kw">where
     </span>H: server::IntoHttpHandler + <span class="lifetime">&#39;static</span>,
     F: Fn() -&gt; H + Send + Clone + <span class="lifetime">&#39;static</span>,
@@ -725,15 +637,15 @@
         <span class="kw">let </span><span class="kw-2">mut </span>data = <span class="macro">vec!</span>[];
         file.read_to_end(<span class="kw-2">&amp;mut </span>data).unwrap();
         <span class="kw">let </span>identity =
-            Identity::from_pkcs12(<span class="kw-2">&amp;</span>data, password).context(ServerErrorKind::TlsInitFailed)<span class="question-mark">?</span>;
+            Identity::from_pkcs12(<span class="kw-2">&amp;</span>data, password).context(ServerError::TlsInitFailed)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>acceptor = TlsAcceptor::builder(identity)
             .build()
-            .context(ServerErrorKind::TlsInitFailed)<span class="question-mark">?</span>;
+            .context(ServerError::TlsInitFailed)<span class="question-mark">?</span>;
 
         server = server
             .bind_tls(addr, acceptor)
-            .context(ServerErrorKind::BindFailed)<span class="question-mark">?</span>;
+            .context(ServerError::BindFailed)<span class="question-mark">?</span>;
     }
 
     <span class="prelude-val">Ok</span>(server)
@@ -752,7 +664,7 @@
         || config.tls_identity_path().is_some()
         || config.tls_identity_password().is_some()
     {
-        <span class="prelude-val">Err</span>(ServerErrorKind::TlsNotSupported.into())
+        <span class="prelude-val">Err</span>(ServerError::TlsNotSupported.into())
     } <span class="kw">else </span>{
         <span class="prelude-val">Ok</span>(server)
     }
@@ -761,7 +673,7 @@
 <span class="doccomment">/// Given a relay config spawns the server together with all actors and lets them run forever.
 ///
 /// Effectively this boots the server.
-</span><span class="kw">pub fn </span>start(config: Config) -&gt; <span class="prelude-ty">Result</span>&lt;Recipient&lt;server::StopServer&gt;, ServerError&gt; {
+</span><span class="kw">pub fn </span>start(config: Config) -&gt; <span class="prelude-ty">Result</span>&lt;Recipient&lt;server::StopServer&gt;&gt; {
     <span class="kw">let </span>config = Arc::new(config);
 
     Controller::from_registry().do_send(Configure {

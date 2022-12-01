@@ -1635,7 +1635,6 @@
 <span id="1633">1633</span>
 <span id="1634">1634</span>
 <span id="1635">1635</span>
-<span id="1636">1636</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
@@ -1675,7 +1674,6 @@
 
 <span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>chrono::{DateTime, Utc};
-<span class="kw">use </span>failure::Fail;
 <span class="kw">use </span>relay_common::UnixTimestamp;
 <span class="kw">use </span>serde::{de::DeserializeOwned, Deserialize, Serialize};
 <span class="kw">use </span>smallvec::SmallVec;
@@ -1690,24 +1688,24 @@
 
 <span class="kw">pub const </span>CONTENT_TYPE: <span class="kw-2">&amp;</span>str = <span class="string">&quot;application/x-sentry-envelope&quot;</span>;
 
-<span class="attribute">#[derive(Debug, Fail)]
+<span class="attribute">#[derive(Debug, thiserror::Error)]
 </span><span class="kw">pub enum </span>EnvelopeError {
-    <span class="attribute">#[fail(display = <span class="string">&quot;unexpected end of file&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;unexpected end of file&quot;</span>)]
     </span>UnexpectedEof,
-    <span class="attribute">#[fail(display = <span class="string">&quot;missing envelope header&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;missing envelope header&quot;</span>)]
     </span>MissingHeader,
-    <span class="attribute">#[fail(display = <span class="string">&quot;missing newline after header or payload&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;missing newline after header or payload&quot;</span>)]
     </span>MissingNewline,
-    <span class="attribute">#[fail(display = <span class="string">&quot;invalid envelope header&quot;</span>)]
-    </span>InvalidHeader(<span class="attribute">#[cause] </span>serde_json::Error),
-    <span class="attribute">#[fail(display = <span class="string">&quot;{} header mismatch between envelope and request&quot;</span>, _0)]
+    <span class="attribute">#[error(<span class="string">&quot;invalid envelope header&quot;</span>)]
+    </span>InvalidHeader(<span class="attribute">#[source] </span>serde_json::Error),
+    <span class="attribute">#[error(<span class="string">&quot;{0} header mismatch between envelope and request&quot;</span>)]
     </span>HeaderMismatch(<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str),
-    <span class="attribute">#[fail(display = <span class="string">&quot;invalid item header&quot;</span>)]
-    </span>InvalidItemHeader(<span class="attribute">#[cause] </span>serde_json::Error),
-    <span class="attribute">#[fail(display = <span class="string">&quot;failed to write header&quot;</span>)]
-    </span>HeaderIoFailed(<span class="attribute">#[cause] </span>serde_json::Error),
-    <span class="attribute">#[fail(display = <span class="string">&quot;failed to write payload&quot;</span>)]
-    </span>PayloadIoFailed(<span class="attribute">#[cause] </span>io::Error),
+    <span class="attribute">#[error(<span class="string">&quot;invalid item header&quot;</span>)]
+    </span>InvalidItemHeader(<span class="attribute">#[source] </span>serde_json::Error),
+    <span class="attribute">#[error(<span class="string">&quot;failed to write header&quot;</span>)]
+    </span>HeaderIoFailed(<span class="attribute">#[source] </span>serde_json::Error),
+    <span class="attribute">#[error(<span class="string">&quot;failed to write payload&quot;</span>)]
+    </span>PayloadIoFailed(<span class="attribute">#[source] </span>io::Error),
 }
 
 <span class="doccomment">/// The type of an envelope item.

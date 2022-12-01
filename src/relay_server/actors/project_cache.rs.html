@@ -651,13 +651,12 @@
 <span id="649">649</span>
 <span id="650">650</span>
 <span id="651">651</span>
-<span id="652">652</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Instant;
 
 <span class="kw">use </span>actix::{Actor, Message};
 <span class="kw">use </span>actix_web::ResponseError;
-<span class="kw">use </span>failure::Fail;
+<span class="kw">use </span>tokio::sync::mpsc;
 
 <span class="kw">use </span>relay_common::ProjectKey;
 <span class="kw">use </span>relay_config::{Config, RelayMode};
@@ -666,7 +665,6 @@
 <span class="kw">use </span>relay_redis::RedisPool;
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{compat, Addr, FromMessage, Interface, Sender, Service};
-<span class="kw">use </span>tokio::sync::mpsc;
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::DiscardReason;
 <span class="kw">use </span><span class="kw">crate</span>::actors::processor::ProcessEnvelope;
@@ -681,9 +679,9 @@
 <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 </span><span class="kw">use </span>{<span class="kw">crate</span>::actors::project_redis::RedisProjectSource, actix::SyncArbiter, relay_common::clone};
 
-<span class="attribute">#[derive(Fail, Debug, Clone)]
+<span class="attribute">#[derive(Clone, Debug, thiserror::Error)]
 </span><span class="kw">pub enum </span>ProjectError {
-    <span class="attribute">#[fail(display = <span class="string">&quot;could not schedule project fetching&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;could not schedule project fetching&quot;</span>)]
     </span>ScheduleFailed,
 }
 

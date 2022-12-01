@@ -925,6 +925,7 @@
 <span id="923">923</span>
 <span id="924">924</span>
 <span id="925">925</span>
+<span id="926">926</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the actor that tracks outcomes.
 //!
 //! Outcomes describe the final &quot;fate&quot; of an envelope item. As such, for every item exactly one
@@ -942,9 +943,9 @@
 
 <span class="kw">use </span>actix::prelude::SystemService;
 <span class="kw">use </span>actix_web::http::Method;
-<span class="kw">use </span>chrono::{DateTime, SecondsFormat, Utc};
 <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-</span><span class="kw">use </span>failure::Fail;
+</span><span class="kw">use </span>anyhow::Context;
+<span class="kw">use </span>chrono::{DateTime, SecondsFormat, Utc};
 <span class="kw">use </span>relay_system::{Interface, NoResponse};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
@@ -954,7 +955,8 @@
 <span class="kw">use </span>relay_general::protocol::{ClientReport, DiscardedEvent, EventId};
 <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 </span><span class="kw">use </span>relay_kafka::{ClientError, KafkaClient, KafkaTopic};
-<span class="kw">use </span>relay_log::LogError;
+<span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+</span><span class="kw">use </span>relay_log::LogError;
 <span class="kw">use </span>relay_quotas::{ReasonCode, Scoping};
 <span class="kw">use </span>relay_sampling::RuleId;
 <span class="kw">use </span>relay_statsd::metric;
@@ -963,11 +965,10 @@
 <span class="kw">use </span><span class="kw">crate</span>::actors::envelopes::{EnvelopeManager, SendClientReports};
 <span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-</span><span class="kw">use </span><span class="kw">crate</span>::service::ServerErrorKind;
+</span><span class="kw">use </span><span class="kw">crate</span>::service::ServerError;
 <span class="kw">use </span><span class="kw">crate</span>::service::REGISTRY;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
 <span class="kw">use </span><span class="kw">crate</span>::utils::SleepHandle;
-<span class="kw">use </span><span class="kw">crate</span>::ServerError;
 
 <span class="doccomment">/// Defines the structure of the HTTP outcomes requests
 </span><span class="attribute">#[derive(Debug, Default, Deserialize, Serialize)]
@@ -1434,12 +1435,12 @@
 }
 
 <span class="attribute">#[derive(Debug)]
-#[cfg_attr(feature = <span class="string">&quot;processing&quot;</span>, derive(Fail))]
+#[cfg_attr(feature = <span class="string">&quot;processing&quot;</span>, derive(thiserror::Error))]
 </span><span class="kw">pub enum </span>OutcomeError {
-    <span class="attribute">#[fail(display = <span class="string">&quot;failed to send kafka message&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;failed to send kafka message&quot;</span>)]
     #[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
     </span>SendFailed(ClientError),
-    <span class="attribute">#[fail(display = <span class="string">&quot;json serialization error&quot;</span>)]
+    <span class="attribute">#[error(<span class="string">&quot;json serialization error&quot;</span>)]
     #[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
     </span>SerializationError(serde_json::Error),
 }
@@ -1452,7 +1453,7 @@
 }
 
 <span class="kw">impl </span>HttpOutcomeProducer {
-    <span class="kw">pub fn </span>create(config: Arc&lt;Config&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ServerError&gt; {
+    <span class="kw">pub fn </span>create(config: Arc&lt;Config&gt;) -&gt; anyhow::Result&lt;<span class="self">Self</span>&gt; {
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
             config,
             unsent_outcomes: Vec::new(),
@@ -1481,7 +1482,7 @@
             <span class="kw">match </span>compat::send(UpstreamRelay::from_registry(), SendQuery(request)).<span class="kw">await </span>{
                 <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="macro">relay_log::trace!</span>(<span class="string">&quot;outcome batch sent.&quot;</span>),
                 <span class="prelude-val">Err</span>(error) =&gt; {
-                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;outcome batch sending failed with: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>error))
+                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;outcome batch sending failed with: {}&quot;</span>, error)
                 }
             }
         });
@@ -1629,17 +1630,18 @@
     ///
     /// If the given Kafka configuration parameters are invalid, or an error happens during
     /// connecting during the broker, an error is returned.
-    </span><span class="kw">pub fn </span>create(config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ServerError&gt; {
+    </span><span class="kw">pub fn </span>create(config: <span class="kw-2">&amp;</span>Config) -&gt; anyhow::Result&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>client_builder = KafkaClient::builder();
 
         <span class="kw">for </span>topic <span class="kw">in </span><span class="kw-2">&amp;</span>[KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
             <span class="kw">let </span>kafka_config = <span class="kw-2">&amp;</span>config
                 .kafka_config(<span class="kw-2">*</span>topic)
-                .map_err(|<span class="kw">_</span>| ServerErrorKind::KafkaError)<span class="question-mark">?</span>;
+                .context(ServerError::KafkaError)<span class="question-mark">?</span>;
             client_builder = client_builder
                 .add_kafka_topic_config(<span class="kw-2">*</span>topic, kafka_config)
-                .map_err(|<span class="kw">_</span>| ServerErrorKind::KafkaError)<span class="question-mark">?</span>;
+                .context(ServerError::KafkaError)<span class="question-mark">?</span>;
         }
+
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
             client: client_builder.build(),
         })
@@ -1703,7 +1705,7 @@
 }
 
 <span class="kw">impl </span>OutcomeProducerService {
-    <span class="kw">pub fn </span>create(config: Arc&lt;Config&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ServerError&gt; {
+    <span class="kw">pub fn </span>create(config: Arc&lt;Config&gt;) -&gt; anyhow::Result&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>producer = <span class="kw">match </span>config.emit_outcomes() {
             EmitOutcomes::AsOutcomes =&gt; {
                 <span class="comment">// We emit outcomes as raw outcomes, and accept raw outcomes emitted by downstream

@@ -65,15 +65,13 @@
 <span id="63">63</span>
 <span id="64">64</span>
 <span id="65">65</span>
-<span id="66">66</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt::Display;
 <span class="kw">use </span>std::str::FromStr;
 
+<span class="kw">use </span>anyhow::Result;
 <span class="kw">use </span>console::Style;
-<span class="kw">use </span>dialoguer::Input;
-<span class="kw">use </span>failure::Error;
-
 <span class="kw">use </span>dialoguer::theme::{ColorfulTheme, Theme};
+<span class="kw">use </span>dialoguer::Input;
 <span class="kw">use </span>once_cell::sync::Lazy;
 
 <span class="kw">static </span>THEME: Lazy&lt;ColorfulTheme&gt; = Lazy::new(|| ColorfulTheme {
@@ -90,7 +88,7 @@
 }
 
 <span class="doccomment">/// Prompts for a value that has a default.
-</span><span class="kw">pub fn </span>prompt_value&lt;V: FromStr + Display&gt;(name: <span class="kw-2">&amp;</span>str, v: <span class="kw-2">&amp;mut </span>V) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt;
+</span><span class="kw">pub fn </span>prompt_value&lt;V: FromStr + Display&gt;(name: <span class="kw-2">&amp;</span>str, v: <span class="kw-2">&amp;mut </span>V) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt;
 <span class="kw">where
     </span>&lt;V <span class="kw">as </span>FromStr&gt;::Err: Display,
 {
@@ -113,7 +111,7 @@
 }
 
 <span class="doccomment">/// Prompts for a value without a default.
-</span><span class="kw">pub fn </span>prompt_value_no_default&lt;V: FromStr + Display&gt;(name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;V, Error&gt;
+</span><span class="kw">pub fn </span>prompt_value_no_default&lt;V: FromStr + Display&gt;(name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;V&gt;
 <span class="kw">where
     </span>&lt;V <span class="kw">as </span>FromStr&gt;::Err: Display,
 {

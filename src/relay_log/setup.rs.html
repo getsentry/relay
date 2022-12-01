@@ -267,21 +267,14 @@
 <span id="265">265</span>
 <span id="266">266</span>
 <span id="267">267</span>
-<span id="268">268</span>
-<span id="269">269</span>
-<span id="270">270</span>
-<span id="271">271</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::env;
 <span class="kw">use </span>std::io::{<span class="self">self</span>, Write};
 <span class="kw">use </span>std::path::PathBuf;
-<span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>log::{Level, LevelFilter};
 <span class="kw">use </span>sentry::types::Dsn;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
-
-<span class="kw">use </span><span class="kw">crate</span>::sentry_failure::FailureIntegration;
 
 <span class="doccomment">/// The full release name including the Relay version and SHA.
 </span><span class="kw">const </span>RELEASE: <span class="kw-2">&amp;</span>str = <span class="macro">std::env!</span>(<span class="string">&quot;RELAY_RELEASE&quot;</span>);
@@ -532,7 +525,6 @@
                 <span class="string">&quot;relay_server::&quot;</span>,
                 <span class="string">&quot;relay::&quot;</span>,
             ],
-            integrations: <span class="macro">vec!</span>[Arc::new(FailureIntegration::new())],
             release: <span class="prelude-val">Some</span>(RELEASE.into()),
             attach_stacktrace: config.enable_backtraces,
             ..Default::default()
