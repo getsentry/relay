@@ -78,11 +78,16 @@ pub enum AbnormalMechanism {
     None,
 }
 
-#[derive(Debug, Fail)]
-#[fail(display = "invalid abnormal mechanism")]
-pub struct ParseSessionAbnormalMechanism;
+#[derive(Debug)]
+pub struct ParseAbnormalMechanismError;
 
-derive_fromstr_and_display!(AbnormalMechanism, ParseSessionAbnormalMechanism, {
+impl fmt::Display for ParseAbnormalMechanismError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "invalid abnormal mechanism")
+    }
+}
+
+derive_fromstr_and_display!(AbnormalMechanism, ParseAbnormalMechanismError, {
     AbnormalMechanism::AnrForeground => "anr_foreground",
     AbnormalMechanism::AnrBackground => "anr_background",
     AbnormalMechanism::None => "none",
