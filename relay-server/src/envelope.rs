@@ -755,7 +755,7 @@ pub struct EnvelopeHeaders<M = RequestMeta> {
 
     /// Trace context associated with the request
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    trace: Option<ErrorBoundary<DynamicSamplingContext>>,
+    pub trace: Option<ErrorBoundary<DynamicSamplingContext>>,
 
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
@@ -804,7 +804,7 @@ impl EnvelopeHeaders<PartialMeta> {
 
 #[derive(Clone, Debug)]
 pub struct Envelope {
-    headers: EnvelopeHeaders,
+    pub headers: EnvelopeHeaders,
     items: Items,
 }
 

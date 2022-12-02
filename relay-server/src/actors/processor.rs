@@ -1972,6 +1972,27 @@ impl EnvelopeProcessorService {
     fn sample_envelope(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let client_ip = state.envelope.meta().client_addr();
 
+        // XXX: Don't merge this. This is here so it only runs once per envelope.
+        if let Some(e) = state.event.value() {
+            if state.project_id == ProjectId::new(1) && e.ty.0 == Some(EventType::Transaction) {
+                match state.envelope.headers.trace {
+                    Some(ErrorBoundary::Ok(_)) => (),
+                    Some(ErrorBoundary::Err(ref err)) => {
+                        relay_log::with_scope(
+                            |s| s.set_tag("transaction", e.transaction.as_str().unwrap_or("")),
+                            || relay_log::error!("broken DSC: {}", LogError(err)),
+                        );
+                    }
+                    None => {
+                        relay_log::with_scope(
+                            |s| s.set_tag("transaction", e.transaction.as_str().unwrap_or("")),
+                            || relay_log::error!("missing DSC"),
+                        );
+                    }
+                }
+            }
+        }
+
         match utils::should_keep_event(
             state.envelope.sampling_context(),
             state.event.value(),
