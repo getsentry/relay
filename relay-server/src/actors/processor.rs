@@ -1,4 +1,3 @@
-use std::cmp::max;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::io::Write;
@@ -44,7 +43,7 @@ use crate::actors::project_cache::ProjectCache;
 use crate::actors::upstream::{SendRequest, UpstreamRelay};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::metrics_extraction::sessions::{extract_session_metrics, SessionMetricsConfig};
-use crate::metrics_extraction::transactions::extract_transaction_metrics;
+use crate::metrics_extraction::transactions::{extract_transaction_metrics, ExtractMetricsError};
 use crate::service::REGISTRY;
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
@@ -107,6 +106,9 @@ pub enum ProcessingError {
     #[error("event filtered with reason: {0:?}")]
     EventFiltered(FilterStatKey),
 
+    #[error("missing or invalid required event timestamp")]
+    InvalidTimestamp,
+
     #[error("could not serialize event payload")]
     SerializeFailed(#[source] serde_json::Error),
 
@@ -131,6 +133,7 @@ impl ProcessingError {
             Self::InvalidSecurityType => Some(Outcome::Invalid(DiscardReason::SecurityReportType)),
             Self::InvalidSecurityReport(_) => Some(Outcome::Invalid(DiscardReason::SecurityReport)),
             Self::InvalidTransaction => Some(Outcome::Invalid(DiscardReason::InvalidTransaction)),
+            Self::InvalidTimestamp => Some(Outcome::Invalid(DiscardReason::Timestamp)),
             Self::DuplicateItem(_) => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::NoEventPayload => Some(Outcome::Invalid(DiscardReason::NoEventPayload)),
 
@@ -175,6 +178,16 @@ impl From<Unreal4Error> for ProcessingError {
         match err.kind() {
             Unreal4ErrorKind::TooLarge => Self::PayloadTooLarge,
             _ => ProcessingError::InvalidUnrealReport(err),
+        }
+    }
+}
+
+impl From<ExtractMetricsError> for ProcessingError {
+    fn from(error: ExtractMetricsError) -> Self {
+        match error {
+            ExtractMetricsError::MissingTimestamp | ExtractMetricsError::InvalidTimestamp => {
+                Self::InvalidTimestamp
+            }
         }
     }
 }
@@ -1815,36 +1828,35 @@ impl EnvelopeProcessorService {
             return Ok(());
         }
 
-        let config = match state.project_state.config().transaction_metrics {
+        let project_config = state.project_state.config();
+        let extraction_config = match project_config.transaction_metrics {
             Some(ErrorBoundary::Ok(ref config)) => config,
             _ => return Ok(()),
         };
 
-        if !config.is_enabled() {
+        if !extraction_config.is_enabled() {
             return Ok(());
         }
 
-        let conditional_tagging_config = state
-            .project_state
-            .config
-            .metric_conditional_tagging
-            .as_slice();
-
         if let Some(event) = state.event.value() {
-            let extracted_anything;
+            let result;
             metric!(
                 timer(RelayTimers::TransactionMetricsExtraction),
-                extracted_anything = &extracted_anything.to_string(),
+                extracted_anything = &result.unwrap_or(false).to_string(),
                 {
                     // Actual logic outsourced for unit tests
-                    extracted_anything = extract_transaction_metrics(
-                        config,
-                        conditional_tagging_config,
+                    result = extract_transaction_metrics(
+                        self.config.aggregator_config(),
+                        extraction_config,
+                        &project_config.metric_conditional_tagging,
                         event,
                         &mut state.extracted_metrics,
                     );
                 }
             );
+
+            result?;
+
             state.transaction_metrics_extracted = true;
             state.envelope_context.set_event_metrics_extracted();
 
@@ -2184,19 +2196,11 @@ impl EnvelopeProcessorService {
                 let mut timestamp = item.timestamp().unwrap_or(received_timestamp);
                 clock_drift_processor.process_timestamp(&mut timestamp);
 
-                let min_timestamp = max(
-                    0,
-                    received.timestamp() - self.config.max_session_secs_in_past(),
-                ) as u64;
-                let max_timestamp =
-                    (received.timestamp() + self.config.max_secs_in_future()) as u64;
-                if min_timestamp <= timestamp.as_secs() && timestamp.as_secs() <= max_timestamp {
-                    let metrics =
-                        Metric::parse_all(&payload, timestamp).filter_map(|result| result.ok());
+                let metrics =
+                    Metric::parse_all(&payload, timestamp).filter_map(|result| result.ok());
 
-                    relay_log::trace!("inserting metrics into project cache");
-                    project_cache.send(InsertMetrics::new(public_key, metrics));
-                }
+                relay_log::trace!("inserting metrics into project cache");
+                project_cache.send(InsertMetrics::new(public_key, metrics));
             } else if item.ty() == &ItemType::MetricBuckets {
                 match Bucket::parse_all(&payload) {
                     Ok(mut buckets) => {

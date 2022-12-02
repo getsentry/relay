@@ -175,7 +175,7 @@ impl ServiceState {
 
         let guard = aggregator_runtime.enter();
         let aggregator = AggregatorService::new(
-            config.aggregator_config(),
+            config.aggregator_config().clone(),
             Some(project_cache.clone().recipient()),
         )
         .start();

@@ -872,7 +872,7 @@ def test_graceful_shutdown(mini_sentry, relay):
 
     # Future timestamp will not be flushed regularly, only through force flush
     metrics_payload = f"transactions/bar:17|c"
-    future_timestamp = timestamp + 60
+    future_timestamp = timestamp + 30
     relay.send_metrics(project_id, metrics_payload, future_timestamp)
     relay.shutdown(sig=signal.SIGTERM)
 
