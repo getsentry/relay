@@ -1,4 +1,3 @@
-use std::cmp::max;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::io::Write;
@@ -2184,19 +2183,11 @@ impl EnvelopeProcessorService {
                 let mut timestamp = item.timestamp().unwrap_or(received_timestamp);
                 clock_drift_processor.process_timestamp(&mut timestamp);
 
-                let min_timestamp = max(
-                    0,
-                    received.timestamp() - self.config.max_session_secs_in_past(),
-                ) as u64;
-                let max_timestamp =
-                    (received.timestamp() + self.config.max_secs_in_future()) as u64;
-                if min_timestamp <= timestamp.as_secs() && timestamp.as_secs() <= max_timestamp {
-                    let metrics =
-                        Metric::parse_all(&payload, timestamp).filter_map(|result| result.ok());
+                let metrics =
+                    Metric::parse_all(&payload, timestamp).filter_map(|result| result.ok());
 
-                    relay_log::trace!("inserting metrics into project cache");
-                    project_cache.send(InsertMetrics::new(public_key, metrics));
-                }
+                relay_log::trace!("inserting metrics into project cache");
+                project_cache.send(InsertMetrics::new(public_key, metrics));
             } else if item.ty() == &ItemType::MetricBuckets {
                 match Bucket::parse_all(&payload) {
                     Ok(mut buckets) => {
