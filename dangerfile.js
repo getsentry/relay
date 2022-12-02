@@ -45,7 +45,7 @@ async function containsChangelog(path) {
 
 async function checkChangelog() {
   const skipChangelog =
-    danger.github && (danger.github.pr.body + "").includes("#skip-changelog");
+    danger.github && ((danger.github.pr.body + "").includes("#skip-changelog") || danger.github.pr.base.repo.fork);
 
   if (skipChangelog) {
     return;
