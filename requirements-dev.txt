@@ -17,7 +17,7 @@ pytest==7.1.2
 PyYAML==6.0
 redis==3.4.1
 requests==2.28.1
-git+https://github.com/getsentry/sentry-python@e234998ae82a9cffa6fb3718801c55ba24a86bab#egg=sentry_sdk
+sentry_sdk==1.11.0
 werkzeug==2.2.2
 sentry-relay==0.8.15
 zstandard==0.18.0
