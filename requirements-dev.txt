@@ -1,17 +1,23 @@
-black==19.10b0
+--index-url https://pypi.devinfra.sentry.io/simple
+
+# Dependencies and their versions must be listed in the Sentry package index.
+# See https://github.com/getsentry/pypi#readme
+
+black==22.10.0
+blinker==1.5
 click==8.0.4
-flake8==3.7.9
-confluent-kafka==1.6.0
-flask==2.0.1
-msgpack==1.0.0
-pytest-localserver==0.5.0
-pytest-sentry==0.1.1
-pytest-xdist==1.31.0
+flake8==6.0.0
+confluent-kafka==1.9.2
+flask==2.2.2
+msgpack==1.0.4
+pytest-localserver==0.7.0
+pytest-sentry==0.1.11
+pytest-xdist==3.0.2
 pytest==7.1.2
 PyYAML==6.0
 redis==3.4.1
-requests==2.23.0
-git+https://github.com/getsentry/sentry-python@e234998ae82a9cffa6fb3718801c55ba24a86bab#egg=sentry_sdk
-werkzeug==2.0.1
-sentry-relay==0.8.9
+requests==2.28.1
+sentry_sdk==1.11.0
+werkzeug==2.2.2
+sentry-relay==0.8.15
 zstandard==0.18.0

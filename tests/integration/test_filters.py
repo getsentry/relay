@@ -12,7 +12,10 @@ import pytest
         ({"errorMessages": {"patterns": ["Panic: originalCreateNotification"]}}, True),
         ({"errorMessages": {"patterns": ["Warning"]}}, False),
     ],
-    ids=["error messages filtered", "error messages not filtered",],
+    ids=[
+        "error messages filtered",
+        "error messages not filtered",
+    ],
 )
 def test_filters_are_applied(
     mini_sentry,
@@ -163,11 +166,21 @@ def test_browser_extension_filters_are_applied(
 
 @pytest.mark.parametrize(
     "is_enabled, should_filter",
-    [(True, True), (False, False),],
-    ids=["web crawlers filtered", "web crawlers not filtered",],
+    [
+        (True, True),
+        (False, False),
+    ],
+    ids=[
+        "web crawlers filtered",
+        "web crawlers not filtered",
+    ],
 )
 def test_web_crawlers_filter_are_applied(
-    mini_sentry, relay_with_processing, events_consumer, is_enabled, should_filter,
+    mini_sentry,
+    relay_with_processing,
+    events_consumer,
+    is_enabled,
+    should_filter,
 ):
     """
     Test that relay normalizes messages when processing is enabled and sends them via Kafka queues
@@ -187,7 +200,11 @@ def test_web_crawlers_filter_are_applied(
 
     event = {
         "message": message_text,
-        "request": {"headers": {"User-Agent": "BingBot",}},
+        "request": {
+            "headers": {
+                "User-Agent": "BingBot",
+            }
+        },
     }
 
     relay.send_event(project_id, event)

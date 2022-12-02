@@ -93,9 +93,19 @@ def test_replay_event_with_processing(
 
     # Assert contexts object was pulled out.
     assert parsed_replay["contexts"] == {
-        "browser": {"name": "Safari", "version": "15.5",},
-        "device": {"brand": "Apple", "family": "Mac", "model": "Mac",},
-        "os": {"name": "Mac OS X", "version": "10.15.7",},
+        "browser": {
+            "name": "Safari",
+            "version": "15.5",
+        },
+        "device": {
+            "brand": "Apple",
+            "family": "Mac",
+            "model": "Mac",
+        },
+        "os": {
+            "name": "Mac OS X",
+            "version": "10.15.7",
+        },
     }
 
 

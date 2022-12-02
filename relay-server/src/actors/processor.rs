@@ -9,7 +9,6 @@ use std::time::{Duration, Instant};
 use actix::SystemService;
 use brotli2::write::BrotliEncoder;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
-use failure::Fail;
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use once_cell::sync::OnceCell;
@@ -46,7 +45,7 @@ use crate::actors::upstream::{SendRequest, UpstreamRelay};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::metrics_extraction::sessions::{extract_session_metrics, SessionMetricsConfig};
 use crate::metrics_extraction::transactions::extract_transaction_metrics;
-use crate::service::{ServerError, REGISTRY};
+use crate::service::REGISTRY;
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
     self, ChunkedFormDataAggregator, EnvelopeContext, ErrorBoundary, FormDataIter, SamplingResult,
@@ -56,9 +55,9 @@ use crate::utils::{
 use {
     crate::actors::envelopes::SendMetrics,
     crate::actors::project_cache::UpdateRateLimits,
-    crate::service::ServerErrorKind,
+    crate::service::ServerError,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
-    failure::ResultExt,
+    anyhow::Context,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::ItemScoping,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
@@ -69,56 +68,56 @@ use {
 const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
 
 /// An error returned when handling [`ProcessEnvelope`].
-#[derive(Debug, Fail)]
+#[derive(Debug, thiserror::Error)]
 pub enum ProcessingError {
-    #[fail(display = "invalid json in event")]
-    InvalidJson(#[cause] serde_json::Error),
+    #[error("invalid json in event")]
+    InvalidJson(#[source] serde_json::Error),
 
-    #[fail(display = "invalid message pack event payload")]
-    InvalidMsgpack(#[cause] rmp_serde::decode::Error),
+    #[error("invalid message pack event payload")]
+    InvalidMsgpack(#[from] rmp_serde::decode::Error),
 
     #[cfg(feature = "processing")]
-    #[fail(display = "invalid unreal crash report")]
-    InvalidUnrealReport(#[cause] Unreal4Error),
+    #[error("invalid unreal crash report")]
+    InvalidUnrealReport(#[source] Unreal4Error),
 
-    #[fail(display = "event payload too large")]
+    #[error("event payload too large")]
     PayloadTooLarge,
 
-    #[fail(display = "invalid transaction event")]
+    #[error("invalid transaction event")]
     InvalidTransaction,
 
-    #[fail(display = "envelope processor failed")]
-    ProcessingFailed(#[cause] ProcessingAction),
+    #[error("envelope processor failed")]
+    ProcessingFailed(#[from] ProcessingAction),
 
-    #[fail(display = "duplicate {} in event", _0)]
+    #[error("duplicate {0} in event")]
     DuplicateItem(ItemType),
 
-    #[fail(display = "failed to extract event payload")]
+    #[error("failed to extract event payload")]
     NoEventPayload,
 
-    #[fail(display = "missing project id in DSN")]
+    #[error("missing project id in DSN")]
     MissingProjectId,
 
-    #[fail(display = "invalid security report type")]
+    #[error("invalid security report type")]
     InvalidSecurityType,
 
-    #[fail(display = "invalid security report")]
-    InvalidSecurityReport(#[cause] serde_json::Error),
+    #[error("invalid security report")]
+    InvalidSecurityReport(#[source] serde_json::Error),
 
-    #[fail(display = "event filtered with reason: {:?}", _0)]
+    #[error("event filtered with reason: {0:?}")]
     EventFiltered(FilterStatKey),
 
-    #[fail(display = "could not serialize event payload")]
-    SerializeFailed(#[cause] serde_json::Error),
+    #[error("could not serialize event payload")]
+    SerializeFailed(#[source] serde_json::Error),
 
     #[cfg(feature = "processing")]
-    #[fail(display = "failed to apply quotas")]
-    QuotasFailed(#[cause] RateLimitingError),
+    #[error("failed to apply quotas")]
+    QuotasFailed(#[from] RateLimitingError),
 
-    #[fail(display = "event dropped by sampling rule {}", _0)]
+    #[error("event dropped by sampling rule {0}")]
     Sampled(RuleId),
 
-    #[fail(display = "invalid pii config")]
+    #[error("invalid pii config")]
     PiiConfigError(PiiConfigError),
 }
 
@@ -591,11 +590,11 @@ pub struct EnvelopeProcessorService {
 
 impl EnvelopeProcessorService {
     /// Creates a multi-threaded envelope processor.
-    pub fn new(config: Arc<Config>, _redis: Option<RedisPool>) -> Result<Self, ServerError> {
+    pub fn new(config: Arc<Config>, _redis: Option<RedisPool>) -> anyhow::Result<Self> {
         #[cfg(feature = "processing")]
         {
             let geoip_lookup = match config.geoip_path() {
-                Some(p) => Some(GeoIpLookup::open(p).context(ServerErrorKind::GeoIpError)?),
+                Some(p) => Some(GeoIpLookup::open(p).context(ServerError::GeoIpError)?),
                 None => None,
             };
 
@@ -1357,8 +1356,7 @@ impl EnvelopeProcessorService {
         let mut deserializer = rmp_serde::Deserializer::new(payload.as_ref());
 
         while !deserializer.get_ref().is_empty() {
-            let breadcrumb = Annotated::deserialize_with_meta(&mut deserializer)
-                .map_err(ProcessingError::InvalidMsgpack)?;
+            let breadcrumb = Annotated::deserialize_with_meta(&mut deserializer)?;
             breadcrumbs.push(breadcrumb);
         }
 
@@ -1471,11 +1469,11 @@ impl EnvelopeProcessorService {
         let raw_security_item = envelope.take_item_by(|item| item.ty() == &ItemType::RawSecurity);
         let form_item = envelope.take_item_by(|item| item.ty() == &ItemType::FormData);
         let attachment_item = envelope
-            .take_item_by(|item| item.attachment_type() == Some(AttachmentType::EventPayload));
+            .take_item_by(|item| item.attachment_type() == Some(&AttachmentType::EventPayload));
         let breadcrumbs1 = envelope
-            .take_item_by(|item| item.attachment_type() == Some(AttachmentType::Breadcrumbs));
+            .take_item_by(|item| item.attachment_type() == Some(&AttachmentType::Breadcrumbs));
         let breadcrumbs2 = envelope
-            .take_item_by(|item| item.attachment_type() == Some(AttachmentType::Breadcrumbs));
+            .take_item_by(|item| item.attachment_type() == Some(&AttachmentType::Breadcrumbs));
 
         // Event items can never occur twice in an envelope.
         if let Some(duplicate) = envelope.get_item_by(|item| self.is_duplicate(item)) {
@@ -1550,9 +1548,9 @@ impl EnvelopeProcessorService {
         let envelope = &mut state.envelope;
 
         let minidump_attachment =
-            envelope.get_item_by(|item| item.attachment_type() == Some(AttachmentType::Minidump));
+            envelope.get_item_by(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
         let apple_crash_report_attachment = envelope
-            .get_item_by(|item| item.attachment_type() == Some(AttachmentType::AppleCrashReport));
+            .get_item_by(|item| item.attachment_type() == Some(&AttachmentType::AppleCrashReport));
 
         if let Some(item) = minidump_attachment {
             let event = state.event.get_or_insert_with(Event::default);
@@ -1608,7 +1606,7 @@ impl EnvelopeProcessorService {
 
             let attachment_size = envelope
                 .items()
-                .filter(|item| item.attachment_type() == Some(AttachmentType::Attachment))
+                .filter(|item| item.attachment_type() == Some(&AttachmentType::Attachment))
                 .map(|item| item.len() as u64)
                 .sum::<u64>();
 
@@ -1639,6 +1637,20 @@ impl EnvelopeProcessorService {
                     sdk = envelope.meta().client_name().unwrap_or("proprietary"),
                     platform = event.platform.as_str().unwrap_or("other"),
                 );
+
+                let otel_context = event
+                    .contexts
+                    .value()
+                    .and_then(|contexts| contexts.get("otel"))
+                    .and_then(Annotated::value);
+
+                if otel_context.is_some() {
+                    metric!(
+                        counter(RelayCounters::OpenTelemetryEvent) += 1,
+                        sdk = envelope.meta().client_name().unwrap_or("proprietary"),
+                        platform = event.platform.as_str().unwrap_or("other"),
+                    );
+                }
             }
         }
 
@@ -1776,14 +1788,11 @@ impl EnvelopeProcessorService {
 
         let scoping = state.envelope_context.scoping();
         let (enforcement, limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
-            envelope_limiter
-                .enforce(&mut state.envelope, &scoping)
-                .map_err(ProcessingError::QuotasFailed)?
+            envelope_limiter.enforce(&mut state.envelope, &scoping)?
         });
 
         if limits.is_limited() {
-            ProjectCache::from_registry()
-                .do_send(UpdateRateLimits::new(scoping.project_key, limits));
+            ProjectCache::from_registry().send(UpdateRateLimits::new(scoping.project_key, limits));
         }
 
         if enforcement.event_active() {
@@ -1856,8 +1865,7 @@ impl EnvelopeProcessorService {
         metric!(timer(RelayTimers::EventProcessingPii), {
             if let Some(ref config) = config.pii_config {
                 let mut processor = PiiProcessor::new(config.compiled());
-                process_value(event, &mut processor, ProcessingState::root())
-                    .map_err(ProcessingError::ProcessingFailed)?;
+                process_value(event, &mut processor, ProcessingState::root())?;
             }
             let pii_config = config
                 .datascrubbing_settings
@@ -1865,8 +1873,7 @@ impl EnvelopeProcessorService {
                 .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
             if let Some(config) = pii_config {
                 let mut processor = PiiProcessor::new(config.compiled());
-                process_value(event, &mut processor, ProcessingState::root())
-                    .map_err(ProcessingError::ProcessingFailed)?;
+                process_value(event, &mut processor, ProcessingState::root())?;
             }
         });
 
@@ -1882,7 +1889,7 @@ impl EnvelopeProcessorService {
         let envelope = &mut state.envelope;
         if let Some(ref config) = state.project_state.config.pii_config {
             let minidump = envelope
-                .get_item_by_mut(|item| item.attachment_type() == Some(AttachmentType::Minidump));
+                .get_item_by_mut(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
 
             if let Some(item) = minidump {
                 let filename = item.filename().unwrap_or_default();
@@ -1986,6 +1993,10 @@ impl EnvelopeProcessorService {
             measurements_config: state.project_state.config.measurements.as_ref(),
             breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
             normalize_user_agent: Some(true),
+            normalize_transaction_name: state
+                .project_state
+                .has_feature(Feature::TransactionNameNormalize),
+
             is_renormalize: false,
         };
 
@@ -2096,7 +2107,7 @@ impl EnvelopeProcessorService {
                         if !state.extracted_metrics.is_empty() {
                             let project_cache = ProjectCache::from_registry();
                             project_cache
-                                .do_send(InsertMetrics::new(project_key, state.extracted_metrics));
+                                .send(InsertMetrics::new(project_key, state.extracted_metrics));
                         }
 
                         Ok(ProcessEnvelopeResponse {
@@ -2111,7 +2122,7 @@ impl EnvelopeProcessorService {
                         if !state.extracted_metrics.is_empty() && err.should_keep_metrics() {
                             let project_cache = ProjectCache::from_registry();
                             project_cache
-                                .do_send(InsertMetrics::new(project_key, state.extracted_metrics));
+                                .send(InsertMetrics::new(project_key, state.extracted_metrics));
                         }
 
                         Err(err)
@@ -2184,7 +2195,7 @@ impl EnvelopeProcessorService {
                         Metric::parse_all(&payload, timestamp).filter_map(|result| result.ok());
 
                     relay_log::trace!("inserting metrics into project cache");
-                    project_cache.do_send(InsertMetrics::new(public_key, metrics));
+                    project_cache.send(InsertMetrics::new(public_key, metrics));
                 }
             } else if item.ty() == &ItemType::MetricBuckets {
                 match Bucket::parse_all(&payload) {
@@ -2194,7 +2205,7 @@ impl EnvelopeProcessorService {
                         }
 
                         relay_log::trace!("merging metric buckets into project cache");
-                        project_cache.do_send(MergeBuckets::new(public_key, buckets));
+                        project_cache.send(MergeBuckets::new(public_key, buckets));
                     }
                     Err(error) => {
                         relay_log::debug!("failed to parse metric bucket: {}", LogError(&error));
@@ -2242,7 +2253,7 @@ impl EnvelopeProcessorService {
                 if let Ok(limits) = rate_limits {
                     // Update the rate limits in the project cache.
                     ProjectCache::from_registry()
-                        .do_send(UpdateRateLimits::new(scoping.project_key, limits));
+                        .send(UpdateRateLimits::new(scoping.project_key, limits));
                 }
             }
         }

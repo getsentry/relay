@@ -2,9 +2,9 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::sync::Arc;
 
-use failure::Fail;
 use rdkafka::producer::BaseRecord;
 use rdkafka::ClientConfig;
+use thiserror::Error;
 
 use relay_statsd::metric;
 
@@ -15,30 +15,30 @@ mod utils;
 use utils::{CaptureErrorContext, ThreadedProducer};
 
 /// Kafka producer errors.
-#[derive(Fail, Debug)]
+#[derive(Error, Debug)]
 pub enum ClientError {
     /// Failed to send a kafka message.
-    #[fail(display = "failed to send kafka message")]
-    SendFailed(#[cause] rdkafka::error::KafkaError),
+    #[error("failed to send kafka message")]
+    SendFailed(#[source] rdkafka::error::KafkaError),
 
     /// Failed to find configured producer for the requested kafka topic.
-    #[fail(display = "failed to find producer for the requested kafka topic")]
+    #[error("failed to find producer for the requested kafka topic")]
     InvalidTopicName,
 
     /// Failed to create a kafka producer because of the invalid configuration.
-    #[fail(display = "failed to create kafka producer: invalid kafka config")]
-    InvalidConfig(#[cause] rdkafka::error::KafkaError),
+    #[error("failed to create kafka producer: invalid kafka config")]
+    InvalidConfig(#[source] rdkafka::error::KafkaError),
 
     /// Failed to serialize the message.
-    #[fail(display = "failed to serialize kafka message")]
-    InvalidMsgPack(#[cause] rmp_serde::encode::Error),
+    #[error("failed to serialize kafka message")]
+    InvalidMsgPack(#[source] rmp_serde::encode::Error),
 
     /// Failed to serialize the json message using serde.
-    #[fail(display = "failed to serialize json message")]
-    InvalidJson(#[cause] serde_json::Error),
+    #[error("failed to serialize json message")]
+    InvalidJson(#[source] serde_json::Error),
 
     /// Configuration is wrong and it cannot be used to identify the number of a shard.
-    #[fail(display = "invalid kafka shard")]
+    #[error("invalid kafka shard")]
     InvalidShard,
 }
 

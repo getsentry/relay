@@ -1,7 +1,7 @@
+use std::fmt;
 use std::time::SystemTime;
 
 use chrono::{DateTime, Utc};
-use failure::Fail;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -50,9 +50,16 @@ impl Default for SessionStatus {
 }
 
 /// An error used when parsing `SessionStatus`.
-#[derive(Debug, Fail)]
-#[fail(display = "invalid session status")]
+#[derive(Debug)]
 pub struct ParseSessionStatusError;
+
+impl fmt::Display for ParseSessionStatusError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "invalid session status")
+    }
+}
+
+impl std::error::Error for ParseSessionStatusError {}
 
 derive_fromstr_and_display!(SessionStatus, ParseSessionStatusError, {
     SessionStatus::Ok => "ok",

@@ -117,21 +117,20 @@ impl Service for HealthCheckService {
     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
         let service = Arc::new(self);
 
-        let main_service = service.clone();
         tokio::spawn(async move {
-            while let Some(message) = rx.recv().await {
-                let service = main_service.clone();
-                tokio::spawn(async move { service.handle_message(message).await });
-            }
-        });
+            let mut shutdown = Controller::shutdown_handle();
 
-        // Handle the shutdown signals
-        tokio::spawn(async move {
-            let mut shutdown_rx = Controller::subscribe_v2().await;
+            loop {
+                tokio::select! {
+                    biased;
 
-            while shutdown_rx.changed().await.is_ok() {
-                if shutdown_rx.borrow_and_update().is_some() {
-                    service.is_shutting_down.store(true, Ordering::Relaxed);
+                    Some(message) = rx.recv() => {
+                        let service = service.clone();
+                        tokio::spawn(async move { service.handle_message(message).await });
+                    }
+                    _ = shutdown.notified() => {
+                        service.is_shutting_down.store(true, Ordering::Relaxed);
+                    }
                 }
             }
         });
