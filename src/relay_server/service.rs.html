@@ -525,7 +525,7 @@
 
         <span class="kw">let </span>guard = aggregator_runtime.enter();
         <span class="kw">let </span>aggregator = AggregatorService::new(
-            config.aggregator_config(),
+            config.aggregator_config().clone(),
             <span class="prelude-val">Some</span>(project_cache.clone().recipient()),
         )
         .start();

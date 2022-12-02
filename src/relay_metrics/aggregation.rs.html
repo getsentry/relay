@@ -3170,6 +3170,7 @@
 <span id="3168">3168</span>
 <span id="3169">3169</span>
 <span id="3170">3170</span>
+<span id="3171">3171</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{btree_map, hash_map::Entry, BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::hash::Hasher;
@@ -4190,6 +4191,16 @@
         Duration::from_secs(<span class="self">self</span>.debounce_delay)
     }
 
+    <span class="doccomment">/// Returns the valid range for metrics timestamps.
+    ///
+    /// Metrics or buckets outside of this range should be discarded.
+    </span><span class="kw">pub fn </span>timestamp_range(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; std::ops::Range&lt;UnixTimestamp&gt; {
+        <span class="kw">let </span>now = UnixTimestamp::now().as_secs();
+        <span class="kw">let </span>min_timestamp = UnixTimestamp::from_secs(now.saturating_sub(<span class="self">self</span>.max_secs_in_past));
+        <span class="kw">let </span>max_timestamp = UnixTimestamp::from_secs(now.saturating_add(<span class="self">self</span>.max_secs_in_future));
+        min_timestamp..max_timestamp
+    }
+
     <span class="doccomment">/// Determines the target bucket for an incoming bucket timestamp and bucket width.
     ///
     /// We select the output bucket which overlaps with the center of the incoming bucket.
@@ -4199,23 +4210,14 @@
         timestamp: UnixTimestamp,
         bucket_width: u64,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;UnixTimestamp, AggregateMetricsError&gt; {
-        <span class="comment">// We know this must be UNIX timestamp because we need reliable match even with system
-        // clock skew over time.
-
-        </span><span class="kw">let </span>now = UnixTimestamp::now().as_secs();
-        <span class="kw">let </span>min_timestamp = UnixTimestamp::from_secs(now.saturating_sub(<span class="self">self</span>.max_secs_in_past));
-        <span class="kw">let </span>max_timestamp = UnixTimestamp::from_secs(now.saturating_add(<span class="self">self</span>.max_secs_in_future));
-
         <span class="comment">// Find middle of the input bucket to select a target
         </span><span class="kw">let </span>ts = timestamp.as_secs().saturating_add(bucket_width / <span class="number">2</span>);
-
         <span class="comment">// Align target_timestamp to output bucket width
         </span><span class="kw">let </span>ts = (ts / <span class="self">self</span>.bucket_interval) * <span class="self">self</span>.bucket_interval;
-
         <span class="kw">let </span>output_timestamp = UnixTimestamp::from_secs(ts);
 
-        <span class="kw">if </span>output_timestamp &lt; min_timestamp || output_timestamp &gt; max_timestamp {
-            <span class="kw">let </span>delta = (ts <span class="kw">as </span>i64) - (now <span class="kw">as </span>i64);
+        <span class="kw">if </span>!<span class="self">self</span>.timestamp_range().contains(<span class="kw-2">&amp;</span>output_timestamp) {
+            <span class="kw">let </span>delta = (ts <span class="kw">as </span>i64) - (UnixTimestamp::now().as_secs() <span class="kw">as </span>i64);
             <span class="macro">relay_statsd::metric!</span>(
                 histogram(MetricHistograms::InvalidBucketTimestamp) = delta <span class="kw">as </span>f64
             );

@@ -926,6 +926,11 @@
 <span id="924">924</span>
 <span id="925">925</span>
 <span id="926">926</span>
+<span id="927">927</span>
+<span id="928">928</span>
+<span id="929">929</span>
+<span id="930">930</span>
+<span id="931">931</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the actor that tracks outcomes.
 //!
 //! Outcomes describe the final &quot;fate&quot; of an envelope item. As such, for every item exactly one
@@ -1268,6 +1273,10 @@
     <span class="doccomment">/// (Relay) An event envelope was submitted but no payload could be extracted.
     </span>NoEventPayload,
 
+    <span class="doccomment">/// (Relay) The timestamp of an event was required for processing and either missing out of the
+    /// supported time range for ingestion.
+    </span>Timestamp,
+
     <span class="doccomment">/// (All) An error in Relay caused event ingestion to fail. This is the catch-all and usually
     /// indicates bugs in Relay, rather than an expected failure.
     </span>Internal,
@@ -1319,6 +1328,7 @@
             DiscardReason::InvalidTransaction =&gt; <span class="string">&quot;invalid_transaction&quot;</span>,
             DiscardReason::InvalidEnvelope =&gt; <span class="string">&quot;invalid_envelope&quot;</span>,
             DiscardReason::InvalidCompression =&gt; <span class="string">&quot;invalid_compression&quot;</span>,
+            DiscardReason::Timestamp =&gt; <span class="string">&quot;timestamp&quot;</span>,
             DiscardReason::ProjectState =&gt; <span class="string">&quot;project_state&quot;</span>,
             DiscardReason::ProjectStatePii =&gt; <span class="string">&quot;project_state_pii&quot;</span>,
             DiscardReason::DuplicateItem =&gt; <span class="string">&quot;duplicate_item&quot;</span>,

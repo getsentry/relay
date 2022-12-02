@@ -2936,8 +2936,11 @@
 <span id="2934">2934</span>
 <span id="2935">2935</span>
 <span id="2936">2936</span>
-</pre><pre class="rust"><code><span class="kw">use </span>std::cmp::max;
-<span class="kw">use </span>std::collections::BTreeMap;
+<span id="2937">2937</span>
+<span id="2938">2938</span>
+<span id="2939">2939</span>
+<span id="2940">2940</span>
+</pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
 <span class="kw">use </span>std::net;
@@ -2982,7 +2985,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{SendRequest, UpstreamRelay};
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::sessions::{extract_session_metrics, SessionMetricsConfig};
-<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::extract_transaction_metrics;
+<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::{extract_transaction_metrics, ExtractMetricsError};
 <span class="kw">use </span><span class="kw">crate</span>::service::REGISTRY;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{
@@ -3045,6 +3048,9 @@
     <span class="attribute">#[error(<span class="string">&quot;event filtered with reason: {0:?}&quot;</span>)]
     </span>EventFiltered(FilterStatKey),
 
+    <span class="attribute">#[error(<span class="string">&quot;missing or invalid required event timestamp&quot;</span>)]
+    </span>InvalidTimestamp,
+
     <span class="attribute">#[error(<span class="string">&quot;could not serialize event payload&quot;</span>)]
     </span>SerializeFailed(<span class="attribute">#[source] </span>serde_json::Error),
 
@@ -3069,6 +3075,7 @@
             <span class="self">Self</span>::InvalidSecurityType =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::SecurityReportType)),
             <span class="self">Self</span>::InvalidSecurityReport(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::SecurityReport)),
             <span class="self">Self</span>::InvalidTransaction =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::InvalidTransaction)),
+            <span class="self">Self</span>::InvalidTimestamp =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::Timestamp)),
             <span class="self">Self</span>::DuplicateItem(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::DuplicateItem)),
             <span class="self">Self</span>::NoEventPayload =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::NoEventPayload)),
 
@@ -3113,6 +3120,16 @@
         <span class="kw">match </span>err.kind() {
             Unreal4ErrorKind::TooLarge =&gt; <span class="self">Self</span>::PayloadTooLarge,
             <span class="kw">_ </span>=&gt; ProcessingError::InvalidUnrealReport(err),
+        }
+    }
+}
+
+<span class="kw">impl </span>From&lt;ExtractMetricsError&gt; <span class="kw">for </span>ProcessingError {
+    <span class="kw">fn </span>from(error: ExtractMetricsError) -&gt; <span class="self">Self </span>{
+        <span class="kw">match </span>error {
+            ExtractMetricsError::MissingTimestamp | ExtractMetricsError::InvalidTimestamp =&gt; {
+                <span class="self">Self</span>::InvalidTimestamp
+            }
         }
     }
 }
@@ -4753,36 +4770,35 @@
             </span><span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
 
-        <span class="kw">let </span>config = <span class="kw">match </span>state.project_state.config().transaction_metrics {
+        <span class="kw">let </span>project_config = state.project_state.config();
+        <span class="kw">let </span>extraction_config = <span class="kw">match </span>project_config.transaction_metrics {
             <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>config)) =&gt; config,
             <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(()),
         };
 
-        <span class="kw">if </span>!config.is_enabled() {
+        <span class="kw">if </span>!extraction_config.is_enabled() {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
 
-        <span class="kw">let </span>conditional_tagging_config = state
-            .project_state
-            .config
-            .metric_conditional_tagging
-            .as_slice();
-
         <span class="kw">if let </span><span class="prelude-val">Some</span>(event) = state.event.value() {
-            <span class="kw">let </span>extracted_anything;
+            <span class="kw">let </span>result;
             <span class="macro">metric!</span>(
                 timer(RelayTimers::TransactionMetricsExtraction),
-                extracted_anything = <span class="kw-2">&amp;</span>extracted_anything.to_string(),
+                extracted_anything = <span class="kw-2">&amp;</span>result.unwrap_or(<span class="bool-val">false</span>).to_string(),
                 {
                     <span class="comment">// Actual logic outsourced for unit tests
-                    </span>extracted_anything = extract_transaction_metrics(
-                        config,
-                        conditional_tagging_config,
+                    </span>result = extract_transaction_metrics(
+                        <span class="self">self</span>.config.aggregator_config(),
+                        extraction_config,
+                        <span class="kw-2">&amp;</span>project_config.metric_conditional_tagging,
                         event,
                         <span class="kw-2">&amp;mut </span>state.extracted_metrics,
                     );
                 }
             );
+
+            result<span class="question-mark">?</span>;
+
             state.transaction_metrics_extracted = <span class="bool-val">true</span>;
             state.envelope_context.set_event_metrics_extracted();
 
@@ -5122,19 +5138,11 @@
                 <span class="kw">let </span><span class="kw-2">mut </span>timestamp = item.timestamp().unwrap_or(received_timestamp);
                 clock_drift_processor.process_timestamp(<span class="kw-2">&amp;mut </span>timestamp);
 
-                <span class="kw">let </span>min_timestamp = max(
-                    <span class="number">0</span>,
-                    received.timestamp() - <span class="self">self</span>.config.max_session_secs_in_past(),
-                ) <span class="kw">as </span>u64;
-                <span class="kw">let </span>max_timestamp =
-                    (received.timestamp() + <span class="self">self</span>.config.max_secs_in_future()) <span class="kw">as </span>u64;
-                <span class="kw">if </span>min_timestamp &lt;= timestamp.as_secs() &amp;&amp; timestamp.as_secs() &lt;= max_timestamp {
-                    <span class="kw">let </span>metrics =
-                        Metric::parse_all(<span class="kw-2">&amp;</span>payload, timestamp).filter_map(|result| result.ok());
+                <span class="kw">let </span>metrics =
+                    Metric::parse_all(<span class="kw-2">&amp;</span>payload, timestamp).filter_map(|result| result.ok());
 
-                    <span class="macro">relay_log::trace!</span>(<span class="string">&quot;inserting metrics into project cache&quot;</span>);
-                    project_cache.send(InsertMetrics::new(public_key, metrics));
-                }
+                <span class="macro">relay_log::trace!</span>(<span class="string">&quot;inserting metrics into project cache&quot;</span>);
+                project_cache.send(InsertMetrics::new(public_key, metrics));
             } <span class="kw">else if </span>item.ty() == <span class="kw-2">&amp;</span>ItemType::MetricBuckets {
                 <span class="kw">match </span>Bucket::parse_all(<span class="kw-2">&amp;</span>payload) {
                     <span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>buckets) =&gt; {
