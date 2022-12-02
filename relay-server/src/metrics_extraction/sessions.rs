@@ -213,7 +213,7 @@ pub fn extract_session_metrics<T: SessionLike>(
 
 #[cfg(test)]
 mod tests {
-    use relay_general::protocol::{SessionAggregates, SessionUpdate};
+    use relay_general::protocol::{AbnormalMechanism, SessionAggregates, SessionUpdate};
     use relay_metrics::MetricValue;
 
     use super::*;
@@ -359,9 +359,50 @@ mod tests {
 
     #[test]
     fn test_extract_session_metrics_fatal() {
-        for (status, expected_metrics) in
-            vec![(&SessionStatus::Crashed, 4), (&SessionStatus::Abnormal, 4)]
-        {
+        let session = SessionUpdate::parse(
+            r#"{
+                "init": false,
+                "started": "2021-04-26T08:00:00+0100",
+                "attrs": {
+                    "release": "1.0.0"
+                },
+                "did": "user123",
+                "status": "crashed"
+            }"#
+            .as_bytes(),
+        )
+        .unwrap();
+
+        let mut metrics = vec![];
+
+        extract_session_metrics(&session.attributes, &session, None, &mut metrics);
+
+        assert_eq!(metrics.len(), 4);
+
+        assert_eq!(metrics[0].name, "s:sessions/error@none");
+        assert_eq!(metrics[1].name, "s:sessions/user@none");
+        assert_eq!(metrics[1].tags["session.status"], "errored");
+
+        let session_metric = &metrics[2];
+        assert_eq!(session_metric.timestamp, started());
+        assert_eq!(session_metric.name, "c:sessions/session@none");
+        assert!(matches!(session_metric.value, MetricValue::Counter(_)));
+        assert_eq!(session_metric.tags["session.status"], "crashed");
+
+        let user_metric = &metrics[3];
+        assert_eq!(user_metric.timestamp, started());
+        assert_eq!(user_metric.name, "s:sessions/user@none");
+        assert!(matches!(user_metric.value, MetricValue::Set(_)));
+        assert_eq!(user_metric.tags["session.status"], "crashed");
+    }
+
+    #[test]
+    fn test_extract_session_metrics_abnormal() {
+        for (abnormal_mechanism, expected_user_metric_tags) in vec![
+            (None, 2),
+            (Some(AbnormalMechanism::None), 2),
+            (Some(AbnormalMechanism::AnrForeground), 3),
+        ] {
             let mut session = SessionUpdate::parse(
                 r#"{
                     "init": false,
@@ -370,20 +411,21 @@ mod tests {
                         "release": "1.0.0"
                     },
                     "did": "user123",
-                    "abnormal_mechanism": "anr_foreground"
+                    "status": "abnormal"
                 }"#
                 .as_bytes(),
             )
             .unwrap();
-            session.status = *status;
+
+            if let Some(mechanism) = abnormal_mechanism {
+                session.abnormal_mechanism = Some(mechanism);
+            }
 
             let mut metrics = vec![];
 
             extract_session_metrics(&session.attributes, &session, None, &mut metrics);
 
-            println!("{:?}", metrics);
-
-            assert_eq!(metrics.len(), expected_metrics);
+            assert_eq!(metrics.len(), 4);
 
             assert_eq!(metrics[0].name, "s:sessions/error@none");
             assert_eq!(metrics[1].name, "s:sessions/user@none");
@@ -393,13 +435,15 @@ mod tests {
             assert_eq!(session_metric.timestamp, started());
             assert_eq!(session_metric.name, "c:sessions/session@none");
             assert!(matches!(session_metric.value, MetricValue::Counter(_)));
-            assert_eq!(session_metric.tags["session.status"], status.to_string());
+            assert_eq!(session_metric.tags["session.status"], "abnormal");
+            assert_eq!(session_metric.tags.len(), 2);
 
             let user_metric = &metrics[3];
             assert_eq!(user_metric.timestamp, started());
             assert_eq!(user_metric.name, "s:sessions/user@none");
             assert!(matches!(user_metric.value, MetricValue::Set(_)));
-            assert_eq!(user_metric.tags["session.status"], status.to_string());
+            assert_eq!(user_metric.tags["session.status"], "abnormal");
+            assert_eq!(user_metric.tags.len(), expected_user_metric_tags);
         }
     }
 

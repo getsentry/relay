@@ -63,22 +63,6 @@ derive_fromstr_and_display!(SessionStatus, ParseSessionStatusError, {
     SessionStatus::Errored => "errored",
 });
 
-// #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-// pub struct AbnormalMechanism {
-//     /// Specifies whether this filter is enabled.
-//     pub mechanism: Option<String>,
-// }
-
-// impl AbnormalMechanism {
-//     /// Returns true if value is not in allow list.
-//     pub fn is_incompatible(&self) -> bool {
-//         match &self.mechanism {
-//             Some(mechanism) => VALID_SESSION_MECHANISMS.contains(&mechanism.as_str()),
-//             None => false,
-//         }
-//     }
-// }
-
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AbnormalMechanism {
@@ -95,14 +79,8 @@ pub struct ParseSessionAbnormalMechanism;
 derive_fromstr_and_display!(AbnormalMechanism, ParseSessionAbnormalMechanism, {
     AbnormalMechanism::AnrForeground => "anr_foreground",
     AbnormalMechanism::AnrBackground => "anr_background",
-    AbnormalMechanism::None => "",
+    AbnormalMechanism::None => "none",
 });
-
-// impl AbnormalMechanism {
-//     fn is_none(&self) -> bool {
-//         *self == Self::None
-//     }
-// }
 
 impl Default for AbnormalMechanism {
     fn default() -> Self {
@@ -255,7 +233,11 @@ impl SessionLike for SessionUpdate {
     }
 
     fn abnormal_mechanism(&self) -> Option<AbnormalMechanism> {
-        self.abnormal_mechanism
+        match self.abnormal_mechanism {
+            None => None,
+            Some(AbnormalMechanism::None) => None,
+            Some(_) => self.abnormal_mechanism,
+        }
     }
 }
 
@@ -474,5 +456,22 @@ mod tests {
 
         let update = SessionUpdate::parse(json.as_bytes()).unwrap();
         assert_eq!(update.attributes.ip_address, Some(IpAddr::auto()));
+    }
+
+    #[test]
+    fn test_session_invalid_abnormal_mechanism() {
+        let json = r#"{
+  "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+  "started": "2020-02-07T14:16:00Z",
+  "status": "abnormal",
+  "abnormal_mechanism": "invalid_mechanism",
+  "attrs": {
+    "release": "sentry-test@1.0.0",
+    "environment": "production"
+  }
+}"#;
+
+        let update = SessionUpdate::parse(json.as_bytes()).unwrap();
+        assert_eq!(update.abnormal_mechanism, Some(AbnormalMechanism::None));
     }
 }
