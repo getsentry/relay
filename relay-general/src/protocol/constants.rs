@@ -19,5 +19,3 @@ pub const VALID_PLATFORMS: &[&str] = &[
     "python",
     "ruby",
 ];
-
-pub const VALID_SESSION_MECHANISMS: &[&str] = &["anr_foreground", "anr_background"];
