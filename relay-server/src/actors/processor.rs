@@ -1814,20 +1814,15 @@ impl EnvelopeProcessorService {
             return Ok(());
         }
 
-        let config = match state.project_state.config().transaction_metrics {
+        let project_config = state.project_state.config();
+        let extraction_config = match project_config.transaction_metrics {
             Some(ErrorBoundary::Ok(ref config)) => config,
             _ => return Ok(()),
         };
 
-        if !config.is_enabled() {
+        if !extraction_config.is_enabled() {
             return Ok(());
         }
-
-        let conditional_tagging_config = state
-            .project_state
-            .config
-            .metric_conditional_tagging
-            .as_slice();
 
         if let Some(event) = state.event.value() {
             let extracted_anything;
@@ -1837,8 +1832,9 @@ impl EnvelopeProcessorService {
                 {
                     // Actual logic outsourced for unit tests
                     extracted_anything = extract_transaction_metrics(
-                        config,
-                        conditional_tagging_config,
+                        self.config.aggregator_config(),
+                        extraction_config,
+                        &project_config.metric_conditional_tagging,
                         event,
                         &mut state.extracted_metrics,
                     );
