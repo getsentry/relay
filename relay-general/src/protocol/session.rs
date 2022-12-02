@@ -1,4 +1,3 @@
-use std::string;
 use std::time::SystemTime;
 
 use chrono::{DateTime, Utc};
@@ -63,7 +62,7 @@ derive_fromstr_and_display!(SessionStatus, ParseSessionStatusError, {
     SessionStatus::Errored => "errored",
 });
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AbnormalMechanism {
     AnrForeground,
