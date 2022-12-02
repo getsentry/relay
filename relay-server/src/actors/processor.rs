@@ -43,7 +43,7 @@ use crate::actors::project_cache::ProjectCache;
 use crate::actors::upstream::{SendRequest, UpstreamRelay};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::metrics_extraction::sessions::{extract_session_metrics, SessionMetricsConfig};
-use crate::metrics_extraction::transactions::extract_transaction_metrics;
+use crate::metrics_extraction::transactions::{extract_transaction_metrics, ExtractMetricsError};
 use crate::service::REGISTRY;
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
@@ -106,6 +106,9 @@ pub enum ProcessingError {
     #[error("event filtered with reason: {0:?}")]
     EventFiltered(FilterStatKey),
 
+    #[error("missing or invalid required event timestamp")]
+    InvalidTimestamp,
+
     #[error("could not serialize event payload")]
     SerializeFailed(#[source] serde_json::Error),
 
@@ -130,6 +133,7 @@ impl ProcessingError {
             Self::InvalidSecurityType => Some(Outcome::Invalid(DiscardReason::SecurityReportType)),
             Self::InvalidSecurityReport(_) => Some(Outcome::Invalid(DiscardReason::SecurityReport)),
             Self::InvalidTransaction => Some(Outcome::Invalid(DiscardReason::InvalidTransaction)),
+            Self::InvalidTimestamp => Some(Outcome::Invalid(DiscardReason::Timestamp)),
             Self::DuplicateItem(_) => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::NoEventPayload => Some(Outcome::Invalid(DiscardReason::NoEventPayload)),
 
@@ -174,6 +178,16 @@ impl From<Unreal4Error> for ProcessingError {
         match err.kind() {
             Unreal4ErrorKind::TooLarge => Self::PayloadTooLarge,
             _ => ProcessingError::InvalidUnrealReport(err),
+        }
+    }
+}
+
+impl From<ExtractMetricsError> for ProcessingError {
+    fn from(error: ExtractMetricsError) -> Self {
+        match error {
+            ExtractMetricsError::MissingTimestamp | ExtractMetricsError::InvalidTimestamp => {
+                Self::InvalidTimestamp
+            }
         }
     }
 }
@@ -1825,13 +1839,13 @@ impl EnvelopeProcessorService {
         }
 
         if let Some(event) = state.event.value() {
-            let extracted_anything;
+            let result;
             metric!(
                 timer(RelayTimers::TransactionMetricsExtraction),
-                extracted_anything = &extracted_anything.to_string(),
+                extracted_anything = &result.unwrap_or(false).to_string(),
                 {
                     // Actual logic outsourced for unit tests
-                    extracted_anything = extract_transaction_metrics(
+                    result = extract_transaction_metrics(
                         self.config.aggregator_config(),
                         extraction_config,
                         &project_config.metric_conditional_tagging,
@@ -1840,6 +1854,9 @@ impl EnvelopeProcessorService {
                     );
                 }
             );
+
+            result?;
+
             state.transaction_metrics_extracted = true;
             state.envelope_context.set_event_metrics_extracted();
 

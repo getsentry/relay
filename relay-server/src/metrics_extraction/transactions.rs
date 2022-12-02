@@ -15,6 +15,21 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
+/// Error returned from [`extract_transaction_metrics`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+pub enum ExtractMetricsError {
+    /// The start or end timestamps are missing from the event payload.
+    #[error("no valid timestamp could be found in the event")]
+    MissingTimestamp,
+    /// The event timestamp is outside the supported range.
+    ///
+    /// The supported range is derived from the
+    /// [`max_secs_in_past`](AggregatorConfig::max_secs_in_past) and
+    /// [`max_secs_in_future`](AggregatorConfig::max_secs_in_future) configuration options.
+    #[error("timestamp too old or too much in the future")]
+    InvalidTimestamp,
+}
+
 /// The metric on which the user satisfaction threshold is applied.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -358,14 +373,14 @@ pub fn extract_transaction_metrics(
     conditional_tagging_config: &[TaggingRule],
     event: &Event,
     target: &mut Vec<Metric>,
-) -> bool {
+) -> Result<bool, ExtractMetricsError> {
     let before_len = target.len();
 
-    extract_transaction_metrics_inner(aggregator_config, config, event, target);
+    extract_transaction_metrics_inner(aggregator_config, config, event, target)?;
 
     let added_slice = &mut target[before_len..];
     run_conditional_tagging(event, conditional_tagging_config, added_slice);
-    !added_slice.is_empty()
+    Ok(!added_slice.is_empty())
 }
 
 fn extract_transaction_metrics_inner(
@@ -373,19 +388,19 @@ fn extract_transaction_metrics_inner(
     config: &TransactionMetricsConfig,
     event: &Event,
     metrics: &mut Vec<Metric>, // output parameter
-) {
+) -> Result<(), ExtractMetricsError> {
     if event.ty.value() != Some(&EventType::Transaction) {
-        return;
+        return Ok(());
     }
 
     let (Some(&start), Some(&end)) = (event.start_timestamp.value(), event.timestamp.value()) else {
         relay_log::debug!("failed to extract the start and the end timestamps from the event");
-        return; // TODO(ja): Drop transaction
+        return Err(ExtractMetricsError::MissingTimestamp);
     };
 
     let Some(timestamp) = UnixTimestamp::from_datetime(end.into_inner()) else {
         relay_log::debug!("event timestamp is not a valid unix timestamp");
-        return; // TODO(ja): Drop transaction
+        return Err(ExtractMetricsError::InvalidTimestamp);
     };
 
     // Validate the transaction event against the metrics timestamp limits. If the metric is too
@@ -393,7 +408,7 @@ fn extract_transaction_metrics_inner(
     // for consistency between metrics and events.
     if !aggregator_config.timestamp_range().contains(&timestamp) {
         relay_log::debug!("event timestamp is out of the valid range for metrics");
-        return; // TODO(ja): Drop transaction
+        return Err(ExtractMetricsError::InvalidTimestamp);
     }
 
     let tags = extract_universal_tags(event, config);
@@ -498,6 +513,8 @@ fn extract_transaction_metrics_inner(
             ));
         }
     }
+
+    Ok(())
 }
 
 /// Compute the transaction event's "user" tag as close as possible to how users are determined in
@@ -573,7 +590,6 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
 
     use relay_general::protocol::{Contexts, User};
@@ -686,7 +702,8 @@ mod tests {
             &[],
             event.value().unwrap(),
             &mut metrics,
-        );
+        )
+        .unwrap();
 
         insta::assert_debug_snapshot!(metrics, @r###"
         [
@@ -822,7 +839,8 @@ mod tests {
             &[],
             event.value().unwrap(),
             &mut metrics,
-        );
+        )
+        .unwrap();
 
         insta::assert_debug_snapshot!(metrics, @r###"
         [
@@ -909,7 +927,8 @@ mod tests {
             &[],
             event.value().unwrap(),
             &mut metrics,
-        );
+        )
+        .unwrap();
 
         insta::assert_debug_snapshot!(metrics, @r###"
         [
@@ -983,7 +1002,8 @@ mod tests {
             &[],
             event.value().unwrap(),
             &mut metrics,
-        );
+        )
+        .unwrap();
 
         assert_eq!(metrics.len(), 1);
 
@@ -1047,7 +1067,8 @@ mod tests {
             &[],
             event.value().unwrap(),
             &mut metrics,
-        );
+        )
+        .unwrap();
         assert_eq!(metrics.len(), 2);
 
         let duration_metric = &metrics[0];
@@ -1105,7 +1126,8 @@ mod tests {
             &[],
             event.value().unwrap(),
             &mut metrics,
-        );
+        )
+        .unwrap();
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Metric {
@@ -1173,7 +1195,8 @@ mod tests {
             &[],
             event.value().unwrap(),
             &mut metrics,
-        );
+        )
+        .unwrap();
 
         insta::assert_debug_snapshot!(metrics, @r###"
         [
@@ -1253,7 +1276,8 @@ mod tests {
             &[],
             event.value().unwrap(),
             &mut metrics,
-        );
+        )
+        .unwrap();
 
         insta::assert_debug_snapshot!(metrics, @r###"
             [
@@ -1358,7 +1382,8 @@ mod tests {
             &tagging_config,
             event.value().unwrap(),
             &mut metrics,
-        );
+        )
+        .unwrap();
 
         insta::assert_debug_snapshot!(metrics, @r###"
         [
@@ -1440,7 +1465,8 @@ mod tests {
             &tagging_config,
             event.value().unwrap(),
             &mut metrics,
-        );
+        )
+        .unwrap();
         metrics.retain(|m| m.name.contains("lcp"));
         assert_eq!(
             metrics,
@@ -1483,7 +1509,8 @@ mod tests {
             &[],
             event.value().unwrap(),
             &mut metrics,
-        );
+        )
+        .unwrap();
 
         assert_eq!(metrics.len(), 1, "{:?}", metrics);
 
@@ -1517,7 +1544,8 @@ mod tests {
             &[],
             event.value().unwrap(),
             &mut metrics,
-        );
+        )
+        .unwrap();
 
         assert_eq!(metrics.len(), 1, "{:?}", metrics);
 
@@ -1554,7 +1582,7 @@ mod tests {
         });
 
         let mut metrics = vec![];
-        extract_transaction_metrics(
+        let result = extract_transaction_metrics(
             &aggregator_config,
             &config,
             &[],
@@ -1562,6 +1590,7 @@ mod tests {
             &mut metrics,
         );
 
+        assert_eq!(result, Err(ExtractMetricsError::InvalidTimestamp));
         assert_eq!(metrics, &[]);
     }
 
@@ -1580,7 +1609,8 @@ mod tests {
             &[],
             event.value().unwrap(),
             &mut metrics,
-        );
+        )
+        .unwrap();
 
         assert_eq!(metrics.len(), 1);
         metrics[0].tags.get("transaction").cloned()
@@ -1935,7 +1965,8 @@ mod tests {
             &[],
             event.value().unwrap(),
             &mut metrics,
-        );
+        )
+        .unwrap();
 
         let metrics_names: Vec<_> = metrics.into_iter().map(|m| m.name).collect();
         insta::assert_debug_snapshot!(metrics_names, @r###"
