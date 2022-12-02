@@ -398,7 +398,7 @@ mod tests {
 
     #[test]
     fn test_extract_session_metrics_abnormal() {
-        for (abnormal_mechanism, expected_user_metric_tags) in vec![
+        for (abnormal_mechanism, expected_user_metric_tags) in [
             (None, 2),
             (Some(AbnormalMechanism::None), 2),
             (Some(AbnormalMechanism::AnrForeground), 3),
