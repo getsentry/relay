@@ -26,7 +26,7 @@ pub enum ExtractMetricsError {
     /// The supported range is derived from the
     /// [`max_secs_in_past`](AggregatorConfig::max_secs_in_past) and
     /// [`max_secs_in_future`](AggregatorConfig::max_secs_in_future) configuration options.
-    #[error("timestamp too old or too much in the future")]
+    #[error("timestamp too old or too far in the future")]
     InvalidTimestamp,
 }
 
