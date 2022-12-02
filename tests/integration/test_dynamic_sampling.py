@@ -95,7 +95,11 @@ def _add_sampling_config(
     field_prefix = "trace." if rule_type == "trace" else "event."
     if releases is not None:
         conditions.append(
-            {"op": "glob", "name": field_prefix + "release", "value": releases,}
+            {
+                "op": "glob",
+                "name": field_prefix + "release",
+                "value": releases,
+            }
         )
     if user_segments is not None:
         conditions.append(
@@ -103,7 +107,9 @@ def _add_sampling_config(
                 "op": "eq",
                 "name": field_prefix + "user",
                 "value": user_segments,
-                "options": {"ignoreCase": True,},
+                "options": {
+                    "ignoreCase": True,
+                },
             }
         )
     if environments is not None:
@@ -112,7 +118,9 @@ def _add_sampling_config(
                 "op": "eq",
                 "name": field_prefix + "environment",
                 "value": environments,
-                "options": {"ignoreCase": True,},
+                "options": {
+                    "ignoreCase": True,
+                },
             }
         )
 
@@ -375,7 +383,11 @@ def test_bad_dynamic_rules_in_processing_relays(
     )
     last_rule = rules[-1]
     last_rule["condition"]["inner"].append(
-        {"op": "BadOperator", "name": "foo", "value": "bar",}
+        {
+            "op": "BadOperator",
+            "name": "foo",
+            "value": "bar",
+        }
     )
     _add_sampling_config(config, sample_rate=sample_rate, rule_type=rule_type)
     envelope, trace_id, event_id = event_factory(public_key)
@@ -417,7 +429,11 @@ def test_bad_dynamic_rules_in_non_processing_relays(
     rules = _add_sampling_config(config, sample_rate=0, rule_type=rule_type)
     last_rule = rules[-1]
     last_rule["condition"]["inner"].append(
-        {"op": "BadOperator", "name": "foo", "value": "bar",}
+        {
+            "op": "BadOperator",
+            "name": "foo",
+            "value": "bar",
+        }
     )
     # add a sampling rule to project config that drops all events (sample_rate=0), it should be ignored
     # because there is an invalid rule in the configuration
@@ -627,7 +643,10 @@ def test_client_sample_rate_adjusted(mini_sentry, relay, rule_type, event_factor
     ],
 )
 def test_relay_chain(
-    mini_sentry, relay, rule_type, event_factory,
+    mini_sentry,
+    relay,
+    rule_type,
+    event_factory,
 ):
     """
     Tests that nested relays do not end up double-sampling. This is guaranteed
@@ -661,7 +680,8 @@ def test_relay_chain(
 
 
 def test_event_rules_are_applied_after_trace_rules(
-    mini_sentry, relay,
+    mini_sentry,
+    relay,
 ):
     """
     Usecase: Some "baseline" trace sample rate is applied (100% because it's
@@ -689,7 +709,8 @@ def test_event_rules_are_applied_after_trace_rules(
     )
 
     envelope, trace_id, event_id = _create_transaction_envelope(
-        public_key, transaction="test1",
+        public_key,
+        transaction="test1",
     )
 
     relay.send_envelope(project_id, envelope)
@@ -697,7 +718,8 @@ def test_event_rules_are_applied_after_trace_rules(
     assert envelope.get_transaction_event()["transaction"] == "test1"
 
     envelope, trace_id, event_id = _create_transaction_envelope(
-        public_key, transaction="healthcheck",
+        public_key,
+        transaction="healthcheck",
     )
 
     with pytest.raises(queue.Empty):
