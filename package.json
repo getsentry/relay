@@ -1,0 +1,36 @@
+{
+  "name": "relay",
+  "version": "1.0.0",
+  "description": "Changelog checker.",
+  "main": "changelog.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "changelog": "node changelog.js",
+    "lint": "eslint changelog.js",
+    "lint-fix": "eslint --fix changelog.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/getsentry/relay.git"
+  },
+  "author": "Oleksandr Kylymnychenko <oleksandr@sentry.io>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/getsentry/relay/issues"
+  },
+  "homepage": "https://github.com/getsentry/relay#readme",
+  "dependencies": {
+    "@actions/core": "^1.10.0",
+    "@actions/github": "^5.1.1"
+  },
+  "devDependencies": {
+    "eslint": "^8.29.0",
+    "eslint-config-standard": "^17.0.0",
+    "eslint-plugin-import": "^2.26.0",
+    "eslint-plugin-n": "^15.5.1",
+    "eslint-plugin-promise": "^6.1.1"
+  }
+}

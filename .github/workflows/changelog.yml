@@ -1,4 +1,4 @@
-name: "Danger"
+name: "Changelog"
 on:
   pull_request:
     types: [opened, synchronize, reopened, edited]
@@ -10,6 +10,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
-      - run: npx danger@10.5.3 ci
+      - run: npm install --omit=dev
+      - run: npm run changelog
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
