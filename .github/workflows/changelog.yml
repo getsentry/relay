@@ -1,4 +1,4 @@
-name: "Danger"
+name: "Changelog"
 on:
   pull_request:
     types: [opened, synchronize, reopened, edited]
