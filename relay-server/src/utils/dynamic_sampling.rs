@@ -172,6 +172,18 @@ pub fn should_keep_event(
     let mut sampling_context = sampling_context;
     let mut sampling_project_state = sampling_project_state;
 
+    // Do not apply sampling rules from a different organization.
+    //
+    // TODO(ja): Move to better place
+    if let Some(state) = sampling_project_state {
+        if state.organization_id != project_state.organization_id {
+            sampling_project_state = Some(project_state);
+            // TODO(ja): Should we override the sampling context here? It's more likely that the
+            // state comes from a different org rather than different instance...
+            sampling_context = None;
+        }
+    }
+
     // If the DSC is missing, try to create a partial context ad-hoc from the transaction event.
     // This should allow sampling using the target project's sampling rules, assuming that no trace
     // propagation has happened.
