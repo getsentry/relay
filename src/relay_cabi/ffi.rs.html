@@ -179,8 +179,8 @@
 
 <span class="kw">impl </span>RelayErrorCode {
     <span class="doccomment">/// This maps all errors that can possibly happen.
-    </span><span class="kw">pub fn </span>from_error(error: <span class="kw-2">&amp;</span>failure::Error) -&gt; RelayErrorCode {
-        <span class="kw">for </span>cause <span class="kw">in </span>error.iter_chain() {
+    </span><span class="kw">pub fn </span>from_error(error: <span class="kw-2">&amp;</span>anyhow::Error) -&gt; RelayErrorCode {
+        <span class="kw">for </span>cause <span class="kw">in </span>error.chain() {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(..) = cause.downcast_ref::&lt;Panic&gt;() {
                 <span class="kw">return </span>RelayErrorCode::Panic;
             }
@@ -251,7 +251,7 @@
     <span class="kw">use </span>std::fmt::Write;
     relay_ffi::with_last_error(|err| {
         <span class="kw">let </span><span class="kw-2">mut </span>msg = err.to_string();
-        <span class="kw">for </span>cause <span class="kw">in </span>err.iter_chain().skip(<span class="number">1</span>) {
+        <span class="kw">for </span>cause <span class="kw">in </span>err.chain().skip(<span class="number">1</span>) {
             <span class="macro">write!</span>(<span class="kw-2">&amp;mut </span>msg, <span class="string">&quot;\n  caused by: {}&quot;</span>, cause).ok();
         }
         RelayStr::from_string(msg)

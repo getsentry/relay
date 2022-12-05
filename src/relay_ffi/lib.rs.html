@@ -410,10 +410,10 @@
 <span class="kw">pub use </span>relay_ffi_macros::catch_unwind;
 
 <span class="macro">thread_local! </span>{
-    <span class="kw">static </span>LAST_ERROR: RefCell&lt;<span class="prelude-ty">Option</span>&lt;failure::Error&gt;&gt; = RefCell::new(<span class="prelude-val">None</span>);
+    <span class="kw">static </span>LAST_ERROR: RefCell&lt;<span class="prelude-ty">Option</span>&lt;anyhow::Error&gt;&gt; = RefCell::new(<span class="prelude-val">None</span>);
 }
 
-<span class="kw">fn </span>set_last_error(err: failure::Error) {
+<span class="kw">fn </span>set_last_error(err: anyhow::Error) {
     LAST_ERROR.with(|e| {
         <span class="kw-2">*</span>e.borrow_mut() = <span class="prelude-val">Some</span>(err);
     });
@@ -435,7 +435,7 @@
     </span><span class="attribute">#[inline]
     </span><span class="kw">pub unsafe fn </span>catch_errors&lt;F, T&gt;(f: F) -&gt; T
     <span class="kw">where
-        </span>F: FnOnce() -&gt; <span class="prelude-ty">Result</span>&lt;T, failure::Error&gt; + panic::UnwindSafe,
+        </span>F: FnOnce() -&gt; <span class="prelude-ty">Result</span>&lt;T, anyhow::Error&gt; + panic::UnwindSafe,
     {
         <span class="kw">match </span>panic::catch_unwind(f) {
             <span class="prelude-val">Ok</span>(<span class="prelude-val">Ok</span>(result)) =&gt; result,
@@ -471,7 +471,7 @@
 /// ```
 </span><span class="kw">pub fn </span>with_last_error&lt;R, F&gt;(f: F) -&gt; <span class="prelude-ty">Option</span>&lt;R&gt;
 <span class="kw">where
-    </span>F: FnOnce(<span class="kw-2">&amp;</span>failure::Error) -&gt; R,
+    </span>F: FnOnce(<span class="kw-2">&amp;</span>anyhow::Error) -&gt; R,
 {
     LAST_ERROR.with(|e| e.borrow().as_ref().map(f))
 }
@@ -496,7 +496,7 @@
 ///     None =&gt; println!(&quot;result: {}&quot;, parsed),
 /// }
 /// ```
-</span><span class="kw">pub fn </span>take_last_error() -&gt; <span class="prelude-ty">Option</span>&lt;failure::Error&gt; {
+</span><span class="kw">pub fn </span>take_last_error() -&gt; <span class="prelude-ty">Option</span>&lt;anyhow::Error&gt; {
     LAST_ERROR.with(|e| e.borrow_mut().take())
 }
 
