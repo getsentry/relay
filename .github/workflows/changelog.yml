@@ -9,8 +9,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-      - run: npm install --omit=dev
-      - run: npm run changelog
+      - uses: ./.github/actions/changelog/
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

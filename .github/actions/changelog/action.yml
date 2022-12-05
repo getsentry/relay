@@ -1,0 +1,5 @@
+name: 'Changelog'
+description: 'Check if the CHANGELOG entry added.'
+runs:
+  using: 'node16'
+  main: 'dist/index.js'

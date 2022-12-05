@@ -1,16 +1,11 @@
 {
-  "name": "relay",
+  "name": "ChangelogChecker",
   "version": "1.0.0",
-  "description": "Changelog checker.",
+  "description": "Makes sure that the CHANGELOG.md has the entry for the current pull request.",
   "main": "changelog.js",
-  "directories": {
-    "test": "tests"
-  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "changelog": "node changelog.js",
-    "lint": "eslint changelog.js",
-    "lint-fix": "eslint --fix changelog.js"
+    "format": "prettier-eslint --write changelog.js",
+    "release": "ncc build changelog.js"
   },
   "repository": {
     "type": "git",
@@ -27,10 +22,16 @@
     "@actions/github": "^5.1.1"
   },
   "devDependencies": {
+    "@vercel/ncc": "^0.34.0",
     "eslint": "^8.29.0",
+    "eslint-config-prettier": "^8.5.0",
     "eslint-config-standard": "^17.0.0",
     "eslint-plugin-import": "^2.26.0",
-    "eslint-plugin-n": "^15.5.1",
-    "eslint-plugin-promise": "^6.1.1"
+    "eslint-plugin-n": "^15.6.0",
+    "eslint-plugin-prettier": "^4.2.1",
+    "eslint-plugin-promise": "^6.1.1",
+    "prettier": "2.8.0",
+    "prettier-eslint": "^15.0.1",
+    "prettier-eslint-cli": "^7.1.0"
   }
 }
