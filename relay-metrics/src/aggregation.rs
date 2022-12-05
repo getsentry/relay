@@ -1018,6 +1018,16 @@ impl AggregatorConfig {
         Duration::from_secs(self.debounce_delay)
     }
 
+    /// Returns the valid range for metrics timestamps.
+    ///
+    /// Metrics or buckets outside of this range should be discarded.
+    pub fn timestamp_range(&self) -> std::ops::Range<UnixTimestamp> {
+        let now = UnixTimestamp::now().as_secs();
+        let min_timestamp = UnixTimestamp::from_secs(now.saturating_sub(self.max_secs_in_past));
+        let max_timestamp = UnixTimestamp::from_secs(now.saturating_add(self.max_secs_in_future));
+        min_timestamp..max_timestamp
+    }
+
     /// Determines the target bucket for an incoming bucket timestamp and bucket width.
     ///
     /// We select the output bucket which overlaps with the center of the incoming bucket.
@@ -1027,23 +1037,14 @@ impl AggregatorConfig {
         timestamp: UnixTimestamp,
         bucket_width: u64,
     ) -> Result<UnixTimestamp, AggregateMetricsError> {
-        // We know this must be UNIX timestamp because we need reliable match even with system
-        // clock skew over time.
-
-        let now = UnixTimestamp::now().as_secs();
-        let min_timestamp = UnixTimestamp::from_secs(now.saturating_sub(self.max_secs_in_past));
-        let max_timestamp = UnixTimestamp::from_secs(now.saturating_add(self.max_secs_in_future));
-
         // Find middle of the input bucket to select a target
         let ts = timestamp.as_secs().saturating_add(bucket_width / 2);
-
         // Align target_timestamp to output bucket width
         let ts = (ts / self.bucket_interval) * self.bucket_interval;
-
         let output_timestamp = UnixTimestamp::from_secs(ts);
 
-        if output_timestamp < min_timestamp || output_timestamp > max_timestamp {
-            let delta = (ts as i64) - (now as i64);
+        if !self.timestamp_range().contains(&output_timestamp) {
+            let delta = (ts as i64) - (UnixTimestamp::now().as_secs() as i64);
             relay_statsd::metric!(
                 histogram(MetricHistograms::InvalidBucketTimestamp) = delta as f64
             );

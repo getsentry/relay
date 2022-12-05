@@ -20,7 +20,7 @@ jobs:
           - aarch64
 
     name: Python Linux ${{ matrix.build-arch }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
 
     steps:
       - uses: actions/checkout@v3
@@ -71,7 +71,7 @@ jobs:
 
       - uses: actions/setup-python@v4
         with:
-          python-version: 3.7
+          python-version: 3.8
 
       - name: Build Wheel
         run: |
@@ -89,7 +89,7 @@ jobs:
 
   sdist:
     name: Python sdist
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
 
     steps:
       - uses: actions/checkout@v3
@@ -98,7 +98,7 @@ jobs:
 
       - uses: actions/setup-python@v4
         with:
-          python-version: 3.7
+          python-version: 3.8
 
       - name: Build sdist
         run: python setup.py sdist --format=zip

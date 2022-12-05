@@ -75,7 +75,7 @@ def decode_str(s, free=False):
     """Decodes a RelayStr"""
     try:
         if s.len == 0:
-            return u""
+            return ""
         return ffi.unpack(s.data, s.len).decode("utf-8", "replace")
     finally:
         if free and s.owned:

@@ -4,37 +4,36 @@ use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::str::FromStr;
 
-use failure::Fail;
 use url::Url;
 
 use relay_common::{Dsn, Scheme};
 
 /// Indicates failures in the upstream error api.
-#[derive(Fail, Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum UpstreamError {
     /// Raised if the DNS lookup for an upstream host failed.
-    #[fail(display = "dns lookup failed")]
-    LookupFailed(#[cause] io::Error),
+    #[error("dns lookup failed")]
+    LookupFailed(#[source] io::Error),
     /// Raised if the DNS lookup succeeded but an empty result was
     /// returned.
-    #[fail(display = "dns lookup returned no results")]
+    #[error("dns lookup returned no results")]
     EmptyLookupResult,
 }
 
 /// Raised if a URL cannot be parsed into an upstream descriptor.
-#[derive(Fail, Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, Eq, Hash, PartialEq, thiserror::Error)]
 pub enum UpstreamParseError {
     /// Raised if an upstream could not be parsed as URL.
-    #[fail(display = "invalid upstream URL: bad URL format")]
+    #[error("invalid upstream URL: bad URL format")]
     BadUrl,
     /// Raised if a path was added to a URL.
-    #[fail(display = "invalid upstream URL: non root URL given")]
+    #[error("invalid upstream URL: non root URL given")]
     NonOriginUrl,
     /// Raised if an unknown or unsupported scheme is encountered.
-    #[fail(display = "invalid upstream URL: unknown or unsupported URL scheme")]
+    #[error("invalid upstream URL: unknown or unsupported URL scheme")]
     UnknownScheme,
     /// Raised if no host was provided.
-    #[fail(display = "invalid upstream URL: no host")]
+    #[error("invalid upstream URL: no host")]
     NoHost,
 }
 

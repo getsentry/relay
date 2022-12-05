@@ -74,7 +74,7 @@ pub enum ProcessingAction {
     DeleteValueSoft,
 
     /// The event is invalid (needs to bubble up)
-    #[error("invalid transaction event: {}", .0)]
+    #[error("invalid transaction event: {0}")]
     InvalidTransaction(&'static str),
 }
 

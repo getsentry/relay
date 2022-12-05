@@ -9,10 +9,26 @@ use relay_general::protocol::{
 };
 use relay_general::store;
 use relay_general::types::Annotated;
+use relay_metrics::AggregatorConfig;
 use relay_metrics::{DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
+
+/// Error returned from [`extract_transaction_metrics`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+pub enum ExtractMetricsError {
+    /// The start or end timestamps are missing from the event payload.
+    #[error("no valid timestamp could be found in the event")]
+    MissingTimestamp,
+    /// The event timestamp is outside the supported range.
+    ///
+    /// The supported range is derived from the
+    /// [`max_secs_in_past`](AggregatorConfig::max_secs_in_past) and
+    /// [`max_secs_in_future`](AggregatorConfig::max_secs_in_future) configuration options.
+    #[error("timestamp too old or too far in the future")]
+    InvalidTimestamp,
+}
 
 /// The metric on which the user satisfaction threshold is applied.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -352,47 +368,48 @@ fn extract_universal_tags(
 }
 
 pub fn extract_transaction_metrics(
+    aggregator_config: &AggregatorConfig,
     config: &TransactionMetricsConfig,
     conditional_tagging_config: &[TaggingRule],
     event: &Event,
     target: &mut Vec<Metric>,
-) -> bool {
+) -> Result<bool, ExtractMetricsError> {
     let before_len = target.len();
 
-    extract_transaction_metrics_inner(config, event, target);
+    extract_transaction_metrics_inner(aggregator_config, config, event, target)?;
 
     let added_slice = &mut target[before_len..];
     run_conditional_tagging(event, conditional_tagging_config, added_slice);
-    !added_slice.is_empty()
+    Ok(!added_slice.is_empty())
 }
 
 fn extract_transaction_metrics_inner(
+    aggregator_config: &AggregatorConfig,
     config: &TransactionMetricsConfig,
     event: &Event,
     metrics: &mut Vec<Metric>, // output parameter
-) {
+) -> Result<(), ExtractMetricsError> {
     if event.ty.value() != Some(&EventType::Transaction) {
-        return;
+        return Ok(());
     }
 
-    let (start_timestamp, end_timestamp) =
-        match (event.start_timestamp.value(), event.timestamp.value()) {
-            (Some(start), Some(end)) => (*start, *end),
-            // invalid transaction
-            _ => {
-                relay_log::error!(
-                    "failed to extract the start and the end timestamps from the event"
-                );
-                return;
-            }
-        };
-
-    let duration_millis = relay_common::chrono_to_positive_millis(end_timestamp - start_timestamp);
-
-    let unix_timestamp = match UnixTimestamp::from_datetime(end_timestamp.into_inner()) {
-        Some(ts) => ts,
-        None => return,
+    let (Some(&start), Some(&end)) = (event.start_timestamp.value(), event.timestamp.value()) else {
+        relay_log::debug!("failed to extract the start and the end timestamps from the event");
+        return Err(ExtractMetricsError::MissingTimestamp);
     };
+
+    let Some(timestamp) = UnixTimestamp::from_datetime(end.into_inner()) else {
+        relay_log::debug!("event timestamp is not a valid unix timestamp");
+        return Err(ExtractMetricsError::InvalidTimestamp);
+    };
+
+    // Validate the transaction event against the metrics timestamp limits. If the metric is too
+    // old or too new, we cannot extract the metric and also need to drop the transaction event
+    // for consistency between metrics and events.
+    if !aggregator_config.timestamp_range().contains(&timestamp) {
+        relay_log::debug!("event timestamp is out of the valid range for metrics");
+        return Err(ExtractMetricsError::InvalidTimestamp);
+    }
 
     let tags = extract_universal_tags(event, config);
 
@@ -419,7 +436,7 @@ fn extract_transaction_metrics_inner(
                 format!("measurements.{}", name),
                 measurement.unit.value().copied().unwrap_or_default(),
                 MetricValue::Distribution(value),
-                unix_timestamp,
+                timestamp,
                 tags_for_measurement,
             ));
         }
@@ -453,7 +470,7 @@ fn extract_transaction_metrics_inner(
                         format!("breakdowns.{}.{}", breakdown, measurement_name),
                         unit.copied().unwrap_or(MetricUnit::None),
                         MetricValue::Distribution(value),
-                        unix_timestamp,
+                        timestamp,
                         tags.clone(),
                     ));
                 }
@@ -461,12 +478,8 @@ fn extract_transaction_metrics_inner(
         }
     }
 
-    let user_satisfaction = extract_user_satisfaction(
-        &config.satisfaction_thresholds,
-        event,
-        start_timestamp,
-        end_timestamp,
-    );
+    let user_satisfaction =
+        extract_user_satisfaction(&config.satisfaction_thresholds, event, start, end);
     let tags_with_satisfaction = match user_satisfaction {
         Some(satisfaction) => utils::with_tag(&tags, "satisfaction", satisfaction),
         None => tags,
@@ -477,8 +490,8 @@ fn extract_transaction_metrics_inner(
         METRIC_NAMESPACE,
         "duration",
         MetricUnit::Duration(DurationUnit::MilliSecond),
-        MetricValue::Distribution(duration_millis),
-        unix_timestamp,
+        MetricValue::Distribution(relay_common::chrono_to_positive_millis(end - start)),
+        timestamp,
         tags_with_satisfaction.clone(),
     ));
 
@@ -490,7 +503,7 @@ fn extract_transaction_metrics_inner(
                 "user",
                 MetricUnit::None,
                 MetricValue::set_from_str(&value),
-                unix_timestamp,
+                timestamp,
                 // A single user might end up in multiple satisfaction buckets when they have
                 // some satisfying transactions and some frustrating transactions.
                 // This is OK as long as we do not add these numbers *after* aggregation:
@@ -500,6 +513,8 @@ fn extract_transaction_metrics_inner(
             ));
         }
     }
+
+    Ok(())
 }
 
 /// Compute the transaction event's "user" tag as close as possible to how users are determined in
@@ -575,10 +590,9 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
 
-    use relay_general::protocol::User;
+    use relay_general::protocol::{Contexts, User};
     use relay_general::store::{
         self, BreakdownsConfig, LightNormalizationConfig, MeasurementsConfig,
     };
@@ -586,6 +600,15 @@ mod tests {
     use relay_metrics::DurationUnit;
 
     use crate::metrics_extraction::TaggingRule;
+
+    /// Returns an aggregator config that permits every timestamp.
+    fn aggregator_config() -> AggregatorConfig {
+        AggregatorConfig {
+            max_secs_in_past: u64::MAX,
+            max_secs_in_future: u64::MAX,
+            ..Default::default()
+        }
+    }
 
     #[test]
     fn test_extract_transaction_metrics() {
@@ -660,6 +683,8 @@ mod tests {
         )
         .unwrap();
 
+        let aggregator_config = aggregator_config();
+
         // Normalize first, to make sure that all things are correct as in the real pipeline:
         let res = store::light_normalize_event(
             &mut event,
@@ -671,7 +696,14 @@ mod tests {
         assert!(res.is_ok());
 
         let mut metrics = vec![];
-        extract_transaction_metrics(&config, &[], event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(
+            &aggregator_config,
+            &config,
+            &[],
+            event.value().unwrap(),
+            &mut metrics,
+        )
+        .unwrap();
 
         insta::assert_debug_snapshot!(metrics, @r###"
         [
@@ -792,6 +824,7 @@ mod tests {
         "#;
 
         let config = TransactionMetricsConfig::default();
+        let aggregator_config = aggregator_config();
 
         let mut event = Annotated::from_json(json).unwrap();
 
@@ -800,7 +833,14 @@ mod tests {
         assert!(res.is_ok(), "{:?}", res);
 
         let mut metrics = vec![];
-        extract_transaction_metrics(&config, &[], event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(
+            &aggregator_config,
+            &config,
+            &[],
+            event.value().unwrap(),
+            &mut metrics,
+        )
+        .unwrap();
 
         insta::assert_debug_snapshot!(metrics, @r###"
         [
@@ -872,6 +912,7 @@ mod tests {
         }"#;
 
         let config: TransactionMetricsConfig = TransactionMetricsConfig::default();
+        let aggregator_config = aggregator_config();
 
         let mut event = Annotated::from_json(json).unwrap();
 
@@ -880,7 +921,14 @@ mod tests {
         assert!(res.is_ok(), "{:?}", res);
 
         let mut metrics = vec![];
-        extract_transaction_metrics(&config, &[], event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(
+            &aggregator_config,
+            &config,
+            &[],
+            event.value().unwrap(),
+            &mut metrics,
+        )
+        .unwrap();
 
         insta::assert_debug_snapshot!(metrics, @r###"
         [
@@ -945,8 +993,17 @@ mod tests {
         let event = Annotated::from_json(json).unwrap();
 
         let config = TransactionMetricsConfig::default();
+        let aggregator_config = aggregator_config();
+
         let mut metrics = vec![];
-        extract_transaction_metrics(&config, &[], event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(
+            &aggregator_config,
+            &config,
+            &[],
+            event.value().unwrap(),
+            &mut metrics,
+        )
+        .unwrap();
 
         assert_eq!(metrics.len(), 1);
 
@@ -988,7 +1045,7 @@ mod tests {
 
         let config: TransactionMetricsConfig = serde_json::from_str(
             r#"
-        {
+            {
             "satisfactionThresholds": {
                 "projectThreshold": {
                     "metric": "duration",
@@ -1000,8 +1057,18 @@ mod tests {
         "#,
         )
         .unwrap();
+
+        let aggregator_config = aggregator_config();
+
         let mut metrics = vec![];
-        extract_transaction_metrics(&config, &[], event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(
+            &aggregator_config,
+            &config,
+            &[],
+            event.value().unwrap(),
+            &mut metrics,
+        )
+        .unwrap();
         assert_eq!(metrics.len(), 2);
 
         let duration_metric = &metrics[0];
@@ -1049,8 +1116,18 @@ mod tests {
         "#,
         )
         .unwrap();
+
+        let aggregator_config = aggregator_config();
+
         let mut metrics = vec![];
-        extract_transaction_metrics(&config, &[], event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(
+            &aggregator_config,
+            &config,
+            &[],
+            event.value().unwrap(),
+            &mut metrics,
+        )
+        .unwrap();
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Metric {
@@ -1108,8 +1185,18 @@ mod tests {
         "#,
         )
         .unwrap();
+
+        let aggregator_config = aggregator_config();
+
         let mut metrics = vec![];
-        extract_transaction_metrics(&config, &[], event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(
+            &aggregator_config,
+            &config,
+            &[],
+            event.value().unwrap(),
+            &mut metrics,
+        )
+        .unwrap();
 
         insta::assert_debug_snapshot!(metrics, @r###"
         [
@@ -1180,8 +1267,17 @@ mod tests {
         assert!(res.is_ok(), "{:?}", res);
 
         let config = TransactionMetricsConfig::default();
+        let aggregator_config = aggregator_config();
+
         let mut metrics = vec![];
-        extract_transaction_metrics(&config, &[], event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(
+            &aggregator_config,
+            &config,
+            &[],
+            event.value().unwrap(),
+            &mut metrics,
+        )
+        .unwrap();
 
         insta::assert_debug_snapshot!(metrics, @r###"
             [
@@ -1251,6 +1347,7 @@ mod tests {
         let event = Annotated::from_json(json).unwrap();
 
         let config = TransactionMetricsConfig::default();
+        let aggregator_config = aggregator_config();
 
         let tagging_config: Vec<TaggingRule> = serde_json::from_str(
             r#"
@@ -1280,11 +1377,13 @@ mod tests {
 
         let mut metrics = vec![];
         extract_transaction_metrics(
+            &aggregator_config,
             &config,
             &tagging_config,
             event.value().unwrap(),
             &mut metrics,
-        );
+        )
+        .unwrap();
 
         insta::assert_debug_snapshot!(metrics, @r###"
         [
@@ -1331,6 +1430,7 @@ mod tests {
         let event = Annotated::from_json(json).unwrap();
 
         let config = TransactionMetricsConfig::default();
+        let aggregator_config = aggregator_config();
 
         let tagging_config: Vec<TaggingRule> = serde_json::from_str(
             r#"
@@ -1360,11 +1460,13 @@ mod tests {
 
         let mut metrics = vec![];
         extract_transaction_metrics(
+            &aggregator_config,
             &config,
             &tagging_config,
             event.value().unwrap(),
             &mut metrics,
-        );
+        )
+        .unwrap();
         metrics.retain(|m| m.name.contains("lcp"));
         assert_eq!(
             metrics,
@@ -1396,11 +1498,19 @@ mod tests {
         "#;
 
         let config = TransactionMetricsConfig::default();
+        let aggregator_config = aggregator_config();
 
         let event = Annotated::from_json(json).unwrap();
 
         let mut metrics = vec![];
-        extract_transaction_metrics(&config, &[], event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(
+            &aggregator_config,
+            &config,
+            &[],
+            event.value().unwrap(),
+            &mut metrics,
+        )
+        .unwrap();
 
         assert_eq!(metrics.len(), 1, "{:?}", metrics);
 
@@ -1423,11 +1533,19 @@ mod tests {
         "#;
 
         let config = TransactionMetricsConfig::default();
+        let aggregator_config = aggregator_config();
 
         let event = Annotated::from_json(json).unwrap();
 
         let mut metrics = vec![];
-        extract_transaction_metrics(&config, &[], event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(
+            &aggregator_config,
+            &config,
+            &[],
+            event.value().unwrap(),
+            &mut metrics,
+        )
+        .unwrap();
 
         assert_eq!(metrics.len(), 1, "{:?}", metrics);
 
@@ -1441,15 +1559,58 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_expired_timestamp() {
+        let config = TransactionMetricsConfig::default();
+        let aggregator_config = AggregatorConfig {
+            max_secs_in_past: 3600,
+            ..Default::default()
+        };
+
+        let timestamp = Timestamp(chrono::Utc::now() - chrono::Duration::seconds(7200));
+
+        let event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(timestamp),
+            start_timestamp: Annotated::new(timestamp),
+            contexts: Annotated::new({
+                let mut contexts = Contexts::new();
+                contexts.add(Context::Trace(Box::default()));
+                contexts
+            }),
+            ..Default::default()
+        });
+
+        let mut metrics = vec![];
+        let result = extract_transaction_metrics(
+            &aggregator_config,
+            &config,
+            &[],
+            event.value().unwrap(),
+            &mut metrics,
+        );
+
+        assert_eq!(result, Err(ExtractMetricsError::InvalidTimestamp));
+        assert_eq!(metrics, &[]);
+    }
+
     /// Helper function to check if the transaction name is set correctly
     fn extract_transaction_name(json: &str, strategy: AcceptTransactionNames) -> Option<String> {
         let mut config = TransactionMetricsConfig::default();
+        let aggregator_config = aggregator_config();
 
         let event = Annotated::<Event>::from_json(json).unwrap();
         config.accept_transaction_names = strategy;
 
         let mut metrics = vec![];
-        extract_transaction_metrics(&config, &[], event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(
+            &aggregator_config,
+            &config,
+            &[],
+            event.value().unwrap(),
+            &mut metrics,
+        )
+        .unwrap();
 
         assert_eq!(metrics.len(), 1);
         metrics[0].tags.get("transaction").cloned()
@@ -1791,13 +1952,21 @@ mod tests {
         }"#;
 
         let config = TransactionMetricsConfig::default();
+        let aggregator_config = aggregator_config();
 
         let mut event = Annotated::from_json(json).unwrap();
         // Normalize first, to make sure that the metrics were computed:
         let _ = store::light_normalize_event(&mut event, &LightNormalizationConfig::default());
 
         let mut metrics = vec![];
-        extract_transaction_metrics(&config, &[], event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(
+            &aggregator_config,
+            &config,
+            &[],
+            event.value().unwrap(),
+            &mut metrics,
+        )
+        .unwrap();
 
         let metrics_names: Vec<_> = metrics.into_iter().map(|m| m.name).collect();
         insta::assert_debug_snapshot!(metrics_names, @r###"

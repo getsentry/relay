@@ -8,7 +8,6 @@ use actix::prelude::*;
 use actix_web::http::{header, StatusCode};
 use actix_web::middleware::cors::{Cors, CorsBuilder};
 use actix_web::{error::PayloadError, HttpRequest, HttpResponse, ResponseError};
-use failure::Fail;
 use futures::{FutureExt, TryFutureExt};
 use futures01::prelude::*;
 use serde::Deserialize;
@@ -30,59 +29,65 @@ use crate::utils::{
     self, ApiErrorResponse, BufferError, BufferGuard, EnvelopeContext, FormDataIter, MultipartError,
 };
 
-#[derive(Fail, Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum BadStoreRequest {
-    #[fail(display = "unsupported protocol version ({})", _0)]
+    #[error("unsupported protocol version ({0})")]
     UnsupportedProtocolVersion(u16),
 
-    #[fail(display = "could not schedule event processing")]
+    #[error("could not schedule event processing")]
     ScheduleFailed,
 
-    #[fail(display = "empty request body")]
+    #[error("empty request body")]
     EmptyBody,
 
-    #[fail(display = "empty envelope")]
+    #[error("empty envelope")]
     EmptyEnvelope,
 
-    #[fail(display = "invalid JSON data")]
-    InvalidJson(#[cause] serde_json::Error),
+    #[error("invalid JSON data")]
+    InvalidJson(#[source] serde_json::Error),
 
-    #[fail(display = "invalid messagepack data")]
-    InvalidMsgpack(#[cause] rmp_serde::decode::Error),
+    #[error("invalid messagepack data")]
+    InvalidMsgpack(#[source] rmp_serde::decode::Error),
 
-    #[fail(display = "invalid event envelope")]
-    InvalidEnvelope(#[cause] EnvelopeError),
+    #[error("invalid event envelope")]
+    InvalidEnvelope(#[source] EnvelopeError),
 
-    #[fail(display = "invalid multipart data")]
-    InvalidMultipart(#[cause] MultipartError),
+    #[error("invalid multipart data")]
+    InvalidMultipart(#[source] MultipartError),
 
-    #[fail(display = "invalid minidump")]
+    #[error("invalid minidump")]
     InvalidMinidump,
 
-    #[fail(display = "missing minidump")]
+    #[error("missing minidump")]
     MissingMinidump,
 
-    #[fail(display = "invalid event id")]
+    #[error("invalid event id")]
     InvalidEventId,
 
-    #[fail(display = "failed to queue envelope")]
-    QueueFailed(#[cause] BufferError),
+    #[error("failed to queue envelope")]
+    QueueFailed(#[from] BufferError),
 
-    #[fail(display = "failed to read request body")]
-    PayloadError(#[cause] PayloadError),
+    #[error("failed to read request body")]
+    PayloadError(#[source] failure::Compat<PayloadError>),
 
-    #[fail(
-        display = "Sentry dropped data due to a quota or internal rate limit being reached. This will not affect your application. See https://docs.sentry.io/product/accounts/quotas/ for more information."
+    #[error(
+        "Sentry dropped data due to a quota or internal rate limit being reached. This will not affect your application. See https://docs.sentry.io/product/accounts/quotas/ for more information."
     )]
     RateLimited(RateLimits),
 
-    #[fail(display = "event submission rejected with_reason: {:?}", _0)]
+    #[error("event submission rejected with_reason: {0:?}")]
     EventRejected(DiscardReason),
+}
+
+impl From<PayloadError> for BadStoreRequest {
+    fn from(error: PayloadError) -> Self {
+        Self::PayloadError(failure::Fail::compat(error))
+    }
 }
 
 impl ResponseError for BadStoreRequest {
     fn error_response(&self) -> HttpResponse {
-        let body = ApiErrorResponse::from_fail(self);
+        let body = ApiErrorResponse::from_error(self);
 
         match self {
             BadStoreRequest::RateLimited(rate_limits) => {
@@ -113,7 +118,7 @@ impl ResponseError for BadStoreRequest {
                 // now executed asynchronously in `EnvelopeProcessor`.
                 HttpResponse::Forbidden().json(&body)
             }
-            BadStoreRequest::PayloadError(PayloadError::Overflow) => {
+            BadStoreRequest::PayloadError(e) if matches!(e.get_ref(), PayloadError::Overflow) => {
                 HttpResponse::PayloadTooLarge().json(&body)
             }
             _ => {
@@ -299,9 +304,7 @@ fn queue_envelope(
         relay_log::trace!("queueing separate envelope for non-event items");
 
         // The envelope has been split, so we need to fork the context.
-        let event_context = buffer_guard
-            .enter(&event_envelope)
-            .map_err(BadStoreRequest::QueueFailed)?;
+        let event_context = buffer_guard.enter(&event_envelope)?;
 
         // Update the old context after successful forking.
         envelope_context.update(&envelope);
@@ -392,7 +395,7 @@ where
             if let Some((envelope, mut envelope_context)) = checked.envelope {
                 if !utils::check_envelope_size_limits(&config, &envelope) {
                     envelope_context.reject(Outcome::Invalid(DiscardReason::TooLarge));
-                    return Err(BadStoreRequest::PayloadError(PayloadError::Overflow));
+                    return Err(PayloadError::Overflow.into());
                 }
 
                 let event_id = envelope.event_id();

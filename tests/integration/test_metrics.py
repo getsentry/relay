@@ -108,7 +108,9 @@ def test_metrics_backdated(mini_sentry, relay):
 def test_metrics_partition_key(mini_sentry, relay, flush_partitions, expected_header):
     forever = 100 * 365 * 24 * 60 * 60  # *almost forever
     relay_config = {
-        "processing": {"max_session_secs_in_past": forever,},
+        "processing": {
+            "max_session_secs_in_past": forever,
+        },
         "aggregator": {
             "bucket_interval": 1,
             "initial_delay": 0,
@@ -191,8 +193,14 @@ def test_metrics_with_sharded_kafka(
                 "metrics": {
                     "shards": 3,
                     "mapping": {
-                        0: {"name": get_topic_name("metrics-1"), "config": "foo",},
-                        2: {"name": get_topic_name("metrics-2"), "config": "baz",},
+                        0: {
+                            "name": get_topic_name("metrics-1"),
+                            "config": "foo",
+                        },
+                        2: {
+                            "name": get_topic_name("metrics-2"),
+                            "config": "baz",
+                        },
                     },
                 }
             },
@@ -864,7 +872,7 @@ def test_graceful_shutdown(mini_sentry, relay):
 
     # Future timestamp will not be flushed regularly, only through force flush
     metrics_payload = f"transactions/bar:17|c"
-    future_timestamp = timestamp + 60
+    future_timestamp = timestamp + 30
     relay.send_metrics(project_id, metrics_payload, future_timestamp)
     relay.shutdown(sig=signal.SIGTERM)
 
@@ -900,7 +908,7 @@ def test_graceful_shutdown(mini_sentry, relay):
 def test_limit_custom_measurements(
     mini_sentry, relay, relay_with_processing, metrics_consumer, transactions_consumer
 ):
-    """ Custom measurement config is propagated to outer relay """
+    """Custom measurement config is propagated to outer relay"""
     metrics_consumer = metrics_consumer()
     transactions_consumer = transactions_consumer()
 

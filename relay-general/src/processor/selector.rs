@@ -16,7 +16,7 @@ pub enum InvalidSelectorError {
     #[error("invalid selector: wildcard must be part of a path")]
     InvalidWildcard,
 
-    #[error("invalid selector: {}", .0)]
+    #[error("invalid selector: {0}")]
     ParseError(Box<Error<Rule>>),
 
     #[error("invalid selector: invalid index")]
@@ -25,7 +25,7 @@ pub enum InvalidSelectorError {
     #[error("invalid selector: unknown value")]
     UnknownType,
 
-    #[error("parser bug: consumed {} (expected {})", .0, .1)]
+    #[error("parser bug: consumed {0} (expected {1})")]
     UnexpectedToken(String, &'static str),
 }
 

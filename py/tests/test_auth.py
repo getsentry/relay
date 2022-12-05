@@ -31,7 +31,10 @@ def test_basic_key_functions():
 
 def test_challenge_response():
     resp = sentry_relay.create_register_challenge(
-        REQUEST, REQUEST_SIG, UPSTREAM_SECRET, max_age=0,
+        REQUEST,
+        REQUEST_SIG,
+        UPSTREAM_SECRET,
+        max_age=0,
     )
     assert resp["relay_id"] == uuid.UUID(RELAY_ID.decode("utf8"))
     assert len(resp["token"]) > 40
@@ -41,21 +44,33 @@ def test_challenge_response():
 def test_challenge_response_validation_errors():
     with pytest.raises(sentry_relay.UnpackErrorSignatureExpired):
         sentry_relay.create_register_challenge(
-            REQUEST, REQUEST_SIG, UPSTREAM_SECRET, max_age=1,
+            REQUEST,
+            REQUEST_SIG,
+            UPSTREAM_SECRET,
+            max_age=1,
         )
     with pytest.raises(sentry_relay.UnpackErrorBadPayload):
         sentry_relay.create_register_challenge(
-            REQUEST + b"__broken", REQUEST_SIG, UPSTREAM_SECRET, max_age=0,
+            REQUEST + b"__broken",
+            REQUEST_SIG,
+            UPSTREAM_SECRET,
+            max_age=0,
         )
     with pytest.raises(sentry_relay.UnpackErrorBadSignature):
         sentry_relay.create_register_challenge(
-            REQUEST, REQUEST_SIG + "__broken", UPSTREAM_SECRET, max_age=0,
+            REQUEST,
+            REQUEST_SIG + "__broken",
+            UPSTREAM_SECRET,
+            max_age=0,
         )
 
 
 def test_register_response():
     resp = sentry_relay.validate_register_response(
-        RESPONSE, RESPONSE_SIG, UPSTREAM_SECRET, max_age=0,
+        RESPONSE,
+        RESPONSE_SIG,
+        UPSTREAM_SECRET,
+        max_age=0,
     )
     assert resp["token"] == TOKEN
     assert resp["relay_id"] == uuid.UUID(RELAY_ID.decode("utf8"))

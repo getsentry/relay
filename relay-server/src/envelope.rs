@@ -37,7 +37,6 @@ use std::io::{self, Write};
 
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use failure::Fail;
 use relay_common::UnixTimestamp;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use smallvec::SmallVec;
@@ -52,24 +51,24 @@ use crate::utils::ErrorBoundary;
 
 pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 
-#[derive(Debug, Fail)]
+#[derive(Debug, thiserror::Error)]
 pub enum EnvelopeError {
-    #[fail(display = "unexpected end of file")]
+    #[error("unexpected end of file")]
     UnexpectedEof,
-    #[fail(display = "missing envelope header")]
+    #[error("missing envelope header")]
     MissingHeader,
-    #[fail(display = "missing newline after header or payload")]
+    #[error("missing newline after header or payload")]
     MissingNewline,
-    #[fail(display = "invalid envelope header")]
-    InvalidHeader(#[cause] serde_json::Error),
-    #[fail(display = "{} header mismatch between envelope and request", _0)]
+    #[error("invalid envelope header")]
+    InvalidHeader(#[source] serde_json::Error),
+    #[error("{0} header mismatch between envelope and request")]
     HeaderMismatch(&'static str),
-    #[fail(display = "invalid item header")]
-    InvalidItemHeader(#[cause] serde_json::Error),
-    #[fail(display = "failed to write header")]
-    HeaderIoFailed(#[cause] serde_json::Error),
-    #[fail(display = "failed to write payload")]
-    PayloadIoFailed(#[cause] io::Error),
+    #[error("invalid item header")]
+    InvalidItemHeader(#[source] serde_json::Error),
+    #[error("failed to write header")]
+    HeaderIoFailed(#[source] serde_json::Error),
+    #[error("failed to write payload")]
+    PayloadIoFailed(#[source] io::Error),
 }
 
 /// The type of an envelope item.
@@ -908,6 +907,23 @@ impl Envelope {
         self.headers.retention = Some(retention);
     }
 
+    /// Returns the dynamic sampling context from envelope headers, if present.
+    pub fn dsc(&self) -> Option<&DynamicSamplingContext> {
+        match &self.headers.trace {
+            None => None,
+            Some(ErrorBoundary::Err(e)) => {
+                relay_log::debug!("failed to parse sampling context: {:?}", e);
+                None
+            }
+            Some(ErrorBoundary::Ok(t)) => Some(t),
+        }
+    }
+
+    /// Overrides the dynamic sampling context in envelope headers.
+    pub fn set_dsc(&mut self, dsc: DynamicSamplingContext) {
+        self.headers.trace = Some(ErrorBoundary::Ok(dsc));
+    }
+
     /// Returns the specified header value, if present.
     #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn get_header<K>(&self, name: &K) -> Option<&Value>
@@ -997,17 +1013,6 @@ impl Envelope {
             headers: self.headers.clone(),
             items: split_items,
         })
-    }
-
-    pub fn sampling_context(&self) -> Option<&DynamicSamplingContext> {
-        match &self.headers.trace {
-            Option::None => None,
-            Option::Some(ErrorBoundary::Err(e)) => {
-                relay_log::debug!("failed to parse sampling context: {:?}", e);
-                None
-            }
-            Option::Some(ErrorBoundary::Ok(t)) => Some(t),
-        }
     }
 
     /// Retains only the items specified by the predicate.
