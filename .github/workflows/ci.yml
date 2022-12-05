@@ -15,7 +15,7 @@ env:
 jobs:
   lint:
     name: Lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
 
     steps:
       - name: Install libcurl-dev
@@ -73,7 +73,7 @@ jobs:
 
   lint_default:
     name: Lint Rust Default Features
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
 
     steps:
       - name: Install libcurl-dev
@@ -140,14 +140,14 @@ jobs:
 
   test_all:
     timeout-minutes: 15
-    name: Test All Features (ubuntu-latest)
-    runs-on: ubuntu-latest
+    name: Test All Features (ubuntu-20.04)
+    runs-on: ubuntu-20.04
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     # Testing all features requires Docker container operations that are only available on
-    # `ubuntu-latest`. This `test-all` job is to be seen as complementary to the `test` job. If
+    # `ubuntu-20.04`. This `test-all` job is to be seen as complementary to the `test` job. If
     # services become available on other platforms, the jobs should be consolidated. See
     # https://docs.github.com/en/actions/guides/about-service-containers
 
@@ -193,7 +193,7 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release/')"
 
     name: Test Python ${{ matrix.python-version }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
 
     steps:
       - uses: actions/checkout@v3
@@ -227,7 +227,7 @@ jobs:
 
   test_integration:
     name: Integration Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     timeout-minutes: 20
 
     # Skip redundant checks for library releases
@@ -297,7 +297,7 @@ jobs:
 
   sentry-relay-integration-tests:
     name: Sentry-Relay Integration Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     timeout-minutes: 25
 
     # Skip redundant checks for library releases
@@ -363,7 +363,7 @@ jobs:
 
   self-hosted-end-to-end:
     needs: []
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     # temporary, remove once we are confident the action is working
     continue-on-error: true
 
