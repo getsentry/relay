@@ -1737,7 +1737,7 @@ impl EnvelopeProcessorService {
             received_at: Some(envelope_context.received_at()),
             breakdowns: project_state.config.breakdowns_v2.clone(),
             span_attributes: project_state.config.span_attributes.clone(),
-            client_sample_rate: envelope.sampling_context().and_then(|ctx| ctx.sample_rate),
+            client_sample_rate: envelope.dsc().and_then(|ctx| ctx.sample_rate),
         };
 
         let mut store_processor = StoreProcessor::new(store_config, self.geoip_lookup.as_ref());
@@ -1773,7 +1773,7 @@ impl EnvelopeProcessorService {
     ///
     /// If there is no transaction event in the envelope, this function will do nothing.
     fn normalize_dsc(&self, state: &mut ProcessEnvelopeState) {
-        if state.envelope.sampling_context().is_some() && state.sampling_project_state.is_some() {
+        if state.envelope.dsc().is_some() && state.sampling_project_state.is_some() {
             return;
         }
 
@@ -1783,7 +1783,7 @@ impl EnvelopeProcessorService {
         let Some(key_config) = state.project_state.get_public_key_config() else { return };
 
         if let Some(dsc) = DynamicSamplingContext::from_transaction(key_config.public_key, event) {
-            state.envelope.set_sampling_context(dsc);
+            state.envelope.set_dsc(dsc);
             state.sampling_project_state = Some(state.project_state.clone());
         }
     }
@@ -1896,7 +1896,7 @@ impl EnvelopeProcessorService {
             state.transaction_metrics_extracted = true;
             state.envelope_context.set_event_metrics_extracted();
 
-            if let Some(context) = state.envelope.sampling_context() {
+            if let Some(context) = state.envelope.dsc() {
                 track_sampling_metrics(&state.project_state, context, event);
             }
         }
@@ -2009,7 +2009,7 @@ impl EnvelopeProcessorService {
         let client_ip = state.envelope.meta().client_addr();
 
         match utils::should_keep_event(
-            state.envelope.sampling_context(),
+            state.envelope.dsc(),
             state.event.value(),
             client_ip,
             &state.project_state,

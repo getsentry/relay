@@ -908,7 +908,7 @@ impl Envelope {
     }
 
     /// Returns the dynamic sampling context from envelope headers, if present.
-    pub fn sampling_context(&self) -> Option<&DynamicSamplingContext> {
+    pub fn dsc(&self) -> Option<&DynamicSamplingContext> {
         match &self.headers.trace {
             None => None,
             Some(ErrorBoundary::Err(e)) => {
@@ -920,7 +920,7 @@ impl Envelope {
     }
 
     /// Overrides the dynamic sampling context in envelope headers.
-    pub fn set_sampling_context(&mut self, dsc: DynamicSamplingContext) {
+    pub fn set_dsc(&mut self, dsc: DynamicSamplingContext) {
         self.headers.trace = Some(ErrorBoundary::Ok(dsc));
     }
 
