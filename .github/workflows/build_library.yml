@@ -20,7 +20,7 @@ jobs:
           - aarch64
 
     name: Python Linux ${{ matrix.build-arch }}
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v3
@@ -89,7 +89,7 @@ jobs:
 
   sdist:
     name: Python sdist
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v3
