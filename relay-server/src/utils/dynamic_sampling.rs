@@ -2,12 +2,9 @@
 //!
 use std::net::IpAddr;
 
-use relay_common::{EventType, ProjectKey, Uuid};
-use relay_general::protocol::{Context, Event, TraceContext};
-use relay_sampling::{
-    pseudo_random_from_uuid, DynamicSamplingContext, RuleId, SamplingConfig, SamplingMode,
-    TraceUserContext,
-};
+use relay_common::{ProjectKey, Uuid};
+use relay_general::protocol::Event;
+use relay_sampling::{DynamicSamplingContext, RuleId, SamplingConfig, SamplingMode};
 
 use crate::actors::project::ProjectState;
 use crate::envelope::{Envelope, ItemType};
@@ -114,46 +111,9 @@ fn get_event_sampling_rule(
     }))
 }
 
-/// TODO(ja): Doc
-fn dsc_from_event(public_key: ProjectKey, event: &Event) -> Option<DynamicSamplingContext> {
-    if event.ty.value() != Some(&EventType::Transaction) {
-        return None;
-    }
-
-    let contexts = event.contexts.value()?;
-    let context = contexts.get(TraceContext::default_key())?.value()?;
-    let Context::Trace(ref trace) = context.0 else { return None };
-    let trace_id = trace.trace_id.value()?;
-    let trace_id = trace_id.0.parse().ok()?;
-
-    let user = event.user.value();
-
-    Some(DynamicSamplingContext {
-        trace_id,
-        public_key,
-        release: event.release.as_str().map(str::to_owned),
-        environment: event.environment.value().cloned(),
-        transaction: event.transaction.value().cloned(),
-        sample_rate: None,
-        user: TraceUserContext {
-            // TODO(ja): Should these be options?
-            user_segment: user
-                .and_then(|u| u.segment.value().cloned())
-                .unwrap_or_default(),
-            user_id: user
-                .and_then(|u| u.id.as_str())
-                .unwrap_or_default()
-                .to_owned(),
-        },
-        other: Default::default(),
-    })
-}
-
 /// Checks whether an event should be kept or removed by dynamic sampling.
 ///
 /// This runs both trace- and event/transaction/error-based rules at once.
-///
-/// TODO(ja): Doc preconditions
 pub fn should_keep_event(
     sampling_context: Option<&DynamicSamplingContext>,
     event: Option<&Event>,
@@ -162,38 +122,6 @@ pub fn should_keep_event(
     sampling_project_state: Option<&ProjectState>,
     processing_enabled: bool,
 ) -> SamplingResult {
-    // TODO(ja): Trace sampling seems to rely on the following causality, which should be made more
-    // explicit and more local + tested:
-    //  - get_sampling_key returns `None` without transaction
-    //  - sampling_project_state therefore resolves to `None`
-    //  - get_trace_sampling_rule bails
-
-    // XXX: Rebind so we can assign local lifetimes
-    let mut sampling_context = sampling_context;
-    let mut sampling_project_state = sampling_project_state;
-
-    // If the DSC is missing, try to create a partial context ad-hoc from the transaction event.
-    // This should allow sampling using the target project's sampling rules, assuming that no trace
-    // propagation has happened.
-    //
-    // TODO(ja): Find a better place for this normalization than sampling code
-    let fallback_context;
-    if sampling_context.is_none() {
-        debug_assert!(sampling_project_state.is_none());
-
-        if let Some(key_config) = project_state.get_public_key_config() {
-            if let Some(event) = event {
-                if let Some(dsc) = dsc_from_event(key_config.public_key, event) {
-                    // TODO(ja): Check if this is safe under SamplingMode::Total since the sample
-                    // rate isn't populated
-                    fallback_context = dsc;
-                    sampling_context = Some(&fallback_context);
-                    sampling_project_state = Some(project_state);
-                }
-            }
-        }
-    }
-
     let matching_trace_rule = match get_trace_sampling_rule(
         processing_enabled,
         sampling_project_state,
@@ -221,11 +149,9 @@ pub fn should_keep_event(
     // but we need the current behavior to allow health check rules
     // to take precedence over the overall base rate, which is set on the trace.
     if let Some(spec) = matching_event_rule.or(matching_trace_rule) {
-        let random_number = pseudo_random_from_uuid(spec.seed);
+        let random_number = relay_sampling::pseudo_random_from_uuid(spec.seed);
         if random_number >= spec.sample_rate {
             return SamplingResult::Drop(spec.rule_id);
-        } else {
-            return SamplingResult::Keep;
         }
     }
 
@@ -381,27 +307,26 @@ mod tests {
         assert_eq!(result, SamplingResult::Drop(RuleId(1)));
     }
 
-    // TODO(ja): Replace with two tests
-    // #[test]
-    // /// Should keep transaction when no trace context is present
-    // fn test_should_keep_transaction_no_trace() {
-    //     //create an envelope with a event and a transaction
-    //     let envelope = new_envelope(false);
-    //     let state = state_with_rule(Some(1.0), RuleType::Trace, SamplingMode::default());
-    //     let sampling_state = state_with_rule(Some(0.0), RuleType::Trace, SamplingMode::default());
+    #[test]
+    /// Should keep transaction when no trace context is present
+    fn test_should_keep_transaction_no_trace() {
+        //create an envelope with a event and a transaction
+        let envelope = new_envelope(false);
+        let state = state_with_rule(Some(1.0), RuleType::Trace, SamplingMode::default());
+        let sampling_state = state_with_rule(Some(0.0), RuleType::Trace, SamplingMode::default());
 
-    //     let result = should_keep_event(
-    //         envelope.sampling_context(),
-    //         None,
-    //         None,
-    //         &state,
-    //         Some(&sampling_state),
-    //         true,
-    //     );
-    //     assert_eq!(result, SamplingResult::Keep);
-    //     // both the event and the transaction item should have been left in the envelope
-    //     assert_eq!(envelope.len(), 3);
-    // }
+        let result = should_keep_event(
+            envelope.sampling_context(),
+            None,
+            None,
+            &state,
+            Some(&sampling_state),
+            true,
+        );
+        assert_eq!(result, SamplingResult::Keep);
+        // both the event and the transaction item should have been left in the envelope
+        assert_eq!(envelope.len(), 3);
+    }
 
     #[test]
     /// When the envelope becomes empty due to sampling we should get back the rule that dropped the

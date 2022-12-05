@@ -1752,6 +1752,42 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
+    /// Ensures there is a valid dynamic sampling context and corresponding project state.
+    ///
+    /// The dynamic sampling context (DSC) specifies the project_key of the project that initiated
+    /// the trace. That project state should have been loaded previously by the project cache and is
+    /// available on the `ProcessEnvelopeState`. Under these conditions, this cannot happen:
+    ///
+    ///  - There is no DSC in the envelope headers. This occurs with older or third-party SDKs.
+    ///  - The project key does not exist. This can happen if the project key was disabled, the
+    ///    project removed, or in rare cases when a project from another Sentry instance is referred
+    ///    to.
+    ///  - The project key refers to a project from another organization. In this case the project
+    ///    cache does not resolve the state and instead leaves it blank.
+    ///  - The project state could not be fetched. This is a runtime error, but in this case Relay
+    ///    should fall back to the next-best sampling rule set.
+    ///
+    /// In all of the above cases, this function will compute a new DSC using information from the
+    /// event payload, similar to how SDKs do this. The `sampling_project_state` is also switched to
+    /// the main project state.
+    ///
+    /// If there is no transaction event in the envelope, this function will do nothing.
+    fn normalize_dsc(&self, state: &mut ProcessEnvelopeState) {
+        if state.envelope.sampling_context().is_some() && state.sampling_project_state.is_some() {
+            return;
+        }
+
+        // The DSC can only be computed if there's a transaction event. Note that `from_transaction`
+        // below already checks for the event type.
+        let Some(event) = state.event.value() else { return };
+        let Some(key_config) = state.project_state.get_public_key_config() else { return };
+
+        if let Some(dsc) = DynamicSamplingContext::from_transaction(key_config.public_key, event) {
+            state.envelope.set_sampling_context(dsc);
+            state.sampling_project_state = Some(state.project_state.clone());
+        }
+    }
+
     fn filter_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let event = match state.event.value_mut() {
             Some(event) => event,
@@ -2053,6 +2089,7 @@ impl EnvelopeProcessorService {
 
             self.finalize_event(state)?;
             self.light_normalize_event(state)?;
+            self.normalize_dsc(state);
             self.filter_event(state)?;
             self.extract_transaction_metrics(state)?;
             self.sample_envelope(state)?;
