@@ -2608,12 +2608,50 @@
 <span id="2606">2606</span>
 <span id="2607">2607</span>
 <span id="2608">2608</span>
+<span id="2609">2609</span>
+<span id="2610">2610</span>
+<span id="2611">2611</span>
+<span id="2612">2612</span>
+<span id="2613">2613</span>
+<span id="2614">2614</span>
+<span id="2615">2615</span>
+<span id="2616">2616</span>
+<span id="2617">2617</span>
+<span id="2618">2618</span>
+<span id="2619">2619</span>
+<span id="2620">2620</span>
+<span id="2621">2621</span>
+<span id="2622">2622</span>
+<span id="2623">2623</span>
+<span id="2624">2624</span>
+<span id="2625">2625</span>
+<span id="2626">2626</span>
+<span id="2627">2627</span>
+<span id="2628">2628</span>
+<span id="2629">2629</span>
+<span id="2630">2630</span>
+<span id="2631">2631</span>
+<span id="2632">2632</span>
+<span id="2633">2633</span>
+<span id="2634">2634</span>
+<span id="2635">2635</span>
+<span id="2636">2636</span>
+<span id="2637">2637</span>
+<span id="2638">2638</span>
+<span id="2639">2639</span>
+<span id="2640">2640</span>
+<span id="2641">2641</span>
+<span id="2642">2642</span>
+<span id="2643">2643</span>
+<span id="2644">2644</span>
+<span id="2645">2645</span>
+<span id="2646">2646</span>
+<span id="2647">2647</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Functionality for calculating if a trace should be processed or dropped.
 </span><span class="attribute">#![doc(
     html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
     html_favicon_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;
 </span>)]
-#![allow(clippy::derive_partial_eq_without_eq)]
 
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
@@ -2621,7 +2659,6 @@
 <span class="kw">use </span>std::net::IpAddr;
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
-
 <span class="kw">use </span>rand::{distributions::Uniform, Rng};
 <span class="kw">use </span>rand_pcg::Pcg32;
 <span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -2629,7 +2666,7 @@
 
 <span class="kw">use </span>relay_common::{EventType, ProjectKey, Uuid};
 <span class="kw">use </span>relay_filter::GlobPatterns;
-<span class="kw">use </span>relay_general::protocol::{Context, Event};
+<span class="kw">use </span>relay_general::protocol::{Context, Event, TraceContext};
 <span class="kw">use </span>relay_general::store;
 
 <span class="doccomment">/// Defines the type of dynamic rule, i.e. to which type of events it will be applied and how.
@@ -3495,24 +3532,65 @@
     /// Set on transaction start, or via `scope.transaction`.
     </span><span class="attribute">#[serde(default)]
     </span><span class="kw">pub </span>transaction: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="doccomment">/// The sample rate with which this trace was sampled in the client. This is a float between 0 and
-    /// 1.
+    <span class="doccomment">/// The sample rate with which this trace was sampled in the client. This is a float between
+    /// `0.0` and `1.0`.
     </span><span class="attribute">#[serde(
         default,
         with = <span class="string">&quot;sample_rate_as_string&quot;</span>,
         skip_serializing_if = <span class="string">&quot;Option::is_none&quot;
     </span>)]
     </span><span class="kw">pub </span>sample_rate: <span class="prelude-ty">Option</span>&lt;f64&gt;,
-    <span class="doccomment">/// The user specific identifier ( e.g. a user segment, or similar created by the SDK
-    /// from the user object).
+    <span class="doccomment">/// The user specific identifier (e.g. a user segment, or similar created by the SDK from the
+    /// user object).
     </span><span class="attribute">#[serde(flatten, default)]
     </span><span class="kw">pub </span>user: TraceUserContext,
-    <span class="doccomment">/// Spillover values for backwards/forwards compat
+    <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
     </span><span class="attribute">#[serde(flatten, default)]
     </span><span class="kw">pub </span>other: BTreeMap&lt;String, Value&gt;,
 }
 
 <span class="kw">impl </span>DynamicSamplingContext {
+    <span class="doccomment">/// Computes a dynamic sampling context from a transaction event.
+    ///
+    /// Returns `None` if the passed event is not a transaction event, or if it does not contain a
+    /// trace ID in its trace context. All optional fields in the dynamic sampling context are
+    /// populated with the corresponding attributes from the event payload if they are available.
+    ///
+    /// Since sampling information is not available in the event payload, the `sample_rate` field
+    /// cannot be set when computing the dynamic sampling context from a transaction event.
+    </span><span class="kw">pub fn </span>from_transaction(public_key: ProjectKey, event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">if </span>event.ty.value() != <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
+            <span class="kw">return </span><span class="prelude-val">None</span>;
+        }
+
+        <span class="kw">let </span>contexts = event.contexts.value()<span class="question-mark">?</span>;
+        <span class="kw">let </span>context = contexts.get(TraceContext::default_key())<span class="question-mark">?</span>.value()<span class="question-mark">?</span>;
+        <span class="kw">let </span>Context::Trace(<span class="kw-2">ref </span>trace) = context.<span class="number">0 </span><span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">None </span>};
+        <span class="kw">let </span>trace_id = trace.trace_id.value()<span class="question-mark">?</span>;
+        <span class="kw">let </span>trace_id = trace_id.<span class="number">0</span>.parse().ok()<span class="question-mark">?</span>;
+
+        <span class="kw">let </span>user = event.user.value();
+
+        <span class="prelude-val">Some</span>(<span class="self">Self </span>{
+            trace_id,
+            public_key,
+            release: event.release.as_str().map(str::to_owned),
+            environment: event.environment.value().cloned(),
+            transaction: event.transaction.value().cloned(),
+            sample_rate: <span class="prelude-val">None</span>,
+            user: TraceUserContext {
+                user_segment: user
+                    .and_then(|u| u.segment.value().cloned())
+                    .unwrap_or_default(),
+                user_id: user
+                    .and_then(|u| u.id.as_str())
+                    .unwrap_or_default()
+                    .to_owned(),
+            },
+            other: Default::default(),
+        })
+    }
+
     <span class="doccomment">/// Compute the effective sampling rate based on the random &quot;diceroll&quot; and the sample rate from
     /// the matching rule.
     </span><span class="kw">pub fn </span>adjusted_sample_rate(<span class="kw-2">&amp;</span><span class="self">self</span>, rule_sample_rate: f64) -&gt; f64 {

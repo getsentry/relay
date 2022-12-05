@@ -2834,6 +2834,43 @@
 <span id="2832">2832</span>
 <span id="2833">2833</span>
 <span id="2834">2834</span>
+<span id="2835">2835</span>
+<span id="2836">2836</span>
+<span id="2837">2837</span>
+<span id="2838">2838</span>
+<span id="2839">2839</span>
+<span id="2840">2840</span>
+<span id="2841">2841</span>
+<span id="2842">2842</span>
+<span id="2843">2843</span>
+<span id="2844">2844</span>
+<span id="2845">2845</span>
+<span id="2846">2846</span>
+<span id="2847">2847</span>
+<span id="2848">2848</span>
+<span id="2849">2849</span>
+<span id="2850">2850</span>
+<span id="2851">2851</span>
+<span id="2852">2852</span>
+<span id="2853">2853</span>
+<span id="2854">2854</span>
+<span id="2855">2855</span>
+<span id="2856">2856</span>
+<span id="2857">2857</span>
+<span id="2858">2858</span>
+<span id="2859">2859</span>
+<span id="2860">2860</span>
+<span id="2861">2861</span>
+<span id="2862">2862</span>
+<span id="2863">2863</span>
+<span id="2864">2864</span>
+<span id="2865">2865</span>
+<span id="2866">2866</span>
+<span id="2867">2867</span>
+<span id="2868">2868</span>
+<span id="2869">2869</span>
+<span id="2870">2870</span>
+<span id="2871">2871</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
@@ -2868,7 +2905,7 @@
 <span class="kw">use </span>relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
 <span class="kw">use </span>relay_quotas::{DataCategory, ReasonCode};
 <span class="kw">use </span>relay_redis::RedisPool;
-<span class="kw">use </span>relay_sampling::RuleId;
+<span class="kw">use </span>relay_sampling::{DynamicSamplingContext, RuleId};
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, FromMessage, NoResponse, Service};
 
@@ -4470,7 +4507,7 @@
             received_at: <span class="prelude-val">Some</span>(envelope_context.received_at()),
             breakdowns: project_state.config.breakdowns_v2.clone(),
             span_attributes: project_state.config.span_attributes.clone(),
-            client_sample_rate: envelope.sampling_context().and_then(|ctx| ctx.sample_rate),
+            client_sample_rate: envelope.dsc().and_then(|ctx| ctx.sample_rate),
         };
 
         <span class="kw">let </span><span class="kw-2">mut </span>store_processor = StoreProcessor::new(store_config, <span class="self">self</span>.geoip_lookup.as_ref());
@@ -4483,6 +4520,42 @@
         });
 
         <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="doccomment">/// Ensures there is a valid dynamic sampling context and corresponding project state.
+    ///
+    /// The dynamic sampling context (DSC) specifies the project_key of the project that initiated
+    /// the trace. That project state should have been loaded previously by the project cache and is
+    /// available on the `ProcessEnvelopeState`. Under these conditions, this cannot happen:
+    ///
+    ///  - There is no DSC in the envelope headers. This occurs with older or third-party SDKs.
+    ///  - The project key does not exist. This can happen if the project key was disabled, the
+    ///    project removed, or in rare cases when a project from another Sentry instance is referred
+    ///    to.
+    ///  - The project key refers to a project from another organization. In this case the project
+    ///    cache does not resolve the state and instead leaves it blank.
+    ///  - The project state could not be fetched. This is a runtime error, but in this case Relay
+    ///    should fall back to the next-best sampling rule set.
+    ///
+    /// In all of the above cases, this function will compute a new DSC using information from the
+    /// event payload, similar to how SDKs do this. The `sampling_project_state` is also switched to
+    /// the main project state.
+    ///
+    /// If there is no transaction event in the envelope, this function will do nothing.
+    </span><span class="kw">fn </span>normalize_dsc(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
+        <span class="kw">if </span>state.envelope.dsc().is_some() &amp;&amp; state.sampling_project_state.is_some() {
+            <span class="kw">return</span>;
+        }
+
+        <span class="comment">// The DSC can only be computed if there&#39;s a transaction event. Note that `from_transaction`
+        // below already checks for the event type.
+        </span><span class="kw">let </span><span class="prelude-val">Some</span>(event) = state.event.value() <span class="kw">else </span>{ <span class="kw">return </span>};
+        <span class="kw">let </span><span class="prelude-val">Some</span>(key_config) = state.project_state.get_public_key_config() <span class="kw">else </span>{ <span class="kw">return </span>};
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(dsc) = DynamicSamplingContext::from_transaction(key_config.public_key, event) {
+            state.envelope.set_dsc(dsc);
+            state.sampling_project_state = <span class="prelude-val">Some</span>(state.project_state.clone());
+        }
     }
 
     <span class="kw">fn </span>filter_event(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
@@ -4703,7 +4776,7 @@
         <span class="kw">let </span>client_ip = state.envelope.meta().client_addr();
 
         <span class="kw">match </span>utils::should_keep_event(
-            state.envelope.sampling_context(),
+            state.envelope.dsc(),
             state.event.value(),
             client_ip,
             <span class="kw-2">&amp;</span>state.project_state,
@@ -4783,6 +4856,7 @@
 
             <span class="self">self</span>.finalize_event(state)<span class="question-mark">?</span>;
             <span class="self">self</span>.light_normalize_event(state)<span class="question-mark">?</span>;
+            <span class="self">self</span>.normalize_dsc(state);
             <span class="self">self</span>.filter_event(state)<span class="question-mark">?</span>;
             <span class="self">self</span>.extract_transaction_metrics(state)<span class="question-mark">?</span>;
             <span class="self">self</span>.sample_envelope(state)<span class="question-mark">?</span>;

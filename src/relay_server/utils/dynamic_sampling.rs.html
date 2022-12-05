@@ -488,26 +488,13 @@
 <span id="486">486</span>
 <span id="487">487</span>
 <span id="488">488</span>
-<span id="489">489</span>
-<span id="490">490</span>
-<span id="491">491</span>
-<span id="492">492</span>
-<span id="493">493</span>
-<span id="494">494</span>
-<span id="495">495</span>
-<span id="496">496</span>
-<span id="497">497</span>
-<span id="498">498</span>
-<span id="499">499</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Functionality for calculating if a trace should be processed or dropped.
 //!
 </span><span class="kw">use </span>std::net::IpAddr;
 
 <span class="kw">use </span>relay_common::{ProjectKey, Uuid};
 <span class="kw">use </span>relay_general::protocol::Event;
-<span class="kw">use </span>relay_sampling::{
-    pseudo_random_from_uuid, DynamicSamplingContext, RuleId, SamplingConfig, SamplingMode,
-};
+<span class="kw">use </span>relay_sampling::{DynamicSamplingContext, RuleId, SamplingConfig, SamplingMode};
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::project::ProjectState;
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{Envelope, ItemType};
@@ -557,10 +544,10 @@
 <span class="kw">fn </span>get_trace_sampling_rule(
     processing_enabled: bool,
     sampling_project_state: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>ProjectState&gt;,
-    sampling_context: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>DynamicSamplingContext&gt;,
+    dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>DynamicSamplingContext&gt;,
     ip_addr: <span class="prelude-ty">Option</span>&lt;IpAddr&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;SamplingSpec&gt;, SamplingResult&gt; {
-    <span class="kw">let </span>sampling_context = <span class="macro">or_ok_none!</span>(sampling_context);
+    <span class="kw">let </span>dsc = <span class="macro">or_ok_none!</span>(dsc);
 
     <span class="kw">if </span>sampling_project_state.is_none() {
         <span class="macro">relay_log::trace!</span>(<span class="string">&quot;found sampling context, but no corresponding project state&quot;</span>);
@@ -569,10 +556,10 @@
     <span class="kw">let </span>sampling_config = <span class="macro">or_ok_none!</span>(<span class="kw-2">&amp;</span>sampling_project_state.config.dynamic_sampling);
     check_unsupported_rules(processing_enabled, sampling_config)<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>rule = <span class="macro">or_ok_none!</span>(sampling_config.get_matching_trace_rule(sampling_context, ip_addr));
+    <span class="kw">let </span>rule = <span class="macro">or_ok_none!</span>(sampling_config.get_matching_trace_rule(dsc, ip_addr));
     <span class="kw">let </span>sample_rate = <span class="kw">match </span>sampling_config.mode {
         SamplingMode::Received =&gt; rule.sample_rate,
-        SamplingMode::Total =&gt; sampling_context.adjusted_sample_rate(rule.sample_rate),
+        SamplingMode::Total =&gt; dsc.adjusted_sample_rate(rule.sample_rate),
         SamplingMode::Unsupported =&gt; {
             <span class="kw">if </span>processing_enabled {
                 <span class="macro">relay_log::error!</span>(<span class="string">&quot;Found unsupported sampling mode even as processing Relay, keep&quot;</span>);
@@ -584,14 +571,14 @@
     <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(SamplingSpec {
         sample_rate,
         rule_id: rule.id,
-        seed: sampling_context.trace_id,
+        seed: dsc.trace_id,
     }))
 }
 
 <span class="kw">fn </span>get_event_sampling_rule(
     processing_enabled: bool,
     project_state: <span class="kw-2">&amp;</span>ProjectState,
-    sampling_context: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>DynamicSamplingContext&gt;,
+    dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>DynamicSamplingContext&gt;,
     event: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Event&gt;,
     ip_addr: <span class="prelude-ty">Option</span>&lt;IpAddr&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;SamplingSpec&gt;, SamplingResult&gt; {
@@ -602,8 +589,8 @@
     check_unsupported_rules(processing_enabled, sampling_config)<span class="question-mark">?</span>;
 
     <span class="kw">let </span>rule = <span class="macro">or_ok_none!</span>(sampling_config.get_matching_event_rule(event, ip_addr));
-    <span class="kw">let </span>sample_rate = <span class="kw">match </span>(sampling_context, sampling_config.mode) {
-        (<span class="prelude-val">Some</span>(ctx), SamplingMode::Total) =&gt; ctx.adjusted_sample_rate(rule.sample_rate),
+    <span class="kw">let </span>sample_rate = <span class="kw">match </span>(dsc, sampling_config.mode) {
+        (<span class="prelude-val">Some</span>(dsc), SamplingMode::Total) =&gt; dsc.adjusted_sample_rate(rule.sample_rate),
         <span class="kw">_ </span>=&gt; rule.sample_rate,
     };
 
@@ -618,33 +605,24 @@
 ///
 /// This runs both trace- and event/transaction/error-based rules at once.
 </span><span class="kw">pub fn </span>should_keep_event(
-    sampling_context: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>DynamicSamplingContext&gt;,
+    dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>DynamicSamplingContext&gt;,
     event: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Event&gt;,
     ip_addr: <span class="prelude-ty">Option</span>&lt;IpAddr&gt;,
     project_state: <span class="kw-2">&amp;</span>ProjectState,
     sampling_project_state: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>ProjectState&gt;,
     processing_enabled: bool,
 ) -&gt; SamplingResult {
-    <span class="kw">let </span>matching_trace_rule = <span class="kw">match </span>get_trace_sampling_rule(
-        processing_enabled,
-        sampling_project_state,
-        sampling_context,
-        ip_addr,
-    ) {
-        <span class="prelude-val">Ok</span>(spec) =&gt; spec,
-        <span class="prelude-val">Err</span>(sampling_result) =&gt; <span class="kw">return </span>sampling_result,
-    };
+    <span class="kw">let </span>matching_trace_rule =
+        <span class="kw">match </span>get_trace_sampling_rule(processing_enabled, sampling_project_state, dsc, ip_addr) {
+            <span class="prelude-val">Ok</span>(spec) =&gt; spec,
+            <span class="prelude-val">Err</span>(sampling_result) =&gt; <span class="kw">return </span>sampling_result,
+        };
 
-    <span class="kw">let </span>matching_event_rule = <span class="kw">match </span>get_event_sampling_rule(
-        processing_enabled,
-        project_state,
-        sampling_context,
-        event,
-        ip_addr,
-    ) {
-        <span class="prelude-val">Ok</span>(spec) =&gt; spec,
-        <span class="prelude-val">Err</span>(sampling_result) =&gt; <span class="kw">return </span>sampling_result,
-    };
+    <span class="kw">let </span>matching_event_rule =
+        <span class="kw">match </span>get_event_sampling_rule(processing_enabled, project_state, dsc, event, ip_addr) {
+            <span class="prelude-val">Ok</span>(spec) =&gt; spec,
+            <span class="prelude-val">Err</span>(sampling_result) =&gt; <span class="kw">return </span>sampling_result,
+        };
 
     <span class="comment">// NOTE: Event rules take precedence over trace rules. If the event rule has a lower sample rate
     // than the trace rule, this means that traces will be incomplete.
@@ -652,27 +630,27 @@
     // but we need the current behavior to allow health check rules
     // to take precedence over the overall base rate, which is set on the trace.
     </span><span class="kw">if let </span><span class="prelude-val">Some</span>(spec) = matching_event_rule.or(matching_trace_rule) {
-        <span class="kw">let </span>random_number = pseudo_random_from_uuid(spec.seed);
+        <span class="kw">let </span>random_number = relay_sampling::pseudo_random_from_uuid(spec.seed);
         <span class="kw">if </span>random_number &gt;= spec.sample_rate {
             <span class="kw">return </span>SamplingResult::Drop(spec.rule_id);
-        } <span class="kw">else </span>{
-            <span class="kw">return </span>SamplingResult::Keep;
         }
     }
 
     SamplingResult::Keep
 }
 
-<span class="doccomment">/// Returns the project key defined in the `trace` header of the envelope, if defined.
-/// If there are no transactions in the envelope, we return None here, because there is nothing
-/// to sample by trace.
+<span class="doccomment">/// Returns the project key defined in the `trace` header of the envelope.
+///
+/// This function returns `None` if:
+///  - there is no [`DynamicSamplingContext`] in the envelope headers.
+///  - there are no transactions in the envelope, since in this case sampling by trace is redundant.
 </span><span class="kw">pub fn </span>get_sampling_key(envelope: <span class="kw-2">&amp;</span>Envelope) -&gt; <span class="prelude-ty">Option</span>&lt;ProjectKey&gt; {
     <span class="kw">let </span>transaction_item = envelope.get_item_by(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::Transaction);
 
     <span class="comment">// if there are no transactions to sample, return here
     </span>transaction_item<span class="question-mark">?</span>;
 
-    envelope.sampling_context().map(|dsc| dsc.public_key)
+    envelope.dsc().map(|dsc| dsc.public_key)
 }
 
 <span class="attribute">#[cfg(test)]
@@ -800,7 +778,7 @@
         <span class="kw">let </span>state = state_with_rule(<span class="prelude-val">Some</span>(<span class="number">1.0</span>), RuleType::Trace, SamplingMode::default());
         <span class="kw">let </span>sampling_state = state_with_rule(<span class="prelude-val">Some</span>(<span class="number">0.0</span>), RuleType::Trace, SamplingMode::default());
         <span class="kw">let </span>result = should_keep_event(
-            envelope.sampling_context(),
+            envelope.dsc(),
             <span class="prelude-val">None</span>,
             <span class="prelude-val">None</span>,
             <span class="kw-2">&amp;</span>state,
@@ -819,7 +797,7 @@
         <span class="kw">let </span>sampling_state = state_with_rule(<span class="prelude-val">Some</span>(<span class="number">0.0</span>), RuleType::Trace, SamplingMode::default());
 
         <span class="kw">let </span>result = should_keep_event(
-            envelope.sampling_context(),
+            envelope.dsc(),
             <span class="prelude-val">None</span>,
             <span class="prelude-val">None</span>,
             <span class="kw-2">&amp;</span>state,
@@ -841,7 +819,7 @@
         <span class="kw">let </span>sampling_state = state_with_rule(<span class="prelude-val">Some</span>(<span class="number">0.0</span>), RuleType::Trace, SamplingMode::default());
 
         <span class="kw">let </span>result = should_keep_event(
-            envelope.sampling_context(),
+            envelope.dsc(),
             <span class="prelude-val">None</span>,
             <span class="prelude-val">None</span>,
             <span class="kw-2">&amp;</span>state,
@@ -906,7 +884,7 @@
         };
 
         <span class="kw">let </span>keep_event = should_keep_event(
-            envelope.sampling_context(),
+            envelope.dsc(),
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event),
             <span class="prelude-val">None</span>,
             <span class="kw-2">&amp;</span>project_state,

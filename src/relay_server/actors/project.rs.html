@@ -1159,6 +1159,22 @@
 <span id="1157">1157</span>
 <span id="1158">1158</span>
 <span id="1159">1159</span>
+<span id="1160">1160</span>
+<span id="1161">1161</span>
+<span id="1162">1162</span>
+<span id="1163">1163</span>
+<span id="1164">1164</span>
+<span id="1165">1165</span>
+<span id="1166">1166</span>
+<span id="1167">1167</span>
+<span id="1168">1168</span>
+<span id="1169">1169</span>
+<span id="1170">1170</span>
+<span id="1171">1171</span>
+<span id="1172">1172</span>
+<span id="1173">1173</span>
+<span id="1174">1174</span>
+<span id="1175">1175</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeSet, VecDeque};
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::{Duration, Instant};
@@ -1928,7 +1944,7 @@
     ) {
         <span class="kw">if let </span><span class="prelude-val">Ok</span>(checked) = <span class="self">self</span>.check_envelope(envelope, envelope_context) {
             <span class="kw">if let </span><span class="prelude-val">Some</span>((envelope, envelope_context)) = checked.envelope {
-                <span class="kw">let </span>process = ProcessEnvelope {
+                <span class="kw">let </span><span class="kw-2">mut </span>process = ProcessEnvelope {
                     envelope,
                     envelope_context,
                     project_state,
@@ -1936,8 +1952,18 @@
                 };
 
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(sampling_key) = utils::get_sampling_key(<span class="kw-2">&amp;</span>process.envelope) {
-                    ProjectCache::from_registry()
-                        .send(AddSamplingState::new(sampling_key, process));
+                    <span class="kw">let </span>own_key = process
+                        .project_state
+                        .get_public_key_config()
+                        .map(|c| c.public_key);
+
+                    <span class="kw">if </span><span class="prelude-val">Some</span>(sampling_key) == own_key {
+                        process.sampling_project_state = <span class="prelude-val">Some</span>(process.project_state.clone());
+                        EnvelopeProcessor::from_registry().send(process);
+                    } <span class="kw">else </span>{
+                        ProjectCache::from_registry()
+                            .send(AddSamplingState::new(sampling_key, process));
+                    }
                 } <span class="kw">else </span>{
                     EnvelopeProcessor::from_registry().send(process);
                 }
@@ -1961,8 +1987,14 @@
 
     <span class="doccomment">/// Adds the project state for dynamic sampling and submits the Envelope for processing.
     </span><span class="kw">fn </span>flush_sampling(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>message: ProcessEnvelope) {
-        <span class="comment">// Intentionally ignore all errors and leave the envelope unsampled.
-        </span>message.sampling_project_state = <span class="self">self</span>.valid_state();
+        <span class="comment">// Intentionally ignore all errors. Fallback sampling behavior applies in this case.
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(state) = <span class="self">self</span>.valid_state() {
+            <span class="comment">// Never use rules from another organization.
+            </span><span class="kw">if </span>state.organization_id == message.project_state.organization_id {
+                message.sampling_project_state = <span class="prelude-val">Some</span>(state);
+            }
+        }
+
         EnvelopeProcessor::from_registry().send(message);
     }
 
