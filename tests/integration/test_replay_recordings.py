@@ -1,8 +1,5 @@
-from datetime import datetime, timezone
-import pytest
-import uuid
+import time
 
-from requests.exceptions import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 
@@ -31,7 +28,73 @@ def test_replay_recordings(mini_sentry, relay_chain):
     assert replay_recording == b"test"
 
 
-def test_replay_recordings_processing(
+def test_chunked_replay_recordings_processing(
+    mini_sentry, relay_with_processing, replay_recordings_consumer, outcomes_consumer
+):
+    project_id = 42
+    org_id = 0
+    replay_id = "515539018c9b4260a6f999572f1661ee"
+    relay = relay_with_processing()
+    mini_sentry.add_basic_project_config(
+        project_id, extra={"config": {"features": ["organizations:session-replay"]}}
+    )
+    replay_recordings_consumer = replay_recordings_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    bits = b"1" * (1024 * 1024 + 2000)
+
+    envelope = Envelope(
+        headers=[
+            [
+                "event_id",
+                replay_id,
+            ],
+            ["attachment_type", "replay_recording"],
+        ]
+    )
+    envelope.add_item(Item(payload=PayloadRef(bytes=bits), type="replay_recording"))
+
+    relay.send_envelope(project_id, envelope)
+
+    replay_recording_contents = {}
+    replay_recording_ids = []
+    replay_recording_num_chunks = {}
+
+    for _ in range(2):
+        chunk, v = replay_recordings_consumer.get_chunked_replay_chunk()
+        replay_recording_contents[v["id"]] = (
+            replay_recording_contents.get(v["id"], b"") + chunk
+        )
+        if v["id"] not in replay_recording_ids:
+            replay_recording_ids.append(v["id"])
+        num_chunks = 1 + replay_recording_num_chunks.get(v["id"], 0)
+        assert v["chunk_index"] == num_chunks - 1
+        replay_recording_num_chunks[v["id"]] = num_chunks
+
+    id1 = replay_recording_ids[0]
+
+    assert replay_recording_contents[id1] == b"test"
+
+    replay_recording = replay_recordings_consumer.get_chunked_replay()
+
+    assert replay_recording["type"] == "replay_recording"
+    assert replay_recording["replay_recording"] == {
+        "chunks": replay_recording_num_chunks[id1],
+        "id": id1,
+        "size": len(replay_recording_contents[id1]),
+    }
+    assert replay_recording["replay_id"] == replay_id
+    assert replay_recording["project_id"] == project_id
+    assert replay_recording["org_id"] == org_id
+    assert replay_recording["key_id"] == 123
+    assert replay_recording["retention_days"] == 90
+    assert replay_recording["received"]
+    assert type(replay_recording["received"]) == int
+
+    outcomes_consumer.assert_empty()
+
+
+def test_nonchunked_replay_recordings_processing(
     mini_sentry, relay_with_processing, replay_recordings_consumer, outcomes_consumer
 ):
     project_id = 42
@@ -57,39 +120,15 @@ def test_replay_recordings_processing(
 
     relay.send_envelope(project_id, envelope)
 
-    replay_recording_contents = {}
-    replay_recording_ids = []
-    replay_recording_num_chunks = {}
-
-    while set(replay_recording_contents.values()) != {b"test"}:
-        chunk, v = replay_recordings_consumer.get_replay_chunk()
-        replay_recording_contents[v["id"]] = (
-            replay_recording_contents.get(v["id"], b"") + chunk
-        )
-        if v["id"] not in replay_recording_ids:
-            replay_recording_ids.append(v["id"])
-        num_chunks = 1 + replay_recording_num_chunks.get(v["id"], 0)
-        assert v["chunk_index"] == num_chunks - 1
-        replay_recording_num_chunks[v["id"]] = num_chunks
-
-    id1 = replay_recording_ids[0]
-
-    assert replay_recording_contents[id1] == b"test"
-
-    replay_recording = replay_recordings_consumer.get_individual_replay()
-
-    assert replay_recording["type"] == "replay_recording"
-    assert replay_recording["replay_recording"] == {
-        "chunks": replay_recording_num_chunks[id1],
-        "id": id1,
-        "size": len(replay_recording_contents[id1]),
-    }
+    # Get the non-chunked replay-recording message from the kafka queue.
+    replay_recording = replay_recordings_consumer.get_not_chunked_replay()
+    assert replay_recording["type"] == "replay_recording_not_chunked"
     assert replay_recording["replay_id"] == replay_id
     assert replay_recording["project_id"] == project_id
-    assert replay_recording["org_id"] == org_id
     assert replay_recording["key_id"] == 123
-    assert replay_recording["retention_days"] == 90
-    assert replay_recording["received"]
+    assert replay_recording["org_id"] == org_id
     assert type(replay_recording["received"]) == int
+    assert replay_recording["retention_days"] == 90
+    assert replay_recording["payload"] == b"test"
 
     outcomes_consumer.assert_empty()
