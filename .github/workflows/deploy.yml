@@ -14,7 +14,7 @@ env:
 jobs:
   cargo_docs:
     name: Cargo Docs
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
 
     steps:
       - name: Install libcurl-dev
@@ -56,7 +56,7 @@ jobs:
 
   event_schema:
     name: Event Schema
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
 
     steps:
       - uses: actions/checkout@v3
@@ -112,7 +112,7 @@ jobs:
 
   metrics_docs:
     name: Metrics Docs
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
 
     steps:
       - uses: actions/checkout@v3
