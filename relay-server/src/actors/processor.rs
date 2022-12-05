@@ -32,7 +32,7 @@ use relay_log::LogError;
 use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
 use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
-use relay_sampling::RuleId;
+use relay_sampling::{DynamicSamplingContext, RuleId};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 
