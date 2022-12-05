@@ -96,6 +96,12 @@ impl Replay {
         }
     }
 
+    pub fn scrub_ip_address(&mut self) {
+        if let Some(user) = self.user.value_mut() {
+            user.ip_address.set_value(None);
+        }
+    }
+
     pub fn get_tag_value(&self, tag_key: &str) -> Option<&str> {
         if let Some(tags) = self.tags.value() {
             tags.get(tag_key)
