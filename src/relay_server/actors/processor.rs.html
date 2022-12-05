@@ -2834,112 +2834,6 @@
 <span id="2832">2832</span>
 <span id="2833">2833</span>
 <span id="2834">2834</span>
-<span id="2835">2835</span>
-<span id="2836">2836</span>
-<span id="2837">2837</span>
-<span id="2838">2838</span>
-<span id="2839">2839</span>
-<span id="2840">2840</span>
-<span id="2841">2841</span>
-<span id="2842">2842</span>
-<span id="2843">2843</span>
-<span id="2844">2844</span>
-<span id="2845">2845</span>
-<span id="2846">2846</span>
-<span id="2847">2847</span>
-<span id="2848">2848</span>
-<span id="2849">2849</span>
-<span id="2850">2850</span>
-<span id="2851">2851</span>
-<span id="2852">2852</span>
-<span id="2853">2853</span>
-<span id="2854">2854</span>
-<span id="2855">2855</span>
-<span id="2856">2856</span>
-<span id="2857">2857</span>
-<span id="2858">2858</span>
-<span id="2859">2859</span>
-<span id="2860">2860</span>
-<span id="2861">2861</span>
-<span id="2862">2862</span>
-<span id="2863">2863</span>
-<span id="2864">2864</span>
-<span id="2865">2865</span>
-<span id="2866">2866</span>
-<span id="2867">2867</span>
-<span id="2868">2868</span>
-<span id="2869">2869</span>
-<span id="2870">2870</span>
-<span id="2871">2871</span>
-<span id="2872">2872</span>
-<span id="2873">2873</span>
-<span id="2874">2874</span>
-<span id="2875">2875</span>
-<span id="2876">2876</span>
-<span id="2877">2877</span>
-<span id="2878">2878</span>
-<span id="2879">2879</span>
-<span id="2880">2880</span>
-<span id="2881">2881</span>
-<span id="2882">2882</span>
-<span id="2883">2883</span>
-<span id="2884">2884</span>
-<span id="2885">2885</span>
-<span id="2886">2886</span>
-<span id="2887">2887</span>
-<span id="2888">2888</span>
-<span id="2889">2889</span>
-<span id="2890">2890</span>
-<span id="2891">2891</span>
-<span id="2892">2892</span>
-<span id="2893">2893</span>
-<span id="2894">2894</span>
-<span id="2895">2895</span>
-<span id="2896">2896</span>
-<span id="2897">2897</span>
-<span id="2898">2898</span>
-<span id="2899">2899</span>
-<span id="2900">2900</span>
-<span id="2901">2901</span>
-<span id="2902">2902</span>
-<span id="2903">2903</span>
-<span id="2904">2904</span>
-<span id="2905">2905</span>
-<span id="2906">2906</span>
-<span id="2907">2907</span>
-<span id="2908">2908</span>
-<span id="2909">2909</span>
-<span id="2910">2910</span>
-<span id="2911">2911</span>
-<span id="2912">2912</span>
-<span id="2913">2913</span>
-<span id="2914">2914</span>
-<span id="2915">2915</span>
-<span id="2916">2916</span>
-<span id="2917">2917</span>
-<span id="2918">2918</span>
-<span id="2919">2919</span>
-<span id="2920">2920</span>
-<span id="2921">2921</span>
-<span id="2922">2922</span>
-<span id="2923">2923</span>
-<span id="2924">2924</span>
-<span id="2925">2925</span>
-<span id="2926">2926</span>
-<span id="2927">2927</span>
-<span id="2928">2928</span>
-<span id="2929">2929</span>
-<span id="2930">2930</span>
-<span id="2931">2931</span>
-<span id="2932">2932</span>
-<span id="2933">2933</span>
-<span id="2934">2934</span>
-<span id="2935">2935</span>
-<span id="2936">2936</span>
-<span id="2937">2937</span>
-<span id="2938">2938</span>
-<span id="2939">2939</span>
-<span id="2940">2940</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
@@ -2974,7 +2868,7 @@
 <span class="kw">use </span>relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
 <span class="kw">use </span>relay_quotas::{DataCategory, ReasonCode};
 <span class="kw">use </span>relay_redis::RedisPool;
-<span class="kw">use </span>relay_sampling::{DynamicSamplingContext, RuleId};
+<span class="kw">use </span>relay_sampling::RuleId;
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, FromMessage, NoResponse, Service};
 
@@ -2987,7 +2881,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::sessions::{extract_session_metrics, SessionMetricsConfig};
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::{extract_transaction_metrics, ExtractMetricsError};
 <span class="kw">use </span><span class="kw">crate</span>::service::REGISTRY;
-<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
+<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{
     <span class="self">self</span>, ChunkedFormDataAggregator, EnvelopeContext, ErrorBoundary, FormDataIter, SamplingResult,
 };
@@ -3298,109 +3192,6 @@
         <span class="kw">_ </span>=&gt; DiscardReason::ProcessProfile,
     };
     Outcome::Invalid(discard_reason)
-}
-
-<span class="kw">fn </span>track_sampling_metrics(
-    project_state: <span class="kw-2">&amp;</span>ProjectState,
-    context: <span class="kw-2">&amp;</span>DynamicSamplingContext,
-    event: <span class="kw-2">&amp;</span>Event,
-) {
-    <span class="comment">// We only collect this metric for the root transaction event, so ignore secondary projects.
-    </span><span class="kw">if </span>!project_state.is_matching_key(context.public_key) {
-        <span class="kw">return</span>;
-    }
-
-    <span class="kw">let </span>transaction_info = <span class="kw">match </span>event.transaction_info.value() {
-        <span class="prelude-val">Some</span>(info) =&gt; info,
-        <span class="prelude-val">None </span>=&gt; <span class="kw">return</span>,
-    };
-
-    <span class="kw">let </span>changes = <span class="kw">match </span>transaction_info.changes.value() {
-        <span class="prelude-val">Some</span>(value) =&gt; value.as_slice(),
-        <span class="prelude-val">None </span>=&gt; <span class="kw">return</span>,
-    };
-
-    <span class="kw">let </span>last_change = changes
-        .iter()
-        .rev()
-        <span class="comment">// skip all broken change records
-        </span>.filter_map(|a| a.value())
-        <span class="comment">// skip records without a timestamp
-        </span>.filter(|c| c.timestamp.value().is_some())
-        <span class="comment">// take the last that did not occur when the event was sent
-        </span>.find(|c| c.timestamp.value() != event.timestamp.value());
-
-    <span class="kw">let </span>source = event.get_transaction_source().as_str();
-    <span class="kw">let </span>platform = event.platform.as_str().unwrap_or(<span class="string">&quot;other&quot;</span>);
-    <span class="kw">let </span>sdk_name = event.sdk_name();
-    <span class="kw">let </span>sdk_version = event.sdk_version();
-
-    <span class="macro">metric!</span>(
-        histogram(RelayHistograms::DynamicSamplingChanges) = changes.len() <span class="kw">as </span>u64,
-        source = source,
-        platform = platform,
-        sdk_name = sdk_name,
-        sdk_version = sdk_version,
-    );
-
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>total) = transaction_info.propagations.value() {
-        <span class="comment">// If there was no change, there were no propagations that happened with a wrong name.
-        </span><span class="kw">let </span>change = last_change
-            .and_then(|c| c.propagations.value())
-            .map_or(<span class="number">0</span>, |v| <span class="kw-2">*</span>v);
-
-        <span class="macro">metric!</span>(
-            histogram(RelayHistograms::DynamicSamplingPropagationCount) = change,
-            source = source,
-            platform = platform,
-            sdk_name = sdk_name,
-            sdk_version = sdk_version,
-        );
-
-        <span class="kw">let </span>percentage = <span class="kw">match </span>(change, total) {
-            (<span class="number">0</span>, <span class="number">0</span>) =&gt; <span class="number">0.0</span>, <span class="comment">// 0% indicates no premature changes.
-            </span><span class="kw">_ </span>=&gt; ((change <span class="kw">as </span>f64) / (total <span class="kw">as </span>f64)).min(<span class="number">1.0</span>) * <span class="number">100.0</span>,
-        };
-
-        <span class="macro">metric!</span>(
-            histogram(RelayHistograms::DynamicSamplingPropagationPercentage) = percentage,
-            source = source,
-            platform = platform,
-            sdk_name = sdk_name,
-            sdk_version = sdk_version,
-        );
-    }
-
-    <span class="kw">if let </span>(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>start), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>change), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>end)) = (
-        event.start_timestamp.value(),
-        last_change
-            .and_then(|c| c.timestamp.value())
-            .or_else(|| event.start_timestamp.value()), <span class="comment">// default to start if there was no change
-        </span>event.timestamp.value(),
-    ) {
-        <span class="kw">let </span>delay_ms = (change - start).num_milliseconds();
-        <span class="kw">if </span>delay_ms &gt;= <span class="number">0 </span>{
-            <span class="macro">metric!</span>(
-                histogram(RelayHistograms::DynamicSamplingChangeDuration) = delay_ms <span class="kw">as </span>u64,
-                source = source,
-                platform = platform,
-                sdk_name = sdk_name,
-                sdk_version = sdk_version,
-            );
-        }
-
-        <span class="kw">let </span>duration_ms = (end - start).num_milliseconds() <span class="kw">as </span>f64;
-        <span class="kw">if </span>delay_ms &gt;= <span class="number">0 </span>&amp;&amp; duration_ms &gt;= <span class="number">0.0 </span>{
-            <span class="kw">let </span>percentage = ((delay_ms <span class="kw">as </span>f64) / duration_ms).min(<span class="number">1.0</span>) * <span class="number">100.0</span>;
-            <span class="macro">metric!</span>(
-                histogram(RelayHistograms::DynamicSamplingChangePercentage) = percentage,
-                source = source,
-                platform = platform,
-                sdk_name = sdk_name,
-                sdk_version = sdk_version,
-            );
-        }
-    }
 }
 
 <span class="doccomment">/// Response of the [`ProcessEnvelope`] message.
@@ -4801,11 +4592,8 @@
 
             state.transaction_metrics_extracted = <span class="bool-val">true</span>;
             state.envelope_context.set_event_metrics_extracted();
-
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(context) = state.envelope.sampling_context() {
-                track_sampling_metrics(<span class="kw-2">&amp;</span>state.project_state, context, event);
-            }
         }
+
         <span class="prelude-val">Ok</span>(())
     }
 
