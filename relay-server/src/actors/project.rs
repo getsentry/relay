@@ -767,7 +767,7 @@ impl Project {
     ) {
         if let Ok(checked) = self.check_envelope(envelope, envelope_context) {
             if let Some((envelope, envelope_context)) = checked.envelope {
-                let process = ProcessEnvelope {
+                let mut process = ProcessEnvelope {
                     envelope,
                     envelope_context,
                     project_state,
@@ -775,8 +775,18 @@ impl Project {
                 };
 
                 if let Some(sampling_key) = utils::get_sampling_key(&process.envelope) {
-                    ProjectCache::from_registry()
-                        .send(AddSamplingState::new(sampling_key, process));
+                    let own_key = process
+                        .project_state
+                        .get_public_key_config()
+                        .map(|c| c.public_key);
+
+                    if Some(sampling_key) == own_key {
+                        process.sampling_project_state = Some(process.project_state.clone());
+                        EnvelopeProcessor::from_registry().send(process);
+                    } else {
+                        ProjectCache::from_registry()
+                            .send(AddSamplingState::new(sampling_key, process));
+                    }
                 } else {
                     EnvelopeProcessor::from_registry().send(process);
                 }
@@ -800,8 +810,14 @@ impl Project {
 
     /// Adds the project state for dynamic sampling and submits the Envelope for processing.
     fn flush_sampling(&self, mut message: ProcessEnvelope) {
-        // Intentionally ignore all errors and leave the envelope unsampled.
-        message.sampling_project_state = self.valid_state();
+        // Intentionally ignore all errors. Fallback sampling behavior applies in this case.
+        if let Some(state) = self.valid_state() {
+            // Never use rules from another organization.
+            if state.organization_id == message.project_state.organization_id {
+                message.sampling_project_state = Some(state);
+            }
+        }
+
         EnvelopeProcessor::from_registry().send(message);
     }
 

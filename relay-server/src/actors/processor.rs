@@ -32,7 +32,7 @@ use relay_log::LogError;
 use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
 use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
-use relay_sampling::RuleId;
+use relay_sampling::{DynamicSamplingContext, RuleId};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 
@@ -1634,7 +1634,7 @@ impl EnvelopeProcessorService {
             received_at: Some(envelope_context.received_at()),
             breakdowns: project_state.config.breakdowns_v2.clone(),
             span_attributes: project_state.config.span_attributes.clone(),
-            client_sample_rate: envelope.sampling_context().and_then(|ctx| ctx.sample_rate),
+            client_sample_rate: envelope.dsc().and_then(|ctx| ctx.sample_rate),
         };
 
         let mut store_processor = StoreProcessor::new(store_config, self.geoip_lookup.as_ref());
@@ -1647,6 +1647,42 @@ impl EnvelopeProcessorService {
         });
 
         Ok(())
+    }
+
+    /// Ensures there is a valid dynamic sampling context and corresponding project state.
+    ///
+    /// The dynamic sampling context (DSC) specifies the project_key of the project that initiated
+    /// the trace. That project state should have been loaded previously by the project cache and is
+    /// available on the `ProcessEnvelopeState`. Under these conditions, this cannot happen:
+    ///
+    ///  - There is no DSC in the envelope headers. This occurs with older or third-party SDKs.
+    ///  - The project key does not exist. This can happen if the project key was disabled, the
+    ///    project removed, or in rare cases when a project from another Sentry instance is referred
+    ///    to.
+    ///  - The project key refers to a project from another organization. In this case the project
+    ///    cache does not resolve the state and instead leaves it blank.
+    ///  - The project state could not be fetched. This is a runtime error, but in this case Relay
+    ///    should fall back to the next-best sampling rule set.
+    ///
+    /// In all of the above cases, this function will compute a new DSC using information from the
+    /// event payload, similar to how SDKs do this. The `sampling_project_state` is also switched to
+    /// the main project state.
+    ///
+    /// If there is no transaction event in the envelope, this function will do nothing.
+    fn normalize_dsc(&self, state: &mut ProcessEnvelopeState) {
+        if state.envelope.dsc().is_some() && state.sampling_project_state.is_some() {
+            return;
+        }
+
+        // The DSC can only be computed if there's a transaction event. Note that `from_transaction`
+        // below already checks for the event type.
+        let Some(event) = state.event.value() else { return };
+        let Some(key_config) = state.project_state.get_public_key_config() else { return };
+
+        if let Some(dsc) = DynamicSamplingContext::from_transaction(key_config.public_key, event) {
+            state.envelope.set_dsc(dsc);
+            state.sampling_project_state = Some(state.project_state.clone());
+        }
     }
 
     fn filter_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
@@ -1867,7 +1903,7 @@ impl EnvelopeProcessorService {
         let client_ip = state.envelope.meta().client_addr();
 
         match utils::should_keep_event(
-            state.envelope.sampling_context(),
+            state.envelope.dsc(),
             state.event.value(),
             client_ip,
             &state.project_state,
@@ -1947,6 +1983,7 @@ impl EnvelopeProcessorService {
 
             self.finalize_event(state)?;
             self.light_normalize_event(state)?;
+            self.normalize_dsc(state);
             self.filter_event(state)?;
             self.extract_transaction_metrics(state)?;
             self.sample_envelope(state)?;

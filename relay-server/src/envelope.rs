@@ -907,6 +907,23 @@ impl Envelope {
         self.headers.retention = Some(retention);
     }
 
+    /// Returns the dynamic sampling context from envelope headers, if present.
+    pub fn dsc(&self) -> Option<&DynamicSamplingContext> {
+        match &self.headers.trace {
+            None => None,
+            Some(ErrorBoundary::Err(e)) => {
+                relay_log::debug!("failed to parse sampling context: {:?}", e);
+                None
+            }
+            Some(ErrorBoundary::Ok(t)) => Some(t),
+        }
+    }
+
+    /// Overrides the dynamic sampling context in envelope headers.
+    pub fn set_dsc(&mut self, dsc: DynamicSamplingContext) {
+        self.headers.trace = Some(ErrorBoundary::Ok(dsc));
+    }
+
     /// Returns the specified header value, if present.
     #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn get_header<K>(&self, name: &K) -> Option<&Value>
@@ -996,17 +1013,6 @@ impl Envelope {
             headers: self.headers.clone(),
             items: split_items,
         })
-    }
-
-    pub fn sampling_context(&self) -> Option<&DynamicSamplingContext> {
-        match &self.headers.trace {
-            Option::None => None,
-            Option::Some(ErrorBoundary::Err(e)) => {
-                relay_log::debug!("failed to parse sampling context: {:?}", e);
-                None
-            }
-            Option::Some(ErrorBoundary::Ok(t)) => Some(t),
-        }
     }
 
     /// Retains only the items specified by the predicate.
