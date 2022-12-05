@@ -17,7 +17,7 @@ on:
 
 jobs:
   release:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     name: "Release a new Relay version"
 
     steps:
