@@ -6,8 +6,8 @@ use symbolic_unreal::{
 use relay_config::Config;
 use relay_general::protocol::{
     AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DeviceContext, Event, EventId,
-    GpuContext, LenientString, LogEntry, Message, OsContext, TagEntry, Tags, Timestamp, User,
-    UserReport, Values,
+    GpuContext, LenientString, Level, LogEntry, Message, OsContext, TagEntry, Tags, Timestamp,
+    User, UserReport, Values,
 };
 use relay_general::types::{self, Annotated, Array, Object, Value};
 
@@ -226,6 +226,14 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
         if let Context::Gpu(gpu_context) = gpu_context {
             gpu_context.name = Annotated::new(gpu_brand);
         }
+    }
+
+    if let Some(something) = runtime_props.is_assert {
+        event.level = Annotated::new(Level::Info)
+    }
+
+    if let Some(something) = runtime_props.is_ensure {
+        event.level = Annotated::new(Level::Info)
     }
 
     // Modules are not used and later replaced with Modules from the Minidump or Apple Crash Report.
