@@ -41,7 +41,8 @@ def test_chunked_replay_recordings_processing(
     replay_recordings_consumer = replay_recordings_consumer()
     outcomes_consumer = outcomes_consumer()
 
-    bits = b"1" * (1024 * 1024 - 20000)
+    # The smallest chunked payload possible.
+    bits = b"1" * (1000 * 1000 - 1999)
 
     envelope = Envelope(
         headers=[
