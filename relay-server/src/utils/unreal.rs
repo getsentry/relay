@@ -226,11 +226,11 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
         }
     }
 
-    if let Some(is_assert) = runtime_props.is_assert {
+    if Some(runtime_props.is_assert) == true {
         event.level = Annotated::new(Level::Error)
     }
 
-    if let Some(is_ensure) = runtime_props.is_ensure {
+    if Some(runtime_props.is_ensure) == true {
         event.level = Annotated::new(Level::Warning)
     }
 
