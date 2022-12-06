@@ -10,7 +10,8 @@ use super::utils::with_tag;
 const METRIC_NAMESPACE: MetricNamespace = MetricNamespace::Sessions;
 
 /// Current version of metrics extraction.
-const EXTRACT_VERSION: u16 = 1;
+const EXTRACT_VERSION: u16 = 2;
+const EXTRACT_ABNORMAL_MECHANISM_VERSION: u16 = 2;
 
 /// Configuration for metric extraction from sessions.
 #[derive(Debug, Clone, Copy, Default, serde::Deserialize, serde::Serialize)]
@@ -40,6 +41,10 @@ impl SessionMetricsConfig {
         !self.is_enabled()
     }
 
+    pub fn should_extract_abnormal_mechanism(&self) -> bool {
+        self.version == EXTRACT_ABNORMAL_MECHANISM_VERSION
+    }
+
     /// Returns `true` if the session should be dropped after extracting metrics.
     pub fn should_drop(&self) -> bool {
         self.drop
@@ -63,6 +68,7 @@ pub fn extract_session_metrics<T: SessionLike>(
     session: &T,
     client: Option<&str>,
     target: &mut Vec<Metric>,
+    extract_abnormal_mechanism: bool,
 ) {
     let timestamp = match UnixTimestamp::from_datetime(session.started()) {
         Some(ts) => ts,
@@ -153,11 +159,13 @@ pub fn extract_session_metrics<T: SessionLike>(
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
             let mut tags_for_abnormal_session = tags.clone();
-            if let Some(ref abnormal_mechanism) = session.abnormal_mechanism() {
-                tags_for_abnormal_session.insert(
-                    "abnormal_mechanism".to_owned(),
-                    abnormal_mechanism.to_string(),
-                );
+            if extract_abnormal_mechanism {
+                if let Some(ref abnormal_mechanism) = session.abnormal_mechanism() {
+                    tags_for_abnormal_session.insert(
+                        "abnormal_mechanism".to_owned(),
+                        abnormal_mechanism.to_string(),
+                    );
+                }
             }
             target.push(Metric::new_mri(
                 METRIC_NAMESPACE,
@@ -261,7 +269,13 @@ mod tests {
         )
         .unwrap();
 
-        extract_session_metrics(&session.attributes, &session, Some(client), &mut metrics);
+        extract_session_metrics(
+            &session.attributes,
+            &session,
+            Some(client),
+            &mut metrics,
+            true,
+        );
 
         assert_eq!(metrics.len(), 2);
 
@@ -299,7 +313,7 @@ mod tests {
         )
         .unwrap();
 
-        extract_session_metrics(&session.attributes, &session, None, &mut metrics);
+        extract_session_metrics(&session.attributes, &session, None, &mut metrics, true);
 
         // A none-initial update which is not errored/crashed/abnormal will only emit a user metric.
         assert_eq!(metrics.len(), 1);
@@ -338,7 +352,7 @@ mod tests {
             (update3, 2),
         ] {
             let mut metrics = vec![];
-            extract_session_metrics(&update.attributes, &update, None, &mut metrics);
+            extract_session_metrics(&update.attributes, &update, None, &mut metrics, true);
 
             assert_eq!(metrics.len(), expected_metrics);
 
@@ -375,7 +389,7 @@ mod tests {
 
         let mut metrics = vec![];
 
-        extract_session_metrics(&session.attributes, &session, None, &mut metrics);
+        extract_session_metrics(&session.attributes, &session, None, &mut metrics, true);
 
         assert_eq!(metrics.len(), 4);
 
@@ -423,7 +437,7 @@ mod tests {
 
             let mut metrics = vec![];
 
-            extract_session_metrics(&session.attributes, &session, None, &mut metrics);
+            extract_session_metrics(&session.attributes, &session, None, &mut metrics, true);
 
             assert_eq!(metrics.len(), 4);
 
@@ -466,7 +480,7 @@ mod tests {
         )
         .unwrap();
 
-        extract_session_metrics(&session.attributes, &session, None, &mut metrics);
+        extract_session_metrics(&session.attributes, &session, None, &mut metrics, true);
 
         assert_eq!(metrics.len(), 2); // duration and user ID
 
@@ -514,7 +528,13 @@ mod tests {
         .unwrap();
 
         for aggregate in &session.aggregates {
-            extract_session_metrics(&session.attributes, aggregate, Some(client), &mut metrics);
+            extract_session_metrics(
+                &session.attributes,
+                aggregate,
+                Some(client),
+                &mut metrics,
+                true,
+            );
         }
 
         insta::assert_debug_snapshot!(metrics, @r###"
