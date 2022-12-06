@@ -228,12 +228,12 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
         }
     }
 
-    if let Some(something) = runtime_props.is_assert {
-        event.level = Annotated::new(Level::Info)
+    if let Some(is_assert) = runtime_props.is_assert {
+        event.level = Annotated::new(Level::Error)
     }
 
-    if let Some(something) = runtime_props.is_ensure {
-        event.level = Annotated::new(Level::Info)
+    if let Some(is_ensure) = runtime_props.is_ensure {
+        event.level = Annotated::new(Level::Warning)
     }
 
     // Modules are not used and later replaced with Modules from the Minidump or Apple Crash Report.
