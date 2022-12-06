@@ -2,7 +2,6 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::ops::Deref;
 
-use failure::Fail;
 use once_cell::sync::OnceCell;
 use regex::{Regex, RegexBuilder};
 use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
@@ -12,10 +11,10 @@ use crate::processor::SelectorSpec;
 
 const COMPILED_PATTERN_MAX_SIZE: usize = 262_144;
 
-#[derive(Clone, Debug, Fail)]
+#[derive(Clone, Debug, thiserror::Error)]
 pub enum PiiConfigError {
-    #[fail(display = "could not parse regex")]
-    RegexError(#[cause] regex::Error),
+    #[error("could not parse pattern")]
+    RegexError(#[source] regex::Error),
 }
 
 /// A regex pattern for text replacement.

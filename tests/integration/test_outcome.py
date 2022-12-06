@@ -123,7 +123,11 @@ def test_outcomes_two_configs(
     """
     project_config = mini_sentry.add_basic_project_config(44)
     project_config["config"]["quotas"] = [
-        {"categories": ["error"], "limit": 0, "reasonCode": "static_disabled_quota",}
+        {
+            "categories": ["error"],
+            "limit": 0,
+            "reasonCode": "static_disabled_quota",
+        }
     ]
 
     # Change from default, which would inherit the outcomes topic
@@ -165,7 +169,11 @@ def test_outcomes_two_topics(
     """
     project_config = mini_sentry.add_basic_project_config(42)
     project_config["config"]["quotas"] = [
-        {"categories": ["error"], "limit": 0, "reasonCode": "static_disabled_quota",}
+        {
+            "categories": ["error"],
+            "limit": 0,
+            "reasonCode": "static_disabled_quota",
+        }
     ]
 
     # Change from default, which would inherit the outcomes topic
@@ -645,7 +653,9 @@ def test_outcome_to_client_report(relay, mini_sentry):
             "outcomes": {
                 "emit_outcomes": "as_client_reports",
                 "source": "downstream-layer",
-                "aggregator": {"flush_interval": 1,},
+                "aggregator": {
+                    "flush_interval": 1,
+                },
             }
         },
     )
@@ -676,7 +686,7 @@ def test_outcome_to_client_report(relay, mini_sentry):
 
 
 def test_filtered_event_outcome_client_reports(relay, mini_sentry):
-    """ Make sure that an event filtered by non-processing relay will create client reports """
+    """Make sure that an event filtered by non-processing relay will create client reports"""
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["filterSettings"]["releases"] = {"releases": ["foo@1.2.3"]}
@@ -687,7 +697,9 @@ def test_filtered_event_outcome_client_reports(relay, mini_sentry):
             "outcomes": {
                 "emit_outcomes": "as_client_reports",
                 "source": "downstream-layer",
-                "aggregator": {"flush_interval": 1,},
+                "aggregator": {
+                    "flush_interval": 1,
+                },
             }
         },
     )
@@ -710,7 +722,7 @@ def test_filtered_event_outcome_client_reports(relay, mini_sentry):
 
 
 def test_filtered_event_outcome_kafka(relay, mini_sentry):
-    """ Make sure that an event filtered by non-processing relay will create outcomes in kafka """
+    """Make sure that an event filtered by non-processing relay will create outcomes in kafka"""
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["filterSettings"]["releases"] = {"releases": ["foo@1.2.3"]}
@@ -722,7 +734,9 @@ def test_filtered_event_outcome_kafka(relay, mini_sentry):
                 "emit_outcomes": True,
                 "batch_size": 1,
                 "batch_interval": 1,
-                "aggregator": {"flush_interval": 1,},
+                "aggregator": {
+                    "flush_interval": 1,
+                },
             }
         },
     )
@@ -733,7 +747,9 @@ def test_filtered_event_outcome_kafka(relay, mini_sentry):
             "outcomes": {
                 "emit_outcomes": "as_client_reports",
                 "source": "downstream-layer",
-                "aggregator": {"flush_interval": 1,},
+                "aggregator": {
+                    "flush_interval": 1,
+                },
             }
         },
     )
@@ -792,7 +808,9 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
                 "emit_outcomes": True,
                 "batch_size": 1,
                 "batch_interval": 1,
-                "aggregator": {"flush_interval": 1,},
+                "aggregator": {
+                    "flush_interval": 1,
+                },
             }
         },
     )
@@ -836,7 +854,9 @@ def test_outcomes_do_not_aggregate(
                 "emit_outcomes": True,
                 "batch_size": 1,
                 "batch_interval": 1,
-                "aggregator": {"flush_interval": 1,},
+                "aggregator": {
+                    "flush_interval": 1,
+                },
             }
         },
     )
@@ -909,7 +929,9 @@ def test_graceful_shutdown(relay, mini_sentry):
                 "emit_outcomes": True,
                 "batch_size": 1,
                 "batch_interval": 1,
-                "aggregator": {"flush_interval": 10,},
+                "aggregator": {
+                    "flush_interval": 10,
+                },
             },
         },
     )

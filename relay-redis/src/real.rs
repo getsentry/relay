@@ -1,21 +1,23 @@
-use failure::Fail;
+use std::fmt;
+
 use r2d2::{Pool, PooledConnection};
 use redis::ConnectionLike;
+use thiserror::Error;
 
 use crate::config::{RedisConfig, RedisConfigOptions};
 
 pub use redis;
 
 /// An error returned from `RedisPool`.
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum RedisError {
     /// Failure in r2d2 pool.
-    #[fail(display = "failed to pool redis connection")]
-    Pool(#[cause] r2d2::Error),
+    #[error("failed to pool redis connection")]
+    Pool(#[source] r2d2::Error),
 
     /// Failure in Redis communication.
-    #[fail(display = "failed to communicate with redis")]
-    Redis(#[cause] redis::RedisError),
+    #[error("failed to communicate with redis")]
+    Redis(#[source] redis::RedisError),
 }
 
 enum ConnectionInner<'a> {
@@ -98,6 +100,15 @@ enum RedisPoolInner {
     Single(Pool<redis::Client>),
 }
 
+impl fmt::Debug for RedisPoolInner {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Cluster(_) => f.debug_tuple("Cluster").finish(),
+            Self::Single(_) => f.debug_tuple("Single").finish(),
+        }
+    }
+}
+
 /// Abstraction over cluster vs non-cluster mode.
 ///
 /// Even just writing a method that takes a command and executes it doesn't really work because
@@ -106,7 +117,7 @@ enum RedisPoolInner {
 ///
 /// Basically don't waste your time here, if you want to abstract over this, consider
 /// upstreaming to the redis crate.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RedisPool {
     inner: RedisPoolInner,
 }

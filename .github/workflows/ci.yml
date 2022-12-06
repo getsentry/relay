@@ -20,7 +20,7 @@ jobs:
     steps:
       - name: Install libcurl-dev
         run: |
-          sudo apt update
+          sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
       - uses: actions/checkout@v3
@@ -29,7 +29,7 @@ jobs:
 
       - uses: actions/setup-python@v4
         with:
-          python-version: 3.7
+          python-version: 3.8
 
       - name: Install Dependencies
         run: pip install -U -r requirements-dev.txt
@@ -78,7 +78,7 @@ jobs:
     steps:
       - name: Install libcurl-dev
         run: |
-          sudo apt update
+          sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
       - uses: actions/checkout@v3
@@ -160,7 +160,7 @@ jobs:
     steps:
       - name: Install libcurl-dev
         run: |
-          sudo apt update
+          sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
       - uses: actions/checkout@v3
@@ -187,7 +187,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.7]
+        python-version: [3.8]
 
     # Skip redundant checks for binary releases
     if: "!startsWith(github.ref, 'refs/heads/release/')"
@@ -260,7 +260,7 @@ jobs:
     steps:
       - name: Install libcurl-dev
         run: |
-          sudo apt update
+          sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
       - uses: actions/checkout@v3
@@ -285,7 +285,7 @@ jobs:
 
       - uses: actions/setup-python@v4
         with:
-          python-version: 3.7
+          python-version: 3.8
 
       - name: Install dependencies
         run: pip install -U -r requirements-dev.txt

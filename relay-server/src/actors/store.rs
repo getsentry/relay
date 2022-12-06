@@ -6,7 +6,6 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use bytes::Bytes;
-use failure::Fail;
 use once_cell::sync::OnceCell;
 use serde::{ser::Error, Serialize};
 
@@ -21,7 +20,7 @@ use relay_statsd::metric;
 use relay_system::{AsyncResponse, FromMessage, Interface, Sender, Service};
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
-use crate::service::{ServerError, ServerErrorKind};
+use crate::service::ServerError;
 use crate::statsd::RelayCounters;
 
 /// The maximum number of individual session updates generated for each aggregate item.
@@ -30,11 +29,11 @@ const MAX_EXPLODED_SESSIONS: usize = 100;
 /// Fallback name used for attachment items without a `filename` header.
 const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
 
-#[derive(Fail, Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum StoreError {
-    #[fail(display = "failed to send the message to kafka")]
-    SendFailed(#[cause] ClientError),
-    #[fail(display = "failed to store event because event id was missing")]
+    #[error("failed to send the message to kafka")]
+    SendFailed(#[from] ClientError),
+    #[error("failed to store event because event id was missing")]
     NoEventId,
 }
 
@@ -52,7 +51,7 @@ struct Producer {
 }
 
 impl Producer {
-    pub fn create(config: &Arc<Config>) -> Result<Self, ServerError> {
+    pub fn create(config: &Arc<Config>) -> anyhow::Result<Self> {
         let mut client_builder = KafkaClient::builder();
 
         for topic in KafkaTopic::iter()
@@ -60,10 +59,10 @@ impl Producer {
         {
             let kafka_config = &config
                 .kafka_config(*topic)
-                .map_err(|_| ServerErrorKind::KafkaError)?;
+                .map_err(|_| ServerError::KafkaError)?;
             client_builder = client_builder
                 .add_kafka_topic_config(*topic, kafka_config)
-                .map_err(|_| ServerErrorKind::KafkaError)?
+                .map_err(|_| ServerError::KafkaError)?
         }
 
         Ok(Self {
@@ -101,7 +100,7 @@ pub struct StoreService {
 }
 
 impl StoreService {
-    pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
+    pub fn create(config: Arc<Config>) -> anyhow::Result<Self> {
         let producer = Producer::create(&config)?;
         Ok(Self { config, producer })
     }
@@ -267,8 +266,7 @@ impl StoreService {
     ) -> Result<(), StoreError> {
         self.producer
             .client
-            .send_message(topic, organization_id, &message)
-            .map_err(StoreError::SendFailed)?;
+            .send_message(topic, organization_id, &message)?;
 
         Ok(())
     }
@@ -316,7 +314,7 @@ impl StoreService {
             content_type: item
                 .content_type()
                 .map(|content_type| content_type.as_str().to_owned()),
-            attachment_type: item.attachment_type().unwrap_or_default(),
+            attachment_type: item.attachment_type().cloned().unwrap_or_default(),
             chunks: chunk_index,
             size: Some(size),
             rate_limited: Some(item.rate_limited()),
@@ -478,11 +476,10 @@ impl StoreService {
                 started: protocol::datetime_to_timestamp(session.started),
                 duration: session.duration,
                 status: session.status,
-                errors: session
-                    .errors
-                    .min(u16::max_value().into())
-                    .max((session.status == SessionStatus::Crashed) as _)
-                    as _,
+                errors: session.errors.clamp(
+                    (session.status == SessionStatus::Crashed) as _,
+                    u16::MAX.into(),
+                ) as _,
                 release: session.attributes.release,
                 environment: session.attributes.environment,
                 sdk: client.map(str::to_owned),

@@ -62,6 +62,8 @@ struct ReplayInput {
     #[serde(rename = "type")]
     ty: String,
     replay_id: String,
+    #[serde(default)]
+    replay_type: Option<String>,
     event_id: String,
     segment_id: u16,
     timestamp: f64,

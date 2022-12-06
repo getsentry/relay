@@ -8,7 +8,6 @@ use std::ops::{Add, Sub};
 use std::str::FromStr;
 
 use chrono::{DateTime, Datelike, Duration, LocalResult, NaiveDateTime, TimeZone, Utc};
-use failure::Fail;
 #[cfg(feature = "jsonschema")]
 use schemars::gen::SchemaGenerator;
 #[cfg(feature = "jsonschema")]
@@ -479,9 +478,16 @@ macro_rules! hex_metrastructure {
 }
 
 /// Raised if a register value can't be parsed.
-#[derive(Fail, Debug)]
-#[fail(display = "invalid register value")]
+#[derive(Debug)]
 pub struct InvalidRegVal;
+
+impl fmt::Display for InvalidRegVal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "invalid register value")
+    }
+}
+
+impl std::error::Error for InvalidRegVal {}
 
 /// A register value.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -623,9 +629,16 @@ impl FromStr for IpAddr {
 }
 
 /// An error used when parsing `Level`.
-#[derive(Debug, Fail)]
-#[fail(display = "invalid level")]
+#[derive(Debug)]
 pub struct ParseLevelError;
+
+impl fmt::Display for ParseLevelError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "invalid level")
+    }
+}
+
+impl std::error::Error for ParseLevelError {}
 
 /// Severity level of an event or breadcrumb.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

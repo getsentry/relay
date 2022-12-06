@@ -93,7 +93,7 @@ def test_legacy_json():
 
 def test_broken_json():
     normalizer = sentry_relay.StoreNormalizer(project_id=1)
-    bad_str = u"Hello\ud83dWorld🇦🇹!"
+    bad_str = "Hello\ud83dWorld🇦🇹!"
     event = normalizer.normalize_event({"message": bad_str})
     assert "Hello" in event["logentry"]["formatted"]
     assert "World" in event["logentry"]["formatted"]
@@ -102,7 +102,8 @@ def test_broken_json():
 
 
 @pytest.mark.parametrize(
-    "must_normalize", [None, False, True],
+    "must_normalize",
+    [None, False, True],
 )
 def test_normalize_user_agent(must_normalize):
     normalizer = sentry_relay.StoreNormalizer(

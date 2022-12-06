@@ -126,7 +126,7 @@ fn extract_envelope(
         .and_then(move |mut items| {
             let minidump_index = items
                 .iter()
-                .position(|item| item.attachment_type() == Some(AttachmentType::Minidump));
+                .position(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
 
             let mut minidump_item = match minidump_index {
                 Some(index) => items.swap_remove(index),

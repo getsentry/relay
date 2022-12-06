@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use actix::prelude::*;
 use actix_web::{Error, FromRequest, Json};
+use futures::{FutureExt, TryFutureExt};
 use futures01::{future, Future};
 use serde::{Deserialize, Serialize};
 
@@ -132,17 +133,20 @@ fn get_project_configs(
         let project_future = if version.version >= ENDPOINT_V3 && !no_cache {
             let future = project_cache
                 .send(GetCachedProjectState::new(project_key))
-                .map(Ok);
-            Box::new(future) as ResponseFuture<Result<Option<Arc<ProjectState>>, _>, _>
+                .boxed()
+                .compat();
+            Box::new(future) as ResponseFuture<Option<Arc<ProjectState>>, _>
         } else {
             let future = project_cache
                 .send(GetProjectState::new(project_key).no_cache(no_cache))
-                .map(|state_result| state_result.map(Some));
-            Box::new(future) as ResponseFuture<Result<Option<Arc<ProjectState>>, _>, _>
+                .boxed()
+                .compat()
+                .map(Some);
+            Box::new(future) as ResponseFuture<Option<Arc<ProjectState>>, _>
         };
 
         project_future
-            .map_err(Error::from)
+            .map_err(|_| Error::from(MailboxError::Closed))
             .map(move |state_result| (project_key, state_result))
     });
 
@@ -152,7 +156,7 @@ fn get_project_configs(
 
         for (project_key, result) in project_states {
             match result {
-                Ok(Some(project_state)) => {
+                Some(project_state) => {
                     // If public key is known (even if rate-limited, which is Some(false)), it has
                     // access to the project config
                     let has_access = relay.internal
@@ -172,11 +176,8 @@ fn get_project_configs(
                         );
                     };
                 }
-                Ok(None) => {
+                None => {
                     pending.push(project_key);
-                }
-                Err(_) => {
-                    configs.insert(project_key, None);
                 }
             }
         }
