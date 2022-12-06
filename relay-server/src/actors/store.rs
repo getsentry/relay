@@ -605,14 +605,17 @@ impl StoreService {
         // message because we can achieve better parallelism when dealing with a single
         // message.
 
+        // Max message size is 1MB.
+        let max_message_size = 1000 * 1000;
+
         // 2000 bytes are reserved for the message metadata.
         let max_message_metadata_size = 2000;
 
         // Remaining bytes can be filled by the payload.
-        let max_payload_size = self.config.attachment_chunk_size() - max_message_metadata_size;
+        let max_payload_size = max_message_size - max_message_metadata_size;
 
         if item.payload().len() < max_payload_size {
-            let message = KafkaMessage::ReplayRecording(ReplayRecordingKafkaMessage {
+            let message = KafkaMessage::ReplayRecordingNotChunked(ReplayRecordingKafkaMessage {
                 replay_id: event_id.ok_or(StoreError::NoEventId)?,
                 project_id: scoping.project_id,
                 key_id: scoping.key_id,
@@ -641,16 +644,15 @@ impl StoreService {
                 item,
             )?;
 
-            let message =
-                KafkaMessage::ChunkedReplayRecording(ChunkedReplayRecordingKafkaMessage {
-                    replay_id: event_id.ok_or(StoreError::NoEventId)?,
-                    project_id: scoping.project_id,
-                    key_id: scoping.key_id,
-                    org_id: scoping.organization_id,
-                    received: UnixTimestamp::from_instant(start_time).as_secs(),
-                    retention_days: retention,
-                    replay_recording,
-                });
+            let message = KafkaMessage::ReplayRecording(ChunkedReplayRecordingKafkaMessage {
+                replay_id: event_id.ok_or(StoreError::NoEventId)?,
+                project_id: scoping.project_id,
+                key_id: scoping.key_id,
+                org_id: scoping.organization_id,
+                received: UnixTimestamp::from_instant(start_time).as_secs(),
+                retention_days: retention,
+                replay_recording,
+            });
 
             self.produce(
                 KafkaTopic::ReplayRecordings,
@@ -684,26 +686,26 @@ impl StoreService {
         // This skips chunks for empty replay recordings. The consumer does not require chunks for
         // empty replay recordings. `chunks` will be `0` in this case.
         while offset < size {
-            // XXX: Max chunk size has 2000 bytes reserved for metadata. Typically we see the
-            // metadata consume 160 bytes but it does vary +/- a few bytes. The extra bytes
-            // serve as padding.
-            let max_chunk_size = self.config.attachment_chunk_size() - 2000;
+            // XXX: Max msesage size is 1MB.  We reserve 2000 bytes for metadata and the rest is
+            // consumed by the blob.
+            let max_chunk_size = 1000 * 1000 - 2000;
             let chunk_size = std::cmp::min(max_chunk_size, size - offset);
 
-            let replay_recording_chunk_message = KafkaMessage::ChunkedReplayRecordingChunk(
-                ChunkedReplayRecordingChunkKafkaMessage {
+            let replay_recording_chunk_message =
+                KafkaMessage::ReplayRecordingChunk(ChunkedReplayRecordingChunkKafkaMessage {
                     payload: payload.slice(offset, offset + chunk_size),
                     replay_id,
                     project_id,
                     id: id.clone(),
                     chunk_index,
-                },
-            );
+                });
+
             self.produce(
                 KafkaTopic::ReplayRecordings,
                 organization_id,
                 replay_recording_chunk_message,
             )?;
+
             offset += chunk_size;
             chunk_index += 1;
         }
@@ -972,9 +974,9 @@ enum KafkaMessage {
     Metric(MetricKafkaMessage),
     Profile(ProfileKafkaMessage),
     ReplayEvent(ReplayEventKafkaMessage),
-    ReplayRecording(ReplayRecordingKafkaMessage),
-    ChunkedReplayRecording(ChunkedReplayRecordingKafkaMessage),
-    ChunkedReplayRecordingChunk(ChunkedReplayRecordingChunkKafkaMessage),
+    ReplayRecordingNotChunked(ReplayRecordingKafkaMessage),
+    ReplayRecording(ChunkedReplayRecordingKafkaMessage),
+    ReplayRecordingChunk(ChunkedReplayRecordingChunkKafkaMessage),
 }
 
 impl Message for KafkaMessage {
@@ -988,9 +990,9 @@ impl Message for KafkaMessage {
             KafkaMessage::Metric(_) => "metric",
             KafkaMessage::Profile(_) => "profile",
             KafkaMessage::ReplayEvent(_) => "replay_event",
-            KafkaMessage::ReplayRecording(_) => "replay_recording_not_chunked",
-            KafkaMessage::ChunkedReplayRecording(_) => "replay_recording",
-            KafkaMessage::ChunkedReplayRecordingChunk(_) => "replay_recording_chunk",
+            KafkaMessage::ReplayRecording(_) => "replay_recording",
+            KafkaMessage::ReplayRecordingChunk(_) => "replay_recording_chunk",
+            KafkaMessage::ReplayRecordingNotChunked(_) => "replay_recording_not_chunked",
         }
     }
 
@@ -1006,8 +1008,8 @@ impl Message for KafkaMessage {
             Self::Profile(_message) => Uuid::nil(),
             Self::ReplayEvent(message) => message.replay_id.0,
             Self::ReplayRecording(message) => message.replay_id.0,
-            Self::ChunkedReplayRecording(message) => message.replay_id.0,
-            Self::ChunkedReplayRecordingChunk(message) => message.replay_id.0,
+            Self::ReplayRecordingChunk(message) => message.replay_id.0,
+            Self::ReplayRecordingNotChunked(_message) => Uuid::nil(), // Ensure random partitioning.
         };
 
         if uuid.is_nil() {

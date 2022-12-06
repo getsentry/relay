@@ -41,7 +41,7 @@ def test_chunked_replay_recordings_processing(
     replay_recordings_consumer = replay_recordings_consumer()
     outcomes_consumer = outcomes_consumer()
 
-    bits = b"1" * (1024 * 1024 + 2000)
+    bits = b"1" * (1024 * 1024 - 20000)
 
     envelope = Envelope(
         headers=[
@@ -73,7 +73,7 @@ def test_chunked_replay_recordings_processing(
 
     id1 = replay_recording_ids[0]
 
-    assert replay_recording_contents[id1] == b"test"
+    assert replay_recording_contents[id1] == bits
 
     replay_recording = replay_recordings_consumer.get_chunked_replay()
 
@@ -122,7 +122,6 @@ def test_nonchunked_replay_recordings_processing(
 
     # Get the non-chunked replay-recording message from the kafka queue.
     replay_recording = replay_recordings_consumer.get_not_chunked_replay()
-    assert replay_recording["type"] == "replay_recording_not_chunked"
     assert replay_recording["replay_id"] == replay_id
     assert replay_recording["project_id"] == project_id
     assert replay_recording["key_id"] == 123
@@ -130,5 +129,6 @@ def test_nonchunked_replay_recordings_processing(
     assert type(replay_recording["received"]) == int
     assert replay_recording["retention_days"] == 90
     assert replay_recording["payload"] == b"test"
+    assert replay_recording["type"] == "replay_recording_not_chunked"
 
     outcomes_consumer.assert_empty()
