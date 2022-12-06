@@ -340,6 +340,10 @@ pub enum DiscardReason {
     /// (Relay) An event envelope was submitted but no payload could be extracted.
     NoEventPayload,
 
+    /// (Relay) The timestamp of an event was required for processing and either missing out of the
+    /// supported time range for ingestion.
+    Timestamp,
+
     /// (All) An error in Relay caused event ingestion to fail. This is the catch-all and usually
     /// indicates bugs in Relay, rather than an expected failure.
     Internal,
@@ -391,6 +395,7 @@ impl DiscardReason {
             DiscardReason::InvalidTransaction => "invalid_transaction",
             DiscardReason::InvalidEnvelope => "invalid_envelope",
             DiscardReason::InvalidCompression => "invalid_compression",
+            DiscardReason::Timestamp => "timestamp",
             DiscardReason::ProjectState => "project_state",
             DiscardReason::ProjectStatePii => "project_state_pii",
             DiscardReason::DuplicateItem => "duplicate_item",

@@ -3,7 +3,6 @@
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
-#![allow(clippy::derive_partial_eq_without_eq)]
 
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
@@ -11,7 +10,6 @@ use std::fmt::{self, Display, Formatter};
 use std::net::IpAddr;
 
 use chrono::{DateTime, Utc};
-
 use rand::{distributions::Uniform, Rng};
 use rand_pcg::Pcg32;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -19,7 +17,7 @@ use serde_json::{Number, Value};
 
 use relay_common::{EventType, ProjectKey, Uuid};
 use relay_filter::GlobPatterns;
-use relay_general::protocol::{Context, Event};
+use relay_general::protocol::{Context, Event, TraceContext};
 use relay_general::store;
 
 /// Defines the type of dynamic rule, i.e. to which type of events it will be applied and how.
@@ -885,24 +883,65 @@ pub struct DynamicSamplingContext {
     /// Set on transaction start, or via `scope.transaction`.
     #[serde(default)]
     pub transaction: Option<String>,
-    /// The sample rate with which this trace was sampled in the client. This is a float between 0 and
-    /// 1.
+    /// The sample rate with which this trace was sampled in the client. This is a float between
+    /// `0.0` and `1.0`.
     #[serde(
         default,
         with = "sample_rate_as_string",
         skip_serializing_if = "Option::is_none"
     )]
     pub sample_rate: Option<f64>,
-    /// The user specific identifier ( e.g. a user segment, or similar created by the SDK
-    /// from the user object).
+    /// The user specific identifier (e.g. a user segment, or similar created by the SDK from the
+    /// user object).
     #[serde(flatten, default)]
     pub user: TraceUserContext,
-    /// Spillover values for backwards/forwards compat
+    /// Additional arbitrary fields for forwards compatibility.
     #[serde(flatten, default)]
     pub other: BTreeMap<String, Value>,
 }
 
 impl DynamicSamplingContext {
+    /// Computes a dynamic sampling context from a transaction event.
+    ///
+    /// Returns `None` if the passed event is not a transaction event, or if it does not contain a
+    /// trace ID in its trace context. All optional fields in the dynamic sampling context are
+    /// populated with the corresponding attributes from the event payload if they are available.
+    ///
+    /// Since sampling information is not available in the event payload, the `sample_rate` field
+    /// cannot be set when computing the dynamic sampling context from a transaction event.
+    pub fn from_transaction(public_key: ProjectKey, event: &Event) -> Option<Self> {
+        if event.ty.value() != Some(&EventType::Transaction) {
+            return None;
+        }
+
+        let contexts = event.contexts.value()?;
+        let context = contexts.get(TraceContext::default_key())?.value()?;
+        let Context::Trace(ref trace) = context.0 else { return None };
+        let trace_id = trace.trace_id.value()?;
+        let trace_id = trace_id.0.parse().ok()?;
+
+        let user = event.user.value();
+
+        Some(Self {
+            trace_id,
+            public_key,
+            release: event.release.as_str().map(str::to_owned),
+            environment: event.environment.value().cloned(),
+            transaction: event.transaction.value().cloned(),
+            sample_rate: None,
+            user: TraceUserContext {
+                user_segment: user
+                    .and_then(|u| u.segment.value().cloned())
+                    .unwrap_or_default(),
+                user_id: user
+                    .and_then(|u| u.id.as_str())
+                    .unwrap_or_default()
+                    .to_owned(),
+            },
+            other: Default::default(),
+        })
+    }
+
     /// Compute the effective sampling rate based on the random "diceroll" and the sample rate from
     /// the matching rule.
     pub fn adjusted_sample_rate(&self, rule_sample_rate: f64) -> f64 {

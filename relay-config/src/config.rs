@@ -1822,8 +1822,8 @@ impl Config {
     }
 
     /// Returns configuration for the metrics [aggregator](relay_metrics::Aggregator).
-    pub fn aggregator_config(&self) -> AggregatorConfig {
-        self.values.aggregator.clone()
+    pub fn aggregator_config(&self) -> &AggregatorConfig {
+        &self.values.aggregator
     }
 
     /// Return the statically configured Relays.
