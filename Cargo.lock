@@ -180,9 +180,12 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.57"
+version = "1.0.66"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08f9b8508dccb7687a1d6c4ce66b2b0ecef467c94667de27d8d7fe1f8d2a9cdc"
+checksum = "216261ddc8289130e551ddcd5ce8a064710c0d064a4d2895c67151c92b5443f6"
+dependencies = [
+ "backtrace",
+]
 
 [[package]]
 name = "anylog"
@@ -3145,10 +3148,10 @@ checksum = "49b3de9ec5dc0a3417da371aab17d729997c15010e7fd24ff707773a33bddb64"
 name = "relay"
 version = "22.11.0"
 dependencies = [
+ "anyhow",
  "clap",
  "console 0.10.3",
  "dialoguer",
- "failure",
  "futures 0.1.31",
  "hostname",
  "once_cell",
@@ -3166,13 +3169,13 @@ dependencies = [
  "base64 0.10.1",
  "chrono",
  "ed25519-dalek",
- "failure",
  "hmac",
  "rand 0.6.5",
  "relay-common",
  "serde",
  "serde_json",
  "sha2",
+ "thiserror",
 ]
 
 [[package]]
@@ -3191,8 +3194,8 @@ dependencies = [
 name = "relay-cabi"
 version = "0.8.15"
 dependencies = [
+ "anyhow",
  "chrono",
- "failure",
  "json-forensics",
  "once_cell",
  "relay-auth",
@@ -3211,7 +3214,6 @@ version = "22.11.0"
 dependencies = [
  "backoff",
  "chrono",
- "failure",
  "globset",
  "lru",
  "once_cell",
@@ -3228,7 +3230,7 @@ dependencies = [
 name = "relay-config"
 version = "22.11.0"
 dependencies = [
- "failure",
+ "anyhow",
  "human-size",
  "num_cpus",
  "relay-auth",
@@ -3240,6 +3242,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
+ "thiserror",
  "url 2.2.2",
 ]
 
@@ -3255,7 +3258,7 @@ dependencies = [
 name = "relay-ffi"
 version = "22.11.0"
 dependencies = [
- "failure",
+ "anyhow",
  "relay-ffi-macros",
 ]
 
@@ -3294,7 +3297,6 @@ dependencies = [
  "debugid 0.7.3",
  "dynfmt",
  "enumset",
- "failure",
  "hmac",
  "insta",
  "itertools 0.8.2",
@@ -3318,6 +3320,7 @@ dependencies = [
  "sha-1",
  "similar-asserts",
  "smallvec 1.8.0",
+ "thiserror",
  "uaparser",
  "url 2.2.2",
  "utf16string",
@@ -3338,7 +3341,6 @@ dependencies = [
 name = "relay-kafka"
 version = "22.11.0"
 dependencies = [
- "failure",
  "rdkafka",
  "rdkafka-sys",
  "relay-log",
@@ -3347,6 +3349,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
+ "thiserror",
 ]
 
 [[package]]
@@ -3356,7 +3359,6 @@ dependencies = [
  "chrono",
  "console 0.10.3",
  "env_logger 0.7.1",
- "failure",
  "log",
  "pretty_env_logger",
  "relay-crash",
@@ -3370,12 +3372,9 @@ dependencies = [
 name = "relay-metrics"
 version = "22.11.0"
 dependencies = [
- "actix",
  "criterion",
- "failure",
  "float-ord",
  "fnv",
- "futures 0.1.31",
  "hash32",
  "insta",
  "relay-common",
@@ -3385,6 +3384,7 @@ dependencies = [
  "relay-test",
  "serde",
  "serde_json",
+ "thiserror",
  "tokio 1.19.2",
 ]
 
@@ -3396,18 +3396,17 @@ dependencies = [
  "base64 0.10.1",
  "bytes 0.4.12",
  "chrono",
- "failure",
  "relay-general",
  "serde",
  "serde_json",
  "serde_test",
+ "thiserror",
 ]
 
 [[package]]
 name = "relay-quotas"
 version = "22.11.0"
 dependencies = [
- "failure",
  "insta",
  "relay-common",
  "relay-log",
@@ -3415,17 +3414,18 @@ dependencies = [
  "serde",
  "serde_json",
  "smallvec 1.8.0",
+ "thiserror",
 ]
 
 [[package]]
 name = "relay-redis"
 version = "22.11.0"
 dependencies = [
- "failure",
  "r2d2",
  "redis",
  "serde",
  "serde_yaml",
+ "thiserror",
 ]
 
 [[package]]
@@ -3469,6 +3469,7 @@ version = "22.11.0"
 dependencies = [
  "actix",
  "actix-web",
+ "anyhow",
  "base64 0.10.1",
  "brotli2",
  "bytes 0.4.12",
@@ -3516,6 +3517,7 @@ dependencies = [
  "symbolic-common",
  "symbolic-unreal",
  "take_mut",
+ "thiserror",
  "tokio 1.19.2",
  "tokio-timer",
  "url 2.2.2",
@@ -3538,7 +3540,6 @@ name = "relay-system"
 version = "22.11.0"
 dependencies = [
  "actix",
- "failure",
  "futures 0.1.31",
  "futures 0.3.21",
  "once_cell",
@@ -3558,7 +3559,6 @@ dependencies = [
  "relay-log",
  "relay-system",
  "tokio 1.19.2",
- "tokio-timer",
 ]
 
 [[package]]
@@ -4413,18 +4413,18 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "1.0.31"
+version = "1.0.37"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd829fe32373d27f76265620b5309d0340cb8550f523c1dda251d6298069069a"
+checksum = "10deb33631e3c9018b9baf9dcbbc4f737320d2b576bac10f6aefa048fa407e3e"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "1.0.31"
+version = "1.0.37"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0396bc89e626244658bef819e22d0cc459e795a5ebe878e6ec336d1674a8d79a"
+checksum = "982d17546b47146b28f7c22e3d08465f6b8903d0ea13c1660d9d84a6e7adcdbb"
 dependencies = [
  "proc-macro2 1.0.39",
  "quote 1.0.18",

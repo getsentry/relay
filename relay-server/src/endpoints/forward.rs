@@ -8,12 +8,10 @@ use std::fmt;
 
 use ::actix::prelude::*;
 use actix_web::error::ResponseError;
-use actix_web::http::header::HeaderValue;
-use actix_web::http::{header, header::HeaderName, uri::PathAndQuery, StatusCode};
-use actix_web::http::{HeaderMap, Method};
+use actix_web::http::header::{self, HeaderName, HeaderValue};
+use actix_web::http::{uri::PathAndQuery, HeaderMap, Method, StatusCode};
 use actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse};
 use bytes::Bytes;
-use failure::Fail;
 use futures01::{future, prelude::*, sync::oneshot};
 use once_cell::sync::Lazy;
 
@@ -55,15 +53,9 @@ enum SpecialRoute {
 
 /// A wrapper struct that allows conversion of UpstreamRequestError into a `dyn ResponseError`. The
 /// conversion logic is really only acceptable for blindly forwarded requests.
-#[derive(Fail, Debug)]
-#[fail(display = "error while forwarding request: {}", _0)]
-struct ForwardedUpstreamRequestError(#[cause] UpstreamRequestError);
-
-impl From<UpstreamRequestError> for ForwardedUpstreamRequestError {
-    fn from(e: UpstreamRequestError) -> Self {
-        ForwardedUpstreamRequestError(e)
-    }
-}
+#[derive(Debug, thiserror::Error)]
+#[error("error while forwarding request: {0}")]
+struct ForwardedUpstreamRequestError(#[from] UpstreamRequestError);
 
 impl ResponseError for ForwardedUpstreamRequestError {
     fn error_response(&self) -> HttpResponse {

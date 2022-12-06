@@ -1,6 +1,6 @@
 use relay_config::Config;
 
-use crate::envelope::{Envelope, ItemType};
+use crate::envelope::{AttachmentType, Envelope, ItemType};
 
 /// Checks for size limits of items in this envelope.
 ///
@@ -67,7 +67,13 @@ pub fn remove_unknown_items(config: &Config, envelope: &mut Envelope) {
                 relay_log::debug!("dropping unknown item of type '{}'", ty);
                 false
             }
-            _ => true,
+            _ => match item.attachment_type() {
+                Some(AttachmentType::Unknown(ty)) => {
+                    relay_log::debug!("dropping unknown attachment of type '{}'", ty);
+                    false
+                }
+                _ => true,
+            },
         });
     }
 }

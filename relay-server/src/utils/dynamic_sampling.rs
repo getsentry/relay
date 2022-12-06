@@ -4,9 +4,7 @@ use std::net::IpAddr;
 
 use relay_common::{ProjectKey, Uuid};
 use relay_general::protocol::Event;
-use relay_sampling::{
-    pseudo_random_from_uuid, DynamicSamplingContext, RuleId, SamplingConfig, SamplingMode,
-};
+use relay_sampling::{DynamicSamplingContext, RuleId, SamplingConfig, SamplingMode};
 
 use crate::actors::project::ProjectState;
 use crate::envelope::{Envelope, ItemType};
@@ -56,10 +54,10 @@ struct SamplingSpec {
 fn get_trace_sampling_rule(
     processing_enabled: bool,
     sampling_project_state: Option<&ProjectState>,
-    sampling_context: Option<&DynamicSamplingContext>,
+    dsc: Option<&DynamicSamplingContext>,
     ip_addr: Option<IpAddr>,
 ) -> Result<Option<SamplingSpec>, SamplingResult> {
-    let sampling_context = or_ok_none!(sampling_context);
+    let dsc = or_ok_none!(dsc);
 
     if sampling_project_state.is_none() {
         relay_log::trace!("found sampling context, but no corresponding project state");
@@ -68,23 +66,29 @@ fn get_trace_sampling_rule(
     let sampling_config = or_ok_none!(&sampling_project_state.config.dynamic_sampling);
     check_unsupported_rules(processing_enabled, sampling_config)?;
 
-    let rule = or_ok_none!(sampling_config.get_matching_trace_rule(sampling_context, ip_addr));
+    let rule = or_ok_none!(sampling_config.get_matching_trace_rule(dsc, ip_addr));
     let sample_rate = match sampling_config.mode {
         SamplingMode::Received => rule.sample_rate,
-        SamplingMode::Total => sampling_context.adjusted_sample_rate(rule.sample_rate),
+        SamplingMode::Total => dsc.adjusted_sample_rate(rule.sample_rate),
+        SamplingMode::Unsupported => {
+            if processing_enabled {
+                relay_log::error!("Found unsupported sampling mode even as processing Relay, keep");
+            }
+            return Err(SamplingResult::Keep);
+        }
     };
 
     Ok(Some(SamplingSpec {
         sample_rate,
         rule_id: rule.id,
-        seed: sampling_context.trace_id,
+        seed: dsc.trace_id,
     }))
 }
 
 fn get_event_sampling_rule(
     processing_enabled: bool,
     project_state: &ProjectState,
-    sampling_context: Option<&DynamicSamplingContext>,
+    dsc: Option<&DynamicSamplingContext>,
     event: Option<&Event>,
     ip_addr: Option<IpAddr>,
 ) -> Result<Option<SamplingSpec>, SamplingResult> {
@@ -95,8 +99,8 @@ fn get_event_sampling_rule(
     check_unsupported_rules(processing_enabled, sampling_config)?;
 
     let rule = or_ok_none!(sampling_config.get_matching_event_rule(event, ip_addr));
-    let sample_rate = match (sampling_context, sampling_config.mode) {
-        (Some(ctx), SamplingMode::Total) => ctx.adjusted_sample_rate(rule.sample_rate),
+    let sample_rate = match (dsc, sampling_config.mode) {
+        (Some(dsc), SamplingMode::Total) => dsc.adjusted_sample_rate(rule.sample_rate),
         _ => rule.sample_rate,
     };
 
@@ -111,33 +115,24 @@ fn get_event_sampling_rule(
 ///
 /// This runs both trace- and event/transaction/error-based rules at once.
 pub fn should_keep_event(
-    sampling_context: Option<&DynamicSamplingContext>,
+    dsc: Option<&DynamicSamplingContext>,
     event: Option<&Event>,
     ip_addr: Option<IpAddr>,
     project_state: &ProjectState,
     sampling_project_state: Option<&ProjectState>,
     processing_enabled: bool,
 ) -> SamplingResult {
-    let matching_trace_rule = match get_trace_sampling_rule(
-        processing_enabled,
-        sampling_project_state,
-        sampling_context,
-        ip_addr,
-    ) {
-        Ok(spec) => spec,
-        Err(sampling_result) => return sampling_result,
-    };
+    let matching_trace_rule =
+        match get_trace_sampling_rule(processing_enabled, sampling_project_state, dsc, ip_addr) {
+            Ok(spec) => spec,
+            Err(sampling_result) => return sampling_result,
+        };
 
-    let matching_event_rule = match get_event_sampling_rule(
-        processing_enabled,
-        project_state,
-        sampling_context,
-        event,
-        ip_addr,
-    ) {
-        Ok(spec) => spec,
-        Err(sampling_result) => return sampling_result,
-    };
+    let matching_event_rule =
+        match get_event_sampling_rule(processing_enabled, project_state, dsc, event, ip_addr) {
+            Ok(spec) => spec,
+            Err(sampling_result) => return sampling_result,
+        };
 
     // NOTE: Event rules take precedence over trace rules. If the event rule has a lower sample rate
     // than the trace rule, this means that traces will be incomplete.
@@ -145,27 +140,27 @@ pub fn should_keep_event(
     // but we need the current behavior to allow health check rules
     // to take precedence over the overall base rate, which is set on the trace.
     if let Some(spec) = matching_event_rule.or(matching_trace_rule) {
-        let random_number = pseudo_random_from_uuid(spec.seed);
+        let random_number = relay_sampling::pseudo_random_from_uuid(spec.seed);
         if random_number >= spec.sample_rate {
             return SamplingResult::Drop(spec.rule_id);
-        } else {
-            return SamplingResult::Keep;
         }
     }
 
     SamplingResult::Keep
 }
 
-/// Returns the project key defined in the `trace` header of the envelope, if defined.
-/// If there are no transactions in the envelope, we return None here, because there is nothing
-/// to sample by trace.
+/// Returns the project key defined in the `trace` header of the envelope.
+///
+/// This function returns `None` if:
+///  - there is no [`DynamicSamplingContext`] in the envelope headers.
+///  - there are no transactions in the envelope, since in this case sampling by trace is redundant.
 pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
     let transaction_item = envelope.get_item_by(|item| item.ty() == &ItemType::Transaction);
 
     // if there are no transactions to sample, return here
     transaction_item?;
 
-    envelope.sampling_context().map(|dsc| dsc.public_key)
+    envelope.dsc().map(|dsc| dsc.public_key)
 }
 
 #[cfg(test)]
@@ -293,7 +288,7 @@ mod tests {
         let state = state_with_rule(Some(1.0), RuleType::Trace, SamplingMode::default());
         let sampling_state = state_with_rule(Some(0.0), RuleType::Trace, SamplingMode::default());
         let result = should_keep_event(
-            envelope.sampling_context(),
+            envelope.dsc(),
             None,
             None,
             &state,
@@ -312,7 +307,7 @@ mod tests {
         let sampling_state = state_with_rule(Some(0.0), RuleType::Trace, SamplingMode::default());
 
         let result = should_keep_event(
-            envelope.sampling_context(),
+            envelope.dsc(),
             None,
             None,
             &state,
@@ -334,7 +329,7 @@ mod tests {
         let sampling_state = state_with_rule(Some(0.0), RuleType::Trace, SamplingMode::default());
 
         let result = should_keep_event(
-            envelope.sampling_context(),
+            envelope.dsc(),
             None,
             None,
             &state,
@@ -399,7 +394,7 @@ mod tests {
         };
 
         let keep_event = should_keep_event(
-            envelope.sampling_context(),
+            envelope.dsc(),
             Some(&event),
             None,
             &project_state,
@@ -436,6 +431,16 @@ mod tests {
         );
 
         assert_eq!(spec.unwrap().unwrap().sample_rate, 0.2);
+    }
+
+    #[test]
+    fn test_trace_rule_unsupported() {
+        let project_state = state_with_rule(Some(0.1), RuleType::Trace, SamplingMode::Unsupported);
+        let sampling_context = create_sampling_context(Some(0.5));
+        let spec =
+            get_trace_sampling_rule(true, Some(&project_state), Some(&sampling_context), None);
+
+        assert!(matches!(spec, Err(SamplingResult::Keep)));
     }
 
     #[test]

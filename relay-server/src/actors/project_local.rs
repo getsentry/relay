@@ -16,6 +16,7 @@ use relay_log::LogError;
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::FetchOptionalProjectState;
 
+#[derive(Debug)]
 pub struct LocalProjectSource {
     config: Arc<Config>,
     local_states: HashMap<ProjectKey, Arc<ProjectState>>,
