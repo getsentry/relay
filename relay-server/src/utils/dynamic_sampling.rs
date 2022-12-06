@@ -230,7 +230,7 @@ mod tests {
     }
 
     /// ugly hack to build an envelope with an optional trace context
-    fn new_envelope(with_trace_context: bool) -> Envelope {
+    fn new_envelope(with_trace_context: bool) -> Box<Envelope> {
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42";
         let event_id = EventId::new();
 
