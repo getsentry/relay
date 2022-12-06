@@ -42,7 +42,7 @@ impl SessionMetricsConfig {
     }
 
     pub fn should_extract_abnormal_mechanism(&self) -> bool {
-        self.version == EXTRACT_ABNORMAL_MECHANISM_VERSION
+        self.version >= EXTRACT_ABNORMAL_MECHANISM_VERSION
     }
 
     /// Returns `true` if the session should be dropped after extracting metrics.
