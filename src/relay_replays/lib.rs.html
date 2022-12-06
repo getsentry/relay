@@ -264,6 +264,8 @@
 <span id="264">264</span>
 <span id="265">265</span>
 <span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Replay processing and normalization module.
 //!
 //! Replays are multi-part values sent from Sentry integrations spanning arbitrary time-periods.
@@ -328,6 +330,8 @@
     <span class="attribute">#[serde(rename = <span class="string">&quot;type&quot;</span>)]
     </span>ty: String,
     replay_id: String,
+    <span class="attribute">#[serde(default)]
+    </span>replay_type: <span class="prelude-ty">Option</span>&lt;String&gt;,
     event_id: String,
     segment_id: u16,
     timestamp: f64,
