@@ -1,12 +1,12 @@
 import json
 import os
 import queue
-import datetime
+from time import sleep
 import uuid
-import six
 import socket
 import threading
 import pytest
+from datetime import datetime, timedelta
 
 from requests.exceptions import HTTPError
 from flask import abort, Response
@@ -57,85 +57,6 @@ def test_legacy_store(mini_sentry, relay_chain):
     relay.send_event(42, legacy=True)
     event = mini_sentry.captured_events.get(timeout=1).get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
-
-
-@pytest.mark.parametrize(
-    "filter_config, should_filter",
-    [
-        ({"errorMessages": {"patterns": ["Panic: originalCreateNotification"]}}, True),
-        ({"errorMessages": {"patterns": ["Warning"]}}, False),
-    ],
-    ids=["error messages filtered", "error messages not filtered",],
-)
-def test_filters_are_applied(
-    mini_sentry, relay_with_processing, events_consumer, filter_config, should_filter,
-):
-    """
-    Test that relay normalizes messages when processing is enabled and sends them via Kafka queues
-    """
-    events_consumer = events_consumer()
-
-    relay = relay_with_processing()
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    filter_settings = project_config["config"]["filterSettings"]
-    for key in filter_config.keys():
-        filter_settings[key] = filter_config[key]
-
-    # create a unique message so we can make sure we don't test with stale data
-    now = datetime.datetime.utcnow()
-    message_text = "some message {}".format(now.isoformat())
-
-    event = {
-        "message": message_text,
-        "exception": {
-            "values": [{"type": "Panic", "value": "originalCreateNotification"}]
-        },
-    }
-
-    relay.send_event(project_id, event)
-
-    if should_filter:
-        events_consumer.assert_empty()
-    else:
-        events_consumer.get_event()
-
-
-@pytest.mark.parametrize(
-    "is_enabled, should_filter",
-    [(True, True), (False, False),],
-    ids=["web crawlers filtered", "web crawlers not filtered",],
-)
-def test_web_crawlers_filter_are_applied(
-    mini_sentry, relay_with_processing, events_consumer, is_enabled, should_filter,
-):
-    """
-    Test that relay normalizes messages when processing is enabled and sends them via Kafka queues
-    """
-    relay = relay_with_processing()
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    filter_settings = project_config["config"]["filterSettings"]
-    filter_settings["webCrawlers"] = {"isEnabled": is_enabled}
-
-    # UA parsing introduces higher latency in debug mode
-    events_consumer = events_consumer(timeout=10)
-
-    # create a unique message so we can make sure we don't test with stale data
-    now = datetime.datetime.utcnow()
-    message_text = "some message {}".format(now.isoformat())
-
-    event = {
-        "message": message_text,
-        "request": {"headers": {"User-Agent": "BingBot",}},
-    }
-
-    relay.send_event(project_id, event)
-
-    if should_filter:
-        events_consumer.assert_empty()
-    else:
-        events_consumer.get_event()
 
 
 @pytest.mark.parametrize("method_to_test", [("GET", False), ("POST", True)])
@@ -193,36 +114,6 @@ def test_store_pii_stripping(mini_sentry, relay):
 
     # Email should be stripped:
     assert event["extra"]["foo"] == "[email]"
-
-
-def test_store_timeout(mini_sentry, relay):
-    from time import sleep
-
-    get_project_config_original = mini_sentry.app.view_functions["get_project_config"]
-
-    @mini_sentry.app.endpoint("get_project_config")
-    def get_project_config():
-        sleep(1.5)  # Causes the first event to drop, but not the second one
-        return get_project_config_original()
-
-    relay = relay(mini_sentry, {"cache": {"event_expiry": 1}})
-
-    project_id = 42
-    mini_sentry.add_basic_project_config(project_id)
-
-    try:
-        relay.send_event(project_id, {"message": "invalid"})
-        sleep(1)  # Sleep so that the second event also has to wait but succeeds
-        relay.send_event(project_id, {"message": "correct"})
-
-        event = mini_sentry.captured_events.get(timeout=1).get_event()
-        assert event["logentry"] == {"formatted": "correct"}
-        pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
-        ((route, error),) = mini_sentry.test_failures
-        assert route == "/api/666/envelope/"
-        assert "configured lifetime" in str(error)
-    finally:
-        mini_sentry.test_failures.clear()
 
 
 def test_store_rate_limit(mini_sentry, relay):
@@ -322,7 +213,7 @@ def test_store_buffer_size(mini_sentry, relay):
 
         for (_, error) in mini_sentry.test_failures:
             assert isinstance(error, AssertionError)
-            assert "Too many envelopes" in str(error)
+            assert "buffer capacity exceeded" in str(error)
     finally:
         mini_sentry.test_failures.clear()
 
@@ -378,12 +269,12 @@ def test_store_not_normalized(mini_sentry, relay):
 
 
 def make_transaction(event):
-    now = datetime.datetime.utcnow()
+    now = datetime.utcnow()
     event.update(
         {
             "type": "transaction",
             "timestamp": now.isoformat(),
-            "start_timestamp": (now - datetime.timedelta(seconds=2)).isoformat(),
+            "start_timestamp": (now - timedelta(seconds=2)).isoformat(),
             "spans": [],
             "contexts": {
                 "trace": {
@@ -464,6 +355,12 @@ def test_processing(
     assert event.get("project") is not None
     assert event.get("version") is not None
 
+    if event_type == "transaction":
+        assert event["transaction_info"]["source"] == "unknown"  # the default
+    else:
+        # Should not be serialized
+        assert "transaction_info" not in event
+
 
 # TODO: This parameterization should be unit-tested, instead
 @pytest.mark.parametrize(
@@ -508,9 +405,9 @@ def test_processing_quotas(
 
     projectconfig["config"]["quotas"] = [
         {
-            "id": "test_rate_limiting_{}".format(uuid.uuid4().hex),
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
             "scope": "key",
-            "scopeId": six.text_type(key_id),
+            "scopeId": str(key_id),
             "categories": [category],
             "limit": 5,
             "window": window,
@@ -573,6 +470,254 @@ def test_processing_quotas(
         assert event["logentry"]["formatted"] == f"otherkey{i}"
 
 
+@pytest.mark.parametrize("violating_bucket", [[4.0, 5.0], [4.0, 5.0, 6.0]])
+def test_rate_limit_metrics_buckets(
+    mini_sentry,
+    relay_with_processing,
+    metrics_consumer,
+    outcomes_consumer,
+    violating_bucket,
+):
+    """
+    param violating_bucket is parametrized so we cover both cases:
+        1. the quota is matched exactly
+        2. quota is exceeded by one
+    """
+    bucket_interval = 1  # second
+    relay = relay_with_processing(
+        {
+            "processing": {"max_rate_limit": 2 * 86400},
+            "aggregator": {
+                "bucket_interval": bucket_interval,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+            },
+        }
+    )
+    metrics_consumer = metrics_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    project_id = 42
+    projectconfig = mini_sentry.add_full_project_config(project_id)
+    # add another dsn key (we want 2 keys so we can set limits per key)
+    mini_sentry.add_dsn_key_to_project(project_id)
+
+    public_keys = mini_sentry.get_dsn_public_key_configs(project_id)
+    key_id = public_keys[0]["numericId"]
+
+    reason_code = uuid.uuid4().hex
+
+    projectconfig["config"]["quotas"] = [
+        {
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
+            "scope": "key",
+            "scopeId": str(key_id),
+            "categories": ["transaction"],
+            "limit": 5,
+            "window": 86400,
+            "reasonCode": reason_code,
+        }
+    ]
+
+    def generate_ticks():
+        # Generate a new timestamp for every bucket, so they do not get merged by the aggregator
+        tick = int(datetime.utcnow().timestamp() // bucket_interval * bucket_interval)
+        while True:
+            yield tick
+            tick += bucket_interval
+
+    tick = generate_ticks()
+
+    def make_bucket(name, type_, values):
+        return {
+            "org_id": 1,
+            "project_id": project_id,
+            "timestamp": next(tick),
+            "name": name,
+            "type": type_,
+            "value": values,
+            "width": bucket_interval,
+        }
+
+    def send_buckets(buckets):
+        relay.send_metrics_buckets(project_id, buckets)
+        sleep(0.2)
+
+    # NOTE: Sending these buckets in multiple envelopes because the order of flushing
+    # and also the order of rate limiting is not deterministic.
+    send_buckets(
+        [
+            # Send a few non-duration buckets, they will not deplete the quota
+            make_bucket("d:transactions/measurements.lcp@millisecond", "d", 10 * [1.0]),
+            # Session metrics are accepted
+            make_bucket("d:sessions/session@none", "c", 1),
+            make_bucket("d:sessions/duration@second", "d", 9 * [1]),
+        ]
+    )
+    send_buckets(
+        [
+            # Duration metric, subtract 3 from quota
+            make_bucket("d:transactions/duration@millisecond", "d", [1, 2, 3]),
+        ],
+    )
+    send_buckets(
+        [
+            # Can still send unlimited non-duration metrics
+            make_bucket("d:transactions/measurements.lcp@millisecond", "d", 10 * [2.0]),
+        ],
+    )
+    send_buckets(
+        [
+            # Duration metric, subtract from quota. This bucket is still accepted, but the rest
+            # will be exceeded.
+            make_bucket("d:transactions/duration@millisecond", "d", violating_bucket),
+        ],
+    )
+    send_buckets(
+        [
+            # FCP buckets won't make it into kakfa
+            make_bucket("d:transactions/measurements.fcp@millisecond", "d", 10 * [7.0]),
+        ],
+    )
+    send_buckets(
+        [
+            # Another three for duration, won't make it into kafka.
+            make_bucket("d:transactions/duration@millisecond", "d", [7, 8, 9]),
+            # Session metrics are still accepted.
+            make_bucket("d:sessions/session@user", "s", [1254]),
+        ],
+    )
+
+    produced_buckets = list(metrics_consumer.get_metrics(timeout=4))
+
+    # Sort buckets to prevent ordering flakiness:
+    produced_buckets.sort(key=lambda b: (b["name"], b["value"]))
+    for bucket in produced_buckets:
+        del bucket["timestamp"]
+
+    assert produced_buckets == [
+        {
+            "name": "d:sessions/duration@second",
+            "org_id": 1,
+            "project_id": 42,
+            "type": "d",
+            "value": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+        },
+        {
+            "name": "d:sessions/session@none",
+            "org_id": 1,
+            "project_id": 42,
+            "type": "c",
+            "value": 1.0,
+        },
+        {
+            "name": "d:sessions/session@user",
+            "org_id": 1,
+            "project_id": 42,
+            "type": "s",
+            "value": [1254],
+        },
+        {
+            "name": "d:transactions/duration@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "type": "d",
+            "value": [1.0, 2.0, 3.0],
+        },
+        {
+            "name": "d:transactions/duration@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "type": "d",
+            "value": violating_bucket,
+        },
+        {
+            "name": "d:transactions/measurements.lcp@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "type": "d",
+            "value": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+        },
+        {
+            "name": "d:transactions/measurements.lcp@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "type": "d",
+            "value": [2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0],
+        },
+    ]
+
+    outcomes_consumer.assert_rate_limited(
+        reason_code,
+        key_id=key_id,
+        categories=["transaction"],
+        quantity=3,
+    )
+
+
+def test_processing_quota_transaction_indexing(
+    mini_sentry,
+    relay_with_processing,
+    metrics_consumer,
+    transactions_consumer,
+):
+    relay = relay_with_processing(
+        {
+            "processing": {"max_rate_limit": 100},
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+            },
+        }
+    )
+
+    metrics_consumer = metrics_consumer()
+    tx_consumer = transactions_consumer()
+
+    project_id = 42
+    projectconfig = mini_sentry.add_full_project_config(project_id)
+    key_id = mini_sentry.get_dsn_public_key_configs(project_id)[0]["numericId"]
+    projectconfig["config"]["quotas"] = [
+        {
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
+            "scope": "key",
+            "scopeId": str(key_id),
+            "categories": ["transaction_indexed"],
+            "limit": 1,
+            "window": 86400,
+            "reasonCode": "get_lost",
+        },
+        {
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
+            "scope": "key",
+            "scopeId": str(key_id),
+            "categories": ["transaction"],
+            "limit": 2,
+            "window": 86400,
+            "reasonCode": "get_lost",
+        },
+    ]
+    projectconfig["config"]["transactionMetrics"] = {
+        "version": 1,
+    }
+
+    relay.send_event(project_id, make_transaction({"message": "1st tx"}))
+    event, _ = tx_consumer.get_event()
+    assert event["logentry"]["formatted"] == "1st tx"
+    buckets = list(metrics_consumer.get_metrics())
+    assert len(buckets) > 0
+
+    relay.send_event(project_id, make_transaction({"message": "2nd tx"}))
+    tx_consumer.assert_empty()
+    buckets = list(metrics_consumer.get_metrics())
+    assert len(buckets) > 0
+
+    relay.send_event(project_id, make_transaction({"message": "2nd tx"}))
+    tx_consumer.assert_empty()
+    metrics_consumer.assert_empty()
+
+
 def test_events_buffered_before_auth(relay, mini_sentry):
     evt = threading.Event()
 
@@ -587,7 +732,7 @@ def test_events_buffered_before_auth(relay, mini_sentry):
 
     # keep max backoff as short as the configuration allows (1 sec)
     relay_options = {"http": {"max_retry_interval": 1}}
-    relay = relay(mini_sentry, relay_options, wait_healthcheck=False)
+    relay = relay(mini_sentry, relay_options, wait_health_check=False)
     assert evt.wait(1)  # wait for relay to start authenticating
 
     project_id = 42
@@ -810,6 +955,9 @@ def test_re_auth_failure(relay, mini_sentry):
     auth_count_2 = counter[0]
     assert auth_count_1 < auth_count_2
 
+    # Give Relay some time to process the auth response and mark itself as not ready
+    sleep(0.1)
+
     # send a message, it should not come through while the authentication has failed
     relay.send_event(project_id, {"message": "123"})
     # sentry should have received nothing
@@ -825,6 +973,9 @@ def test_re_auth_failure(relay, mini_sentry):
     # check that we have had some auth that succeeded
     auth_count_3 = counter[0]
     assert auth_count_2 < auth_count_3
+
+    # Give Relay some time to process the auth response and mark itself as ready
+    sleep(0.1)
 
     # now we should be re-authenticated and we should have the event
 

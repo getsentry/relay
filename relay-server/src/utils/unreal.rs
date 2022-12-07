@@ -199,7 +199,7 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
 
     if let Some(memory_physical) = runtime_props.memory_stats_total_physical.take() {
         let device_context = contexts.get_or_insert_with(DeviceContext::default_key(), || {
-            Context::Device(Box::new(DeviceContext::default()))
+            Context::Device(Box::default())
         });
 
         if let Context::Device(device_context) = device_context {
@@ -209,9 +209,8 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
 
     // OS information is likely overwritten by Minidump processing later.
     if let Some(os_major) = runtime_props.misc_os_version_major.take() {
-        let os_context = contexts.get_or_insert_with(OsContext::default_key(), || {
-            Context::Os(Box::new(OsContext::default()))
-        });
+        let os_context =
+            contexts.get_or_insert_with(OsContext::default_key(), || Context::Os(Box::default()));
 
         if let Context::Os(os_context) = os_context {
             os_context.name = Annotated::new(os_major);
@@ -219,9 +218,8 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
     }
 
     if let Some(gpu_brand) = runtime_props.misc_primary_gpu_brand.take() {
-        let gpu_context = contexts.get_or_insert_with(GpuContext::default_key(), || {
-            Context::Gpu(Box::new(GpuContext::default()))
-        });
+        let gpu_context =
+            contexts.get_or_insert_with(GpuContext::default_key(), || Context::Gpu(Box::default()));
 
         if let Context::Gpu(gpu_context) = gpu_context {
             gpu_context.name = Annotated::new(gpu_brand);
@@ -274,9 +272,9 @@ pub fn process_unreal_envelope(
         .get_header(UNREAL_USER_HEADER)
         .and_then(Value::as_str);
     let context_item =
-        envelope.get_item_by(|item| item.attachment_type() == Some(AttachmentType::UnrealContext));
+        envelope.get_item_by(|item| item.attachment_type() == Some(&AttachmentType::UnrealContext));
     let logs_item =
-        envelope.get_item_by(|item| item.attachment_type() == Some(AttachmentType::UnrealLogs));
+        envelope.get_item_by(|item| item.attachment_type() == Some(&AttachmentType::UnrealLogs));
 
     // Early exit if there is no information.
     if user_header.is_none() && context_item.is_none() && logs_item.is_none() {
@@ -284,7 +282,7 @@ pub fn process_unreal_envelope(
     }
 
     // If we have UE4 info, ensure an event is there to fill. DO NOT fill if there is no unreal
-    // information, or otherwise `EnvelopeProcessor::process` breaks.
+    // information, or otherwise `EnvelopeProcessorService::process` breaks.
     let event = event.get_or_insert_with(Event::default);
 
     if let Some(user_info) = user_header {

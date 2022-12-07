@@ -261,7 +261,7 @@ impl RateLimits {
         for quota in quotas {
             if quota.limit == Some(0) && quota.matches(scoping) {
                 let retry_after = RetryAfter::from_secs(REJECT_ALL_SECS);
-                applied_limits.add(RateLimit::from_quota(quota, &*scoping, retry_after));
+                applied_limits.add(RateLimit::from_quota(quota, &scoping, retry_after));
             }
         }
 

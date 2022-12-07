@@ -1,8 +1,8 @@
 use actix_web::actix::*;
 use actix_web::http::StatusCode;
 use actix_web::{Error, FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
-use failure::Fail;
-use futures::prelude::*;
+use futures::{FutureExt, TryFutureExt};
+use futures01::prelude::*;
 use serde::de::DeserializeOwned;
 
 use relay_auth::{RelayId, UnpackError};
@@ -25,18 +25,18 @@ pub struct SignedJson<T> {
     pub relay: RelayInfo,
 }
 
-#[derive(Fail, Debug)]
+#[derive(Debug, thiserror::Error)]
 enum SignatureError {
-    #[fail(display = "invalid relay signature")]
-    BadSignature(#[cause] UnpackError),
-    #[fail(display = "missing header: {}", _0)]
+    #[error("invalid relay signature")]
+    BadSignature(#[source] UnpackError),
+    #[error("missing header: {0}")]
     MissingHeader(&'static str),
-    #[fail(display = "malformed header: {}", _0)]
+    #[error("malformed header: {0}")]
     MalformedHeader(&'static str),
-    #[fail(display = "Unknown relay id")]
+    #[error("Unknown relay id")]
     UnknownRelay,
-    #[fail(display = "invalid JSON data")]
-    InvalidJson(#[cause] serde_json::Error),
+    #[error("invalid JSON data")]
+    InvalidJson(#[source] serde_json::Error),
 }
 
 impl ResponseError for SignatureError {
@@ -46,7 +46,7 @@ impl ResponseError for SignatureError {
             _ => StatusCode::UNAUTHORIZED,
         };
 
-        HttpResponse::build(status).json(&ApiErrorResponse::from_fail(self))
+        HttpResponse::build(status).json(&ApiErrorResponse::from_error(self))
     }
 }
 
@@ -89,12 +89,10 @@ impl<T: DeserializeOwned + 'static> FromRequest<ServiceState> for SignedJson<T> 
 
         let future = RelayCache::from_registry()
             .send(GetRelay { relay_id })
-            .map_err(Error::from)
-            .and_then(|result| {
-                result?
-                    .relay
-                    .ok_or_else(|| Error::from(SignatureError::UnknownRelay))
-            })
+            .boxed()
+            .compat()
+            .map_err(|_| Error::from(MailboxError::Closed))
+            .and_then(|result| result.ok_or_else(|| Error::from(SignatureError::UnknownRelay)))
             .join(RequestBody::new(req, MAX_JSON_SIZE).map_err(Error::from))
             .and_then(move |(relay, body)| {
                 relay

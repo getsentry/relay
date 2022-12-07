@@ -8,11 +8,13 @@ use schemars::schema::Schema;
 
 use serde::{Serialize, Serializer};
 
+use crate::macros::derive_string_meta_structure;
 use crate::processor::ProcessValue;
 use crate::protocol::{
     Breadcrumb, Breakdowns, ClientSdkInfo, Contexts, Csp, DebugMeta, Exception, ExpectCt,
     ExpectStaple, Fingerprint, Hpkp, LenientString, Level, LogEntry, Measurements, Metrics,
-    RelayInfo, Request, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp, User, Values,
+    RelayInfo, Request, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp, TransactionInfo,
+    TransactionSource, User, Values,
 };
 use crate::types::{
     Annotated, Array, Empty, ErrorKind, FromValue, IntoValue, Object, SkipSerialization, Value,
@@ -255,6 +257,10 @@ pub struct Event {
     #[metastructure(max_chars = "culprit", trim_whitespace = "true")]
     pub transaction: Annotated<String>,
 
+    /// Additional information about the name of the transaction.
+    #[metastructure(skip_serialization = "null")]
+    pub transaction_info: Annotated<TransactionInfo>,
+
     /// Time since the start of the transaction until the error occurred.
     pub time_spent: Annotated<u64>,
 
@@ -359,7 +365,6 @@ pub struct Event {
     /// an application. For example, the dist can be the build number of an XCode build or the
     /// version code of an Android build.
     #[metastructure(
-        max_chars = "tag_value",  // dist ends in tag
         allow_chars = "a-zA-Z0-9_.-",
         trim_whitespace = "true",
         required = "false",
@@ -532,15 +537,64 @@ pub struct Event {
     pub other: Object<Value>,
 }
 
-#[test]
-fn test_event_roundtrip() {
+impl Event {
+    pub fn get_transaction_source(&self) -> &TransactionSource {
+        self.transaction_info
+            .value()
+            .and_then(|info| info.source.value())
+            .unwrap_or(&TransactionSource::Unknown)
+    }
+
+    pub fn get_tag_value(&self, tag_key: &str) -> Option<&str> {
+        if let Some(tags) = self.tags.value() {
+            tags.get(tag_key)
+        } else {
+            None
+        }
+    }
+
+    pub fn has_module(&self, module_name: &str) -> bool {
+        self.modules
+            .value()
+            .map(|m| m.contains_key(module_name))
+            .unwrap_or(false)
+    }
+
+    pub fn sdk_name(&self) -> &str {
+        if let Some(client_sdk) = self.client_sdk.value() {
+            if let Some(name) = client_sdk.name.as_str() {
+                return name;
+            }
+        }
+
+        "unknown"
+    }
+
+    pub fn sdk_version(&self) -> &str {
+        if let Some(client_sdk) = self.client_sdk.value() {
+            if let Some(version) = client_sdk.version.as_str() {
+                return version;
+            }
+        }
+
+        "unknown"
+    }
+}
+
+#[cfg(test)]
+mod tests {
     use chrono::{TimeZone, Utc};
+    use similar_asserts::assert_eq;
 
     use crate::protocol::TagEntry;
     use crate::types::{Map, Meta};
 
-    // NOTE: Interfaces will be tested separately.
-    let json = r#"{
+    use super::*;
+
+    #[test]
+    fn test_event_roundtrip() {
+        // NOTE: Interfaces will be tested separately.
+        let json = r#"{
   "event_id": "52df9022835246eeb317dbd739ccd059",
   "level": "debug",
   "fingerprint": [
@@ -582,74 +636,73 @@ fn test_event_roundtrip() {
   }
 }"#;
 
-    let event = Annotated::new(Event {
-        id: Annotated(
-            Some("52df9022-8352-46ee-b317-dbd739ccd059".parse().unwrap()),
-            Meta::from_error(ErrorKind::InvalidData),
-        ),
-        level: Annotated::new(Level::Debug),
-        fingerprint: Annotated::new(vec!["myprint".to_string()].into()),
-        culprit: Annotated::new("myculprit".to_string()),
-        transaction: Annotated::new("mytransaction".to_string()),
-        logentry: Annotated::new(LogEntry {
-            formatted: Annotated::new("mymessage".to_string().into()),
+        let event = Annotated::new(Event {
+            id: Annotated(
+                Some("52df9022-8352-46ee-b317-dbd739ccd059".parse().unwrap()),
+                Meta::from_error(ErrorKind::InvalidData),
+            ),
+            level: Annotated::new(Level::Debug),
+            fingerprint: Annotated::new(vec!["myprint".to_string()].into()),
+            culprit: Annotated::new("myculprit".to_string()),
+            transaction: Annotated::new("mytransaction".to_string()),
+            logentry: Annotated::new(LogEntry {
+                formatted: Annotated::new("mymessage".to_string().into()),
+                ..Default::default()
+            }),
+            logger: Annotated::new("mylogger".to_string()),
+            modules: {
+                let mut map = Map::new();
+                map.insert("mymodule".to_string(), Annotated::new("1.0.0".to_string()));
+                Annotated::new(map)
+            },
+            platform: Annotated::new("myplatform".to_string()),
+            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+            server_name: Annotated::new("myhost".to_string()),
+            release: Annotated::new("myrelease".to_string().into()),
+            dist: Annotated::new("mydist".to_string()),
+            environment: Annotated::new("myenv".to_string()),
+            tags: {
+                let items = vec![Annotated::new(TagEntry(
+                    Annotated::new("tag".to_string()),
+                    Annotated::new("value".to_string()),
+                ))];
+                Annotated::new(Tags(items.into()))
+            },
+            extra: {
+                let mut map = Map::new();
+                map.insert(
+                    "extra".to_string(),
+                    Annotated::new(ExtraValue(Value::String("value".to_string()))),
+                );
+                Annotated::new(map)
+            },
+            other: {
+                let mut map = Map::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                map
+            },
             ..Default::default()
-        }),
-        logger: Annotated::new("mylogger".to_string()),
-        modules: {
-            let mut map = Map::new();
-            map.insert("mymodule".to_string(), Annotated::new("1.0.0".to_string()));
-            Annotated::new(map)
-        },
-        platform: Annotated::new("myplatform".to_string()),
-        timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
-        server_name: Annotated::new("myhost".to_string()),
-        release: Annotated::new("myrelease".to_string().into()),
-        dist: Annotated::new("mydist".to_string()),
-        environment: Annotated::new("myenv".to_string()),
-        tags: {
-            let items = vec![Annotated::new(TagEntry(
-                Annotated::new("tag".to_string()),
-                Annotated::new("value".to_string()),
-            ))];
-            Annotated::new(Tags(items.into()))
-        },
-        extra: {
-            let mut map = Map::new();
-            map.insert(
-                "extra".to_string(),
-                Annotated::new(ExtraValue(Value::String("value".to_string()))),
-            );
-            Annotated::new(map)
-        },
-        other: {
-            let mut map = Map::new();
-            map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
-            );
-            map
-        },
-        ..Default::default()
-    });
+        });
 
-    assert_eq_dbg!(event, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, event.to_json_pretty().unwrap());
-}
+        assert_eq!(event, Annotated::from_json(json).unwrap());
+        assert_eq!(json, event.to_json_pretty().unwrap());
+    }
 
-#[test]
-fn test_event_default_values() {
-    let json = "{}";
-    let event = Annotated::new(Event::default());
+    #[test]
+    fn test_event_default_values() {
+        let json = "{}";
+        let event = Annotated::new(Event::default());
 
-    assert_eq_dbg!(event, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, event.to_json_pretty().unwrap());
-}
+        assert_eq!(event, Annotated::from_json(json).unwrap());
+        assert_eq!(json, event.to_json_pretty().unwrap());
+    }
 
-#[test]
-fn test_event_default_values_with_meta() {
-    use crate::types::Meta;
-    let json = r#"{
+    #[test]
+    fn test_event_default_values_with_meta() {
+        let json = r#"{
   "event_id": "52df9022835246eeb317dbd739ccd059",
   "fingerprint": [
     "{{ default }}"
@@ -680,82 +733,83 @@ fn test_event_default_values_with_meta() {
   }
 }"#;
 
-    let event = Annotated::new(Event {
-        id: Annotated(
-            Some("52df9022-8352-46ee-b317-dbd739ccd059".parse().unwrap()),
-            Meta::from_error(ErrorKind::InvalidData),
-        ),
-        fingerprint: Annotated(
-            Some(vec!["{{ default }}".to_string()].into()),
-            Meta::from_error(ErrorKind::InvalidData),
-        ),
-        platform: Annotated(
-            Some("other".to_string()),
-            Meta::from_error(ErrorKind::InvalidData),
-        ),
-        ..Default::default()
-    });
+        let event = Annotated::new(Event {
+            id: Annotated(
+                Some("52df9022-8352-46ee-b317-dbd739ccd059".parse().unwrap()),
+                Meta::from_error(ErrorKind::InvalidData),
+            ),
+            fingerprint: Annotated(
+                Some(vec!["{{ default }}".to_string()].into()),
+                Meta::from_error(ErrorKind::InvalidData),
+            ),
+            platform: Annotated(
+                Some("other".to_string()),
+                Meta::from_error(ErrorKind::InvalidData),
+            ),
+            ..Default::default()
+        });
 
-    assert_eq_dbg!(event, Annotated::<Event>::from_json(json).unwrap());
-    assert_eq_str!(json, event.to_json_pretty().unwrap());
-}
+        assert_eq!(event, Annotated::<Event>::from_json(json).unwrap());
+        assert_eq!(json, event.to_json_pretty().unwrap());
+    }
 
-#[test]
-fn test_event_type() {
-    assert_eq_dbg!(
-        EventType::Default,
-        *Annotated::<EventType>::from_json("\"default\"")
-            .unwrap()
-            .value()
-            .unwrap()
-    );
-}
+    #[test]
+    fn test_event_type() {
+        assert_eq!(
+            EventType::Default,
+            *Annotated::<EventType>::from_json("\"default\"")
+                .unwrap()
+                .value()
+                .unwrap()
+        );
+    }
 
-#[test]
-fn test_fingerprint_empty_string() {
-    let json = r#"{"fingerprint":[""]}"#;
-    let event = Annotated::new(Event {
-        fingerprint: Annotated::new(vec!["".to_string()].into()),
-        ..Default::default()
-    });
+    #[test]
+    fn test_fingerprint_empty_string() {
+        let json = r#"{"fingerprint":[""]}"#;
+        let event = Annotated::new(Event {
+            fingerprint: Annotated::new(vec!["".to_string()].into()),
+            ..Default::default()
+        });
 
-    assert_eq_dbg!(json, event.to_json().unwrap());
-    assert_eq_dbg!(event, Annotated::from_json(json).unwrap());
-}
+        assert_eq!(json, event.to_json().unwrap());
+        assert_eq!(event, Annotated::from_json(json).unwrap());
+    }
 
-#[test]
-fn test_fingerprint_null_values() {
-    let input = r#"{"fingerprint":[null]}"#;
-    let output = r#"{}"#;
-    let event = Annotated::new(Event {
-        fingerprint: Annotated::new(vec![].into()),
-        ..Default::default()
-    });
+    #[test]
+    fn test_fingerprint_null_values() {
+        let input = r#"{"fingerprint":[null]}"#;
+        let output = r#"{}"#;
+        let event = Annotated::new(Event {
+            fingerprint: Annotated::new(vec![].into()),
+            ..Default::default()
+        });
 
-    assert_eq_dbg!(event, Annotated::from_json(input).unwrap());
-    assert_eq_dbg!(output, event.to_json().unwrap());
-}
+        assert_eq!(event, Annotated::from_json(input).unwrap());
+        assert_eq!(output, event.to_json().unwrap());
+    }
 
-#[test]
-fn test_empty_threads() {
-    let input = r#"{"threads": {}}"#;
-    let output = r#"{}"#;
+    #[test]
+    fn test_empty_threads() {
+        let input = r#"{"threads": {}}"#;
+        let output = r#"{}"#;
 
-    let event = Annotated::new(Event::default());
+        let event = Annotated::new(Event::default());
 
-    assert_eq_dbg!(event, Annotated::from_json(input).unwrap());
-    assert_eq_dbg!(output, event.to_json().unwrap());
-}
+        assert_eq!(event, Annotated::from_json(input).unwrap());
+        assert_eq!(output, event.to_json().unwrap());
+    }
 
-#[test]
-fn test_lenient_release() {
-    let input = r#"{"release":42}"#;
-    let output = r#"{"release":"42"}"#;
-    let event = Annotated::new(Event {
-        release: Annotated::new("42".to_string().into()),
-        ..Default::default()
-    });
+    #[test]
+    fn test_lenient_release() {
+        let input = r#"{"release":42}"#;
+        let output = r#"{"release":"42"}"#;
+        let event = Annotated::new(Event {
+            release: Annotated::new("42".to_string().into()),
+            ..Default::default()
+        });
 
-    assert_eq_dbg!(event, Annotated::from_json(input).unwrap());
-    assert_eq_dbg!(output, event.to_json().unwrap());
+        assert_eq!(event, Annotated::from_json(input).unwrap());
+        assert_eq!(output, event.to_json().unwrap());
+    }
 }

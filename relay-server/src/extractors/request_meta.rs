@@ -6,8 +6,7 @@ use std::time::Instant;
 use actix::ResponseFuture;
 use actix_web::http::header;
 use actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
-use failure::Fail;
-use futures::{future, Future};
+use futures01::{future, Future};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -23,25 +22,25 @@ use crate::middlewares::StartTime;
 use crate::service::ServiceState;
 use crate::utils::ApiErrorResponse;
 
-#[derive(Debug, Fail)]
+#[derive(Debug, thiserror::Error)]
 pub enum BadEventMeta {
-    #[fail(display = "missing authorization information")]
+    #[error("missing authorization information")]
     MissingAuth,
 
-    #[fail(display = "multiple authorization payloads detected")]
+    #[error("multiple authorization payloads detected")]
     MultipleAuth,
 
-    #[fail(display = "bad envelope authentication header")]
-    BadEnvelopeAuth(#[cause] serde_json::Error),
+    #[error("bad envelope authentication header")]
+    BadEnvelopeAuth(#[source] serde_json::Error),
 
-    #[fail(display = "bad project path parameter")]
-    BadProject(#[cause] ParseProjectIdError),
+    #[error("bad project path parameter")]
+    BadProject(#[from] ParseProjectIdError),
 
-    #[fail(display = "bad x-sentry-auth header")]
-    BadAuth(#[fail(cause)] ParseAuthError),
+    #[error("bad x-sentry-auth header")]
+    BadAuth(#[from] ParseAuthError),
 
-    #[fail(display = "bad sentry DSN public key")]
-    BadPublicKey(ParseProjectKeyError),
+    #[error("bad sentry DSN public key")]
+    BadPublicKey(#[from] ParseProjectKeyError),
 }
 
 impl ResponseError for BadEventMeta {
@@ -54,7 +53,7 @@ impl ResponseError for BadEventMeta {
             Self::BadProject(_) | Self::BadPublicKey(_) => HttpResponse::BadRequest(),
         };
 
-        builder.json(&ApiErrorResponse::from_fail(self))
+        builder.json(&ApiErrorResponse::from_error(self))
     }
 }
 
@@ -204,8 +203,19 @@ pub struct RequestMeta<D = PartialDsn> {
 
 impl<D> RequestMeta<D> {
     /// Returns the client that sent this event (Sentry SDK identifier).
+    ///
+    /// The client is formatted as `"sdk/version"`, for example `"raven-node/2.6.3"`.
     pub fn client(&self) -> Option<&str> {
         self.client.as_deref()
+    }
+
+    /// Returns the name of the client that sent the event without version.
+    ///
+    /// If the client is not sent in standard format, this method returns `None`.
+    pub fn client_name(&self) -> Option<&str> {
+        let client = self.client()?;
+        let (name, _version) = client.split_once('/')?;
+        Some(name)
     }
 
     /// Returns the protocol version of the event payload.
@@ -423,7 +433,7 @@ fn auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadEventMeta> {
 
     // try to extract authentication info from http header "x-sentry-auth"
     if let Some(header) = get_auth_header(req, "x-sentry-auth") {
-        auth = Some(header.parse::<Auth>().map_err(BadEventMeta::BadAuth)?);
+        auth = Some(header.parse::<Auth>()?);
     }
 
     // try to extract authentication info from http header "authorization"
@@ -432,7 +442,7 @@ fn auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadEventMeta> {
             return Err(BadEventMeta::MultipleAuth);
         }
 
-        auth = Some(header.parse::<Auth>().map_err(BadEventMeta::BadAuth)?);
+        auth = Some(header.parse::<Auth>()?);
     }
 
     // try to extract authentication info from URL query_param .../?sentry_...=<key>...
@@ -442,7 +452,7 @@ fn auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadEventMeta> {
             return Err(BadEventMeta::MultipleAuth);
         }
 
-        auth = Some(Auth::from_querystring(query.as_bytes()).map_err(BadEventMeta::BadAuth)?);
+        auth = Some(Auth::from_querystring(query.as_bytes())?);
     }
 
     // try to extract authentication info from URL path segment .../{sentry_key}/...
@@ -481,7 +491,7 @@ impl FromRequest<ServiceState> for RequestMeta {
 
         let project_id = match request.match_info().get("project") {
             // The project_id was declared in the URL. Use it directly.
-            Some(s) => Some(s.parse().map_err(BadEventMeta::BadProject)?),
+            Some(s) => Some(s.parse()?),
 
             // The legacy endpoint (/api/store) was hit without a project id. Fetch the project
             // id from the key lookup. Since this is the uncommon case, block the request until the
@@ -492,8 +502,7 @@ impl FromRequest<ServiceState> for RequestMeta {
         let config = request.state().config();
         let upstream = config.upstream_descriptor();
 
-        let (public_key, key_flags) =
-            ProjectKey::parse_with_flags(auth.public_key()).map_err(BadEventMeta::BadPublicKey)?;
+        let (public_key, key_flags) = ProjectKey::parse_with_flags(auth.public_key())?;
 
         let dsn = PartialDsn {
             scheme: upstream.scheme(),

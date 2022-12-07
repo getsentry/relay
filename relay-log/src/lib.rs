@@ -66,9 +66,9 @@
 //!
 //! ## Logging Error Types
 //!
-//! To log [`Fail`](failure::Fail) errors to both Sentry and the error stream, use the [`LogError`] wrapper. It
-//! formats the error with all its causes, and ensures the format is suitable for error reporting to
-//! Sentry.
+//! To log [errors](std::error::Error) to both Sentry and the error stream, use the [`LogError`]
+//! wrapper. It formats the error with all its causes, and ensures the format is suitable for error
+//! reporting to Sentry.
 //!
 //! ```
 //! use std::io::{Error, ErrorKind};
@@ -108,9 +108,7 @@
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
-
-#[cfg(feature = "sentry")]
-mod sentry_failure;
+#![allow(clippy::derive_partial_eq_without_eq)]
 
 #[cfg(feature = "init")]
 mod setup;
@@ -136,4 +134,4 @@ pub use sentry_core::{capture_error, configure_scope, protocol, with_scope, Hub}
 // Required for the temporarily vendored actix integration.
 #[doc(hidden)]
 #[cfg(feature = "sentry")]
-pub use {sentry as _sentry, sentry_failure::exception_from_single_fail};
+pub use sentry as _sentry;

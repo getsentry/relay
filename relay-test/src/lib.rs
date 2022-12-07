@@ -25,17 +25,14 @@
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
+#![allow(clippy::derive_partial_eq_without_eq)]
 
-use std::{
-    cell::RefCell,
-    time::{Duration, Instant},
-};
+use std::cell::RefCell;
 
 use actix::{System, SystemRunner};
-use futures::{future, IntoFuture};
+use futures01::{future, IntoFuture};
 
 pub use actix_web::test::*;
-use tokio_timer::Delay;
 
 thread_local! {
     static SYSTEM: RefCell<Inner> = RefCell::new(Inner::new());
@@ -120,21 +117,4 @@ where
     F: FnOnce() -> R,
 {
     block_fn(move || future::ok::<_, ()>(func())).unwrap()
-}
-
-/// Returns a future which completes after the requested delay.
-/// ```
-/// use std::time::Duration;
-/// use futures::future::Future;
-///
-/// relay_test::setup();
-/// relay_test::block_fn(|| {
-///     relay_test::delay(Duration::from_millis(1000)).and_then(|_| {
-///         println!("One second has passed.");
-///         Ok(())
-///     })
-/// });
-/// ```
-pub fn delay(timeout: Duration) -> Delay {
-    Delay::new(Instant::now() + timeout)
 }

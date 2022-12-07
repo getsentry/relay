@@ -4,20 +4,19 @@ use std::io;
 use actix::prelude::*;
 use actix_web::{error::PayloadError, multipart, HttpMessage, HttpRequest};
 use bytes::Bytes;
-use failure::Fail;
-use futures::{future, Async, Future, Poll, Stream};
+use futures01::{future, Async, Future, Poll, Stream};
 use serde::{Deserialize, Serialize};
 
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
 use crate::extractors::DecodingPayload;
 use crate::service::ServiceState;
 
-#[derive(Debug, Fail)]
+#[derive(Debug, thiserror::Error)]
 pub enum MultipartError {
-    #[fail(display = "payload reached its size limit")]
+    #[error("payload reached its size limit")]
     Overflow,
 
-    #[fail(display = "{}", _0)]
+    #[error("{0}")]
     InvalidMultipart(actix_web::error::MultipartError),
 }
 
@@ -280,6 +279,7 @@ pub struct MultipartItems {
     remaining_size: usize,
     // Collect all form data in here.
     form_data: FormDataWriter,
+    #[allow(clippy::type_complexity)]
     infer_type: Box<dyn Fn(Option<&str>) -> AttachmentType>,
 }
 

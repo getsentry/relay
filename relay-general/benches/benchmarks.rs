@@ -91,6 +91,8 @@ fn bench_store_processor(c: &mut Criterion) {
         sent_at: None,
         received_at: None,
         breakdowns: None,
+        span_attributes: Default::default(),
+        client_sample_rate: None,
     };
 
     let mut processor = StoreProcessor::new(config, None);
@@ -138,7 +140,7 @@ fn bench_pii_stripping(c: &mut Criterion) {
         |b, datascrubbing_config| b.iter(|| datascrubbing_config.pii_config_uncached()),
     );
 
-    let pii_config = datascrubbing_config.pii_config_uncached().unwrap();
+    let pii_config = datascrubbing_config.pii_config_uncached().unwrap().unwrap();
 
     group.bench_with_input(
         BenchmarkId::new("compile_pii_config", config_name),

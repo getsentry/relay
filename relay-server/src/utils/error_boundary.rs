@@ -1,45 +1,12 @@
-use std::fmt::{self, Debug};
+use std::error::Error;
+use std::sync::Arc;
 
-use failure::Fail;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 
-/// Structure used in the implementation of Clone for ErrorBoundary
-/// Couldn't find a nicer way to do it.
-/// For the case where ErrorBoundary contains an error (Err enum) I copy
-/// the representation of the Fail trace object inside a ClonedFail object
-/// during a clone, that means that I loose the original Fail object and only
-/// retain the text message.
-#[derive(Fail, Debug, Clone)]
-struct ClonedFail(String);
-
-impl fmt::Display for ClonedFail {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}\n(cloned)", self.0)
-    }
-}
-
-/// Helper trait used to convert any Fail dyn object into a ClonedFail struct
-trait AsClonedFail {
-    fn as_cloned_fail(&self) -> ClonedFail;
-}
-
-impl AsClonedFail for ClonedFail {
-    /// if the object is already a ClonedFail just clone the message
-    fn as_cloned_fail(&self) -> ClonedFail {
-        self.clone()
-    }
-}
-
-impl AsClonedFail for dyn Fail {
-    fn as_cloned_fail(&self) -> ClonedFail {
-        ClonedFail(self.to_string())
-    }
-}
-
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum ErrorBoundary<T> {
-    Err(Box<dyn Fail>),
+    Err(Arc<dyn Error + Send + Sync + 'static>),
     Ok(T),
 }
 
@@ -70,7 +37,7 @@ impl<T> ErrorBoundary<T> {
     #[inline]
     pub fn unwrap_or_else<F>(self, op: F) -> T
     where
-        F: FnOnce(&dyn Fail) -> T,
+        F: FnOnce(&(dyn Error + 'static)) -> T,
     {
         match self {
             Self::Ok(t) => t,
@@ -90,7 +57,7 @@ where
         let value = Value::deserialize(deserializer)?;
         Ok(match T::deserialize(value) {
             Ok(t) => Self::Ok(t),
-            Err(error) => Self::Err(Box::new(error)),
+            Err(error) => Self::Err(Arc::new(error)),
         })
     }
 }
@@ -109,18 +76,6 @@ where
         };
 
         option.serialize(serializer)
-    }
-}
-
-impl<T> Clone for ErrorBoundary<T>
-where
-    T: Clone,
-{
-    fn clone(&self) -> Self {
-        match &self {
-            Self::Ok(x) => Self::Ok(x.clone()),
-            Self::Err(e) => Self::Err(Box::new(e.as_cloned_fail())),
-        }
     }
 }
 
@@ -154,7 +109,7 @@ mod tests {
 
     #[test]
     fn test_serialize_err() {
-        let boundary = ErrorBoundary::<u32>::Err(Box::new(std::fmt::Error));
+        let boundary = ErrorBoundary::<u32>::Err(Arc::new(std::fmt::Error));
         assert_eq!(serde_json::to_string(&boundary).unwrap(), "null");
     }
 }

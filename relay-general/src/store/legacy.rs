@@ -21,6 +21,7 @@ impl Processor for LegacyProcessor {
                 debug_id: mem::replace(&mut apple.uuid, Annotated::empty())
                     .map_value(DebugId::from),
                 debug_file: Annotated::empty(),
+                debug_checksum: Annotated::empty(),
                 arch: mem::replace(&mut apple.arch, Annotated::empty()),
                 image_addr: mem::replace(&mut apple.image_addr, Annotated::empty()),
                 image_size: mem::replace(&mut apple.image_size, Annotated::empty()),

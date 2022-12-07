@@ -132,15 +132,15 @@ contexts:
   device:
     name: DESKTOP-23F43DQ
     model: XPS 15 9570 (Dell Inc.)
-    battery_level: 100.0
+    battery_level: 100
     simulator: true
     memory_size: ~
     boot_time: ~
     timezone: ~
-    battery_status: Full
+    processor_count: 12
     cpu_description: Intel(R) Core(TM) i7-8750H CPU @ 2.20GHz
     device_type: Desktop
-    processor_count: 12
+    battery_status: Full
     supports_vibration: false
     timezone_display_name: "(UTC+02:00) Helsinki, Kyiv, Riga, Sofia, Tallinn, Vilnius"
     type: device
@@ -154,12 +154,12 @@ contexts:
     api_type: Direct3D11
     multi_threaded_rendering: true
     npot_support: Full
-    graphics_shader_level: Shader Model 5.0
     max_texture_size: 16384
-    supports_compute_shaders: true
+    graphics_shader_level: Shader Model 5.0
     supports_draw_call_instancing: true
-    supports_geometry_shaders: true
     supports_ray_tracing: false
+    supports_compute_shaders: true
+    supports_geometry_shaders: true
     type: gpu
   os:
     name: Windows 10  (10.0.19042) 64bit
@@ -256,3 +256,4 @@ _meta:
           rem:
             - - "@anything:remove"
               - x
+

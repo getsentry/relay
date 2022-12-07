@@ -1,14 +1,15 @@
 //! Common facilities for ingesting events through store-like endpoints.
 
 use std::cell::RefCell;
+use std::fmt::Write;
 use std::rc::Rc;
 
 use actix::prelude::*;
 use actix_web::http::{header, StatusCode};
 use actix_web::middleware::cors::{Cors, CorsBuilder};
 use actix_web::{error::PayloadError, HttpRequest, HttpResponse, ResponseError};
-use failure::Fail;
-use futures::prelude::*;
+use futures::{FutureExt, TryFutureExt};
+use futures01::prelude::*;
 use serde::Deserialize;
 
 use relay_common::{clone, tryf};
@@ -17,114 +18,76 @@ use relay_log::LogError;
 use relay_quotas::RateLimits;
 use relay_statsd::metric;
 
-use crate::actors::envelopes::{
-    EnvelopeContext, EnvelopeManager, QueueEnvelope, QueueEnvelopeError,
-};
 use crate::actors::outcome::{DiscardReason, Outcome};
-use crate::actors::project_cache::{CheckEnvelope, ProjectCache, ProjectError};
-use crate::envelope::{AttachmentType, Envelope, EnvelopeError, ItemType, Items};
+use crate::actors::processor::{EnvelopeProcessor, ProcessMetrics};
+use crate::actors::project_cache::{CheckEnvelope, ProjectCache, ValidateEnvelope};
+use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
 use crate::extractors::RequestMeta;
 use crate::service::{ServiceApp, ServiceState};
 use crate::statsd::RelayCounters;
-use crate::utils::{self, ApiErrorResponse, FormDataIter, MultipartError, SendWithOutcome};
+use crate::utils::{
+    self, ApiErrorResponse, BufferError, BufferGuard, EnvelopeContext, FormDataIter, MultipartError,
+};
 
-#[derive(Fail, Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum BadStoreRequest {
-    #[fail(display = "unsupported protocol version ({})", _0)]
+    #[error("unsupported protocol version ({0})")]
     UnsupportedProtocolVersion(u16),
 
-    #[fail(display = "could not schedule event processing")]
+    #[error("could not schedule event processing")]
     ScheduleFailed,
 
-    #[fail(display = "failed to fetch project information")]
-    ProjectFailed(#[cause] ProjectError),
-
-    #[fail(display = "empty request body")]
+    #[error("empty request body")]
     EmptyBody,
 
-    #[fail(display = "empty envelope")]
+    #[error("empty envelope")]
     EmptyEnvelope,
 
-    #[fail(display = "invalid JSON data")]
-    InvalidJson(#[cause] serde_json::Error),
+    #[error("invalid JSON data")]
+    InvalidJson(#[source] serde_json::Error),
 
-    #[fail(display = "invalid messagepack data")]
-    InvalidMsgpack(#[cause] rmp_serde::decode::Error),
+    #[error("invalid messagepack data")]
+    InvalidMsgpack(#[source] rmp_serde::decode::Error),
 
-    #[fail(display = "invalid event envelope")]
-    InvalidEnvelope(#[cause] EnvelopeError),
+    #[error("invalid event envelope")]
+    InvalidEnvelope(#[source] EnvelopeError),
 
-    #[fail(display = "invalid multipart data")]
-    InvalidMultipart(#[cause] MultipartError),
+    #[error("invalid multipart data")]
+    InvalidMultipart(#[source] MultipartError),
 
-    #[fail(display = "invalid minidump")]
+    #[error("invalid minidump")]
     InvalidMinidump,
 
-    #[fail(display = "missing minidump")]
+    #[error("missing minidump")]
     MissingMinidump,
 
-    #[fail(display = "invalid event id")]
+    #[error("invalid event id")]
     InvalidEventId,
 
-    #[fail(display = "failed to queue envelope")]
-    QueueFailed(#[cause] QueueEnvelopeError),
+    #[error("failed to queue envelope")]
+    QueueFailed(#[from] BufferError),
 
-    #[fail(display = "failed to read request body")]
-    PayloadError(#[cause] PayloadError),
+    #[error("failed to read request body")]
+    PayloadError(#[source] failure::Compat<PayloadError>),
 
-    #[fail(display = "event rejected due to rate limit")]
+    #[error(
+        "Sentry dropped data due to a quota or internal rate limit being reached. This will not affect your application. See https://docs.sentry.io/product/accounts/quotas/ for more information."
+    )]
     RateLimited(RateLimits),
 
-    #[fail(display = "event submission rejected with_reason: {:?}", _0)]
+    #[error("event submission rejected with_reason: {0:?}")]
     EventRejected(DiscardReason),
 }
 
-impl BadStoreRequest {
-    fn to_outcome(&self) -> Option<Outcome> {
-        Some(match self {
-            BadStoreRequest::UnsupportedProtocolVersion(_) => {
-                Outcome::Invalid(DiscardReason::AuthVersion)
-            }
-
-            BadStoreRequest::EmptyBody => Outcome::Invalid(DiscardReason::NoData),
-            BadStoreRequest::EmptyEnvelope => Outcome::Invalid(DiscardReason::EmptyEnvelope),
-            BadStoreRequest::InvalidJson(_) => Outcome::Invalid(DiscardReason::InvalidJson),
-            BadStoreRequest::InvalidMsgpack(_) => Outcome::Invalid(DiscardReason::InvalidMsgpack),
-            BadStoreRequest::InvalidMultipart(_) => {
-                Outcome::Invalid(DiscardReason::InvalidMultipart)
-            }
-            BadStoreRequest::InvalidMinidump => Outcome::Invalid(DiscardReason::InvalidMinidump),
-            BadStoreRequest::MissingMinidump => {
-                Outcome::Invalid(DiscardReason::MissingMinidumpUpload)
-            }
-            BadStoreRequest::InvalidEnvelope(_) => Outcome::Invalid(DiscardReason::InvalidEnvelope),
-
-            BadStoreRequest::QueueFailed(event_error) => match event_error {
-                QueueEnvelopeError::TooManyEnvelopes => Outcome::Invalid(DiscardReason::Internal),
-            },
-            BadStoreRequest::ProjectFailed(project_error) => match project_error {
-                ProjectError::FetchFailed => Outcome::Invalid(DiscardReason::ProjectState),
-                _ => Outcome::Invalid(DiscardReason::Internal),
-            },
-            BadStoreRequest::PayloadError(payload_error) => match payload_error {
-                PayloadError::Overflow => Outcome::Invalid(DiscardReason::TooLarge),
-                _ => Outcome::Invalid(DiscardReason::Payload),
-            },
-
-            // should actually never create an outcome
-            BadStoreRequest::InvalidEventId => Outcome::Invalid(DiscardReason::Internal),
-
-            // Outcomes emitted at the source
-            BadStoreRequest::EventRejected(_) => return None,
-            BadStoreRequest::RateLimited(_) => return None,
-            BadStoreRequest::ScheduleFailed => return None,
-        })
+impl From<PayloadError> for BadStoreRequest {
+    fn from(error: PayloadError) -> Self {
+        Self::PayloadError(failure::Fail::compat(error))
     }
 }
 
 impl ResponseError for BadStoreRequest {
     fn error_response(&self) -> HttpResponse {
-        let body = ApiErrorResponse::from_fail(self);
+        let body = ApiErrorResponse::from_error(self);
 
         match self {
             BadStoreRequest::RateLimited(rate_limits) => {
@@ -143,15 +106,6 @@ impl ResponseError for BadStoreRequest {
                     .header(utils::RATE_LIMITS_HEADER, rate_limits_header)
                     .json(&body)
             }
-            BadStoreRequest::ProjectFailed(project_error) => match project_error {
-                ProjectError::FetchFailed => {
-                    // This particular project is somehow broken. We could treat this as 503 but it's
-                    // more likely that the error is local to this project.
-                    HttpResponse::InternalServerError().json(&body)
-                }
-                ProjectError::ScheduleFailed => HttpResponse::ServiceUnavailable().json(&body),
-            },
-
             BadStoreRequest::ScheduleFailed | BadStoreRequest::QueueFailed(_) => {
                 // These errors indicate that something's wrong with our actor system, most likely
                 // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
@@ -164,7 +118,7 @@ impl ResponseError for BadStoreRequest {
                 // now executed asynchronously in `EnvelopeProcessor`.
                 HttpResponse::Forbidden().json(&body)
             }
-            BadStoreRequest::PayloadError(PayloadError::Overflow) => {
+            BadStoreRequest::PayloadError(e) if matches!(e.get_ref(), PayloadError::Overflow) => {
                 HttpResponse::PayloadTooLarge().json(&body)
             }
             _ => {
@@ -255,7 +209,7 @@ pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreReq
 
     if let Some(item) = items
         .iter()
-        .find(|item| item.attachment_type() == Some(AttachmentType::EventPayload))
+        .find(|item| item.attachment_type() == Some(&AttachmentType::EventPayload))
     {
         if let Some(event_id) = event_id_from_msgpack(&item.payload())? {
             return Ok(Some(event_id));
@@ -306,13 +260,76 @@ pub fn cors(app: ServiceApp) -> CorsBuilder<ServiceState> {
     builder
 }
 
+/// Queues an envelope for processing.
+///
+/// Depending on the items in the envelope, there are multiple outcomes:
+///
+/// - Events and event related items, such as attachments, are always queued together. See the
+///   [crate-level documentation](crate) for a full description of how envelopes are
+///   queued and processed.
+/// - Sessions and Session batches are always queued separately. If they occur in the same envelope
+///   as an event, they are split off. Their path is the same as other Envelopes.
+/// - Metrics are directly sent to the [`EnvelopeProcessor`], bypassing the manager's queue and
+///   going straight into metrics aggregation. See [`ProcessMetrics`] for a full description.
+///
+/// Queueing can fail if the queue exceeds `envelope_buffer_size`. In this case, `Err` is
+/// returned and the envelope is not queued.
+fn queue_envelope(
+    mut envelope: Envelope,
+    mut envelope_context: EnvelopeContext,
+    buffer_guard: &BufferGuard,
+) -> Result<(), BadStoreRequest> {
+    // Remove metrics from the envelope and queue them directly on the project's `Aggregator`.
+    let mut metric_items = Vec::new();
+    let is_metric = |i: &Item| matches!(i.ty(), ItemType::Metrics | ItemType::MetricBuckets);
+    while let Some(item) = envelope.take_item_by(is_metric) {
+        metric_items.push(item);
+    }
+
+    if !metric_items.is_empty() {
+        relay_log::trace!("sending metrics into processing queue");
+        EnvelopeProcessor::from_registry().send(ProcessMetrics {
+            items: metric_items,
+            project_key: envelope.meta().public_key(),
+            start_time: envelope.meta().start_time(),
+            sent_at: envelope.sent_at(),
+        });
+    }
+
+    // Split the envelope into event-related items and other items. This allows to fast-track:
+    //  1. Envelopes with only session items. They only require rate limiting.
+    //  2. Event envelope processing can bail out if the event is filtered or rate limited,
+    //     since all items depend on this event.
+    if let Some(event_envelope) = envelope.split_by(Item::requires_event) {
+        relay_log::trace!("queueing separate envelope for non-event items");
+
+        // The envelope has been split, so we need to fork the context.
+        let event_context = buffer_guard.enter(&event_envelope)?;
+
+        // Update the old context after successful forking.
+        envelope_context.update(&envelope);
+        ProjectCache::from_registry().send(ValidateEnvelope::new(event_envelope, event_context));
+    }
+
+    if envelope.is_empty() {
+        // The envelope can be empty here if it contained only metrics items which were removed
+        // above. In this case, the envelope was accepted and needs no further queueing.
+        envelope_context.accept();
+    } else {
+        relay_log::trace!("queueing envelope");
+        ProjectCache::from_registry().send(ValidateEnvelope::new(envelope, envelope_context));
+    }
+
+    Ok(())
+}
+
 /// Handles Sentry events.
 ///
-/// Sentry events may come either directly from a http request ( the store endpoint calls this
+/// Sentry events may come either directly from an HTTP request (the store endpoint calls this
 /// method directly) or are generated inside Relay from requests to other endpoints (e.g. the
-/// security endpoint)
+/// security endpoint).
 ///
-/// If store_event receives a non empty store_body it will use it as the body of the event otherwise
+/// If store_event receives a non-empty store_body it will use it as the body of the event otherwise
 /// it will try to create a store_body from the request.
 pub fn handle_store_like_request<F, R, I>(
     meta: RequestMeta,
@@ -338,98 +355,62 @@ where
         version = &format!("{}", version)
     );
 
-    let project_key = meta.public_key();
-    let start_time = meta.start_time();
+    let buffer_guard = request.state().buffer_guard();
     let config = request.state().config();
-
-    let envelope_context = Rc::new(RefCell::new(EnvelopeContext::from_request(&meta)));
+    let event_id = Rc::new(RefCell::new(None));
 
     let future = extract_envelope(&request, meta)
         .into_future()
-        .and_then(clone!(config, envelope_context, |mut envelope| {
-            envelope_context.borrow_mut().update(&envelope);
+        .and_then(clone!(config, event_id, |mut envelope| {
+            *event_id.borrow_mut() = envelope.event_id();
 
             // If configured, remove unknown items at the very beginning. If the envelope is
             // empty, we fail the request with a special control flow error to skip checks and
             // queueing, that still results in a `200 OK` response.
             utils::remove_unknown_items(&config, &mut envelope);
 
+            let mut envelope_context = request
+                .state()
+                .buffer_guard()
+                .enter(&envelope)
+                .map_err(BadStoreRequest::QueueFailed)?;
+
             if envelope.is_empty() {
-                // envelope is empty, cannot send outcomes
+                envelope_context.reject(Outcome::Invalid(DiscardReason::EmptyEnvelope));
                 Err(BadStoreRequest::EmptyEnvelope)
             } else {
-                Ok(envelope)
+                Ok((envelope, envelope_context))
             }
         }))
-        .and_then(clone!(envelope_context, |envelope| {
+        .and_then(move |(envelope, envelope_context)| {
             ProjectCache::from_registry()
-                .send_tracked(
-                    CheckEnvelope::cached(project_key, envelope),
-                    *envelope_context.clone().borrow(),
-                )
+                .send(CheckEnvelope::new(envelope, envelope_context))
+                .boxed_local()
+                .compat()
                 .map_err(|_| BadStoreRequest::ScheduleFailed)
-                .and_then(|result| result.map_err(BadStoreRequest::ProjectFailed))
-                .map_err(move |err| {
-                    if let Some(outcome) = err.to_outcome() {
-                        envelope_context.borrow().send_outcomes(outcome);
-                    }
-                    err
-                })
-        }))
-        .and_then(clone!(envelope_context, |response| {
-            let mut envelope_context = envelope_context.borrow_mut();
-            envelope_context.scope(response.scoping);
+        })
+        .and_then(move |response| {
+            let checked = response.map_err(BadStoreRequest::EventRejected)?;
 
-            let checked = response.result.map_err(|reason| {
-                envelope_context.send_outcomes(Outcome::Invalid(reason));
-                BadStoreRequest::EventRejected(reason)
-            })?;
+            if let Some((envelope, mut envelope_context)) = checked.envelope {
+                if !utils::check_envelope_size_limits(&config, &envelope) {
+                    envelope_context.reject(Outcome::Invalid(DiscardReason::TooLarge));
+                    return Err(PayloadError::Overflow.into());
+                }
 
-            // Skip over queuing and issue a rate limit right away
-            let envelope = match checked.envelope {
-                Some(envelope) => envelope,
-                // rate limit outcome logged by CheckEnvelope already
-                None => return Err(BadStoreRequest::RateLimited(checked.rate_limits)),
-            };
+                let event_id = envelope.event_id();
+                queue_envelope(envelope, envelope_context, &buffer_guard)?;
 
-            envelope_context.update(&envelope);
-            if utils::check_envelope_size_limits(&config, &envelope) {
-                Ok((envelope, checked.rate_limits))
-            } else {
-                envelope_context.send_outcomes(Outcome::Invalid(DiscardReason::TooLarge));
-                Err(BadStoreRequest::PayloadError(PayloadError::Overflow))
+                if !checked.rate_limits.is_limited() {
+                    return Ok(create_response(event_id));
+                }
             }
-        }))
-        .and_then(clone!(envelope_context, |(envelope, rate_limits)| {
-            let message = QueueEnvelope {
-                envelope,
-                project_key,
-                start_time,
-            };
 
-            EnvelopeManager::from_registry()
-                .send_tracked(message, *envelope_context.clone().borrow())
-                .map_err(|_| BadStoreRequest::ScheduleFailed)
-                .and_then(|result| result.map_err(BadStoreRequest::QueueFailed))
-                .map_err(move |err| {
-                    if let Some(outcome) = err.to_outcome() {
-                        // TODO: Move this into Handler<QueueEnvelope>
-                        envelope_context.borrow().send_outcomes(outcome)
-                    }
-                    err
-                })
-                .map(move |event_id| (event_id, rate_limits))
-        }))
-        .and_then(move |(event_id, rate_limits)| {
-            if rate_limits.is_limited() {
-                Err(BadStoreRequest::RateLimited(rate_limits))
-            } else {
-                Ok(create_response(event_id))
-            }
+            Err(BadStoreRequest::RateLimited(checked.rate_limits))
         })
         .or_else(move |error: BadStoreRequest| {
             metric!(counter(RelayCounters::EnvelopeRejected) += 1);
-            let event_id = envelope_context.borrow().event_id();
+            let event_id = *event_id.borrow();
 
             if !emit_rate_limit && matches!(error, BadStoreRequest::RateLimited(_)) {
                 return Ok(create_response(event_id));
@@ -472,11 +453,12 @@ pub fn normpath(route: &str) -> String {
     let mut pattern = String::new();
     for (i, segment) in route.trim_matches('/').split('/').enumerate() {
         // Apparently the leading slash needs to be explicit and cannot be part of a pattern
-        pattern.push_str(&format!(
+        let _ = write!(
+            pattern,
             "/{{multislash{i}:/*}}{segment}",
             i = i,
             segment = segment
-        ));
+        );
     }
 
     if route.ends_with('/') {

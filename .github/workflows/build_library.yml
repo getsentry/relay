@@ -5,25 +5,29 @@ on:
     branches:
       - release-library/**
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   linux:
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         build-arch:
-          - manylinux2010_i686
-          - manylinux2010_x86_64
-          - manylinux2014_aarch64
+          - i686
+          - x86_64
+          - aarch64
 
     name: Python Linux ${{ matrix.build-arch }}
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
 
-      - if: matrix.build-arch == 'manylinux2014_aarch64'
+      - if: matrix.build-arch == 'aarch64'
         uses: docker/setup-qemu-action@v1
         with:
           platforms: arm64
@@ -31,9 +35,9 @@ jobs:
       - name: Build in Docker
         run: scripts/docker-manylinux.sh
         env:
-          BUILD_ARCH: ${{ matrix.build-arch }}
+          TARGET: ${{ matrix.build-arch }}
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           name: ${{ github.sha }}
           path: py/dist/*
@@ -43,18 +47,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - macos-version: "10.15"
+          - macos-version: "macos-10.15"
             target: x86_64-apple-darwin
             py-platform: macosx-10_15_x86_64
-          - macos-version: "11.0"
+          - macos-version: "macos-11.0"
             target: aarch64-apple-darwin
             py-platform: macosx-11_0_arm64
 
     name: Python macOS ${{ matrix.py-platform }}
-    runs-on: macos-${{ matrix.macos-version }}
+    runs-on: ${{ matrix.macos-version }}
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
 
@@ -65,9 +69,9 @@ jobs:
           profile: minimal
           override: true
 
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v4
         with:
-          python-version: 3.7
+          python-version: 3.8
 
       - name: Build Wheel
         run: |
@@ -78,7 +82,7 @@ jobs:
           # consumed by cargo and setup.py to obtain the target dir
           CARGO_BUILD_TARGET: ${{ matrix.target }}
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           name: ${{ github.sha }}
           path: py/dist/*
@@ -88,19 +92,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
 
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v4
         with:
-          python-version: 3.7
+          python-version: 3.8
 
       - name: Build sdist
         run: python setup.py sdist --format=zip
         working-directory: py
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           name: ${{ github.sha }}
           path: py/dist/*

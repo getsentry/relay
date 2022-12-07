@@ -72,6 +72,14 @@ impl Measurements {
     pub fn into_inner(self) -> Object<Measurement> {
         self.0
     }
+
+    /// Return the value of the measurement with the given name, if it exists.
+    pub fn get_value(&self, key: &str) -> Option<f64> {
+        self.get(key)
+            .and_then(Annotated::value)
+            .and_then(|x| x.value.value())
+            .copied()
+    }
 }
 
 impl FromValue for Measurements {
@@ -93,7 +101,7 @@ impl FromValue for Measurements {
                         return Some((name.to_lowercase(), object));
                     } else {
                         processing_errors.push(Error::invalid(format!(
-                            "measurement name '{}' can contain only characters a-z0-9.-_",
+                            "measurement name '{}' can contain only characters a-z0-9._",
                             name
                         )));
                     }
@@ -131,19 +139,26 @@ fn is_valid_measurement_name(name: &str) -> bool {
     name.starts_with(|c| matches!(c, 'a'..='z' | 'A'..='Z'))
         && name
             .chars()
-            .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '.'))
+            .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '.'))
 }
 
-#[test]
-fn test_measurements_serialization() {
-    use crate::protocol::Event;
+#[cfg(test)]
+mod tests {
     use relay_common::DurationUnit;
+    use similar_asserts::assert_eq;
 
-    let input = r#"{
+    use crate::protocol::Event;
+
+    use super::*;
+
+    #[test]
+    fn test_measurements_serialization() {
+        let input = r#"{
     "measurements": {
         "LCP": {"value": 420.69, "unit": "millisecond"},
         "   lcp_final.element-Size123  ": {"value": 1},
         "fid": {"value": 2020},
+        "inp": {"value": 100.14},
         "cls": {"value": null},
         "fp": {"value": "im a first paint"},
         "Total Blocking Time": {"value": 3.14159},
@@ -152,7 +167,7 @@ fn test_measurements_serialization() {
     }
 }"#;
 
-    let output = r#"{
+        let output = r#"{
   "measurements": {
     "cls": {
       "value": null
@@ -163,12 +178,12 @@ fn test_measurements_serialization() {
     "fp": {
       "value": null
     },
+    "inp": {
+      "value": 100.14
+    },
     "lcp": {
       "value": 420.69,
       "unit": "millisecond"
-    },
-    "lcp_final.element-size123": {
-      "value": 1.0
     },
     "missing_value": null
   },
@@ -185,7 +200,13 @@ fn test_measurements_serialization() {
           [
             "invalid_data",
             {
-              "reason": "measurement name 'Total Blocking Time' can contain only characters a-z0-9.-_"
+              "reason": "measurement name 'lcp_final.element-Size123' can contain only characters a-z0-9._"
+            }
+          ],
+          [
+            "invalid_data",
+            {
+              "reason": "measurement name 'Total Blocking Time' can contain only characters a-z0-9._"
             }
           ]
         ]
@@ -222,68 +243,73 @@ fn test_measurements_serialization() {
   }
 }"#;
 
-    let mut measurements = Annotated::new(Measurements({
-        let mut measurements = Object::new();
-        measurements.insert(
-            "cls".to_owned(),
-            Annotated::new(Measurement {
-                value: Annotated::empty(),
-                unit: Annotated::empty(),
-            }),
-        );
-        measurements.insert(
-            "lcp".to_owned(),
-            Annotated::new(Measurement {
-                value: Annotated::new(420.69),
-                unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
-            }),
-        );
-        measurements.insert(
-            "lcp_final.element-size123".to_owned(),
-            Annotated::new(Measurement {
-                value: Annotated::new(1f64),
-                unit: Annotated::empty(),
-            }),
-        );
-        measurements.insert(
-            "fid".to_owned(),
-            Annotated::new(Measurement {
-                value: Annotated::new(2020f64),
-                unit: Annotated::empty(),
-            }),
-        );
-        measurements.insert(
-            "fp".to_owned(),
-            Annotated::new(Measurement {
-                value: Annotated::from_error(
-                    Error::expected("a floating point number"),
-                    Some("im a first paint".into()),
-                ),
-                unit: Annotated::empty(),
-            }),
-        );
+        let mut measurements = Annotated::new(Measurements({
+            let mut measurements = Object::new();
+            measurements.insert(
+                "cls".to_owned(),
+                Annotated::new(Measurement {
+                    value: Annotated::empty(),
+                    unit: Annotated::empty(),
+                }),
+            );
+            measurements.insert(
+                "lcp".to_owned(),
+                Annotated::new(Measurement {
+                    value: Annotated::new(420.69),
+                    unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
+                }),
+            );
+            measurements.insert(
+                "fid".to_owned(),
+                Annotated::new(Measurement {
+                    value: Annotated::new(2020f64),
+                    unit: Annotated::empty(),
+                }),
+            );
+            measurements.insert(
+                "inp".to_owned(),
+                Annotated::new(Measurement {
+                    value: Annotated::new(100.14),
+                    unit: Annotated::empty(),
+                }),
+            );
+            measurements.insert(
+                "fp".to_owned(),
+                Annotated::new(Measurement {
+                    value: Annotated::from_error(
+                        Error::expected("a floating point number"),
+                        Some("im a first paint".into()),
+                    ),
+                    unit: Annotated::empty(),
+                }),
+            );
 
-        measurements.insert(
-            "missing_value".to_owned(),
-            Annotated::from_error(Error::expected("measurement"), Some("string".into())),
-        );
+            measurements.insert(
+                "missing_value".to_owned(),
+                Annotated::from_error(Error::expected("measurement"), Some("string".into())),
+            );
 
-        measurements
-    }));
+            measurements
+        }));
 
-    let measurements_meta = measurements.meta_mut();
+        let measurements_meta = measurements.meta_mut();
 
-    measurements_meta.add_error(Error::invalid("measurement name '' cannot be empty"));
+        measurements_meta.add_error(Error::invalid("measurement name '' cannot be empty"));
 
-    measurements_meta.add_error(Error::invalid(
-        "measurement name 'Total Blocking Time' can contain only characters a-z0-9.-_",
-    ));
+        measurements_meta.add_error(Error::invalid(
+            "measurement name 'lcp_final.element-Size123' can contain only characters a-z0-9._",
+        ));
 
-    let event = Annotated::new(Event {
-        measurements,
-        ..Default::default()
-    });
+        measurements_meta.add_error(Error::invalid(
+            "measurement name 'Total Blocking Time' can contain only characters a-z0-9._",
+        ));
 
-    assert_eq_dbg!(event, Annotated::from_json(input).unwrap());
-    assert_eq_str!(event.to_json_pretty().unwrap(), output);
+        let event = Annotated::new(Event {
+            measurements,
+            ..Default::default()
+        });
+
+        assert_eq!(event, Annotated::from_json(input).unwrap());
+        assert_eq!(event.to_json_pretty().unwrap(), output);
+    }
 }

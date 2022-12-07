@@ -174,41 +174,37 @@ where
     }
 }
 
-#[test]
-fn test_chunk_split() {
-    let remarks = vec![Remark::with_range(
-        RemarkType::Masked,
-        "@email:strip",
-        (33, 47),
-    )];
+#[cfg(test)]
+mod tests {
+    use similar_asserts::assert_eq;
 
-    let chunks = vec![
-        Chunk::Text {
-            text: "Hello Peter, my email address is ".into(),
-        },
-        Chunk::Redaction {
-            ty: RemarkType::Masked,
-            text: "****@*****.com".into(),
-            rule_id: "@email:strip".into(),
-        },
-        Chunk::Text {
-            text: ". See you".into(),
-        },
-    ];
+    use super::*;
 
-    assert_eq_dbg!(
-        split_chunks(
-            "Hello Peter, my email address is ****@*****.com. See you",
-            &remarks,
-        ),
-        chunks
-    );
+    #[test]
+    fn test_chunk_split() {
+        let remarks = vec![Remark::with_range(
+            RemarkType::Masked,
+            "@email:strip",
+            (33, 47),
+        )];
 
-    assert_eq_dbg!(
-        join_chunks(chunks),
-        (
-            "Hello Peter, my email address is ****@*****.com. See you".into(),
-            remarks
-        )
-    );
+        let text = "Hello Peter, my email address is ****@*****.com. See you";
+
+        let chunks = vec![
+            Chunk::Text {
+                text: "Hello Peter, my email address is ".into(),
+            },
+            Chunk::Redaction {
+                ty: RemarkType::Masked,
+                text: "****@*****.com".into(),
+                rule_id: "@email:strip".into(),
+            },
+            Chunk::Text {
+                text: ". See you".into(),
+            },
+        ];
+
+        assert_eq!(split_chunks(text, &remarks), chunks);
+        assert_eq!(join_chunks(chunks), (text.into(), remarks));
+    }
 }

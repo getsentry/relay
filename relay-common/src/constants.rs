@@ -8,6 +8,8 @@ use std::str::FromStr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::macros::impl_str_serde;
+
 /// The type of an event.
 ///
 /// The event type determines how Sentry handles the event and has an impact on processing, rate
@@ -92,7 +94,7 @@ impl fmt::Display for EventType {
 
 /// Classifies the type of data that is being ingested.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 #[repr(i8)]
 pub enum DataCategory {
     /// Reserved and unused.
@@ -109,6 +111,23 @@ pub enum DataCategory {
     Session = 5,
     /// A profile
     Profile = 6,
+    /// Session Replays
+    Replay = 7,
+    /// DEPRECATED: A transaction for which metrics were extracted.
+    ///
+    /// This category is now obsolete because the `Transaction` variant will represent
+    /// processed transactions from now on.
+    TransactionProcessed = 8,
+    /// Indexed transaction events.
+    ///
+    /// This is the category for transaction payloads that were accepted and stored in full. In
+    /// contrast, `transaction` only guarantees that metrics have been accepted for the transaction.
+    TransactionIndexed = 9,
+    //
+    // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
+    // `make header` to regenerate the C-binding. This allows using the data category from Python.
+    // Rerun this step every time the **code name** of the variant is updated.
+    //
     /// Any other data category not known by this Relay.
     #[serde(other)]
     Unknown = -1,
@@ -117,6 +136,7 @@ pub enum DataCategory {
 impl DataCategory {
     /// Returns the data category corresponding to the given name.
     pub fn from_name(string: &str) -> Self {
+        // TODO: This should probably use serde.
         match string {
             "default" => Self::Default,
             "error" => Self::Error,
@@ -125,12 +145,16 @@ impl DataCategory {
             "attachment" => Self::Attachment,
             "session" => Self::Session,
             "profile" => Self::Profile,
+            "replay" => Self::Replay,
+            "transaction_processed" => Self::TransactionProcessed,
+            "transaction_indexed" => Self::TransactionIndexed,
             _ => Self::Unknown,
         }
     }
 
     /// Returns the canonical name of this data category.
     pub fn name(self) -> &'static str {
+        // TODO: This should probably use serde.
         match self {
             Self::Default => "default",
             Self::Error => "error",
@@ -139,6 +163,9 @@ impl DataCategory {
             Self::Attachment => "attachment",
             Self::Session => "session",
             Self::Profile => "profile",
+            Self::Replay => "replay",
+            Self::TransactionProcessed => "transaction_processed",
+            Self::TransactionIndexed => "transaction_indexed",
             Self::Unknown => "unknown",
         }
     }
@@ -153,6 +180,16 @@ impl DataCategory {
         // negative values (Internal and Unknown) cannot be sent as
         // outcomes (internally so!)
         (self as i8).try_into().ok()
+    }
+
+    /// Returns a dedicated category for indexing if this data can be converted to metrics.
+    ///
+    /// This returns `None` for most data categories.
+    pub fn index_category(self) -> Option<Self> {
+        match self {
+            Self::Transaction => Some(Self::TransactionIndexed),
+            _ => None,
+        }
     }
 }
 
@@ -474,19 +511,22 @@ impl fmt::Display for FractionUnit {
     }
 }
 
+const CUSTOM_UNIT_MAX_SIZE: usize = 15;
+
 /// Custom user-defined units without builtin conversion.
 #[derive(Clone, Copy, Eq, PartialEq, Hash)]
-pub struct CustomUnit([u8; 15]);
+pub struct CustomUnit([u8; CUSTOM_UNIT_MAX_SIZE]);
 
 impl CustomUnit {
     /// Parses a `CustomUnit` from a string.
     pub fn parse(s: &str) -> Result<Self, ParseMetricUnitError> {
-        if s.len() > 15 || !s.is_ascii() {
+        if !s.is_ascii() {
             return Err(ParseMetricUnitError(()));
         }
 
-        let mut unit = Self(Default::default());
-        unit.0.copy_from_slice(s.as_bytes());
+        let mut unit = Self([0; CUSTOM_UNIT_MAX_SIZE]);
+        let slice = unit.0.get_mut(..s.len()).ok_or(ParseMetricUnitError(()))?;
+        slice.copy_from_slice(s.as_bytes());
         unit.0.make_ascii_lowercase();
         Ok(unit)
     }
@@ -494,9 +534,9 @@ impl CustomUnit {
     /// Returns the string representation of this unit.
     #[inline]
     pub fn as_str(&self) -> &str {
-        // Safety: The string is already validated to be of length 32 and valid ASCII when
-        // constructing `ProjectKey`.
-        unsafe { std::str::from_utf8_unchecked(&self.0) }
+        // Safety: The string is already validated to be valid ASCII when
+        // parsing `CustomUnit`.
+        unsafe { std::str::from_utf8_unchecked(&self.0).trim_end_matches('\0') }
     }
 }
 
@@ -622,5 +662,23 @@ impl schemars::JsonSchema for MetricUnit {
 
     fn json_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
         String::json_schema(gen)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::CustomUnit;
+
+    #[test]
+    fn test_custom_unit_parse() {
+        assert_eq!("foo", CustomUnit::parse("Foo").unwrap().as_str());
+        assert_eq!(
+            "0123456789abcde",
+            CustomUnit::parse("0123456789abcde").unwrap().as_str()
+        );
+        assert!(matches!(
+            CustomUnit::parse("this_is_a_unit_that_is_too_long"),
+            Err(_)
+        ));
     }
 }

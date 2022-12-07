@@ -7,7 +7,7 @@ use actix_web::{HttpMessage, HttpRequest};
 use brotli2::write::BrotliDecoder;
 use bytes::Bytes;
 use flate2::write::{GzDecoder, ZlibDecoder};
-use futures::{Async, Poll, Stream};
+use futures01::{Async, Poll, Stream};
 use relay_config::HttpEncoding;
 
 use crate::extractors::SharedPayload;

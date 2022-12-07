@@ -10,27 +10,26 @@ on:
   pull_request:
 
 env:
-  RUSTFLAGS: -Dwarnings
+  CARGO_TERM_COLOR: always
 
 jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    timeout-minutes: 25
 
     steps:
       - name: Install libcurl-dev
         run: |
-          sudo apt update
+          sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
 
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v4
         with:
-          python-version: 3.7
+          python-version: 3.8
 
       - name: Install Dependencies
         run: pip install -U -r requirements-dev.txt
@@ -48,7 +47,7 @@ jobs:
           components: clippy, rustfmt, rust-docs
           override: true
 
-      - uses: swatinem/rust-cache@v1
+      - uses: swatinem/rust-cache@v2
         with:
           key: ${{ github.job }}
 
@@ -62,18 +61,49 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: --workspace --all-features --tests -- -D clippy::all
+          args: --workspace --all-targets --all-features --no-deps -- -D warnings
 
-      - name: Rust Doc Comments
+      - name: Check Docs
         uses: actions-rs/cargo@v1
         env:
           RUSTDOCFLAGS: -Dwarnings
         with:
           command: doc
-          args: --workspace --all-features --document-private-items --no-deps
+          args: --workspace --all-features --no-deps --document-private-items
+
+  lint_default:
+    name: Lint Rust Default Features
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install libcurl-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev
+
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          components: clippy
+          override: true
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          key: ${{ github.job }}
+
+      - name: Run Clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --workspace --all-targets --no-deps -- -D warnings
 
   test:
-    timeout-minutes: 25
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -86,7 +116,7 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
 
@@ -96,18 +126,20 @@ jobs:
           profile: minimal
           override: true
 
-      - uses: swatinem/rust-cache@v1
+      - uses: swatinem/rust-cache@v2
         with:
           key: ${{ github.job }}
 
       - name: Run Cargo Tests
         uses: actions-rs/cargo@v1
+        env:
+          RUSTFLAGS: -Dwarnings
         with:
           command: test
           args: --workspace
 
   test_all:
-    timeout-minutes: 25
+    timeout-minutes: 15
     name: Test All Features (ubuntu-latest)
     runs-on: ubuntu-latest
 
@@ -128,10 +160,10 @@ jobs:
     steps:
       - name: Install libcurl-dev
         run: |
-          sudo apt update
+          sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
 
@@ -141,7 +173,7 @@ jobs:
           profile: minimal
           override: true
 
-      - uses: swatinem/rust-cache@v1
+      - uses: swatinem/rust-cache@v2
         with:
           key: ${{ github.job }}
 
@@ -152,11 +184,10 @@ jobs:
           args: --workspace --all-features
 
   test_py:
-    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.7]
+        python-version: [3.8]
 
     # Skip redundant checks for binary releases
     if: "!startsWith(github.ref, 'refs/heads/release/')"
@@ -165,7 +196,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
 
@@ -175,14 +206,14 @@ jobs:
           profile: minimal
           override: true
 
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Install Dependencies
         run: pip install -U pytest
 
-      - uses: swatinem/rust-cache@v1
+      - uses: swatinem/rust-cache@v2
         with:
           key: ${{ github.job }}
 
@@ -197,7 +228,7 @@ jobs:
   test_integration:
     name: Integration Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
@@ -229,10 +260,10 @@ jobs:
     steps:
       - name: Install libcurl-dev
         run: |
-          sudo apt update
+          sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
 
@@ -242,7 +273,7 @@ jobs:
           profile: minimal
           override: true
 
-      - uses: swatinem/rust-cache@v1
+      - uses: swatinem/rust-cache@v2
         with:
           key: ${{ github.job }}
 
@@ -252,9 +283,9 @@ jobs:
           command: build
           args: --all-features
 
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v4
         with:
-          python-version: 3.7
+          python-version: 3.8
 
       - name: Install dependencies
         run: pip install -U -r requirements-dev.txt
@@ -269,15 +300,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
+    # Skip redundant checks for library releases
+    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
+
     steps:
       - name: Checkout Relay
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           submodules: recursive
 
       # Checkout Sentry and run integration tests against latest Relay
       - name: Checkout Sentry
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           repository: getsentry/sentry
           path: sentry
@@ -288,11 +322,10 @@ jobs:
           # GITHUB_SHA in pull requests points to the merge commit
           RELAY_TEST_IMAGE=us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }}
           echo "We expected GCB to push this image $RELAY_TEST_IMAGE"
-          echo "::set-output name=relay-test-image::$RELAY_TEST_IMAGE"
+          echo "relay-test-image=$RELAY_TEST_IMAGE" >> "$GITHUB_OUTPUT"
           # We cannot execute actions that are not placed under .github of the main repo
           mkdir -p .github/actions
           cp -r sentry/.github/actions/setup-sentry .github/actions/
-          cp -r sentry/.github/actions/setup-python .github/actions/
 
       - name: Setup Sentry
         uses: ./.github/actions/setup-sentry
@@ -326,3 +359,42 @@ jobs:
         run: |
           echo "Testing against ${RELAY_TEST_IMAGE}"
           make test-relay-integration
+
+
+  self-hosted-end-to-end:
+    needs: []
+    runs-on: ubuntu-latest
+    # temporary, remove once we are confident the action is working
+    continue-on-error: true
+
+    steps:
+      # TODO: move image build to its own step once we can push them
+      - name: Checkout Relay
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      - name: Try pulling Relay images
+        shell: bash
+        # We don't need these but they might make things faster
+        continue-on-error: true
+        run: |
+          docker pull us.gcr.io/getsentry/relay:nightly
+          docker pull us.gcr.io/getsentry/relay:deps
+      - name: Build Relay first stage
+        run: |
+          docker build --target relay-deps -t ghcr.io/getsentry/relay:deps \
+            --cache-from us.gcr.io/getsentry/relay:deps \
+            .
+      - name: Build Relay final image
+        run: |
+          docker build -t ghcr.io/getsentry/relay:nightly -t ghcr.io/getsentry/relay:${{ github.sha }} \
+            --cache-from us.gcr.io/$PROJECT_ID/relay:deps \
+            --cache-from us.gcr.io/$PROJECT_ID/relay:nightly \
+            .
+      # TODO: push the image here
+      - name: Run Sentry self-hosted e2e CI
+        uses: getsentry/action-self-hosted-e2e-tests@5bbd3d6725bbe4bf5cc12f8a3291ce87df6a891f
+        with:
+          project_name: relay
+          local_image: ghcr.io/getsentry/relay:${{ github.sha }}
+          docker_repo: ghcr.io/getsentry/relay

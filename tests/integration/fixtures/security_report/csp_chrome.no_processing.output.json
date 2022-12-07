@@ -1,5 +1,17 @@
 {
   "type": "csp",
+  "contexts": {
+    "browser": {
+      "name": "Chrome",
+      "type": "browser",
+      "version": "74.0.3729"
+    },
+    "client_os": {
+      "name": "Windows",
+      "type": "os",
+      "version": "10"
+    }
+  },
   "csp": {
     "blocked_uri": "http://localhost:8000/lol.css",
     "document_uri": "http://localhost:8000/",
@@ -14,18 +26,20 @@
   "logentry": {
     "formatted": "Blocked 'style' from 'localhost:8000'"
   },
+  "logger": "csp",
   "release": "01d5c3165d9fbc5c8bdcf9550a1d6793a80fc02b",
   "request": {
+    "headers": [
+      [
+        "User-Agent",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36"
+      ]
+    ],
     "url": "http://localhost:8000/"
   },
   "tags": [
-    [
-      "effective-directive",
-      "style-src"
-    ],
-    [
-      "blocked-uri",
-      "http://localhost:8000/lol.css"
-    ]
-  ]
+    ["effective-directive", "style-src"],
+    ["blocked-uri", "http://localhost:8000/lol.css"]
+  ],
+  "user": { "ip_address": "127.0.0.1" }
 }

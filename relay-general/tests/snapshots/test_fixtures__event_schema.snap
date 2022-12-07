@@ -1,6 +1,6 @@
 ---
 source: relay-general/tests/test_fixtures.rs
-expression: event_json_schema()
+expression: "relay_general::protocol::event_json_schema()"
 ---
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
@@ -347,6 +347,18 @@ expression: event_json_schema()
             "null"
           ]
         },
+        "transaction_info": {
+          "description": " Additional information about the name of the transaction.",
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/TransactionInfo"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "type": {
           "description": " Type of the event. Defaults to `default`.\n\n The event type determines how Sentry handles the event and has an impact on processing, rate\n limiting, and quotas. There are three fundamental classes of event types:\n\n  - **Error monitoring events**: Processed and grouped into unique issues based on their\n    exception stack traces and error messages.\n  - **Security events**: Derived from Browser security violation reports and grouped into\n    unique issues based on the endpoint and violation. SDKs do not send such events.\n  - **Transaction events** (`transaction`): Contain operation spans and collected into traces\n    for performance monitoring.\n\n Transactions must explicitly specify the `\"transaction\"` event type. In all other cases,\n Sentry infers the appropriate event type from the payload and overrides the stated type.\n SDKs should not send an event type other than for transactions.\n\n Example:\n\n ```json\n {\n   \"type\": \"transaction\",\n   \"spans\": []\n }\n ```",
           "default": null,
@@ -409,6 +421,16 @@ expression: event_json_schema()
                 "null"
               ]
             },
+            "app_memory": {
+              "description": " Amount of memory used by the application in bytes.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
             "app_name": {
               "description": " Application name as it appears on the platform.",
               "default": null,
@@ -446,6 +468,14 @@ expression: event_json_schema()
               "default": null,
               "type": [
                 "string",
+                "null"
+              ]
+            },
+            "in_foreground": {
+              "description": " A flag indicating whether the app is in foreground or not. An app is in foreground when it's visible to the user.",
+              "default": null,
+              "type": [
+                "boolean",
                 "null"
               ]
             }
@@ -800,6 +830,12 @@ expression: event_json_schema()
           "$ref": "#/definitions/MonitorContext"
         },
         {
+          "$ref": "#/definitions/ResponseContext"
+        },
+        {
+          "$ref": "#/definitions/OtelContext"
+        },
+        {
           "type": "object",
           "additionalProperties": true
         }
@@ -895,6 +931,9 @@ expression: event_json_schema()
           "$ref": "#/definitions/NativeDebugImage"
         },
         {
+          "$ref": "#/definitions/NativeDebugImage"
+        },
+        {
           "$ref": "#/definitions/ProguardDebugImage"
         },
         {
@@ -970,6 +1009,14 @@ expression: event_json_schema()
               ],
               "format": "double"
             },
+            "battery_status": {
+              "description": " Status of the device's battery.\n\n For example, `Unknown`, `Charging`, `Discharging`, `NotCharging`, `Full`.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "boot_time": {
               "description": " Indicator when the device was booted.",
               "default": null,
@@ -991,6 +1038,30 @@ expression: event_json_schema()
               "default": null,
               "type": [
                 "boolean",
+                "null"
+              ]
+            },
+            "cpu_description": {
+              "description": " CPU description.\n\n For example, Intel(R) Core(TM)2 Quad CPU Q6600 @ 2.40GHz.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "device_type": {
+              "description": " Kind of device the application is running on.\n\n For example, `Unknown`, `Handheld`, `Console`, `Desktop`.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "device_unique_identifier": {
+              "description": " Unique device identifier.",
+              "default": null,
+              "type": [
+                "string",
                 "null"
               ]
             },
@@ -1108,6 +1179,26 @@ expression: event_json_schema()
                 "null"
               ]
             },
+            "processor_count": {
+              "description": " Number of \"logical processors\".\n\n For example, 8.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "processor_frequency": {
+              "description": " Processor frequency in MHz.\n\n Note that the actual CPU frequency might vary depending on current load and\n power conditions, especially on low-powered devices like phones and laptops.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
             "screen_density": {
               "description": " Device screen density.",
               "default": null,
@@ -1152,6 +1243,46 @@ expression: event_json_schema()
               ],
               "format": "uint64",
               "minimum": 0.0
+            },
+            "supports_accelerometer": {
+              "description": " Whether the accelerometer is available on the device.",
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "supports_audio": {
+              "description": " Whether audio is available on the device.",
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "supports_gyroscope": {
+              "description": " Whether the gyroscope is available on the device.",
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "supports_location_service": {
+              "description": " Whether location support is available on the device.",
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "supports_vibration": {
+              "description": " Whether vibration is available on the device.",
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
             },
             "timezone": {
               "description": " Timezone of the device.",
@@ -1318,7 +1449,7 @@ expression: event_json_schema()
       ]
     },
     "Frame": {
-      "description": " Holds information about a single stacktrace frame.\n\n Each object should contain **at least** a `filename`, `function` or `instruction_addr` attribute. All values are optional, but recommended.",
+      "description": " Holds information about a single stacktrace frame.\n\n Each object should contain **at least** a `filename`, `function` or `instruction_addr`\n attribute. All values are optional, but recommended.",
       "anyOf": [
         {
           "type": "object",
@@ -1336,7 +1467,7 @@ expression: event_json_schema()
               ]
             },
             "addr_mode": {
-              "description": " Defines the addressing mode for addresses.",
+              "description": " Defines the addressing mode for addresses.\n\n This can be:\n - `\"abs\"` (the default): `instruction_addr` is absolute.\n - `\"rel:$idx\"`: `instruction_addr` is relative to the `debug_meta.image` identified by its index in the list.\n - `\"rel:$uuid\"`: `instruction_addr` is relative to the `debug_meta.image` identified by its `debug_id`.\n\n If one of the `\"rel:XXX\"` variants is given together with `function_id`, the `instruction_addr` is relative\n to the uniquely identified function in the references `debug_meta.image`.",
               "default": null,
               "type": [
                 "string",
@@ -1379,6 +1510,18 @@ expression: event_json_schema()
               "type": [
                 "string",
                 "null"
+              ]
+            },
+            "function_id": {
+              "description": " (.NET) The function id / index that uniquely identifies a function inside a module.\n\n This is the `MetadataToken` of a .NET `MethodBase`.",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Addr"
+                },
+                {
+                  "type": "null"
+                }
               ]
             },
             "image_addr": {
@@ -1476,7 +1619,7 @@ expression: event_json_schema()
               }
             },
             "raw_function": {
-              "description": " A raw (but potentially truncated) function value.\n\n The original function name, if the function name is shortened or demangled. Sentry shows\n the raw function when clicking on the shortened one in the UI.\n\n If this has the same value as `function` it's best to be omitted.  This\n exists because on many platforms the function itself contains additional\n information like overload specifies or a lot of generics which can make\n it exceed the maximum limit we provide for the field.  In those cases\n then we cannot reliably trim down the function any more at a later point\n because the more valuable information has been removed.\n\n The logic to be applied is that an intelligently trimmed function name\n should be stored in `function` and the value before trimming is stored\n in this field instead.  However also this field will be capped at 256\n characters at the moment which often means that not the entire original\n value can be stored.",
+              "description": " A raw (but potentially truncated) function value.\n\n The original function name, if the function name is shortened or demangled. Sentry shows the\n raw function when clicking on the shortened one in the UI.\n\n If this has the same value as `function` it's best to be omitted.  This exists because on\n many platforms the function itself contains additional information like overload specifies\n or a lot of generics which can make it exceed the maximum limit we provide for the field.\n In those cases then we cannot reliably trim down the function any more at a later point\n because the more valuable information has been removed.\n\n The logic to be applied is that an intelligently trimmed function name should be stored in\n `function` and the value before trimming is stored in this field instead.  However also this\n field will be capped at 256 characters at the moment which often means that not the entire\n original value can be stored.",
               "default": null,
               "type": [
                 "string",
@@ -1586,9 +1729,27 @@ expression: event_json_schema()
                 "null"
               ]
             },
+            "graphics_shader_level": {
+              "description": " Approximate \"shader capability\" level of the graphics device.\n\n For Example: Shader Model 2.0, OpenGL ES 3.0, Metal / OpenGL ES 3.1, 27 (unknown)",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "id": {
               "description": " The PCI identifier of the graphics device.",
               "default": null
+            },
+            "max_texture_size": {
+              "description": " Largest size of a texture that is supported by the graphics hardware.\n\n For Example: 16384",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
             },
             "memory_size": {
               "description": " The total GPU memory available in Megabytes.",
@@ -1621,6 +1782,38 @@ expression: event_json_schema()
               "default": null,
               "type": [
                 "string",
+                "null"
+              ]
+            },
+            "supports_compute_shaders": {
+              "description": " Whether compute shaders are available on the device.",
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "supports_draw_call_instancing": {
+              "description": " Whether GPU draw call instancing is supported.",
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "supports_geometry_shaders": {
+              "description": " Whether geometry shaders are available on the device.",
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "supports_ray_tracing": {
+              "description": " Whether ray tracing is available on the device.",
+              "default": null,
+              "type": [
+                "boolean",
                 "null"
               ]
             },
@@ -2020,6 +2213,14 @@ expression: event_json_schema()
                 }
               ]
             },
+            "debug_checksum": {
+              "description": " The optional checksum of the debug companion file.\n\n - `pe_dotnet`: This is the hash algorithm and hex-formatted checksum of the associated PDB file.\n  This should have the format `$algorithm:$hash`, for example `SHA256:aabbccddeeff...`.\n\n   See: <https://github.com/dotnet/runtime/blob/main/docs/design/specs/PE-COFF.md#pdb-checksum-debug-directory-entry-type-19>",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "debug_file": {
               "description": " Path and name of the debug companion file.\n\n - `elf`: Name or absolute path to the file containing stripped debug information for this image. This value might be _required_ to retrieve debug files from certain symbol servers.\n\n - `pe`: Name of the PDB file containing debug information for this image. This value is often required to retrieve debug files from specific symbol servers.\n\n - `macho`: Name or absolute path to the dSYM file containing debug information for this image. This value might be required to retrieve debug files from certain symbol servers.",
               "default": null,
@@ -2177,6 +2378,35 @@ expression: event_json_schema()
         }
       ]
     },
+    "OtelContext": {
+      "description": " OpenTelemetry Context\n\n If an event has this context, it was generated from an OpenTelemetry signal (trace, metric, log).",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "attributes": {
+              "description": " Attributes of the OpenTelemetry span that maps to a Sentry event.\n\n <https://github.com/open-telemetry/opentelemetry-proto/blob/724e427879e3d2bae2edc0218fff06e37b9eb46e/opentelemetry/proto/trace/v1/trace.proto#L174-L186>",
+              "default": null,
+              "type": [
+                "object",
+                "null"
+              ],
+              "additionalProperties": true
+            },
+            "resource": {
+              "description": " Information about an OpenTelemetry resource.\n\n <https://github.com/open-telemetry/opentelemetry-proto/blob/724e427879e3d2bae2edc0218fff06e37b9eb46e/opentelemetry/proto/resource/v1/resource.proto>",
+              "default": null,
+              "type": [
+                "object",
+                "null"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "PosixSignal": {
       "description": " POSIX signal with optional extended data.\n\n On Apple systems, signals also carry a code in addition to the signal number describing the\n signal in more detail. On Linux, this code does not exist.",
       "anyOf": [
@@ -2245,7 +2475,7 @@ expression: event_json_schema()
       ]
     },
     "RawStacktrace": {
-      "description": " A stack trace of a single thread.\n\n A stack trace contains a list of frames, each with various bits (most optional) describing the context of that frame. Frames should be sorted from oldest to newest.\n\n For the given example program written in Python:\n\n ```python\n def foo():\n     my_var = 'foo'\n     raise ValueError()\n\n def main():\n     foo()\n ```\n\n A minimalistic stack trace for the above program in the correct order:\n\n ```json\n {\n   \"frames\": [\n     {\"function\": \"main\"},\n     {\"function\": \"foo\"}\n   ]\n }\n ```\n\n The top frame fully symbolicated with five lines of source context:\n\n ```json\n {\n   \"frames\": [{\n     \"in_app\": true,\n     \"function\": \"myfunction\",\n     \"abs_path\": \"/real/file/name.py\",\n     \"filename\": \"file/name.py\",\n     \"lineno\": 3,\n     \"vars\": {\n       \"my_var\": \"'value'\"\n     },\n     \"pre_context\": [\n       \"def foo():\",\n       \"  my_var = 'foo'\",\n     ],\n     \"context_line\": \"  raise ValueError()\",\n     \"post_context\": [\n       \"\",\n       \"def main():\"\n     ],\n   }]\n }\n ```\n\n A minimal native stack trace with register values. Note that the `package` event attribute must be \"native\" for these frames to be symbolicated.\n\n ```json\n {\n   \"frames\": [\n     {\"instruction_addr\": \"0x7fff5bf3456c\"},\n     {\"instruction_addr\": \"0x7fff5bf346c0\"},\n   ],\n   \"registers\": {\n     \"rip\": \"0x00007ff6eef54be2\",\n     \"rsp\": \"0x0000003b710cd9e0\"\n   }\n }\n ```",
+      "description": " A stack trace of a single thread.\n\n A stack trace contains a list of frames, each with various bits (most optional) describing the\n context of that frame. Frames should be sorted from oldest to newest.\n\n For the given example program written in Python:\n\n ```python\n def foo():\n     my_var = 'foo'\n     raise ValueError()\n\n def main():\n     foo()\n ```\n\n A minimalistic stack trace for the above program in the correct order:\n\n ```json\n {\n   \"frames\": [\n     {\"function\": \"main\"},\n     {\"function\": \"foo\"}\n   ]\n }\n ```\n\n The top frame fully symbolicated with five lines of source context:\n\n ```json\n {\n   \"frames\": [{\n     \"in_app\": true,\n     \"function\": \"myfunction\",\n     \"abs_path\": \"/real/file/name.py\",\n     \"filename\": \"file/name.py\",\n     \"lineno\": 3,\n     \"vars\": {\n       \"my_var\": \"'value'\"\n     },\n     \"pre_context\": [\n       \"def foo():\",\n       \"  my_var = 'foo'\",\n     ],\n     \"context_line\": \"  raise ValueError()\",\n     \"post_context\": [\n       \"\",\n       \"def main():\"\n     ],\n   }]\n }\n ```\n\n A minimal native stack trace with register values. Note that the `package` event attribute must\n be \"native\" for these frames to be symbolicated.\n\n ```json\n {\n   \"frames\": [\n     {\"instruction_addr\": \"0x7fff5bf3456c\"},\n     {\"instruction_addr\": \"0x7fff5bf346c0\"},\n   ],\n   \"registers\": {\n     \"rip\": \"0x00007ff6eef54be2\",\n     \"rsp\": \"0x0000003b710cd9e0\"\n   }\n }\n ```",
       "anyOf": [
         {
           "type": "object",
@@ -2254,7 +2484,7 @@ expression: event_json_schema()
           ],
           "properties": {
             "frames": {
-              "description": " Required. A non-empty list of stack frames. The list is ordered from caller to callee, or oldest to youngest. The last frame is the one creating the exception.",
+              "description": " Required. A non-empty list of stack frames. The list is ordered from caller to callee, or\n oldest to youngest. The last frame is the one creating the exception.",
               "type": [
                 "array",
                 "null"
@@ -2279,7 +2509,7 @@ expression: event_json_schema()
               ]
             },
             "registers": {
-              "description": " Register values of the thread (top frame).\n\n A map of register names and their values. The values should contain the actual register values of the thread, thus mapping to the last frame in the list.",
+              "description": " Register values of the thread (top frame).\n\n A map of register names and their values. The values should contain the actual register\n values of the thread, thus mapping to the last frame in the list.",
               "default": null,
               "type": [
                 "object",
@@ -2318,6 +2548,16 @@ expression: event_json_schema()
         {
           "type": "object",
           "properties": {
+            "body_size": {
+              "description": " HTTP request body size.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
             "cookies": {
               "description": " The cookie values.\n\n Can be given unparsed as string, as dictionary, or as a list of tuples.",
               "default": null,
@@ -2440,6 +2680,61 @@ expression: event_json_schema()
                 "string",
                 "null"
               ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ResponseContext": {
+      "description": " Response interface that contains information on a HTTP response related to the event.",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "body_size": {
+              "description": " HTTP response body size.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "cookies": {
+              "description": " The cookie values.\n\n Can be given unparsed as string, as dictionary, or as a list of tuples.",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Cookies"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "headers": {
+              "description": " A dictionary of submitted headers.\n\n If a header appears multiple times it, needs to be merged according to the HTTP standard\n for header merging. Header names are treated case-insensitively by Sentry.",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Headers"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "status_code": {
+              "description": " HTTP status code.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
             }
           },
           "additionalProperties": false
@@ -2648,7 +2943,7 @@ expression: event_json_schema()
               ]
             },
             "current": {
-              "description": " A flag indicating whether the thread was in the foreground.  Defaults to `false`.",
+              "description": " A flag indicating whether the thread was in the foreground. Defaults to `false`.",
               "default": null,
               "type": [
                 "boolean",
@@ -2665,6 +2960,14 @@ expression: event_json_schema()
                 {
                   "type": "null"
                 }
+              ]
+            },
+            "main": {
+              "description": " A flag indicating whether the thread was responsible for rendering the user interface.",
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
               ]
             },
             "name": {
@@ -2727,6 +3030,15 @@ expression: event_json_schema()
             "trace_id"
           ],
           "properties": {
+            "client_sample_rate": {
+              "description": " The client-side sample rate as reported in the envelope's `trace.sample_rate` header.\n\n The server takes this field from envelope headers and writes it back into the event. Clients\n should not ever send this value.",
+              "default": null,
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "double"
+            },
             "exclusive_time": {
               "description": " The amount of time in milliseconds spent in this transaction span,\n excluding its immediate child spans.",
               "default": null,
@@ -2801,6 +3113,122 @@ expression: event_json_schema()
         {
           "type": "string"
         }
+      ]
+    },
+    "TransactionInfo": {
+      "description": " Additional information about the name of the transaction.",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "changes": {
+              "description": " A list of changes prior to the final transaction name.\n\n This list must be empty if the transaction name is set at the beginning of the transaction\n and never changed. There is no placeholder entry for the initial transaction name.",
+              "default": null,
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/TransactionNameChange"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "original": {
+              "description": " The unmodified transaction name as obtained by the source.\n\n This value will only be set if the transaction name was modified during event processing.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "propagations": {
+              "description": " The total number of propagations during the transaction.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "source": {
+              "description": " Describes how the name of the transaction was determined.\n\n This will be used by the server to decide whether or not to scrub identifiers from the\n transaction name, or replace the entire name with a placeholder.",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/TransactionSource"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "TransactionNameChange": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "propagations": {
+              "description": " The number of propagations from the start of the transaction to this change.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "source": {
+              "description": " Describes how the previous transaction name was determined.",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/TransactionSource"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "timestamp": {
+              "description": " Timestamp when the transaction name was changed.\n\n This adheres to the event timestamp specification.",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Timestamp"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "TransactionSource": {
+      "description": "Describes how the name of the transaction was determined.",
+      "type": "string",
+      "enum": [
+        "custom",
+        "url",
+        "route",
+        "view",
+        "component",
+        "task",
+        "unknown"
       ]
     },
     "User": {

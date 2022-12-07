@@ -1,7 +1,5 @@
 use std::fmt;
 
-use failure::Fail;
-
 #[cfg(feature = "jsonschema")]
 use schemars::gen::SchemaGenerator;
 #[cfg(feature = "jsonschema")]
@@ -65,18 +63,18 @@ pub type ProcessingResult = Result<(), ProcessingAction>;
 
 /// Used to indicate how to handle an annotated value in a callback.
 #[must_use = "This `ProcessingAction` must be handled by `Annotated::apply`"]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Fail)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum ProcessingAction {
     /// Discards the value entirely.
-    #[fail(display = "value should be hard-deleted (unreachable, should not surface as error!)")]
+    #[error("value should be hard-deleted (unreachable, should not surface as error!)")]
     DeleteValueHard,
 
     /// Discards the value and moves it into meta's `original_value`.
-    #[fail(display = "value should be hard-deleted (unreachable, should not surface as error!)")]
+    #[error("value should be hard-deleted (unreachable, should not surface as error!)")]
     DeleteValueSoft,
 
     /// The event is invalid (needs to bubble up)
-    #[fail(display = "invalid transaction event: {}", _0)]
+    #[error("invalid transaction event: {0}")]
     InvalidTransaction(&'static str),
 }
 
@@ -304,7 +302,6 @@ where
             map_ser.serialize_key("_meta")?;
             map_ser.serialize_value(&meta_tree)?;
         }
-
         map_ser.end()
     }
 
@@ -438,19 +435,25 @@ where
     }
 }
 
-#[test]
-fn test_annotated_deserialize_with_meta() {
+#[cfg(test)]
+mod tests {
+    use similar_asserts::assert_eq;
+
     use crate::types::ErrorKind;
 
-    #[derive(Debug, Empty, FromValue, IntoValue)]
-    struct Foo {
-        id: Annotated<u64>,
-        #[metastructure(field = "type")]
-        ty: Annotated<String>,
-    }
+    use super::*;
 
-    let annotated_value = Annotated::<Foo>::from_json(
-        r#"
+    #[test]
+    fn test_annotated_deserialize_with_meta() {
+        #[derive(Debug, Empty, FromValue, IntoValue)]
+        struct Foo {
+            id: Annotated<u64>,
+            #[metastructure(field = "type")]
+            ty: Annotated<String>,
+        }
+
+        let annotated_value = Annotated::<Foo>::from_json(
+            r#"
         {
             "id": "blaflasel",
             "type": "testing",
@@ -468,42 +471,42 @@ fn test_annotated_deserialize_with_meta() {
             }
         }
     "#,
-    )
-    .unwrap();
+        )
+        .unwrap();
 
-    assert_eq!(annotated_value.value().unwrap().id.value(), None);
-    assert_eq!(
-        annotated_value
-            .value()
-            .unwrap()
-            .id
-            .meta()
-            .iter_errors()
-            .collect::<Vec<&Error>>(),
-        vec![
-            &Error::new(ErrorKind::Unknown("unknown_error".to_string())),
-            &Error::expected("an unsigned integer")
-        ],
-    );
-    assert_eq!(
-        annotated_value.value().unwrap().ty.as_str(),
-        Some("testing")
-    );
-    assert_eq!(
-        annotated_value
-            .value()
-            .unwrap()
-            .ty
-            .meta()
-            .iter_errors()
-            .collect::<Vec<&Error>>(),
-        vec![&Error::new(ErrorKind::InvalidData)],
-    );
+        assert_eq!(annotated_value.value().unwrap().id.value(), None);
+        assert_eq!(
+            annotated_value
+                .value()
+                .unwrap()
+                .id
+                .meta()
+                .iter_errors()
+                .collect::<Vec<&Error>>(),
+            vec![
+                &Error::new(ErrorKind::Unknown("unknown_error".to_string())),
+                &Error::expected("an unsigned integer")
+            ],
+        );
+        assert_eq!(
+            annotated_value.value().unwrap().ty.as_str(),
+            Some("testing")
+        );
+        assert_eq!(
+            annotated_value
+                .value()
+                .unwrap()
+                .ty
+                .meta()
+                .iter_errors()
+                .collect::<Vec<&Error>>(),
+            vec![&Error::new(ErrorKind::InvalidData)],
+        );
 
-    let json = annotated_value.to_json_pretty().unwrap();
-    assert_eq_str!(
-        json,
-        r#"{
+        let json = annotated_value.to_json_pretty().unwrap();
+        assert_eq!(
+            json,
+            r#"{
   "id": null,
   "type": "testing",
   "_meta": {
@@ -530,5 +533,6 @@ fn test_annotated_deserialize_with_meta() {
     }
   }
 }"#
-    );
+        );
+    }
 }

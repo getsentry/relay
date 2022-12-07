@@ -1,10 +1,10 @@
 #![recursion_limit = "256"]
-#![allow(clippy::cognitive_complexity)]
 #![deny(unused_must_use)]
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
+#![allow(clippy::derive_partial_eq_without_eq)]
 
 mod empty;
 mod jsonschema;
@@ -529,6 +529,7 @@ fn parse_max_chars(name: &str) -> TokenStream {
         "tag_key" => quote!(crate::processor::MaxChars::TagKey),
         "tag_value" => quote!(crate::processor::MaxChars::TagValue),
         "environment" => quote!(crate::processor::MaxChars::Environment),
+        "distribution" => quote!(crate::processor::MaxChars::Distribution),
         _ => panic!("invalid max_chars variant '{}'", name),
     }
 }

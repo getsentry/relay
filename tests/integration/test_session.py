@@ -2,7 +2,6 @@ from datetime import datetime, timedelta, timezone
 import json
 import pytest
 from requests.exceptions import HTTPError
-import six
 import uuid
 
 
@@ -25,7 +24,10 @@ def test_sessions(mini_sentry, relay_chain):
         "duration": 1947.49,
         "status": "exited",
         "errors": 0,
-        "attrs": {"release": "sentry-test@1.0.0", "environment": "production",},
+        "attrs": {
+            "release": "sentry-test@1.0.0",
+            "environment": "production",
+        },
     }
 
     relay.send_session(project_id, session_payload)
@@ -61,7 +63,10 @@ def test_session_with_processing(mini_sentry, relay_with_processing, sessions_co
             "duration": 1947.49,
             "status": "exited",
             "errors": 0,
-            "attrs": {"release": "sentry-test@1.0.0", "environment": "production",},
+            "attrs": {
+                "release": "sentry-test@1.0.0",
+                "environment": "production",
+            },
         },
     )
 
@@ -107,7 +112,10 @@ def test_session_with_processing_two_events(
             "timestamp": timestamp.isoformat(),
             "started": started.isoformat(),
             "status": "ok",
-            "attrs": {"release": "sentry-test@1.0.0", "environment": "production",},
+            "attrs": {
+                "release": "sentry-test@1.0.0",
+                "environment": "production",
+            },
         },
     )
     session = sessions_consumer.get_session()
@@ -140,7 +148,10 @@ def test_session_with_processing_two_events(
             "started": started.isoformat(),
             "duration": 1947.49,
             "status": "exited",
-            "attrs": {"release": "sentry-test@1.0.0", "environment": "production",},
+            "attrs": {
+                "release": "sentry-test@1.0.0",
+                "environment": "production",
+            },
         },
     )
     session = sessions_consumer.get_session()
@@ -183,9 +194,15 @@ def test_session_aggregates(mini_sentry, relay_with_processing, sessions_consume
                     "exited": 2,
                     "errored": 3,
                 },
-                {"started": started2.isoformat(), "abnormal": 1,},
+                {
+                    "started": started2.isoformat(),
+                    "abnormal": 1,
+                },
             ],
-            "attrs": {"release": "sentry-test@1.0.0", "environment": "production",},
+            "attrs": {
+                "release": "sentry-test@1.0.0",
+                "environment": "production",
+            },
         },
     )
 
@@ -320,7 +337,10 @@ def test_session_age_discard_aggregates(
                     "errored": 3,
                 },
             ],
-            "attrs": {"release": "sentry-test@1.0.0", "environment": "production",},
+            "attrs": {
+                "release": "sentry-test@1.0.0",
+                "environment": "production",
+            },
         },
     )
 
@@ -421,7 +441,9 @@ def test_session_aggregates_release_required(
                     "errored": 3,
                 },
             ],
-            "attrs": {"environment": "production",},
+            "attrs": {
+                "environment": "production",
+            },
         },
     )
 
@@ -437,10 +459,10 @@ def test_session_quotas(mini_sentry, relay_with_processing, sessions_consumer):
     project_config["config"]["eventRetention"] = 17
     project_config["config"]["quotas"] = [
         {
-            "id": "test_rate_limiting_{}".format(uuid.uuid4().hex),
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
             "categories": ["session"],
             "scope": "key",
-            "scopeId": six.text_type(project_config["publicKeys"][0]["numericId"]),
+            "scopeId": str(project_config["publicKeys"][0]["numericId"]),
             "window": 3600,
             "limit": 5,
             "reasonCode": "sessions_exceeded",
@@ -481,7 +503,7 @@ def test_session_disabled(mini_sentry, relay_with_processing, sessions_consumer)
         {
             "categories": ["session"],
             "scope": "key",
-            "scopeId": six.text_type(project_config["publicKeys"][0]["numericId"]),
+            "scopeId": str(project_config["publicKeys"][0]["numericId"]),
             "limit": 0,
             "reasonCode": "sessions_exceeded",
         }

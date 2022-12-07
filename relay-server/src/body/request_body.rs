@@ -1,6 +1,6 @@
 use actix_web::{error::PayloadError, HttpRequest};
 use bytes::Bytes;
-use futures::prelude::*;
+use futures01::prelude::*;
 
 use crate::extractors::{Decoder, SharedPayload};
 use crate::utils;

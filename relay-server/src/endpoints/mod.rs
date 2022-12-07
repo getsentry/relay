@@ -10,7 +10,7 @@ mod common;
 mod envelope;
 mod events;
 mod forward;
-mod healthcheck;
+mod health_check;
 mod minidump;
 mod outcomes;
 mod project_configs;
@@ -23,7 +23,7 @@ mod unreal;
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
     app
         // Internal routes pointing to /api/relay
-        .configure(healthcheck::configure_app)
+        .configure(health_check::configure_app)
         .configure(events::configure_app)
         .handler("/api/relay", statics::not_found)
         // Web API routes pointing to /api/0

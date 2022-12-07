@@ -104,6 +104,7 @@
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
+#![allow(clippy::derive_partial_eq_without_eq)]
 
 use std::cell::RefCell;
 use std::error::Error;
@@ -114,10 +115,10 @@ use std::thread;
 pub use relay_ffi_macros::catch_unwind;
 
 thread_local! {
-    static LAST_ERROR: RefCell<Option<failure::Error>> = RefCell::new(None);
+    static LAST_ERROR: RefCell<Option<anyhow::Error>> = RefCell::new(None);
 }
 
-fn set_last_error(err: failure::Error) {
+fn set_last_error(err: anyhow::Error) {
     LAST_ERROR.with(|e| {
         *e.borrow_mut() = Some(err);
     });
@@ -139,7 +140,7 @@ pub mod __internal {
     #[inline]
     pub unsafe fn catch_errors<F, T>(f: F) -> T
     where
-        F: FnOnce() -> Result<T, failure::Error> + panic::UnwindSafe,
+        F: FnOnce() -> Result<T, anyhow::Error> + panic::UnwindSafe,
     {
         match panic::catch_unwind(f) {
             Ok(Ok(result)) => result,
@@ -175,7 +176,7 @@ pub mod __internal {
 /// ```
 pub fn with_last_error<R, F>(f: F) -> Option<R>
 where
-    F: FnOnce(&failure::Error) -> R,
+    F: FnOnce(&anyhow::Error) -> R,
 {
     LAST_ERROR.with(|e| e.borrow().as_ref().map(f))
 }
@@ -200,7 +201,7 @@ where
 ///     None => println!("result: {}", parsed),
 /// }
 /// ```
-pub fn take_last_error() -> Option<failure::Error> {
+pub fn take_last_error() -> Option<anyhow::Error> {
     LAST_ERROR.with(|e| e.borrow_mut().take())
 }
 

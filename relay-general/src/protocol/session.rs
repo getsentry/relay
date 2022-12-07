@@ -1,10 +1,11 @@
+use std::fmt;
 use std::time::SystemTime;
 
 use chrono::{DateTime, Utc};
-use failure::Fail;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::macros::derive_fromstr_and_display;
 use crate::protocol::IpAddr;
 
 /// The type of session event we're dealing with.
@@ -49,9 +50,16 @@ impl Default for SessionStatus {
 }
 
 /// An error used when parsing `SessionStatus`.
-#[derive(Debug, Fail)]
-#[fail(display = "invalid session status")]
+#[derive(Debug)]
 pub struct ParseSessionStatusError;
+
+impl fmt::Display for ParseSessionStatusError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "invalid session status")
+    }
+}
+
+impl std::error::Error for ParseSessionStatusError {}
 
 derive_fromstr_and_display!(SessionStatus, ParseSessionStatusError, {
     SessionStatus::Ok => "ok",
@@ -167,11 +175,7 @@ impl SessionLike for SessionUpdate {
     }
 
     fn total_count(&self) -> u32 {
-        if self.init {
-            1
-        } else {
-            0
-        }
+        u32::from(self.init)
     }
 
     fn abnormal_count(&self) -> u32 {
@@ -293,6 +297,8 @@ impl SessionAggregates {
 
 #[cfg(test)]
 mod tests {
+    use similar_asserts::assert_eq;
+
     use super::*;
 
     #[test]
@@ -343,8 +349,8 @@ mod tests {
         assert!((default_sequence() - parsed.sequence) <= 1);
         parsed.sequence = 4711;
 
-        assert_eq_dbg!(update, parsed);
-        assert_eq_str!(output, serde_json::to_string_pretty(&update).unwrap());
+        assert_eq!(update, parsed);
+        assert_eq!(output, serde_json::to_string_pretty(&update).unwrap());
     }
 
     #[test]
@@ -398,8 +404,8 @@ mod tests {
             },
         };
 
-        assert_eq_dbg!(update, SessionUpdate::parse(json.as_bytes()).unwrap());
-        assert_eq_str!(json, serde_json::to_string_pretty(&update).unwrap());
+        assert_eq!(update, SessionUpdate::parse(json.as_bytes()).unwrap());
+        assert_eq!(json, serde_json::to_string_pretty(&update).unwrap());
     }
 
     #[test]
@@ -413,6 +419,6 @@ mod tests {
 }"#;
 
         let update = SessionUpdate::parse(json.as_bytes()).unwrap();
-        assert_eq_dbg!(update.attributes.ip_address, Some(IpAddr::auto()));
+        assert_eq!(update.attributes.ip_address, Some(IpAddr::auto()));
     }
 }

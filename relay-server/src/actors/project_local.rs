@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::thread;
 
 use actix::prelude::*;
-use futures::{sync::oneshot, Future};
+use futures01::{sync::oneshot, Future};
 
 use relay_common::{ProjectId, ProjectKey};
 use relay_config::Config;
@@ -16,6 +16,7 @@ use relay_log::LogError;
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::FetchOptionalProjectState;
 
+#[derive(Debug)]
 pub struct LocalProjectSource {
     config: Arc<Config>,
     local_states: HashMap<ProjectKey, Arc<ProjectState>>,

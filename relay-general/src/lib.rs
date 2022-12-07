@@ -1,6 +1,7 @@
 // Clippy throws errors in situations where a closure is clearly the better way. An example is
 // `Annotated::as_str`, which can't be used directly because it's part of two impl blocks.
 #![allow(clippy::redundant_closure)]
+#![allow(clippy::derive_partial_eq_without_eq)]
 #![deny(unused_must_use)]
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
@@ -12,11 +13,9 @@
 #[macro_use]
 extern crate relay_general_derive;
 
-#[macro_use]
 mod macros;
 
 #[cfg(test)]
-#[macro_use]
 mod testutils;
 
 pub mod pii;
@@ -25,5 +24,4 @@ pub mod protocol;
 pub mod store;
 pub mod types;
 
-#[cfg(feature = "uaparser")]
 pub mod user_agent;

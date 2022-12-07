@@ -55,6 +55,7 @@
 //!     "value": [36, 49, 57, 68],
 //!     "type": "d",
 //!     "timestamp": 1615889440,
+//!     "width": 10,
 //!     "tags": {
 //!       "route": "user_index"
 //!     }
@@ -64,6 +65,7 @@
 //!     "value": 4,
 //!     "type": "c",
 //!     "timestamp": 1615889440,
+//!     "width": 10,
 //!     "tags": {
 //!       "route": "user_index"
 //!     }
@@ -96,6 +98,7 @@
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
+#![allow(clippy::derive_partial_eq_without_eq)]
 
 mod aggregation;
 mod protocol;

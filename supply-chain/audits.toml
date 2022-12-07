@@ -1,0 +1,15 @@
+
+# cargo-vet audits file
+
+[[audits.debugid]]
+who = "Floris Bruynooghe <flub@sentry.io>"
+notes = "Small enough to entirely review, was already familiar since I contributed to this and it is maintained by Sentry."
+criteria = "safe-to-deploy"
+version = "0.7.3"
+
+[[audits.utf16string]]
+who = "Floris Bruynooghe <flub@sentry.io>"
+notes = "I maintain this crate and wrote all the code.  The unsafe blocks were peer reviewed and mirror the relevant stdlib code."
+criteria = "safe-to-deploy"
+version = "0.2.0"
+

@@ -11,6 +11,7 @@
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
+#![allow(clippy::derive_partial_eq_without_eq)]
 
 use std::net::IpAddr;
 
@@ -37,7 +38,7 @@ pub use crate::csp::matches_any_origin;
 
 /// Checks whether an event should be filtered for a particular configuration.
 ///
-/// If the event should be filter, the `Err` returned contains a filter reason.
+/// If the event should be filtered, the `Err` returned contains a filter reason.
 /// The reason is the message returned by the first filter that didn't pass.
 pub fn should_filter(
     event: &Event,

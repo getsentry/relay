@@ -3,7 +3,7 @@
 use actix::prelude::*;
 use actix_web::{HttpMessage, HttpRequest, HttpResponse};
 use bytes::{Bytes, BytesMut};
-use futures::Future;
+use futures01::Future;
 use serde::Serialize;
 
 use relay_general::protocol::EventId;
@@ -80,7 +80,7 @@ fn extract_envelope(
     };
 
     let future = StoreBody::new(request, max_payload_size)
-        .map_err(BadStoreRequest::PayloadError)
+        .map_err(BadStoreRequest::from)
         .and_then(move |data| {
             if data.is_empty() {
                 return Err(BadStoreRequest::EmptyBody);

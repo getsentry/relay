@@ -120,7 +120,7 @@ pub fn matches_any_origin(url: Option<&str>, origins: &[SchemeDomainPort]) -> bo
     // if we have a "*" (Any) option, anything matches so don't bother going forward
     if origins
         .iter()
-        .any(|o| o.scheme == None && o.port == None && o.domain == None)
+        .any(|o| o.scheme.is_none() && o.port.is_none() && o.domain.is_none())
     {
         return true;
     }
@@ -129,13 +129,13 @@ pub fn matches_any_origin(url: Option<&str>, origins: &[SchemeDomainPort]) -> bo
         let url = SchemeDomainPort::from(url);
 
         for origin in origins {
-            if origin.scheme != None && url.scheme != origin.scheme {
+            if origin.scheme.is_some() && url.scheme != origin.scheme {
                 continue; // scheme not matched
             }
-            if origin.port != None && url.port != origin.port {
+            if origin.port.is_some() && url.port != origin.port {
                 continue; // port not matched
             }
-            if origin.domain != None && url.domain != origin.domain {
+            if origin.domain.is_some() && url.domain != origin.domain {
                 // no direct match for domain, look for  partial patterns (e.g. "*.domain.com")
                 if let (Some(origin_domain), Some(domain)) = (&origin.domain, &url.domain) {
                     if origin_domain.starts_with('*')

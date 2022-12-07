@@ -1,6 +1,6 @@
 use ::actix::prelude::*;
 use actix_web::server::StopServer;
-use futures::prelude::*;
+use futures01::prelude::*;
 
 use relay_config::Config;
 use relay_statsd::metric;
@@ -9,14 +9,12 @@ use relay_system::{Controller, Shutdown};
 use crate::service;
 use crate::statsd::RelayCounters;
 
-pub use crate::service::ServerError;
-
 pub struct Server {
     http_server: Recipient<StopServer>,
 }
 
 impl Server {
-    pub fn start(config: Config) -> Result<Addr<Self>, ServerError> {
+    pub fn start(config: Config) -> anyhow::Result<Addr<Self>> {
         metric!(counter(RelayCounters::ServerStarting) += 1);
         let http_server = service::start(config)?;
         Ok(Server { http_server }.start())

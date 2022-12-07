@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 use actix::fut;
 use actix::prelude::*;
 use actix_web::http::Method;
-use futures::{future, future::Shared, sync::oneshot, Future};
+use futures01::{future, future::Shared, sync::oneshot, Future};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
@@ -16,25 +16,10 @@ use relay_log::LogError;
 use relay_statsd::metric;
 
 use crate::actors::project::ProjectState;
-use crate::actors::project_cache::{FetchProjectState, ProjectError, ProjectStateResponse};
+use crate::actors::project_cache::{FetchProjectState, ProjectError};
 use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{self, ErrorBoundary};
-
-#[macro_use]
-mod _macro {
-    /// The current version of the project states endpoint.
-    ///
-    /// This is the version that will be used to query Upstream. The endpoint version is added as
-    /// `version` query parameter to every outgoing request. See the `projectconfigs` endpoint for
-    /// the versions that will be accepted by Relay.
-    #[macro_export]
-    macro_rules! project_states_version {
-        () => {
-            3
-        };
-    }
-}
 
 /// A query to retrieve a batch of project states from upstream.
 ///
@@ -43,9 +28,9 @@ mod _macro {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetProjectStates {
-    pub public_keys: Vec<ProjectKey>,
-    pub full_config: bool,
-    pub no_cache: bool,
+    public_keys: Vec<ProjectKey>,
+    full_config: bool,
+    no_cache: bool,
 }
 
 /// The response of the projects states requests.
@@ -69,10 +54,7 @@ impl UpstreamQuery for GetProjectStates {
     }
 
     fn path(&self) -> Cow<'static, str> {
-        Cow::Borrowed(concat!(
-            "/api/0/relays/projectconfigs/?version=",
-            project_states_version!()
-        ))
+        Cow::Borrowed("/api/0/relays/projectconfigs/?version=3")
     }
 
     fn priority() -> RequestPriority {
@@ -97,10 +79,11 @@ impl ProjectStateChannel {
     pub fn new(timeout: Duration) -> Self {
         let (sender, receiver) = oneshot::channel();
 
+        let now = Instant::now();
         Self {
             sender,
             receiver: receiver.shared(),
-            deadline: Instant::now() + timeout,
+            deadline: now + timeout,
             no_cache: false,
             attempts: 0,
         }
@@ -123,6 +106,7 @@ impl ProjectStateChannel {
     }
 }
 
+#[derive(Debug)]
 pub struct UpstreamProjectSource {
     backoff: RetryBackoff,
     config: Arc<Config>,
@@ -174,12 +158,28 @@ impl UpstreamProjectSource {
             .take(batch_size * num_batches)
             .collect();
 
+        let fresh_channels = (projects.iter())
+            .filter_map(|id| Some((*id, self.state_channels.remove(id)?)))
+            .filter(|(id, channel)| {
+                if channel.expired() {
+                    metric!(
+                        histogram(RelayHistograms::ProjectStateAttempts) = channel.attempts,
+                        result = "timeout",
+                    );
+                    metric!(
+                        counter(RelayCounters::ProjectUpstreamCompleted) += 1,
+                        result = "timeout",
+                    );
+                    relay_log::error!("error fetching project state {}: deadline exceeded", id);
+                }
+                !channel.expired()
+            });
+
         // Separate regular channels from those with the `nocache` flag. The latter go in separate
         // requests, since the upstream will block the response.
-        let (cache_channels, nocache_channels): (Vec<_>, Vec<_>) = (projects.iter())
-            .filter_map(|id| Some((*id, self.state_channels.remove(id)?)))
-            .filter(|(_id, channel)| !channel.expired())
-            .partition(|(_id, channel)| channel.no_cache);
+        let (nocache_channels, cache_channels): (Vec<_>, Vec<_>) =
+            fresh_channels.partition(|(_id, channel)| channel.no_cache);
+
         let total_count = cache_channels.len() + nocache_channels.len();
 
         metric!(histogram(RelayHistograms::ProjectStatePending) = self.state_channels.len() as u64);
@@ -195,7 +195,8 @@ impl UpstreamProjectSource {
 
         let cache_batches = cache_channels.into_iter().chunks(batch_size);
         let nocache_batches = nocache_channels.into_iter().chunks(batch_size);
-        let requests: Vec<_> = (cache_batches.into_iter())
+        let requests: Vec<_> = cache_batches
+            .into_iter()
             .chain(nocache_batches.into_iter())
             .map(|channels_batch| {
                 let mut channels_batch: BTreeMap<_, _> = channels_batch.collect();
@@ -257,18 +258,23 @@ impl UpstreamProjectSource {
                                     .remove(&key)
                                     .unwrap_or(ErrorBoundary::Ok(None))
                                     .unwrap_or_else(|error| {
-                                        let e = LogError(error);
                                         relay_log::error!(
                                             "error fetching project state {}: {}",
                                             key,
-                                            e
+                                            LogError(error)
                                         );
                                         Some(ProjectState::err())
                                     })
                                     .unwrap_or_else(ProjectState::missing);
+                                let result = if state.invalid() { "invalid" } else { "ok" };
                                 metric!(
                                     histogram(RelayHistograms::ProjectStateAttempts) =
-                                        channel.attempts
+                                        channel.attempts,
+                                    result = result,
+                                );
+                                metric!(
+                                    counter(RelayCounters::ProjectUpstreamCompleted) += 1,
+                                    result = result,
                                 );
                                 channel.send(state.sanitize());
                             }
@@ -324,7 +330,7 @@ impl Actor for UpstreamProjectSource {
         // Set the mailbox size to the size of the eveenvelopent buffer. This is a rough estimate
         // but should ensure that we're not dropping messages if the main arbiter running this actor
         // gets hammered a bit.
-        let mailbox_size = self.config.envelope_buffer_size() as usize;
+        let mailbox_size = self.config.envelope_buffer_size();
         context.set_mailbox_capacity(mailbox_size);
 
         relay_log::info!("project upstream cache started");
@@ -336,7 +342,7 @@ impl Actor for UpstreamProjectSource {
 }
 
 impl Handler<FetchProjectState> for UpstreamProjectSource {
-    type Result = ResponseFuture<ProjectStateResponse, ()>;
+    type Result = ResponseFuture<Arc<ProjectState>, ()>;
 
     fn handle(&mut self, message: FetchProjectState, context: &mut Self::Context) -> Self::Result {
         if !self.backoff.started() {
@@ -370,11 +376,6 @@ impl Handler<FetchProjectState> for UpstreamProjectSource {
             channel.no_cache();
         }
 
-        Box::new(
-            channel
-                .receiver()
-                .map_err(|_| ())
-                .map(|x| ProjectStateResponse::new((*x).clone())),
-        )
+        Box::new(channel.receiver().map_err(|_| ()).map(|x| (*x).clone()))
     }
 }

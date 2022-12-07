@@ -4,18 +4,20 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
-use std::collections::HashMap;
+use std::borrow::Cow;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::{self, Display, Formatter};
 use std::net::IpAddr;
 
+use chrono::{DateTime, Utc};
 use rand::{distributions::Uniform, Rng};
 use rand_pcg::Pcg32;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{Number, Value};
 
 use relay_common::{EventType, ProjectKey, Uuid};
 use relay_filter::GlobPatterns;
-use relay_general::protocol::{Context, Event};
+use relay_general::protocol::{Context, Event, TraceContext};
 use relay_general::store;
 
 /// Defines the type of dynamic rule, i.e. to which type of events it will be applied and how.
@@ -29,17 +31,10 @@ pub enum RuleType {
     /// A non transaction rule applies to Errors, Security events...every type of event that
     /// is not a Transaction
     Error,
-}
 
-/// The result of a sampling operation returned by [`TraceContext::should_keep`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SamplingResult {
-    /// Keep the event.
-    Keep,
-    /// Drop the event, due to the rule with provided identifier.
-    Drop(RuleId),
-    /// No decision can be made.
-    NoDecision,
+    /// If the sampling config contains new rule types, do not sample at all.
+    #[serde(other)]
+    Unsupported,
 }
 
 /// A condition that checks the values using the equality operator.
@@ -63,14 +58,10 @@ pub struct EqCondition {
 }
 
 impl EqCondition {
-    fn matches_event(&self, event: &Event) -> bool {
-        self.matches(event)
-    }
-    fn matches_trace(&self, trace: &TraceContext) -> bool {
-        self.matches(trace)
-    }
-
-    fn matches<T: FieldValueProvider>(&self, value_provider: &T) -> bool {
+    fn matches<T>(&self, value_provider: &T) -> bool
+    where
+        T: FieldValueProvider,
+    {
         let value = value_provider.get_value(self.name.as_str());
 
         match value {
@@ -125,14 +116,7 @@ macro_rules! impl_cmp_condition {
         }
 
         impl $struct_name {
-            fn matches_event(&self, event: &Event) -> bool {
-                self.matches(event)
-            }
-            fn matches_trace(&self, trace: &TraceContext) -> bool {
-                self.matches(trace)
-            }
-
-            fn matches<T: FieldValueProvider>(&self, value_provider: &T) -> bool {
+            fn matches<T>(&self, value_provider: &T) -> bool where T: FieldValueProvider{
                 let value = match value_provider.get_value(self.name.as_str()) {
                     Value::Number(x) => x,
                     _ => return false
@@ -169,14 +153,10 @@ pub struct GlobCondition {
 }
 
 impl GlobCondition {
-    fn matches_event(&self, event: &Event) -> bool {
-        self.matches(event)
-    }
-    fn matches_trace(&self, trace: &TraceContext) -> bool {
-        self.matches(trace)
-    }
-
-    fn matches<T: FieldValueProvider>(&self, value_provider: &T) -> bool {
+    fn matches<T>(&self, value_provider: &T) -> bool
+    where
+        T: FieldValueProvider,
+    {
         value_provider
             .get_value(self.name.as_str())
             .as_str()
@@ -197,11 +177,11 @@ pub struct CustomCondition {
 }
 
 impl CustomCondition {
-    fn matches_event(&self, event: &Event, ip_addr: Option<IpAddr>) -> bool {
-        Event::get_custom_operator(&self.name)(self, event, ip_addr)
-    }
-    fn matches_trace(&self, trace: &TraceContext, ip_addr: Option<IpAddr>) -> bool {
-        TraceContext::get_custom_operator(&self.name)(self, trace, ip_addr)
+    fn matches<T>(&self, value_provider: &T, ip_addr: Option<IpAddr>) -> bool
+    where
+        T: FieldValueProvider,
+    {
+        T::get_custom_operator(&self.name)(self, value_provider, ip_addr)
     }
 }
 
@@ -218,15 +198,12 @@ impl OrCondition {
     fn supported(&self) -> bool {
         self.inner.iter().all(RuleCondition::supported)
     }
-    fn matches_event(&self, event: &Event, ip_addr: Option<IpAddr>) -> bool {
-        self.inner
-            .iter()
-            .any(|cond| cond.matches_event(event, ip_addr))
-    }
-    fn matches_trace(&self, trace: &TraceContext, ip_addr: Option<IpAddr>) -> bool {
-        self.inner
-            .iter()
-            .any(|cond| cond.matches_trace(trace, ip_addr))
+
+    fn matches<T>(&self, value: &T, ip_addr: Option<IpAddr>) -> bool
+    where
+        T: FieldValueProvider,
+    {
+        self.inner.iter().any(|cond| cond.matches(value, ip_addr))
     }
 }
 
@@ -243,15 +220,11 @@ impl AndCondition {
     fn supported(&self) -> bool {
         self.inner.iter().all(RuleCondition::supported)
     }
-    fn matches_event(&self, event: &Event, ip_addr: Option<IpAddr>) -> bool {
-        self.inner
-            .iter()
-            .all(|cond| cond.matches_event(event, ip_addr))
-    }
-    fn matches_trace(&self, trace: &TraceContext, ip_addr: Option<IpAddr>) -> bool {
-        self.inner
-            .iter()
-            .all(|cond| cond.matches_trace(trace, ip_addr))
+    fn matches<T>(&self, value: &T, ip_addr: Option<IpAddr>) -> bool
+    where
+        T: FieldValueProvider,
+    {
+        self.inner.iter().all(|cond| cond.matches(value, ip_addr))
     }
 }
 
@@ -268,11 +241,12 @@ impl NotCondition {
     fn supported(&self) -> bool {
         self.inner.supported()
     }
-    fn matches_event(&self, event: &Event, ip_addr: Option<IpAddr>) -> bool {
-        !self.inner.matches_event(event, ip_addr)
-    }
-    fn matches_trace(&self, trace: &TraceContext, ip_addr: Option<IpAddr>) -> bool {
-        !self.inner.matches_trace(trace, ip_addr)
+
+    fn matches<T>(&self, value: &T, ip_addr: Option<IpAddr>) -> bool
+    where
+        T: FieldValueProvider,
+    {
+        !self.inner.matches(value, ip_addr)
     }
 }
 
@@ -295,6 +269,11 @@ pub enum RuleCondition {
 }
 
 impl RuleCondition {
+    /// Returns a condition that matches everything.
+    pub fn all() -> Self {
+        Self::And(AndCondition { inner: Vec::new() })
+    }
+
     /// Checks if Relay supports this condition (in other words if the condition had any unknown configuration
     /// which was serialized as "Unsupported" (because the configuration is either faulty or was created for a
     /// newer relay that supports some other condition types)
@@ -315,34 +294,22 @@ impl RuleCondition {
             RuleCondition::Custom(_) => true,
         }
     }
-    pub fn matches_event(&self, event: &Event, ip_addr: Option<IpAddr>) -> bool {
+    pub fn matches<T>(&self, value: &T, ip_addr: Option<IpAddr>) -> bool
+    where
+        T: FieldValueProvider,
+    {
         match self {
-            RuleCondition::Eq(condition) => condition.matches_event(event),
-            RuleCondition::Lte(condition) => condition.matches_event(event),
-            RuleCondition::Gte(condition) => condition.matches_event(event),
-            RuleCondition::Gt(condition) => condition.matches_event(event),
-            RuleCondition::Lt(condition) => condition.matches_event(event),
-            RuleCondition::Glob(condition) => condition.matches_event(event),
-            RuleCondition::And(conditions) => conditions.matches_event(event, ip_addr),
-            RuleCondition::Or(conditions) => conditions.matches_event(event, ip_addr),
-            RuleCondition::Not(condition) => condition.matches_event(event, ip_addr),
+            RuleCondition::Eq(condition) => condition.matches(value),
+            RuleCondition::Lte(condition) => condition.matches(value),
+            RuleCondition::Gte(condition) => condition.matches(value),
+            RuleCondition::Gt(condition) => condition.matches(value),
+            RuleCondition::Lt(condition) => condition.matches(value),
+            RuleCondition::Glob(condition) => condition.matches(value),
+            RuleCondition::And(conditions) => conditions.matches(value, ip_addr),
+            RuleCondition::Or(conditions) => conditions.matches(value, ip_addr),
+            RuleCondition::Not(condition) => condition.matches(value, ip_addr),
             RuleCondition::Unsupported => false,
-            RuleCondition::Custom(condition) => condition.matches_event(event, ip_addr),
-        }
-    }
-    pub fn matches_trace(&self, trace: &TraceContext, ip_addr: Option<IpAddr>) -> bool {
-        match self {
-            RuleCondition::Eq(condition) => condition.matches_trace(trace),
-            RuleCondition::Gte(condition) => condition.matches_trace(trace),
-            RuleCondition::Lte(condition) => condition.matches_trace(trace),
-            RuleCondition::Gt(condition) => condition.matches_trace(trace),
-            RuleCondition::Lt(condition) => condition.matches_trace(trace),
-            RuleCondition::Glob(condition) => condition.matches_trace(trace),
-            RuleCondition::And(conditions) => conditions.matches_trace(trace, ip_addr),
-            RuleCondition::Or(conditions) => conditions.matches_trace(trace, ip_addr),
-            RuleCondition::Not(condition) => condition.matches_trace(trace, ip_addr),
-            RuleCondition::Unsupported => false,
-            RuleCondition::Custom(condition) => condition.matches_trace(trace, ip_addr),
+            RuleCondition::Custom(condition) => condition.matches(value, ip_addr),
         }
     }
 }
@@ -357,6 +324,37 @@ impl Display for RuleId {
     }
 }
 
+/// A range of time.
+///
+/// The time range should be applicable between the start time, inclusive, and
+/// end time, exclusive.  There aren't any explicit checks to ensure the end
+/// time is equal to or greater than the start time; the time range isn't valid
+/// in such cases.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct TimeRange {
+    start: Option<DateTime<Utc>>,
+    end: Option<DateTime<Utc>>,
+}
+
+impl TimeRange {
+    /// Returns true if neither the start nor end time limits are set.
+    pub fn is_empty(&self) -> bool {
+        self.start.is_none() && self.end.is_none()
+    }
+
+    /// Returns whether the provided time matches the time range.
+    ///
+    /// For a time to match a time range, the following conditions must match:
+    /// - The start time must be smaller than or equal to the given time, if provided.
+    /// - The end time must be greater than the given time, if provided.
+    ///
+    /// If one of the limits isn't provided, the range is considered open in
+    /// that limit. A time range open on both sides matches with any given time.
+    pub fn contains(&self, time: DateTime<Utc>) -> bool {
+        self.start.map_or(true, |s| s <= time) && self.end.map_or(true, |e| time < e)
+    }
+}
+
 /// A sampling rule as it is deserialized from the project configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -366,18 +364,32 @@ pub struct SamplingRule {
     #[serde(rename = "type")]
     pub ty: RuleType,
     pub id: RuleId,
+    /// The time range the rule should be applicable in.
+    ///
+    /// The time range is open on both ends by default. If a time range is
+    /// closed on at least one end, the rule is considered a decaying rule.
+    #[serde(default, skip_serializing_if = "TimeRange::is_empty")]
+    pub time_range: TimeRange,
 }
 
 impl SamplingRule {
     fn supported(&self) -> bool {
-        self.condition.supported()
+        self.condition.supported() && self.ty != RuleType::Unsupported
+    }
+
+    /// Returns whether the sampling rule is active.
+    ///
+    /// Non-decaying rules are always active. Decaying rules are active if they are
+    /// neither idle nor expired.
+    fn is_active(&self) -> bool {
+        self.time_range.contains(Utc::now())
     }
 }
 
 /// Trait implemented by providers of fields (Events and Trace Contexts).
 ///
 /// The fields will be used by rules to check if they apply.
-trait FieldValueProvider {
+pub trait FieldValueProvider {
     /// gets the value of a field
     fn get_value(&self, path: &str) -> Value;
     /// what type of rule can be applied to this provider
@@ -609,7 +621,7 @@ fn csp_matcher(condition: &CustomCondition, event: &Event, _ip_addr: Option<IpAd
     }
 }
 
-impl FieldValueProvider for TraceContext {
+impl FieldValueProvider for DynamicSamplingContext {
     fn get_value(&self, field_name: &str) -> Value {
         match field_name {
             "trace.release" => match self.release {
@@ -620,20 +632,20 @@ impl FieldValueProvider for TraceContext {
                 None => Value::Null,
                 Some(ref s) => s.as_str().into(),
             },
-            "trace.user.id" => self.user.as_ref().map_or(Value::Null, |user| {
-                if user.id.is_empty() {
+            "trace.user.id" => {
+                if self.user.user_id.is_empty() {
                     Value::Null
                 } else {
-                    user.id.as_str().into()
+                    self.user.user_id.as_str().into()
                 }
-            }),
-            "trace.user.segment" => self.user.as_ref().map_or(Value::Null, |user| {
-                if user.segment.is_empty() {
+            }
+            "trace.user.segment" => {
+                if self.user.user_segment.is_empty() {
                     Value::Null
                 } else {
-                    user.segment.as_str().into()
+                    self.user.user_segment.as_str().into()
                 }
-            }),
+            }
             "trace.transaction" => match self.transaction {
                 None => Value::Null,
                 Some(ref s) => s.as_str().into(),
@@ -654,15 +666,54 @@ impl FieldValueProvider for TraceContext {
     }
 }
 
+/// Defines which population of items a dynamic sample rate applies to.
+///
+/// SDKs with client side sampling reduce the number of items sent to Relay, where dynamic sampling
+/// occurs. The sampling mode controlls whether the sample rate is relative to the original
+/// population of items before client-side sampling, or relative to the number received by Relay
+/// after client-side sampling.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SamplingMode {
+    /// The sample rate is based on the number of events received by Relay.
+    ///
+    /// Server-side dynamic sampling occurs on top of potential client-side sampling in the SDK. For
+    /// example, if the SDK samples at 50% and the server sampling rate is set at 10%, the resulting
+    /// effective sample rate is 5%.
+    Received,
+    /// The sample rate is based on the original number of events in the client.
+    ///
+    /// Server-side sampling compensates potential client-side sampling in the SDK. For example, if
+    /// the SDK samples at 50% and the server sampling rate is set at 10%, the resulting effective
+    /// sample rate is 10%.
+    ///
+    /// In this mode, the server sampling rate is capped by the client's sampling rate. Rules with a
+    /// higher sample rate than what the client is sending are effectively inactive.
+    Total,
+
+    /// Catch-all variant for forward compatibility.
+    #[serde(other)]
+    Unsupported,
+}
+
+impl Default for SamplingMode {
+    fn default() -> Self {
+        Self::Received
+    }
+}
+
 /// Represents the dynamic sampling configuration available to a project.
 ///
 /// Note: This comes from the organization data
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SamplingConfig {
-    /// The sampling rules for the project
+    /// The ordered sampling rules for the project from highest to lowest priority.
     pub rules: Vec<SamplingRule>,
-    /// The id of the next new Rule (used as a generator for unique rule ids)
+    /// Defines which population of items a dynamic sample rate applies to.
+    #[serde(default)]
+    pub mode: SamplingMode,
+    /// The unique identifier for the next new rule to be added.
     #[serde(default)]
     pub next_id: Option<u32>,
 }
@@ -671,94 +722,252 @@ impl SamplingConfig {
     pub fn has_unsupported_rules(&self) -> bool {
         !self.rules.iter().all(SamplingRule::supported)
     }
+
+    /// Get the first rule of type [`RuleType::Trace`] whose conditions match on the given sampling
+    /// context.
+    ///
+    /// This is a function separate from `get_matching_event_rule` because trace rules can
+    /// (theoretically) be applied even if there's no event. Also we expect that trace rules are
+    /// executed before event rules.
+    pub fn get_matching_trace_rule<'a>(
+        &'a self,
+        sampling_context: &DynamicSamplingContext,
+        ip_addr: Option<IpAddr>,
+    ) -> Option<&'a SamplingRule> {
+        self.rules.iter().find(|rule| {
+            if rule.ty != RuleType::Trace {
+                return false;
+            }
+            if !rule.is_active() {
+                return false;
+            }
+            rule.condition.matches(sampling_context, ip_addr)
+        })
+    }
+
+    /// Get the first rule of type [`RuleType::Transaction`] or [`RuleType::Error`] whose conditions
+    /// match the given event.
+    ///
+    /// The rule type to filter by is inferred from the event's type.
+    pub fn get_matching_event_rule<'a>(
+        &'a self,
+        event: &Event,
+        ip_addr: Option<IpAddr>,
+    ) -> Option<&'a SamplingRule> {
+        let ty = if let Some(EventType::Transaction) = &event.ty.0 {
+            RuleType::Transaction
+        } else {
+            RuleType::Error
+        };
+
+        self.rules.iter().find(|rule| {
+            if rule.ty != ty {
+                return false;
+            }
+            if !rule.is_active() {
+                return false;
+            }
+            rule.condition.matches(event, ip_addr)
+        })
+    }
 }
 
 /// The User related information in the trace context
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+///
+/// This is more of a mixin to be used in the DynamicSamplingContext
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct TraceUserContext {
     #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub segment: String,
+    pub user_segment: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub id: String,
+    pub user_id: String,
 }
 
-/// TraceContext created by the first Sentry SDK in the call chain.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TraceContext {
-    /// IID created by SDK to represent the current call flow
-    pub trace_id: Uuid,
-    /// the project key
-    pub public_key: ProjectKey,
-    /// the release
-    #[serde(default)]
-    pub release: Option<String>,
-    /// the user specific identifier ( e.g. a user segment, or similar created by the SDK
-    /// from the user object)
-    #[serde(default)]
-    pub user: Option<TraceUserContext>,
-    /// the environment
-    #[serde(default)]
-    pub environment: Option<String>,
-    /// the name of the transaction extracted from the `transaction` field in the starting transaction
-    ///
-    /// set on transaction start, or via `scope.transaction`
-    #[serde(default)]
-    pub transaction: Option<String>,
-}
+impl<'de> Deserialize<'de> for TraceUserContext {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize, Default)]
+        struct Nested {
+            #[serde(default)]
+            pub segment: String,
+            #[serde(default)]
+            pub id: String,
+        }
 
-impl TraceContext {
-    /// Returns whether a trace should be retained based on sampling rules.
-    ///
-    /// If [`SamplingResult::NoDecision`] is returned, then no rule matched this trace. In this
-    /// case, the caller may decide whether to keep the trace or not. The same is returned if the
-    /// configuration is invalid.
-    pub fn should_keep(&self, ip_addr: Option<IpAddr>, config: &SamplingConfig) -> SamplingResult {
-        if let Some(rule) = get_matching_trace_rule(config, self, ip_addr, RuleType::Trace) {
-            let rate = pseudo_random_from_uuid(self.trace_id);
+        #[derive(Deserialize)]
+        struct Helper {
+            // Nested implements default, but we used to accept user=null (not sure if any SDK
+            // sends this though)
+            #[serde(default)]
+            user: Option<Nested>,
+            #[serde(default)]
+            user_segment: String,
+            #[serde(default)]
+            user_id: String,
+        }
 
-            if rate < rule.sample_rate {
-                SamplingResult::Keep
-            } else {
-                SamplingResult::Drop(rule.id)
-            }
+        let helper = Helper::deserialize(deserializer)?;
+
+        if helper.user_id.is_empty() && helper.user_segment.is_empty() {
+            let user = helper.user.unwrap_or_default();
+            Ok(TraceUserContext {
+                user_segment: user.segment,
+                user_id: user.id,
+            })
         } else {
-            SamplingResult::NoDecision
+            Ok(TraceUserContext {
+                user_segment: helper.user_segment,
+                user_id: helper.user_id,
+            })
         }
     }
 }
 
-/// Returns the type of rule that applies to a particular event.
-pub fn rule_type_for_event(event: &Event) -> RuleType {
-    if let Some(EventType::Transaction) = &event.ty.0 {
-        RuleType::Transaction
-    } else {
-        RuleType::Error
+mod sample_rate_as_string {
+    use super::*;
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = match Option::<Cow<'_, str>>::deserialize(deserializer)? {
+            Some(value) => value,
+            None => return Ok(None),
+        };
+
+        let parsed_value =
+            serde_json::from_str(&value).map_err(|e| serde::de::Error::custom(e.to_string()))?;
+
+        if parsed_value < 0.0 {
+            return Err(serde::de::Error::custom("sample rate cannot be negative"));
+        }
+
+        Ok(Some(parsed_value))
+    }
+
+    pub fn serialize<S>(value: &Option<f64>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match value {
+            Some(float) => serde_json::to_string(float)
+                .map_err(|e| serde::ser::Error::custom(e.to_string()))?
+                .serialize(serializer),
+            None => value.serialize(serializer),
+        }
     }
 }
 
-/// Returns the first event rule that matches the event.
-pub fn get_matching_event_rule<'a>(
-    config: &'a SamplingConfig,
-    event: &Event,
-    ip_addr: Option<IpAddr>,
-    ty: RuleType,
-) -> Option<&'a SamplingRule> {
-    config
-        .rules
-        .iter()
-        .find(|rule| rule.ty == ty && rule.condition.matches_event(event, ip_addr))
+/// DynamicSamplingContext created by the first Sentry SDK in the call chain.
+///
+/// Because SDKs need to funnel this data through the baggage header, this needs to be
+/// representable as `HashMap<String, String>`, meaning no nested dictionaries/objects, arrays or
+/// other non-string values.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DynamicSamplingContext {
+    /// ID created by clients to represent the current call flow.
+    pub trace_id: Uuid,
+    /// The project key.
+    pub public_key: ProjectKey,
+    /// The release.
+    #[serde(default)]
+    pub release: Option<String>,
+    /// The environment.
+    #[serde(default)]
+    pub environment: Option<String>,
+    /// The name of the transaction extracted from the `transaction` field in the starting
+    /// transaction.
+    ///
+    /// Set on transaction start, or via `scope.transaction`.
+    #[serde(default)]
+    pub transaction: Option<String>,
+    /// The sample rate with which this trace was sampled in the client. This is a float between
+    /// `0.0` and `1.0`.
+    #[serde(
+        default,
+        with = "sample_rate_as_string",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub sample_rate: Option<f64>,
+    /// The user specific identifier (e.g. a user segment, or similar created by the SDK from the
+    /// user object).
+    #[serde(flatten, default)]
+    pub user: TraceUserContext,
+    /// Additional arbitrary fields for forwards compatibility.
+    #[serde(flatten, default)]
+    pub other: BTreeMap<String, Value>,
 }
 
-fn get_matching_trace_rule<'a>(
-    config: &'a SamplingConfig,
-    trace: &TraceContext,
-    ip_addr: Option<IpAddr>,
-    ty: RuleType,
-) -> Option<&'a SamplingRule> {
-    config
-        .rules
-        .iter()
-        .find(|rule| rule.ty == ty && rule.condition.matches_trace(trace, ip_addr))
+impl DynamicSamplingContext {
+    /// Computes a dynamic sampling context from a transaction event.
+    ///
+    /// Returns `None` if the passed event is not a transaction event, or if it does not contain a
+    /// trace ID in its trace context. All optional fields in the dynamic sampling context are
+    /// populated with the corresponding attributes from the event payload if they are available.
+    ///
+    /// Since sampling information is not available in the event payload, the `sample_rate` field
+    /// cannot be set when computing the dynamic sampling context from a transaction event.
+    pub fn from_transaction(public_key: ProjectKey, event: &Event) -> Option<Self> {
+        if event.ty.value() != Some(&EventType::Transaction) {
+            return None;
+        }
+
+        let contexts = event.contexts.value()?;
+        let context = contexts.get(TraceContext::default_key())?.value()?;
+        let Context::Trace(ref trace) = context.0 else { return None };
+        let trace_id = trace.trace_id.value()?;
+        let trace_id = trace_id.0.parse().ok()?;
+
+        let user = event.user.value();
+
+        Some(Self {
+            trace_id,
+            public_key,
+            release: event.release.as_str().map(str::to_owned),
+            environment: event.environment.value().cloned(),
+            transaction: event.transaction.value().cloned(),
+            sample_rate: None,
+            user: TraceUserContext {
+                user_segment: user
+                    .and_then(|u| u.segment.value().cloned())
+                    .unwrap_or_default(),
+                user_id: user
+                    .and_then(|u| u.id.as_str())
+                    .unwrap_or_default()
+                    .to_owned(),
+            },
+            other: Default::default(),
+        })
+    }
+
+    /// Compute the effective sampling rate based on the random "diceroll" and the sample rate from
+    /// the matching rule.
+    pub fn adjusted_sample_rate(&self, rule_sample_rate: f64) -> f64 {
+        let client_sample_rate = self.sample_rate.unwrap_or(1.0);
+        if client_sample_rate <= 0.0 {
+            // client_sample_rate is 0, which is bogus because the SDK should've dropped the
+            // envelope. In that case let's pretend the sample rate was not sent, because clearly
+            // the sampling decision across the trace is still 1. The most likely explanation is
+            // that the SDK is reporting its own sample rate setting instead of the one from the
+            // continued trace.
+            //
+            // since we write back the client_sample_rate into the event's trace context, it should
+            // be possible to find those values + sdk versions via snuba
+            relay_log::warn!("client sample rate is <= 0");
+            rule_sample_rate
+        } else {
+            let adjusted_sample_rate = (rule_sample_rate / client_sample_rate).clamp(0.0, 1.0);
+            if adjusted_sample_rate.is_infinite() || adjusted_sample_rate.is_nan() {
+                relay_log::error!("adjusted sample rate ended up being nan/inf");
+                debug_assert!(false);
+                rule_sample_rate
+            } else {
+                adjusted_sample_rate
+            }
+        }
+    }
 }
 
 /// Generates a pseudo random number by seeding the generator with the given id.
@@ -776,7 +985,7 @@ mod tests {
     use std::net::{IpAddr as NetIpAddr, Ipv4Addr};
     use std::str::FromStr;
 
-    use insta::assert_ron_snapshot;
+    use chrono::{TimeZone, Utc};
 
     use relay_general::protocol::{
         Contexts, Csp, DeviceContext, Exception, Headers, IpAddr, JsonLenientString, LenientString,
@@ -785,6 +994,19 @@ mod tests {
     use relay_general::types::Annotated;
 
     use super::*;
+
+    fn default_sampling_context() -> DynamicSamplingContext {
+        DynamicSamplingContext {
+            trace_id: Uuid::default(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: None,
+            environment: None,
+            transaction: None,
+            sample_rate: None,
+            user: TraceUserContext::default(),
+            other: BTreeMap::new(),
+        }
+    }
 
     fn eq(name: &str, value: &[&str], ignore_case: bool) -> RuleCondition {
         RuleCondition::Eq(EqCondition {
@@ -957,63 +1179,72 @@ mod tests {
 
     #[test]
     fn test_field_value_provider_trace_filled() {
-        let tc = TraceContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".into()),
-            user: Some(TraceUserContext {
-                segment: "user-seg".into(),
-                id: "user-id".into(),
-            }),
+            user: TraceUserContext {
+                user_segment: "user-seg".into(),
+                user_id: "user-id".into(),
+            },
             environment: Some("prod".into()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
-        assert_eq!(Value::String("1.1.1".into()), tc.get_value("trace.release"));
+        assert_eq!(
+            Value::String("1.1.1".into()),
+            dsc.get_value("trace.release")
+        );
         assert_eq!(
             Value::String("prod".into()),
-            tc.get_value("trace.environment")
+            dsc.get_value("trace.environment")
         );
         assert_eq!(
             Value::String("user-id".into()),
-            tc.get_value("trace.user.id")
+            dsc.get_value("trace.user.id")
         );
         assert_eq!(
             Value::String("user-seg".into()),
-            tc.get_value("trace.user.segment")
+            dsc.get_value("trace.user.segment")
         );
         assert_eq!(
             Value::String("transaction1".into()),
-            tc.get_value("trace.transaction")
+            dsc.get_value("trace.transaction")
         )
     }
 
     #[test]
     fn test_field_value_provider_trace_empty() {
-        let tc = TraceContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: None,
-            user: None,
+            user: TraceUserContext::default(),
             environment: None,
             transaction: None,
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
-        assert_eq!(Value::Null, tc.get_value("trace.release"));
-        assert_eq!(Value::Null, tc.get_value("trace.environment"));
-        assert_eq!(Value::Null, tc.get_value("trace.user.id"));
-        assert_eq!(Value::Null, tc.get_value("trace.user.segment"));
-        assert_eq!(Value::Null, tc.get_value("trace.user.transaction"));
+        assert_eq!(Value::Null, dsc.get_value("trace.release"));
+        assert_eq!(Value::Null, dsc.get_value("trace.environment"));
+        assert_eq!(Value::Null, dsc.get_value("trace.user.id"));
+        assert_eq!(Value::Null, dsc.get_value("trace.user.segment"));
+        assert_eq!(Value::Null, dsc.get_value("trace.user.transaction"));
 
-        let tc = TraceContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: None,
-            user: Some(TraceUserContext::default()),
+            user: TraceUserContext::default(),
             environment: None,
             transaction: None,
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
-        assert_eq!(Value::Null, tc.get_value("trace.user.id"));
-        assert_eq!(Value::Null, tc.get_value("trace.user.segment"));
+        assert_eq!(Value::Null, dsc.get_value("trace.user.id"));
+        assert_eq!(Value::Null, dsc.get_value("trace.user.segment"));
     }
 
     #[test]
@@ -1106,21 +1337,23 @@ mod tests {
             ("match no conditions", and(vec![])),
         ];
 
-        let tc = TraceContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".into()),
-            user: Some(TraceUserContext {
-                segment: "vip".into(),
-                id: "user-id".into(),
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".into(),
+                user_id: "user-id".into(),
+            },
             environment: Some("debug".into()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(condition.matches_trace(&tc, None), "{}", failure_name);
+            assert!(condition.matches(&dsc, None), "{}", failure_name);
         }
     }
 
@@ -1198,7 +1431,7 @@ mod tests {
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
             let ip_addr = Some(NetIpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
-            assert!(condition.matches_event(&evt, ip_addr), "{}", failure_name);
+            assert!(condition.matches(&evt, ip_addr), "{}", failure_name);
         }
     }
 
@@ -1217,7 +1450,7 @@ mod tests {
             }),
             ..Default::default()
         };
-        assert!(condition.matches_event(&evt, None));
+        assert!(condition.matches(&evt, None));
     }
 
     #[test]
@@ -1238,7 +1471,7 @@ mod tests {
             }),
             ..Event::default()
         };
-        assert!(condition.matches_event(&evt, None));
+        assert!(condition.matches(&evt, None));
     }
 
     #[test]
@@ -1279,22 +1512,24 @@ mod tests {
             ("empty", false, or(vec![])),
         ];
 
-        let tc = TraceContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some(TraceUserContext {
-                segment: "vip".to_owned(),
-                id: "user-id".to_owned(),
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
             assert!(
-                condition.matches_trace(&tc, None) == *expected,
+                condition.matches(&dsc, None) == *expected,
                 "{}",
                 failure_name
             );
@@ -1339,22 +1574,24 @@ mod tests {
             ("empty", true, and(vec![])),
         ];
 
-        let tc = TraceContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some(TraceUserContext {
-                segment: "vip".to_owned(),
-                id: "user-id".to_owned(),
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
             assert!(
-                condition.matches_trace(&tc, None) == *expected,
+                condition.matches(&dsc, None) == *expected,
                 "{}",
                 failure_name
             );
@@ -1376,22 +1613,24 @@ mod tests {
             ),
         ];
 
-        let tc = TraceContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some(TraceUserContext {
-                segment: "vip".to_owned(),
-                id: "user-id".to_owned(),
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
             assert!(
-                condition.matches_trace(&tc, None) == *expected,
+                condition.matches(&dsc, None) == *expected,
                 "{}",
                 failure_name
             );
@@ -1436,21 +1675,23 @@ mod tests {
             ),
         ];
 
-        let tc = TraceContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some(TraceUserContext {
-                segment: "vip".to_owned(),
-                id: "user-id".to_owned(),
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(!condition.matches_trace(&tc, None), "{}", failure_name);
+            assert!(!condition.matches(&dsc, None), "{}", failure_name);
         }
     }
 
@@ -1521,7 +1762,7 @@ mod tests {
         relay_log::debug!("{:?}", rules);
         assert!(rules.is_ok());
         let rules = rules.unwrap();
-        assert_ron_snapshot!(rules, @r###"
+        insta::assert_ron_snapshot!(rules, @r###"
             [
               EqCondition(
                 op: "eq",
@@ -1625,7 +1866,7 @@ mod tests {
 
     #[test]
     ///Test SamplingRule deserialization
-    fn test_sampling_rule_deserialization() {
+    fn test_nondecaying_sampling_rule_deserialization() {
         let serialized_rule = r#"{
             "condition":{
                 "op":"and",
@@ -1646,25 +1887,55 @@ mod tests {
     }
 
     #[test]
+    fn test_decaying_sampling_rule_deserialization() {
+        let serialized_rule = r#"{
+            "condition":{
+                "op":"and",
+                "inner": [
+                    { "op" : "glob", "name": "releases", "value":["1.1.1", "1.1.2"]}
+                ]
+            },
+            "sampleRate": 0.7,
+            "type": "trace",
+            "id": 1,
+            "timeRange": {
+                "start": "2022-10-10T00:00:00.000000Z",
+                "end": "2022-10-20T00:00:00.000000Z"
+            }
+        }"#;
+        let rule: Result<SamplingRule, _> = serde_json::from_str(serialized_rule);
+        let rule = rule.unwrap();
+        let time_range = rule.time_range;
+
+        assert_eq!(
+            time_range.start,
+            Some(Utc.ymd(2022, 10, 10).and_hms(0, 0, 0))
+        );
+        assert_eq!(time_range.end, Some(Utc.ymd(2022, 10, 20).and_hms(0, 0, 0)));
+    }
+
+    #[test]
     fn test_partial_trace_matches() {
         let condition = and(vec![
             eq("trace.environment", &["debug"], true),
             eq("trace.user.segment", &["vip"], true),
         ]);
-        let tc = TraceContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: None,
-            user: Some(TraceUserContext {
-                segment: "vip".to_owned(),
-                id: "user-id".to_owned(),
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         assert!(
-            condition.matches_trace(&tc, None),
+            condition.matches(&dsc, None),
             "did not match with missing release"
         );
 
@@ -1672,17 +1943,19 @@ mod tests {
             glob("trace.release", &["1.1.1"]),
             eq("trace.environment", &["debug"], true),
         ]);
-        let tc = TraceContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: None,
+            user: TraceUserContext::default(),
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         assert!(
-            condition.matches_trace(&tc, None),
+            condition.matches(&dsc, None),
             "did not match with missing user segment"
         );
 
@@ -1690,20 +1963,22 @@ mod tests {
             glob("trace.release", &["1.1.1"]),
             eq("trace.user.segment", &["vip"], true),
         ]);
-        let tc = TraceContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some(TraceUserContext {
-                segment: "vip".to_owned(),
-                id: "user-id".to_owned(),
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: None,
             transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         assert!(
-            condition.matches_trace(&tc, None),
+            condition.matches(&dsc, None),
             "did not match with missing environment"
         );
 
@@ -1711,34 +1986,38 @@ mod tests {
             glob("trace.release", &["1.1.1"]),
             eq("trace.user.segment", &["vip"], true),
         ]);
-        let tc = TraceContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some(TraceUserContext {
-                segment: "vip".to_owned(),
-                id: "user-id".to_owned(),
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("debug".to_string()),
             transaction: None,
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         assert!(
-            condition.matches_trace(&tc, None),
+            condition.matches(&dsc, None),
             "did not match with missing transaction"
         );
         let condition = and(vec![]);
-        let tc = TraceContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: None,
-            user: None,
+            user: TraceUserContext::default(),
             environment: None,
             transaction: None,
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         assert!(
-            condition.matches_trace(&tc, None),
+            condition.matches(&dsc, None),
             "did not match with missing release, user segment, environment and transaction"
         );
     }
@@ -1750,7 +2029,7 @@ mod tests {
 
     #[test]
     /// test that the first rule that matches is selected
-    fn test_rule_precedence() {
+    fn test_nondecaying_rule_precedence() {
         let rules = SamplingConfig {
             rules: vec![
                 //everything specified
@@ -1763,6 +2042,7 @@ mod tests {
                     sample_rate: 0.1,
                     ty: RuleType::Trace,
                     id: RuleId(1),
+                    time_range: Default::default(),
                 },
                 // no user segments
                 SamplingRule {
@@ -1773,6 +2053,7 @@ mod tests {
                     sample_rate: 0.2,
                     ty: RuleType::Trace,
                     id: RuleId(2),
+                    time_range: Default::default(),
                 },
                 // no releases
                 SamplingRule {
@@ -1783,6 +2064,7 @@ mod tests {
                     sample_rate: 0.3,
                     ty: RuleType::Trace,
                     id: RuleId(3),
+                    time_range: Default::default(),
                 },
                 // no environments
                 SamplingRule {
@@ -1793,6 +2075,7 @@ mod tests {
                     sample_rate: 0.4,
                     ty: RuleType::Trace,
                     id: RuleId(4),
+                    time_range: Default::default(),
                 },
                 // no user segments releases or environments
                 SamplingRule {
@@ -1800,24 +2083,28 @@ mod tests {
                     sample_rate: 0.5,
                     ty: RuleType::Trace,
                     id: RuleId(5),
+                    time_range: Default::default(),
                 },
             ],
+            mode: SamplingMode::Received,
             next_id: None,
         };
 
-        let trace_context = TraceContext {
+        let trace_context = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some(TraceUserContext {
-                segment: "vip".to_owned(),
-                id: "user-id".to_owned(),
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
-        let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
+        let result = rules.get_matching_trace_rule(&trace_context, None);
         // complete match with first rule
         assert_eq!(
             result.unwrap().id,
@@ -1825,19 +2112,21 @@ mod tests {
             "did not match the expected first rule"
         );
 
-        let trace_context = TraceContext {
+        let trace_context = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.2".to_string()),
-            user: Some(TraceUserContext {
-                segment: "vip".to_owned(),
-                id: "user-id".to_owned(),
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
-        let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
+        let result = rules.get_matching_trace_rule(&trace_context, None);
         // should mach the second rule because of the release
         assert_eq!(
             result.unwrap().id,
@@ -1845,19 +2134,21 @@ mod tests {
             "did not match the expected second rule"
         );
 
-        let trace_context = TraceContext {
+        let trace_context = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.3".to_string()),
-            user: Some(TraceUserContext {
-                segment: "vip".to_owned(),
-                id: "user-id".to_owned(),
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
-        let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
+        let result = rules.get_matching_trace_rule(&trace_context, None);
         // should match the third rule because of the unknown release
         assert_eq!(
             result.unwrap().id,
@@ -1865,19 +2156,21 @@ mod tests {
             "did not match the expected third rule"
         );
 
-        let trace_context = TraceContext {
+        let trace_context = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some(TraceUserContext {
-                segment: "vip".to_owned(),
-                id: "user-id".to_owned(),
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("production".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
-        let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
+        let result = rules.get_matching_trace_rule(&trace_context, None);
         // should match the fourth rule because of the unknown environment
         assert_eq!(
             result.unwrap().id,
@@ -1885,25 +2178,237 @@ mod tests {
             "did not match the expected fourth rule"
         );
 
-        let trace_context = TraceContext {
+        let trace_context = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some(TraceUserContext {
-                segment: "all".to_owned(),
-                id: "user-id".to_owned(),
-            }),
+            user: TraceUserContext {
+                user_segment: "all".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
-        let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
+        let result = rules.get_matching_trace_rule(&trace_context, None);
         // should match the fourth rule because of the unknown user segment
         assert_eq!(
             result.unwrap().id,
             RuleId(5),
             "did not match the expected fourth rule"
         );
+    }
+
+    #[test]
+    fn test_decaying_trace_rule_precedence() {
+        let rules = decaying_sampling_config(&RuleType::Trace);
+
+        let new_release = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
+            environment: Some("testing".to_string()),
+            transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
+        };
+        let result = rules.get_matching_trace_rule(&new_release, None);
+        assert_eq!(result.unwrap().id, RuleId(4), "Did not match expected rule");
+
+        let old_release = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.0".to_string()),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
+            environment: Some("testing".to_string()),
+            transaction: Some("transaction2".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
+        };
+        let result = rules.get_matching_trace_rule(&old_release, None);
+        assert_eq!(result.unwrap().id, RuleId(5), "Did not match expected rule");
+    }
+
+    fn decaying_sampling_config(rule_type: &RuleType) -> SamplingConfig {
+        let rule_prefix = match rule_type {
+            RuleType::Trace => "trace",
+            RuleType::Transaction => "event",
+            // For the Error variant, the prefix is also `event`. However, it's not
+            // supported in the code, so intentionally not implementing any logic for
+            // that. This whole helper method should be revisited when the Error variant
+            // is supported.
+            RuleType::Error | RuleType::Unsupported => unimplemented!(),
+        };
+        let release_condition = format!("{}.release", rule_prefix);
+        let env_condition = format!("{}.environment", rule_prefix);
+
+        SamplingConfig {
+            rules: vec![
+                // Expired
+                SamplingRule {
+                    condition: eq(&release_condition, &["1.1.1"], true),
+                    sample_rate: 0.2,
+                    ty: *rule_type,
+                    id: RuleId(1),
+                    time_range: TimeRange {
+                        start: Some(Utc.ymd(1970, 10, 10).and_hms(0, 0, 0)),
+                        end: Some(Utc.ymd(1970, 10, 30).and_hms(0, 0, 0)),
+                    },
+                },
+                // Idle
+                SamplingRule {
+                    condition: eq(&release_condition, &["1.1.1"], true),
+                    sample_rate: 0.2,
+                    ty: *rule_type,
+                    id: RuleId(2),
+                    time_range: TimeRange {
+                        start: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
+                        end: Some(Utc.ymd(3000, 10, 15).and_hms(0, 0, 0)),
+                    },
+                },
+                // Start after finishing
+                SamplingRule {
+                    condition: eq(&release_condition, &["1.1.1"], true),
+                    sample_rate: 0.2,
+                    ty: *rule_type,
+                    id: RuleId(3),
+                    time_range: TimeRange {
+                        start: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
+                        end: Some(Utc.ymd(1970, 10, 30).and_hms(0, 0, 0)),
+                    },
+                },
+                // Rule is ok
+                SamplingRule {
+                    condition: eq(&release_condition, &["1.1.1"], true),
+                    sample_rate: 0.2,
+                    ty: *rule_type,
+                    id: RuleId(4),
+                    time_range: TimeRange {
+                        start: Some(Utc.ymd(1970, 10, 30).and_hms(0, 0, 0)),
+                        end: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
+                    },
+                },
+                // Fallback to non-decaying rule
+                SamplingRule {
+                    // Environment matching all contexts, so that everyone can fallback
+                    condition: eq(&env_condition, &["testing"], true),
+                    sample_rate: 0.2,
+                    ty: *rule_type,
+                    id: RuleId(5),
+                    time_range: Default::default(),
+                },
+            ],
+            mode: SamplingMode::Received,
+            next_id: None,
+        }
+    }
+
+    #[test]
+    fn test_decaying_transaction_rule_precedence() {
+        let rules = decaying_sampling_config(&RuleType::Transaction);
+
+        let new_release = Event {
+            ty: Annotated::new(EventType::Transaction),
+            release: Annotated::new("1.1.1".to_string().into()),
+            environment: Annotated::new("testing".to_string()),
+            ..Default::default()
+        };
+        let result = rules.get_matching_event_rule(&new_release, None);
+        assert_eq!(result.unwrap().id, RuleId(4), "Did not match expected rule");
+
+        let old_release = Event {
+            ty: Annotated::new(EventType::Transaction),
+            release: Annotated::new("1.1.0".to_string().into()),
+            environment: Annotated::new("testing".to_string()),
+            ..Default::default()
+        };
+        let result = rules.get_matching_event_rule(&old_release, None);
+        assert_eq!(result.unwrap().id, RuleId(5), "Did not match expected rule");
+    }
+
+    #[test]
+    fn test_open_decaying_rules() {
+        let transaction = Event {
+            ty: Annotated::new(EventType::Transaction),
+            release: Annotated::new("1.1.1".to_string().into()),
+            ..Default::default()
+        };
+        let trace = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
+            environment: Some("testing".to_string()),
+            transaction: Some("transaction2".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
+        };
+
+        let ranges = vec![
+            TimeRange {
+                start: Some(Utc.ymd(1970, 10, 10).and_hms(0, 0, 0)),
+                end: None,
+            },
+            TimeRange {
+                start: None,
+                end: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
+            },
+            TimeRange {
+                start: None,
+                end: None,
+            },
+        ];
+
+        for range in ranges {
+            let config = SamplingConfig {
+                rules: vec![SamplingRule {
+                    condition: eq("trace.release", &["1.1.1"], true),
+                    sample_rate: 0.2,
+                    ty: RuleType::Trace,
+                    id: RuleId(1),
+                    time_range: range,
+                }],
+                mode: SamplingMode::Received,
+                next_id: None,
+            };
+            assert_eq!(
+                config.get_matching_trace_rule(&trace, None).unwrap().id,
+                RuleId(1),
+                "Trace rule did not match",
+            );
+
+            let config = SamplingConfig {
+                rules: vec![SamplingRule {
+                    condition: eq("event.release", &["1.1.1"], true),
+                    sample_rate: 0.2,
+                    ty: RuleType::Transaction,
+                    id: RuleId(1),
+                    time_range: range,
+                }],
+                mode: SamplingMode::Received,
+                next_id: None,
+            };
+            assert_eq!(
+                config
+                    .get_matching_event_rule(&transaction, None)
+                    .unwrap()
+                    .id,
+                RuleId(1),
+                "Transaction rule did not match",
+            );
+        }
     }
 
     #[test]
@@ -1923,5 +2428,220 @@ mod tests {
         let val1 = pseudo_random_from_uuid(id);
         let val2 = pseudo_random_from_uuid(id);
         assert!(val1 + f64::EPSILON > val2 && val2 + f64::EPSILON > val1);
+    }
+
+    #[test]
+    /// Test parse user
+    fn parse_user() {
+        let jsons = [
+            r#"{
+                "trace_id": "00000000-0000-0000-0000-000000000000",
+                "public_key": "abd0f232775f45feab79864e580d160b",
+                "user": {
+                    "id": "some-id",
+                    "segment": "all"
+                }
+            }"#,
+            r#"{
+                "trace_id": "00000000-0000-0000-0000-000000000000",
+                "public_key": "abd0f232775f45feab79864e580d160b",
+                "user_id": "some-id",
+                "user_segment": "all"
+            }"#,
+            // testing some edgecases to see whether they behave as expected, but we don't actually
+            // rely on this behavior anywhere (ignoring Hyrum's law). it would be fine for them to
+            // change, we just have to be conscious about it.
+            r#"{
+                "trace_id": "00000000-0000-0000-0000-000000000000",
+                "public_key": "abd0f232775f45feab79864e580d160b",
+                "user_id": "",
+                "user_segment": "",
+                "user": {
+                    "id": "some-id",
+                    "segment": "all"
+                }
+            }"#,
+            r#"{
+                "trace_id": "00000000-0000-0000-0000-000000000000",
+                "public_key": "abd0f232775f45feab79864e580d160b",
+                "user_id": "some-id",
+                "user_segment": "all",
+                "user": {
+                    "id": "bogus-id",
+                    "segment": "nothing"
+                }
+            }"#,
+            r#"{
+                "trace_id": "00000000-0000-0000-0000-000000000000",
+                "public_key": "abd0f232775f45feab79864e580d160b",
+                "user_id": "some-id",
+                "user_segment": "all",
+                "user": null
+            }"#,
+        ];
+
+        for json in jsons {
+            let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
+            assert_eq!(dsc.user.user_id, "some-id");
+            assert_eq!(dsc.user.user_segment, "all");
+        }
+    }
+
+    #[test]
+    fn test_parse_user_partial() {
+        // in that case we might have two different sdks merging data and we at least shouldn't mix
+        // data together
+        let json = r#"
+        {
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "user": {
+                "segment": "all"
+            }
+        }
+        "#;
+        let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
+        insta::assert_ron_snapshot!(dsc, @r###"
+        {
+          "trace_id": "00000000-0000-0000-0000-000000000000",
+          "public_key": "abd0f232775f45feab79864e580d160b",
+          "release": None,
+          "environment": None,
+          "transaction": None,
+          "user_id": "hello",
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_parse_sample_rate() {
+        let json = r#"
+        {
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sample_rate": "0.5"
+        }
+        "#;
+        let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
+        insta::assert_ron_snapshot!(dsc, @r###"
+        {
+          "trace_id": "00000000-0000-0000-0000-000000000000",
+          "public_key": "abd0f232775f45feab79864e580d160b",
+          "release": None,
+          "environment": None,
+          "transaction": None,
+          "sample_rate": "0.5",
+          "user_id": "hello",
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_parse_sample_rate_scientific_notation() {
+        let json = r#"
+        {
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sample_rate": "1e-5"
+        }
+        "#;
+        let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
+        insta::assert_ron_snapshot!(dsc, @r###"
+        {
+          "trace_id": "00000000-0000-0000-0000-000000000000",
+          "public_key": "abd0f232775f45feab79864e580d160b",
+          "release": None,
+          "environment": None,
+          "transaction": None,
+          "sample_rate": "0.00001",
+          "user_id": "hello",
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_parse_sample_rate_bogus() {
+        let json = r#"
+        {
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sample_rate": "bogus"
+        }
+        "#;
+        serde_json::from_str::<DynamicSamplingContext>(json).unwrap_err();
+    }
+
+    #[test]
+    fn test_parse_sample_rate_number() {
+        let json = r#"
+        {
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sample_rate": 0.1
+        }
+        "#;
+        serde_json::from_str::<DynamicSamplingContext>(json).unwrap_err();
+    }
+
+    #[test]
+    fn test_parse_sample_rate_negative() {
+        let json = r#"
+        {
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sample_rate": "-0.1"
+        }
+        "#;
+        serde_json::from_str::<DynamicSamplingContext>(json).unwrap_err();
+    }
+
+    #[test]
+    fn test_adjust_sample_rate() {
+        let mut dsc = default_sampling_context();
+
+        dsc.sample_rate = Some(0.0);
+        assert_eq!(dsc.adjusted_sample_rate(0.5), 0.5);
+
+        dsc.sample_rate = Some(1.0);
+        assert_eq!(dsc.adjusted_sample_rate(0.5), 0.5);
+
+        dsc.sample_rate = Some(0.1);
+        assert_eq!(dsc.adjusted_sample_rate(0.5), 1.0);
+
+        dsc.sample_rate = Some(0.5);
+        assert_eq!(dsc.adjusted_sample_rate(0.1), 0.2);
+
+        dsc.sample_rate = Some(-0.5);
+        assert_eq!(dsc.adjusted_sample_rate(0.5), 0.5);
+    }
+
+    #[test]
+    fn test_supported() {
+        let rule: SamplingRule = serde_json::from_value(serde_json::json!({
+            "id": 1,
+            "type": "trace",
+            "sampleRate": 1,
+            "condition": {"op": "and", "inner": []}
+        }))
+        .unwrap();
+        assert!(rule.supported());
+    }
+
+    #[test]
+    fn test_unsupported_rule_type() {
+        let rule: SamplingRule = serde_json::from_value(serde_json::json!({
+            "id": 1,
+            "type": "new_rule_type_unknown_to_this_relay",
+            "sampleRate": 1,
+            "condition": {"op": "and", "inner": []}
+        }))
+        .unwrap();
+        assert!(!rule.supported());
     }
 }

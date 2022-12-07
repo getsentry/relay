@@ -9,10 +9,11 @@ use actix_web::error::Error;
 use actix_web::middleware::{Finished, Middleware, Response, Started};
 use actix_web::{http::header, Body, HttpMessage, HttpRequest, HttpResponse};
 use failure::Fail;
-use futures::prelude::*;
+use futures01::prelude::*;
 
+use relay_log::_sentry::{integrations::backtrace::parse_stacktrace, parse_type_from_debug};
 use relay_log::_sentry::{types::Uuid, Hub, Level, ScopeGuard};
-use relay_log::protocol::{ClientSdkPackage, Event, Request};
+use relay_log::protocol::{ClientSdkPackage, Event, Exception, Request};
 use relay_statsd::metric;
 
 use crate::constants::SERVER;
@@ -198,13 +199,15 @@ impl<S: 'static> Middleware<S> for SentryMiddleware {
 
         let root_scope = hub.push_scope();
         hub.configure_scope(move |scope| {
-            scope.add_event_processor(Box::new(move |mut event| {
+            scope.add_event_processor(move |mut event| {
+                fragile::stack_token!(tok);
+
                 let mut cached_data = cached_data.lock().unwrap();
                 if cached_data.is_none() && req.is_valid() {
                     let with_pii = client
                         .as_ref()
                         .map_or(false, |x| x.options().send_default_pii);
-                    *cached_data = Some(extract_request(req.get(), with_pii));
+                    *cached_data = Some(extract_request(req.get(tok), with_pii));
                 }
 
                 if let Some((ref transaction, ref req)) = *cached_data {
@@ -226,7 +229,7 @@ impl<S: 'static> Middleware<S> for SentryMiddleware {
                 }
 
                 Some(event)
-            }));
+            });
         });
 
         outer_req.extensions_mut().insert(HubWrapper {
@@ -246,7 +249,7 @@ impl<S: 'static> Middleware<S> for SentryMiddleware {
                 Some(event_id) if self.emit_header => {
                     resp.headers_mut().insert(
                         "x-sentry-event",
-                        event_id.to_simple_ref().to_string().parse().unwrap(),
+                        event_id.as_simple().to_string().parse().unwrap(),
                     );
                 }
                 _ => {}
@@ -266,6 +269,29 @@ impl<S: 'static> Middleware<S> for SentryMiddleware {
             }
         }
         Finished::Done
+    }
+}
+
+/// Converts a single fail instance into an exception.
+///
+/// This is typically not very useful as the `event_from_error` and
+/// `event_from_fail` methods will assemble an entire event with all the
+/// causes of a failure, however for certain more complex situations where
+/// fails are contained within a non fail error type that might also carry
+/// useful information it can be useful to call this method instead.
+fn exception_from_single_fail<F: Fail + ?Sized>(
+    f: &F,
+    bt: Option<&failure::Backtrace>,
+) -> Exception {
+    let dbg = format!("{:?}", f);
+    Exception {
+        ty: parse_type_from_debug(&dbg).to_owned(),
+        value: Some(f.to_string()),
+        stacktrace: bt
+            // format the stack trace with alternate debug to get addresses
+            .map(|bt| format!("{:#?}", bt))
+            .and_then(|x| parse_stacktrace(&x)),
+        ..Default::default()
     }
 }
 
@@ -302,7 +328,7 @@ impl ActixWebHubExt for Hub {
             let compat: Option<&failure::Compat<failure::Error>> = fail.downcast_ref();
             let failure_err = compat.map(failure::Compat::get_ref);
             let fail = failure_err.map_or(fail, |x| x.as_fail());
-            exceptions.push(relay_log::exception_from_single_fail(
+            exceptions.push(exception_from_single_fail(
                 fail,
                 if idx == 0 {
                     Some(failure_err.map_or_else(|| err.backtrace(), |err| err.backtrace()))

@@ -8,7 +8,7 @@ session = requests.session()
 
 
 class SentryLike(object):
-    _healthcheck_passed = False
+    _health_check_passed = False
 
     default_dsn_public_key = "31a5a894b4524f74a9a8d0e27e21ba91"
 
@@ -95,12 +95,12 @@ class SentryLike(object):
                     raise
                 backoff *= 2
 
-    def wait_relay_healthcheck(self):
-        if self._healthcheck_passed:
+    def wait_relay_health_check(self):
+        if self._health_check_passed:
             return
 
         self._wait("/api/relay/healthcheck/ready/")
-        self._healthcheck_passed = True
+        self._health_check_passed = True
 
     def __repr__(self):
         return "<{}({})>".format(self.__class__.__name__, repr(self.upstream))
@@ -166,7 +166,6 @@ class SentryLike(object):
             "X-Sentry-Auth": self.get_auth_header(project_id, dsn_key_idx),
             **(headers or {}),
         }
-
         response = self.post(url, headers=headers, data=envelope.serialize())
         response.raise_for_status()
 
@@ -196,6 +195,14 @@ class SentryLike(object):
 
         self.send_envelope(project_id, envelope)
 
+    def send_replay_event(self, project_id, payload, item_headers=None):
+        envelope = Envelope()
+        envelope.add_item(Item(payload=PayloadRef(json=payload), type="replay_event"))
+        if envelope.headers is None:
+            envelope.headers = {}
+
+        self.send_envelope(project_id, envelope)
+
     def send_session_aggregates(self, project_id, payload):
         envelope = Envelope()
         envelope.add_item(Item(payload=PayloadRef(json=payload), type="sessions"))
@@ -212,6 +219,17 @@ class SentryLike(object):
             Item(
                 payload=PayloadRef(bytes=payload.encode()),
                 type="metrics",
+                headers=None if timestamp is None else {"timestamp": timestamp},
+            )
+        )
+        self.send_envelope(project_id, envelope)
+
+    def send_metrics_buckets(self, project_id, payload, timestamp=None):
+        envelope = Envelope()
+        envelope.add_item(
+            Item(
+                payload=PayloadRef(json=payload),
+                type="metric_buckets",
                 headers=None if timestamp is None else {"timestamp": timestamp},
             )
         )

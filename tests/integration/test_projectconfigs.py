@@ -15,7 +15,11 @@ RelayInfo = namedtuple("RelayInfo", ["id", "public_key", "secret_key", "internal
 
 @pytest.mark.parametrize(
     "caller, projects",
-    [("r2", ["p2"]), ("sr1", ["p1", "p2", "p3", "p4"]), ("sr2", ["p4"]),],
+    [
+        ("r2", ["p2"]),
+        ("sr1", ["p1", "p2", "p3", "p4"]),
+        ("sr2", ["p4"]),
+    ],
     ids=[
         "dyn external relay fetches proj info",
         "static internal relay fetches proj info",
@@ -34,9 +38,12 @@ def test_dynamic_relays(mini_sentry, relay, caller, projects):
         id2: {"public_key": str(pk2), "internal": False},
     }
 
-    relay1 = relay(mini_sentry, wait_healthcheck=True, static_relays=relays_conf)
+    relay1 = relay(mini_sentry, wait_health_check=True, static_relays=relays_conf)
     relay2 = relay(
-        mini_sentry, wait_healthcheck=True, external=True, static_relays=relays_conf,
+        mini_sentry,
+        wait_health_check=True,
+        external=True,
+        static_relays=relays_conf,
     )
 
     # create info for our test parameters
@@ -98,7 +105,7 @@ def test_dynamic_relays(mini_sentry, relay, caller, projects):
 
 
 def test_invalid_json(mini_sentry, relay):
-    relay = relay(mini_sentry, wait_healthcheck=True)
+    relay = relay(mini_sentry, wait_health_check=True)
 
     body = {}  # missing the required `publicKeys` field
     packed, signature = SecretKey.parse(relay.secret_key).pack(body)
@@ -117,7 +124,7 @@ def test_invalid_json(mini_sentry, relay):
 
 
 def test_invalid_signature(mini_sentry, relay):
-    relay = relay(mini_sentry, wait_healthcheck=True)
+    relay = relay(mini_sentry, wait_health_check=True)
 
     response = relay.post(
         "/api/0/relays/projectconfigs/?version=2",
@@ -133,7 +140,7 @@ def test_invalid_signature(mini_sentry, relay):
 
 
 def test_broken_projectkey(mini_sentry, relay):
-    relay = relay(mini_sentry, wait_healthcheck=True)
+    relay = relay(mini_sentry, wait_health_check=True)
     mini_sentry.add_basic_project_config(42)
     public_key = mini_sentry.get_dsn_public_key(42)
 
@@ -164,7 +171,7 @@ def test_pending_projects(mini_sentry, relay):
     # V3 requests will never return a projectconfig on the first request, only some
     # subsequent request will contain the response.  However if the machine executing this
     # test is very slow this could still be a flaky test.
-    relay = relay(mini_sentry, wait_healthcheck=True)
+    relay = relay(mini_sentry, wait_health_check=True)
     project = mini_sentry.add_basic_project_config(42)
     public_key = mini_sentry.get_dsn_public_key(42)
 

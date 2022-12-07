@@ -1,39 +1,53 @@
 use std::sync::Arc;
 
 use actix::prelude::*;
-use failure::Fail;
 use relay_common::ProjectKey;
 use relay_config::Config;
 use relay_log::LogError;
 use relay_redis::{RedisError, RedisPool};
+use relay_statsd::metric;
 
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::FetchOptionalProjectState;
+use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 
+#[derive(Debug)]
 pub struct RedisProjectSource {
     config: Arc<Config>,
     redis: RedisPool,
 }
 
-#[derive(Debug, Fail)]
+#[derive(Debug, thiserror::Error)]
 enum RedisProjectError {
-    #[fail(display = "failed to parse projectconfig from redis")]
-    Parsing(#[cause] serde_json::Error),
+    #[error("failed to parse projectconfig from redis")]
+    Parsing(#[from] serde_json::Error),
 
-    #[fail(display = "failed to talk to redis")]
-    Redis(#[cause] RedisError),
+    #[error("failed to talk to redis")]
+    Redis(#[from] RedisError),
 }
 
-impl From<RedisError> for RedisProjectError {
-    fn from(e: RedisError) -> RedisProjectError {
-        RedisProjectError::Redis(e)
-    }
-}
+fn parse_redis_response(raw_response: &[u8]) -> Result<ProjectState, RedisProjectError> {
+    let decompression_result = metric!(timer(RelayTimers::ProjectStateDecompression), {
+        zstd::decode_all(raw_response)
+    });
 
-impl From<serde_json::Error> for RedisProjectError {
-    fn from(e: serde_json::Error) -> RedisProjectError {
-        RedisProjectError::Parsing(e)
-    }
+    let decoded_response = match &decompression_result {
+        Ok(decoded) => {
+            metric!(
+                histogram(RelayHistograms::ProjectStateSizeBytesCompressed) =
+                    raw_response.len() as f64
+            );
+            metric!(
+                histogram(RelayHistograms::ProjectStateSizeBytesDecompressed) =
+                    decoded.len() as f64
+            );
+            decoded.as_slice()
+        }
+        // If decoding fails, assume uncompressed payload and try again
+        Err(_) => raw_response,
+    };
+
+    Ok(serde_json::from_slice(decoded_response)?)
 }
 
 impl RedisProjectSource {
@@ -47,16 +61,25 @@ impl RedisProjectSource {
         let prefix = self.config.projectconfig_cache_prefix();
         command.arg(format!("{}:{}", prefix, key));
 
-        let raw_response_opt: Option<String> = command
+        let raw_response_opt: Option<Vec<u8>> = command
             .query(&mut self.redis.client()?.connection())
             .map_err(RedisError::Redis)?;
 
-        let raw_response = match raw_response_opt {
-            Some(response) => response,
-            None => return Ok(None),
+        let response = match raw_response_opt {
+            Some(response) => {
+                metric!(counter(RelayCounters::ProjectStateRedis) += 1, hit = "true");
+                Some(parse_redis_response(response.as_slice())?)
+            }
+            None => {
+                metric!(
+                    counter(RelayCounters::ProjectStateRedis) += 1,
+                    hit = "false"
+                );
+                None
+            }
         };
 
-        Ok(serde_json::from_str(&raw_response)?)
+        Ok(response)
     }
 }
 
@@ -87,5 +110,24 @@ impl Handler<FetchOptionalProjectState> for RedisProjectSource {
                 None
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_redis_response() {
+        let raw_response = b"{}";
+        let result = parse_redis_response(raw_response);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_redis_response_compressed() {
+        let raw_response = b"(\xb5/\xfd \x02\x11\x00\x00{}"; // As dumped by python zstandard library
+        let result = parse_redis_response(raw_response);
+        assert!(result.is_ok(), "{:?}", result);
     }
 }

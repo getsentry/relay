@@ -1,3 +1,4 @@
+import json
 import uuid
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
@@ -114,6 +115,52 @@ def test_outcomes_custom_topic(
     assert start <= event_emission <= end
 
 
+def test_outcomes_two_configs(
+    get_topic_name, processing_config, relay, mini_sentry, outcomes_consumer
+):
+    """
+    Tests routing outcomes to the billing and the default topic based on the outcome ID.
+    """
+    project_config = mini_sentry.add_basic_project_config(44)
+    project_config["config"]["quotas"] = [
+        {
+            "categories": ["error"],
+            "limit": 0,
+            "reasonCode": "static_disabled_quota",
+        }
+    ]
+
+    # Change from default, which would inherit the outcomes topic
+    options = processing_config(None)
+    # Create an additional config for outcomes_billing topic
+    default_config = options["processing"]["kafka_config"]
+    options["processing"]["secondary_kafka_configs"] = {"bar": default_config}
+    options["processing"]["topics"]["outcomes_billing"] = {
+        "name": get_topic_name("outbilling"),
+        "config": "bar",
+    }
+
+    relay = relay(mini_sentry, options=options)
+    billing_consumer = outcomes_consumer(topic="outbilling")
+    outcomes_consumer = outcomes_consumer()
+
+    relay.send_event(44, {"message": "this is rate limited"})
+    relay.send_event(99, {"message": "wrong project"})
+
+    rate_limited = billing_consumer.get_outcome()
+    assert rate_limited["project_id"] == 44
+    assert rate_limited["outcome"] == 2
+
+    print(rate_limited)
+
+    invalid = outcomes_consumer.get_outcome()
+    assert invalid["project_id"] == 99
+    assert invalid["outcome"] == 3
+
+    billing_consumer.assert_empty()
+    outcomes_consumer.assert_empty()
+
+
 def test_outcomes_two_topics(
     get_topic_name, processing_config, relay, mini_sentry, outcomes_consumer
 ):
@@ -122,7 +169,11 @@ def test_outcomes_two_topics(
     """
     project_config = mini_sentry.add_basic_project_config(42)
     project_config["config"]["quotas"] = [
-        {"categories": ["error"], "limit": 0, "reasonCode": "static_disabled_quota",}
+        {
+            "categories": ["error"],
+            "limit": 0,
+            "reasonCode": "static_disabled_quota",
+        }
     ]
 
     # Change from default, which would inherit the outcomes topic
@@ -602,7 +653,9 @@ def test_outcome_to_client_report(relay, mini_sentry):
             "outcomes": {
                 "emit_outcomes": "as_client_reports",
                 "source": "downstream-layer",
-                "aggregator": {"flush_interval": 1,},
+                "aggregator": {
+                    "flush_interval": 1,
+                },
             }
         },
     )
@@ -611,6 +664,7 @@ def test_outcome_to_client_report(relay, mini_sentry):
 
     outcomes_batch = mini_sentry.captured_outcomes.get(timeout=3.2)
     assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
+    assert mini_sentry.captured_events.qsize() == 0
 
     outcomes = outcomes_batch.get("outcomes")
     assert len(outcomes) == 1
@@ -627,6 +681,102 @@ def test_outcome_to_client_report(relay, mini_sentry):
         "reason": "Sampled:1",
         "category": 1,
         "quantity": 1,
+    }
+    assert outcome == expected_outcome
+
+
+def test_filtered_event_outcome_client_reports(relay, mini_sentry):
+    """Make sure that an event filtered by non-processing relay will create client reports"""
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["filterSettings"]["releases"] = {"releases": ["foo@1.2.3"]}
+
+    relay = relay(
+        mini_sentry,
+        {
+            "outcomes": {
+                "emit_outcomes": "as_client_reports",
+                "source": "downstream-layer",
+                "aggregator": {
+                    "flush_interval": 1,
+                },
+            }
+        },
+    )
+
+    event_id = _send_event(relay, event_type="error")
+
+    envelope = mini_sentry.captured_events.get(timeout=10)
+    items = envelope.items
+    assert len(items) == 1
+    item = items[0]
+    assert item.headers["type"] == "client_report"
+    payload = json.loads(item.payload.bytes)
+    del payload["timestamp"]
+    assert payload == {
+        "discarded_events": [],
+        "filtered_events": [
+            {"reason": "release-version", "category": "error", "quantity": 1}
+        ],
+    }
+
+
+def test_filtered_event_outcome_kafka(relay, mini_sentry):
+    """Make sure that an event filtered by non-processing relay will create outcomes in kafka"""
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["filterSettings"]["releases"] = {"releases": ["foo@1.2.3"]}
+
+    upstream = relay(
+        mini_sentry,
+        {
+            "outcomes": {
+                "emit_outcomes": True,
+                "batch_size": 1,
+                "batch_interval": 1,
+                "aggregator": {
+                    "flush_interval": 1,
+                },
+            }
+        },
+    )
+
+    downstream = relay(
+        upstream,
+        {
+            "outcomes": {
+                "emit_outcomes": "as_client_reports",
+                "source": "downstream-layer",
+                "aggregator": {
+                    "flush_interval": 1,
+                },
+            }
+        },
+    )
+
+    _send_event(downstream, event_type="error")
+
+    outcomes_batch = mini_sentry.captured_outcomes.get(timeout=3.2)
+    assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
+    assert mini_sentry.captured_events.qsize() == 0
+
+    outcomes = outcomes_batch.get("outcomes")
+    assert len(outcomes) == 1
+
+    outcome = outcomes[0]
+
+    del outcome["timestamp"]
+
+    expected_outcome = {
+        "org_id": 1,
+        "project_id": 42,
+        "key_id": 123,
+        # no event ID because it was a client report
+        "outcome": 1,
+        "reason": "release-version",
+        "category": 1,
+        "quantity": 1,
+        # no remote_addr because it was a client report
     }
     assert outcome == expected_outcome
 
@@ -658,7 +808,9 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
                 "emit_outcomes": True,
                 "batch_size": 1,
                 "batch_interval": 1,
-                "aggregator": {"flush_interval": 1,},
+                "aggregator": {
+                    "flush_interval": 1,
+                },
             }
         },
     )
@@ -702,7 +854,9 @@ def test_outcomes_do_not_aggregate(
                 "emit_outcomes": True,
                 "batch_size": 1,
                 "batch_interval": 1,
-                "aggregator": {"flush_interval": 1,},
+                "aggregator": {
+                    "flush_interval": 1,
+                },
             }
         },
     )
@@ -775,7 +929,9 @@ def test_graceful_shutdown(relay, mini_sentry):
                 "emit_outcomes": True,
                 "batch_size": 1,
                 "batch_interval": 1,
-                "aggregator": {"flush_interval": 10,},
+                "aggregator": {
+                    "flush_interval": 10,
+                },
             },
         },
     )

@@ -21,7 +21,7 @@ impl ClockCorrection {
     }
 
     fn at_least(self, lower_bound: Duration) -> Option<Self> {
-        if self.drift.num_seconds().abs() as u64 >= lower_bound.as_secs() {
+        if self.drift.num_seconds().unsigned_abs() >= lower_bound.as_secs() {
             Some(self)
         } else {
             None
@@ -149,15 +149,16 @@ impl Processor for ClockDriftProcessor {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use chrono::offset::TimeZone;
+    use similar_asserts::assert_eq;
 
     use crate::processor::process_value;
     use crate::protocol::{
         Context, ContextInner, Contexts, EventType, SpanId, TraceContext, TraceId,
     };
     use crate::types::{Annotated, Object};
+
+    use super::*;
 
     fn create_transaction(start: DateTime<Utc>, end: DateTime<Utc>) -> Annotated<Event> {
         Annotated::new(Event {

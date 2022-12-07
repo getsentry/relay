@@ -1,0 +1,33 @@
+[
+    {
+        "type": 3,
+        "data": {
+            "source": 0,
+            "texts": [],
+            "attributes": [],
+            "removes": [],
+            "adds": [
+                {
+                    "parentId": 74,
+                    "nextId": null,
+                    "node": {
+                        "type": 2,
+                        "tagName": "h1",
+                        "attributes": {
+                            "id": "react-tooltip"
+                        },
+                        "childNodes": [
+                            {
+                                "type": 3,
+                                "textContent": "4917-4845-8989-7107",
+                                "id": 284
+                            }
+                        ],
+                        "id": 283
+                    }
+                }
+            ]
+        },
+        "timestamp": 1665063926945
+    }
+]

@@ -1,58 +1,5 @@
-#[cfg(feature = "uaparser")]
 use crate::protocol::{Event, Headers, PairList, Request};
-#[cfg(feature = "uaparser")]
 use crate::types::Annotated;
-
-macro_rules! assert_eq_str {
-    ($left:expr, $right:expr) => {
-        match (&$left, &$right) {
-            (left, right) => assert!(
-                left == right,
-                "`left == right` in line {}:\n{}\n{}",
-                line!(),
-                difference::Changeset::new("- left", "+ right", "\n"),
-                difference::Changeset::new(&left, &right, "\n")
-            ),
-        }
-    };
-    ($left:expr, $right:expr,) => {
-        assert_eq_str!($left, $right)
-    };
-}
-
-macro_rules! assert_eq_bytes_str {
-    ($left:expr, $right:expr) => {
-        match (&$left, &$right) {
-            (left, right) => assert!(
-                left == right,
-                "`left == right` in line {}:\n{}\n{}",
-                line!(),
-                pretty_hex::pretty_hex(left),
-                pretty_hex::pretty_hex(right),
-            ),
-        }
-    };
-    ($left:expr, $right:expr,) => {
-        assert_eq_str!($left, $right)
-    };
-}
-
-macro_rules! assert_eq_dbg {
-    ($left:expr, $right:expr) => {
-        match (&$left, &$right) {
-            (left, right) => assert!(
-                left == right,
-                "`left == right` in line {}:\n{}\n{}",
-                line!(),
-                difference::Changeset::new("- left", "+ right", "\n"),
-                difference::Changeset::new(&format!("{:#?}", left), &format!("{:#?}", right), "\n")
-            ),
-        }
-    };
-    ($left:expr, $right:expr,) => {
-        assert_eq_dbg!($left, $right)
-    };
-}
 
 macro_rules! assert_annotated_snapshot {
     ($value:expr, @$snapshot:literal) => {
@@ -92,6 +39,8 @@ macro_rules! assert_annotated_snapshot {
     };
 }
 
+pub(crate) use assert_annotated_snapshot;
+
 /// Returns `&Annotated<T>` for the annotated value at the given path.
 macro_rules! get_path {
     (@access $root:ident,) => {};
@@ -112,6 +61,8 @@ macro_rules! get_path {
         $root
     }};
 }
+
+pub(crate) use get_path;
 
 /// Returns `Option<&V>` for the value at the given path.
 macro_rules! get_value {
@@ -134,7 +85,8 @@ macro_rules! get_value {
     }};
 }
 
-#[cfg(feature = "uaparser")]
+pub(crate) use get_value;
+
 /// Creates an Event with the specified user agent.
 pub(super) fn get_event_with_user_agent(user_agent: &str) -> Event {
     let headers = vec![

@@ -50,7 +50,9 @@ _init_valid_platforms()
 
 def split_chunks(string, remarks):
     json_chunks = rustcall(
-        lib.relay_split_chunks, encode_str(string), encode_str(json.dumps(remarks)),
+        lib.relay_split_chunks,
+        encode_str(string),
+        encode_str(json.dumps(remarks)),
     )
     return json.loads(decode_str(json_chunks, free=True))
 

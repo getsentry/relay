@@ -4,11 +4,44 @@ use std::time::Duration;
 use actix::actors::signal;
 use actix::fut;
 use actix::prelude::*;
-use futures::future;
-use futures::prelude::*;
+use futures01::future;
+use futures01::prelude::*;
+use once_cell::sync::OnceCell;
+use tokio::sync::watch;
 
 #[doc(inline)]
 pub use actix::actors::signal::{Signal, SignalType};
+
+use crate::compat;
+
+type ShutdownChannel = (
+    watch::Sender<Option<Shutdown>>,
+    watch::Receiver<Option<Shutdown>>,
+);
+
+/// Global [`ShutdownChannel`] for all services.
+static SHUTDOWN: OnceCell<ShutdownChannel> = OnceCell::new();
+
+/// Notifies a service about an upcoming shutdown.
+// TODO: The receiver of this message can not yet signal they have completed
+// shutdown.
+// TODO: Refactor this to a `Recipient`.
+pub struct ShutdownHandle(watch::Receiver<Option<Shutdown>>);
+
+impl ShutdownHandle {
+    /// Wait for a shutdown.
+    ///
+    /// This method is cancellation safe and can be used in `select!`.
+    pub async fn notified(&mut self) -> Shutdown {
+        while self.0.changed().await.is_ok() {
+            if let Some(shutdown) = &*self.0.borrow() {
+                return shutdown.clone();
+            }
+        }
+
+        Shutdown { timeout: None }
+    }
+}
 
 /// Actor to start and gracefully stop an actix system.
 ///
@@ -63,6 +96,11 @@ pub struct Controller {
 }
 
 impl Controller {
+    /// Get actor's address from system registry.
+    pub fn from_registry() -> Addr<Self> {
+        SystemService::from_registry()
+    }
+
     /// Starts an actix system and runs the `factory` to start actors.
     ///
     /// The factory may be used to start actors in the actix system before it runs. If the factory
@@ -74,6 +112,8 @@ impl Controller {
         F: FnOnce() -> Result<R, E>,
     {
         let sys = System::new("relay");
+
+        compat::init();
 
         // Run the factory and exit early if an error happens. The return value of the factory is
         // discarded for convenience, to allow shorthand notations.
@@ -102,6 +142,12 @@ impl Controller {
         Controller::from_registry().do_send(Subscribe(addr.recipient()))
     }
 
+    /// Returns a [handle](ShutdownHandle) to receive shutdown notifications.
+    pub fn shutdown_handle() -> ShutdownHandle {
+        let (_, ref rx) = SHUTDOWN.get_or_init(|| watch::channel(None));
+        ShutdownHandle(rx.clone())
+    }
+
     /// Performs a graceful shutdown with the given timeout.
     ///
     /// This sends a `Shutdown` message to all subscribed actors and waits for them to finish. As
@@ -110,6 +156,9 @@ impl Controller {
         // Send a shutdown signal to all registered subscribers (including self). They will report
         // when the shutdown has completed. Note that we ignore all errors to make sure that we
         // don't cancel the shutdown of other actors if one actor fails.
+        let (tx, _) = SHUTDOWN.get_or_init(|| watch::channel(None));
+        tx.send(Some(Shutdown { timeout })).ok();
+
         let futures: Vec<_> = self
             .subscribers
             .iter()
@@ -244,7 +293,7 @@ impl Handler<Subscribe> for Controller {
 ///
 /// The return value is fully ignored. It is only `Result` such that futures can be executed inside
 /// a handler.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Shutdown {
     /// The timeout for this shutdown. `None` indicates an immediate forced shutdown.
     pub timeout: Option<Duration>,

@@ -4,7 +4,7 @@ use std::io::{self, ErrorKind, Read};
 use actix_web::{error::PayloadError, HttpRequest};
 use bytes::Bytes;
 use flate2::read::ZlibDecoder;
-use futures::prelude::*;
+use futures01::prelude::*;
 use url::form_urlencoded;
 
 use relay_statsd::metric;

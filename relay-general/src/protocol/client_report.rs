@@ -40,6 +40,8 @@ impl ClientReport {
 
 #[cfg(test)]
 mod tests {
+    use similar_asserts::assert_eq;
+
     use super::*;
 
     #[test]
@@ -102,7 +104,7 @@ mod tests {
         };
 
         let parsed = ClientReport::parse(json.as_bytes()).unwrap();
-        assert_eq_dbg!(update, parsed);
-        assert_eq_str!(output, serde_json::to_string_pretty(&update).unwrap());
+        assert_eq!(update, parsed);
+        assert_eq!(output, serde_json::to_string_pretty(&update).unwrap());
     }
 }

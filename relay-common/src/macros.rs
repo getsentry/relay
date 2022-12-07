@@ -17,6 +17,8 @@ macro_rules! impl_str_ser {
     };
 }
 
+pub use impl_str_ser;
+
 /// Helper macro to implement string based deserialization.
 ///
 /// If a type implements `FromStr` then this automatically
@@ -58,6 +60,8 @@ macro_rules! impl_str_de {
     };
 }
 
+pub use impl_str_de;
+
 /// Helper macro to implement string based serialization and deserialization.
 ///
 /// If a type implements `FromStr` and `Display` then this automatically
@@ -71,6 +75,8 @@ macro_rules! impl_str_serde {
     };
 }
 
+pub use impl_str_serde;
+
 /// Same as `try` but to be used in functions that return `Box<Future>` instead of `Result`.
 ///
 /// Useful when calling synchronous (but cheap enough) functions in async code.
@@ -79,10 +85,12 @@ macro_rules! tryf {
     ($e:expr) => {
         match $e {
             Ok(value) => value,
-            Err(e) => return Box::new(::futures::future::err(::std::convert::From::from(e))),
+            Err(e) => return Box::new(::futures01::future::err(::std::convert::From::from(e))),
         }
     };
 }
+
+pub use tryf;
 
 /// A cloning alternative to a `move` closure.
 ///
@@ -122,8 +130,10 @@ macro_rules! clone {
         $( let $n = $n.clone(); )+
         move || $body
     }};
-    ($($n:ident ,)+ |$($p:pat),+| $body:expr) => {{
+    ($($n:ident ,)+ |$($p:pat_param),+| $body:expr) => {{
         $( let $n = $n.clone(); )+
         move |$($p),+| $body
     }};
 }
+
+pub use clone;

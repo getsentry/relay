@@ -9,3 +9,6 @@
 
 # AWS Extension
 /relay-aws-extension/  @getsentry/team-web-sdk-backend
+
+# Profiling
+/relay-profiling/ @getsentry/profiling

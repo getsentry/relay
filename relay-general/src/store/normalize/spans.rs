@@ -141,13 +141,16 @@ fn compute_span_exclusive_time(event: &mut Event) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use chrono::{TimeZone, Utc};
+    use similar_asserts::assert_eq;
+
     use crate::protocol::{
         Context, ContextInner, Contexts, Event, EventType, Span, SpanId, Timestamp, TraceContext,
         TraceId,
     };
     use crate::types::Object;
-    use chrono::{TimeZone, Utc};
+
+    use super::*;
 
     fn make_event(
         start: Timestamp,

@@ -46,38 +46,38 @@ contexts:
     type: os
 breadcrumbs:
   values:
-    - timestamp: 1532442982.0
+    - timestamp: 1532442982
       type: debug
       category: started
       level: info
       message: Breadcrumb Tracking
-    - timestamp: 1532442982.0
+    - timestamp: 1532442982
       type: navigation
       category: UIViewController
       level: info
       message: viewDidAppear
       data:
         controller: sentry_ios_cocoapods.ViewController
-    - timestamp: 1532442986.0
+    - timestamp: 1532442986
       type: debug
       category: started
       level: info
       message: Breadcrumb Tracking
-    - timestamp: 1532442986.0
+    - timestamp: 1532442986
       type: navigation
       category: UIViewController
       level: info
       message: viewDidAppear
       data:
         controller: sentry_ios_cocoapods.ViewController
-    - timestamp: 1532442987.0
+    - timestamp: 1532442987
       type: user
       category: touch
       level: info
       message: "causeCrash:"
       data:
         view: "<UIButton: 0x7f8c0fb0a320; frame = (186.667 415.667; 41 30); opaque = NO; autoresize = RM+BM; layer = <CALayer: 0x60800002e6c0>>"
-    - timestamp: 1532442988.0
+    - timestamp: 1532442988
       type: debug
       category: started
       level: info
@@ -1718,3 +1718,4 @@ _meta:
             - 0
             - 40
         len: 15
+

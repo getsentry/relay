@@ -47,13 +47,15 @@ macro_rules! derive_string_meta_structure {
     };
 }
 
+pub(crate) use derive_string_meta_structure;
+
 /// Implements FromStr and Display on a flat/C-like enum such that strings roundtrip correctly and
 /// all variants can be FromStr'd.
 ///
 ///
 /// Usage:
 ///
-/// ```rust
+/// ```ignore
 /// // derive fail for this or whatever you need. The type must be ZST though.
 /// struct ValueTypeError;
 ///
@@ -99,3 +101,5 @@ macro_rules! derive_fromstr_and_display {
         }
     }
 }
+
+pub(crate) use derive_fromstr_and_display;

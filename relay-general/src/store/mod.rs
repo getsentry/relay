@@ -15,18 +15,17 @@ mod event_error;
 mod geo;
 mod legacy;
 mod normalize;
+mod regexes;
 mod remove_other;
 mod schema;
 mod transactions;
 mod trimming;
 
-pub use self::clock_drift::ClockDriftProcessor;
-pub use self::geo::{GeoIpError, GeoIpLookup};
-pub use normalize::breakdowns::{
-    get_breakdown_measurements, BreakdownConfig, BreakdownsConfig, SpanOperationsConfig,
-};
-pub use normalize::{is_valid_platform, normalize_dist};
-pub use transactions::{get_measurement, get_transaction_op, validate_timestamps};
+pub use self::clock_drift::*;
+pub use self::geo::*;
+pub use normalize::breakdowns::*;
+pub use normalize::*;
+pub use transactions::*;
 
 /// The config for store.
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -61,6 +60,9 @@ pub struct StoreConfig {
 
     /// Emit additional span attributes based on given configuration.
     pub span_attributes: BTreeSet<SpanAttribute>,
+
+    /// The SDK's sample rate as communicated via envelope headers.
+    pub client_sample_rate: Option<f64>,
 }
 
 /// The processor that normalizes events for store.
@@ -100,16 +102,6 @@ impl<'a> Processor for StoreProcessor<'a> {
         legacy::LegacyProcessor.process_event(event, meta, state)?;
 
         if !is_renormalize {
-            // internally noops for non-transaction events
-            // TODO: Parts of this processor should probably be a filter once Relay is store so we
-            // can revert some changes to ProcessingAction
-            transactions::TransactionsProcessor.process_event(event, meta, state)?;
-        }
-
-        if !is_renormalize {
-            // Check for required and non-empty values
-            schema::SchemaProcessor.process_event(event, meta, state)?;
-
             // Normalize data in all interfaces
             self.normalize.process_event(event, meta, state)?;
         }

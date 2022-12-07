@@ -7,7 +7,7 @@ def test_register(aws_lambda_runtime, relay, mini_sentry):
 
     relay_options = {"aws": {"runtime_api": netloc}, "limits": {"shutdown_timeout": 2}}
 
-    relay(mini_sentry, options=relay_options, wait_healthcheck=False)
+    relay(mini_sentry, options=relay_options, wait_health_check=False)
     sleep(2)  # wait for clean shutdown, trigerred by 5th next_event request
 
     requests = aws_lambda_runtime.requests

@@ -1,19 +1,34 @@
+use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
+use crate::metrics_extraction::utils;
+use crate::metrics_extraction::TaggingRule;
+use crate::statsd::RelayCounters;
+use relay_common::{SpanStatus, UnixTimestamp};
+use relay_general::protocol::{
+    AsPair, Context, ContextInner, Event, EventType, Timestamp, TraceContext, TransactionSource,
+    User,
+};
+use relay_general::store;
+use relay_general::types::Annotated;
+use relay_metrics::AggregatorConfig;
+use relay_metrics::{DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
+use std::fmt;
 
-#[cfg(feature = "processing")]
-use {
-    crate::metrics_extraction::conditional_tagging::run_conditional_tagging,
-    crate::metrics_extraction::{utils, TaggingRule},
-    relay_common::UnixTimestamp,
-    relay_general::protocol::TraceContext,
-    relay_general::protocol::{AsPair, Event, EventType, Timestamp},
-    relay_general::protocol::{Context, ContextInner},
-    relay_general::store,
-    relay_general::types::Annotated,
-    relay_metrics::{DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue},
-    std::fmt,
-};
+/// Error returned from [`extract_transaction_metrics`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+pub enum ExtractMetricsError {
+    /// The start or end timestamps are missing from the event payload.
+    #[error("no valid timestamp could be found in the event")]
+    MissingTimestamp,
+    /// The event timestamp is outside the supported range.
+    ///
+    /// The supported range is derived from the
+    /// [`max_secs_in_past`](AggregatorConfig::max_secs_in_past) and
+    /// [`max_secs_in_future`](AggregatorConfig::max_secs_in_future) configuration options.
+    #[error("timestamp too old or too far in the future")]
+    InvalidTimestamp,
+}
 
 /// The metric on which the user satisfaction threshold is applied.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -43,67 +58,113 @@ struct SatisfactionConfig {
     transaction_thresholds: BTreeMap<String, SatisfactionThreshold>,
 }
 
+/// Configuration for extracting custom measurements from transaction payloads.
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct CustomMeasurementConfig {
+    /// The maximum number of custom measurements to extract. Defaults to zero.
+    limit: usize,
+}
+
+/// Maximum supported version of metrics extraction from transactions.
+///
+/// The version is an integer scalar, incremented by one on each new version.
+const EXTRACT_MAX_VERSION: u16 = 1;
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum AcceptTransactionNames {
+    /// For some SDKs, accept all transaction names, while for others, apply strict rules.
+    ClientBased,
+
+    /// Only accept transaction names with a low-cardinality source.
+    /// Any value other than "clientBased" will be interpreted as "strict".
+    #[serde(other)]
+    Strict,
+}
+
+impl Default for AcceptTransactionNames {
+    fn default() -> Self {
+        Self::Strict
+    }
+}
+
 /// Configuration for extracting metrics from transaction payloads.
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct TransactionMetricsConfig {
+    /// The required version to extract transaction metrics.
+    version: u16,
     extract_metrics: BTreeSet<String>,
     extract_custom_tags: BTreeSet<String>,
     satisfaction_thresholds: Option<SatisfactionConfig>,
+    custom_measurements: CustomMeasurementConfig,
+    accept_transaction_names: AcceptTransactionNames,
 }
 
-#[cfg(feature = "processing")]
+impl TransactionMetricsConfig {
+    /// Creates an enabled configuration with empty defaults.
+    #[cfg(test)]
+    pub fn new() -> Self {
+        Self {
+            version: 1,
+            ..Self::default()
+        }
+    }
+
+    /// Returns `true` if metrics extraction is enabled and compatible with this Relay.
+    pub fn is_enabled(&self) -> bool {
+        self.version > 0 && self.version <= EXTRACT_MAX_VERSION
+    }
+}
+
 const METRIC_NAMESPACE: MetricNamespace = MetricNamespace::Transactions;
 
-#[cfg(feature = "processing")]
 fn get_trace_context(event: &Event) -> Option<&TraceContext> {
     let contexts = event.contexts.value()?;
-    let trace = contexts.get("trace").map(Annotated::value);
-    if let Some(Some(ContextInner(Context::Trace(trace_context)))) = trace {
+    let trace = contexts.get("trace").and_then(Annotated::value);
+    if let Some(ContextInner(Context::Trace(trace_context))) = trace {
         return Some(trace_context.as_ref());
     }
 
     None
 }
 
-#[cfg(feature = "processing")]
-fn extract_transaction_status(trace_context: &TraceContext) -> Option<String> {
-    let span_status = trace_context.status.value()?;
-    Some(span_status.to_string())
+/// Extract transaction status, defaulting to [`SpanStatus::Unknown`].
+/// Must be consistent with `process_trace_context` in [`relay_general::store`].
+fn extract_transaction_status(trace_context: &TraceContext) -> SpanStatus {
+    *trace_context.status.value().unwrap_or(&SpanStatus::Unknown)
 }
 
-#[cfg(feature = "processing")]
 fn extract_transaction_op(trace_context: &TraceContext) -> Option<String> {
     let op = trace_context.op.value()?;
-    Some(op.to_string())
-}
+    if op == "default" {
+        // This was likely set by normalization, so let's treat it as None
+        // See https://github.com/getsentry/relay/blob/bb2ac4ee82c25faa07a6d078f93d22d799cfc5d1/relay-general/src/store/transactions.rs#L96
 
-#[cfg(feature = "processing")]
-fn extract_dist(transaction: &Event) -> Option<String> {
-    let mut dist = transaction.dist.0.clone();
-    store::normalize_dist(&mut dist);
-    dist
+        // Note that this is the opposite behavior of what we do for transaction.status, where
+        // we coalesce None to "unknown".
+        return None;
+    }
+    Some(op.to_string())
 }
 
 /// Extract HTTP method
 /// See <https://github.com/getsentry/snuba/blob/2e038c13a50735d58cc9397a29155ab5422a62e5/snuba/datasets/errors_processor.py#L64-L67>.
-#[cfg(feature = "processing")]
 fn extract_http_method(transaction: &Event) -> Option<String> {
     let request = transaction.request.value()?;
     let method = request.method.value()?;
-    Some(method.to_owned())
+    Some(method.clone())
 }
 
 /// Satisfaction value used for Apdex and User Misery
 /// <https://docs.sentry.io/product/performance/metrics/#apdex>
-#[cfg(feature = "processing")]
 enum UserSatisfaction {
     Satisfied,
     Tolerated,
     Frustrated,
 }
 
-#[cfg(feature = "processing")]
 impl fmt::Display for UserSatisfaction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -114,7 +175,6 @@ impl fmt::Display for UserSatisfaction {
     }
 }
 
-#[cfg(feature = "processing")]
 impl UserSatisfaction {
     /// The frustration threshold is always four times the threshold
     /// (see <https://docs.sentry.io/product/performance/metrics/#apdex>)
@@ -133,7 +193,6 @@ impl UserSatisfaction {
 
 /// Extract the the satisfaction value depending on the actual measurement/duration value
 /// and the configured threshold.
-#[cfg(feature = "processing")]
 fn extract_user_satisfaction(
     config: &Option<SatisfactionConfig>,
     transaction: &Event,
@@ -159,28 +218,116 @@ fn extract_user_satisfaction(
     None
 }
 
+fn is_low_cardinality(source: &TransactionSource, treat_unknown_as_low_cardinality: bool) -> bool {
+    match source {
+        // For now, we hope that custom transaction names set by users are low-cardinality.
+        TransactionSource::Custom => true,
+
+        // "url" are raw URLs, potentially containing identifiers.
+        TransactionSource::Url => false,
+
+        // These four are names of software components, which we assume to be low-cardinality.
+        TransactionSource::Route
+        | TransactionSource::View
+        | TransactionSource::Component
+        | TransactionSource::Task => true,
+
+        // "unknown" is the value for old SDKs that do not send a transaction source yet.
+        // Caller decides how to treat this.
+        TransactionSource::Unknown => treat_unknown_as_low_cardinality,
+
+        // Any other value would be an SDK bug, assume high-cardinality and drop.
+        TransactionSource::Other(source) => {
+            relay_log::error!("Invalid transaction source: '{}'", source);
+            false
+        }
+    }
+}
+
+/// Decide whether we want to keep the transaction name.
+/// High-cardinality sources are excluded to protect our metrics infrastructure.
+/// Note that this will produce a discrepancy between metrics and raw transaction data.
+fn get_transaction_name(
+    event: &Event,
+    accept_transaction_names: AcceptTransactionNames,
+) -> Option<String> {
+    let original_transaction_name = match event.transaction.value() {
+        Some(name) => name,
+        None => {
+            return None;
+        }
+    };
+
+    // In client-based mode, handling of "unknown" sources depends on the SDK name.
+    // In strict mode, treat "unknown" as high cardinality.
+    let treat_unknown_as_low_cardinality = matches!(
+        accept_transaction_names,
+        AcceptTransactionNames::ClientBased
+    ) && !store::is_high_cardinality_sdk(event);
+
+    let source = event.get_transaction_source();
+    let use_original_name = is_low_cardinality(source, treat_unknown_as_low_cardinality);
+
+    let name_used;
+    let name = if use_original_name {
+        name_used = "original";
+        Some(original_transaction_name.clone())
+    } else {
+        // Pick a sentinel based on the transaction source:
+        match source {
+            TransactionSource::Unknown | TransactionSource::Other(_) => {
+                name_used = "none";
+                None
+            }
+            _ => {
+                name_used = "placeholder";
+                Some("<< unparameterized >>".to_owned())
+            }
+        }
+    };
+
+    relay_statsd::metric!(
+        counter(RelayCounters::MetricsTransactionNameExtracted) += 1,
+        strategy = match &accept_transaction_names {
+            AcceptTransactionNames::ClientBased => "client-based",
+            AcceptTransactionNames::Strict => "strict",
+        },
+        source = &source.to_string(),
+        sdk_name = event
+            .client_sdk
+            .value()
+            .and_then(|c| c.name.value())
+            .map(std::string::String::as_str)
+            .unwrap_or_default(),
+        name_used = name_used,
+    );
+
+    name
+}
+
 /// These are the tags that are added to all extracted metrics.
-#[cfg(feature = "processing")]
 fn extract_universal_tags(
     event: &Event,
-    custom_tags: &BTreeSet<String>,
+    config: &TransactionMetricsConfig,
 ) -> BTreeMap<String, String> {
     let mut tags = BTreeMap::new();
     if let Some(release) = event.release.as_str() {
         tags.insert("release".to_owned(), release.to_owned());
     }
-    if let Some(dist) = extract_dist(event) {
-        tags.insert("dist".to_owned(), dist);
+    if let Some(dist) = event.dist.value() {
+        tags.insert("dist".to_owned(), dist.clone());
     }
     if let Some(environment) = event.environment.as_str() {
         tags.insert("environment".to_owned(), environment.to_owned());
     }
-    if let Some(transaction) = event.transaction.as_str() {
-        tags.insert("transaction".to_owned(), transaction.to_owned());
+    if let Some(transaction_name) = get_transaction_name(event, config.accept_transaction_names) {
+        tags.insert("transaction".to_owned(), transaction_name);
     }
 
     // The platform tag should not increase dimensionality in most cases, because most
-    // transactions are specific to one platform
+    // transactions are specific to one platform.
+    // NOTE: we might want to reconsider light normalization a little and include the
+    // `store::is_valid_platform` into light normalization.
     let platform = match event.platform.as_str() {
         Some(platform) if store::is_valid_platform(platform) => platform,
         _ => "other",
@@ -188,9 +335,8 @@ fn extract_universal_tags(
     tags.insert("platform".to_owned(), platform.to_owned());
 
     if let Some(trace_context) = get_trace_context(event) {
-        if let Some(status) = extract_transaction_status(trace_context) {
-            tags.insert("transaction.status".to_owned(), status);
-        }
+        let status = extract_transaction_status(trace_context);
+        tags.insert("transaction.status".to_owned(), status.to_string());
 
         if let Some(op) = extract_transaction_op(trace_context) {
             tags.insert("transaction.op".to_owned(), op);
@@ -201,6 +347,7 @@ fn extract_universal_tags(
         tags.insert("http.method".to_owned(), http_method);
     }
 
+    let custom_tags = &config.extract_custom_tags;
     if !custom_tags.is_empty() {
         // XXX(slow): event tags are a flat array
         if let Some(event_tags) = event.tags.value() {
@@ -220,93 +367,51 @@ fn extract_universal_tags(
     tags
 }
 
-/// Returns the unit of the provided metric.
-///
-/// For known measurements, this returns `Some(MetricUnit)`, which can also include
-/// `Some(MetricUnit::None)`. For unknown measurement names, this returns `None`.
-#[cfg(feature = "processing")]
-fn get_metric_measurement_unit(metric: &str) -> Option<MetricUnit> {
-    match metric {
-        // Web
-        "fcp" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        "lcp" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        "fid" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        "fp" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        "ttfb" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        "ttfb.requesttime" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        "cls" => Some(MetricUnit::None),
-
-        // Mobile
-        "app_start_cold" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        "app_start_warm" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        "frames_total" => Some(MetricUnit::None),
-        "frames_slow" => Some(MetricUnit::None),
-        "frames_frozen" => Some(MetricUnit::None),
-
-        // React-Native
-        "stall_count" => Some(MetricUnit::None),
-        "stall_total_time" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        "stall_longest_time" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
-
-        // Default
-        _ => None,
-    }
-}
-
-#[cfg(feature = "processing")]
 pub fn extract_transaction_metrics(
+    aggregator_config: &AggregatorConfig,
     config: &TransactionMetricsConfig,
-    breakdowns_config: Option<&store::BreakdownsConfig>,
     conditional_tagging_config: &[TaggingRule],
     event: &Event,
     target: &mut Vec<Metric>,
-) -> bool {
-    if config.extract_metrics.is_empty() {
-        relay_log::trace!("dropping all transaction metrics because of empty allow-list");
-        return false;
-    }
-
+) -> Result<bool, ExtractMetricsError> {
     let before_len = target.len();
 
-    let push_metric = |metric: Metric| {
-        if config.extract_metrics.contains(&metric.name) {
-            target.push(metric);
-        } else {
-            relay_log::trace!("dropping metric {} because of allow-list", metric.name);
-        }
-    };
-
-    extract_transaction_metrics_inner(config, breakdowns_config, event, push_metric);
+    extract_transaction_metrics_inner(aggregator_config, config, event, target)?;
 
     let added_slice = &mut target[before_len..];
     run_conditional_tagging(event, conditional_tagging_config, added_slice);
-    !added_slice.is_empty()
+    Ok(!added_slice.is_empty())
 }
 
-#[cfg(feature = "processing")]
 fn extract_transaction_metrics_inner(
+    aggregator_config: &AggregatorConfig,
     config: &TransactionMetricsConfig,
-    breakdowns_config: Option<&store::BreakdownsConfig>,
     event: &Event,
-    mut push_metric: impl FnMut(Metric),
-) {
+    metrics: &mut Vec<Metric>, // output parameter
+) -> Result<(), ExtractMetricsError> {
     if event.ty.value() != Some(&EventType::Transaction) {
-        return;
+        return Ok(());
     }
 
-    let (start_timestamp, end_timestamp) = match store::validate_timestamps(event) {
-        Ok(pair) => pair,
-        Err(_) => {
-            return; // invalid transaction
-        }
+    let (Some(&start), Some(&end)) = (event.start_timestamp.value(), event.timestamp.value()) else {
+        relay_log::debug!("failed to extract the start and the end timestamps from the event");
+        return Err(ExtractMetricsError::MissingTimestamp);
     };
 
-    let unix_timestamp = match UnixTimestamp::from_datetime(end_timestamp.into_inner()) {
-        Some(ts) => ts,
-        None => return,
+    let Some(timestamp) = UnixTimestamp::from_datetime(end.into_inner()) else {
+        relay_log::debug!("event timestamp is not a valid unix timestamp");
+        return Err(ExtractMetricsError::InvalidTimestamp);
     };
 
-    let tags = extract_universal_tags(event, &config.extract_custom_tags);
+    // Validate the transaction event against the metrics timestamp limits. If the metric is too
+    // old or too new, we cannot extract the metric and also need to drop the transaction event
+    // for consistency between metrics and events.
+    if !aggregator_config.timestamp_range().contains(&timestamp) {
+        relay_log::debug!("event timestamp is out of the valid range for metrics");
+        return Err(ExtractMetricsError::InvalidTimestamp);
+    }
+
+    let tags = extract_universal_tags(event, config);
 
     // Measurements
     if let Some(measurements) = event.measurements.value() {
@@ -326,86 +431,79 @@ fn extract_transaction_metrics_inner(
                 tags_for_measurement.insert("measurement_rating".to_owned(), rating);
             }
 
-            let stated_unit = measurement.unit.value().copied();
-            let default_unit = get_metric_measurement_unit(name);
-            if let (Some(default), Some(stated)) = (default_unit, stated_unit) {
-                if default != stated {
-                    relay_log::error!("unit mismatch on measurements.{}: {}", name, stated);
-                }
-            }
-
-            push_metric(Metric::new_mri(
+            metrics.push(Metric::new_mri(
                 METRIC_NAMESPACE,
                 format!("measurements.{}", name),
-                stated_unit.or(default_unit).unwrap_or_default(),
+                measurement.unit.value().copied().unwrap_or_default(),
                 MetricValue::Distribution(value),
-                unix_timestamp,
+                timestamp,
                 tags_for_measurement,
             ));
         }
     }
 
     // Breakdowns
-    if let Some(breakdowns_config) = breakdowns_config {
-        for (breakdown, measurements) in store::get_breakdown_measurements(event, breakdowns_config)
-        {
-            for (measurement_name, annotated) in measurements.iter() {
-                let measurement = match annotated.value() {
-                    Some(m) => m,
-                    None => continue,
-                };
+    if let Some(breakdowns) = event.breakdowns.value() {
+        for (breakdown, measurements) in breakdowns.iter() {
+            if let Some(measurements) = measurements.value() {
+                for (measurement_name, annotated) in measurements.iter() {
+                    if measurement_name == "total.time" {
+                        // The only reason we do not emit total.time as a metric is that is was not
+                        // on the allowlist in sentry before, and nobody seems to be missing it.
+                        continue;
+                    }
 
-                let value = match measurement.value.value() {
-                    Some(value) => *value,
-                    None => continue,
-                };
+                    let measurement = match annotated.value() {
+                        Some(m) => m,
+                        None => continue,
+                    };
 
-                let unit = measurement.unit.value();
+                    let value = match measurement.value.value() {
+                        Some(value) => *value,
+                        None => continue,
+                    };
 
-                push_metric(Metric::new_mri(
-                    METRIC_NAMESPACE,
-                    format!("breakdowns.{}.{}", breakdown, measurement_name),
-                    unit.copied().unwrap_or(MetricUnit::None),
-                    MetricValue::Distribution(value),
-                    unix_timestamp,
-                    tags.clone(),
-                ));
+                    let unit = measurement.unit.value();
+
+                    metrics.push(Metric::new_mri(
+                        METRIC_NAMESPACE,
+                        format!("breakdowns.{}.{}", breakdown, measurement_name),
+                        unit.copied().unwrap_or(MetricUnit::None),
+                        MetricValue::Distribution(value),
+                        timestamp,
+                        tags.clone(),
+                    ));
+                }
             }
         }
     }
 
-    let user_satisfaction = extract_user_satisfaction(
-        &config.satisfaction_thresholds,
-        event,
-        start_timestamp,
-        end_timestamp,
-    );
+    let user_satisfaction =
+        extract_user_satisfaction(&config.satisfaction_thresholds, event, start, end);
     let tags_with_satisfaction = match user_satisfaction {
         Some(satisfaction) => utils::with_tag(&tags, "satisfaction", satisfaction),
         None => tags,
     };
 
     // Duration
-    let duration_millis = relay_common::chrono_to_positive_millis(end_timestamp - start_timestamp);
-
-    push_metric(Metric::new_mri(
+    metrics.push(Metric::new_mri(
         METRIC_NAMESPACE,
         "duration",
         MetricUnit::Duration(DurationUnit::MilliSecond),
-        MetricValue::Distribution(duration_millis),
-        unix_timestamp,
+        MetricValue::Distribution(relay_common::chrono_to_positive_millis(end - start)),
+        timestamp,
         tags_with_satisfaction.clone(),
     ));
 
     // User
     if let Some(user) = event.user.value() {
-        if let Some(user_id) = user.id.as_str() {
-            push_metric(Metric::new_mri(
+        if let Some(value) = get_eventuser_tag(user) {
+            metrics.push(Metric::new_mri(
                 METRIC_NAMESPACE,
                 "user",
                 MetricUnit::None,
-                MetricValue::set_from_str(user_id),
-                unix_timestamp,
+                MetricValue::set_from_str(&value),
+                timestamp,
                 // A single user might end up in multiple satisfaction buckets when they have
                 // some satisfying transactions and some frustrating transactions.
                 // This is OK as long as we do not add these numbers *after* aggregation:
@@ -415,9 +513,59 @@ fn extract_transaction_metrics_inner(
             ));
         }
     }
+
+    Ok(())
 }
 
-#[cfg(feature = "processing")]
+/// Compute the transaction event's "user" tag as close as possible to how users are determined in
+/// the transactions dataset in Snuba. This should produce the exact same user counts as the `user`
+/// column in Discover for Transactions, barring:
+///
+/// * imprecision caused by HLL sketching in Snuba, which we don't have in events
+/// * hash collisions in [`MetricValue::set_from_display`], which we don't have in events
+/// * MD5-collisions caused by `EventUser.hash_from_tag`, which we don't have in metrics
+///
+///   MD5 is used to efficiently look up the current event user for an event, and if there is a
+///   collision it seems that this code will fetch an event user with potentially different values
+///   for everything that is in `defaults`:
+///   <https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/event_manager.py#L1058-L1060>
+///
+/// The performance product runs a discover query such as `count_unique(user)`, which maps to two
+/// things:
+///
+/// * `user` metric for the metrics dataset
+/// * the "promoted tag" column `user` in the transactions clickhouse table
+///
+/// A promoted tag is a tag that snuba pulls out into its own column. In this case it pulls out the
+/// `sentry:user` tag from the event payload:
+/// <https://github.com/getsentry/snuba/blob/430763e67e30957c89126e62127e34051eb52fd6/snuba/datasets/transactions_processor.py#L151>
+///
+/// Sentry's processing pipeline defers to `sentry.models.EventUser` to produce the `sentry:user` tag
+/// here: <https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/event_manager.py#L790-L794>
+///
+/// `sentry.models.eventuser.KEYWORD_MAP` determines which attributes are looked up in which order, here:
+/// <https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/models/eventuser.py#L18>
+/// If its order is changed, this function needs to be changed.
+fn get_eventuser_tag(user: &User) -> Option<String> {
+    if let Some(id) = user.id.as_str() {
+        return Some(format!("id:{id}"));
+    }
+
+    if let Some(username) = user.username.as_str() {
+        return Some(format!("username:{username}"));
+    }
+
+    if let Some(email) = user.email.as_str() {
+        return Some(format!("email:{email}"));
+    }
+
+    if let Some(ip_address) = user.ip_address.as_str() {
+        return Some(format!("ip:{ip_address}"));
+    }
+
+    None
+}
+
 fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
     let rate_range = |meh_ceiling: f64, poor_ceiling: f64| {
         debug_assert!(meh_ceiling < poor_ceiling);
@@ -434,20 +582,33 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
         "lcp" => rate_range(2500.0, 4000.0),
         "fcp" => rate_range(1000.0, 3000.0),
         "fid" => rate_range(100.0, 300.0),
+        "inp" => rate_range(200.0, 500.0),
         "cls" => rate_range(0.1, 0.25),
         _ => None,
     }
 }
 
 #[cfg(test)]
-#[cfg(feature = "processing")]
 mod tests {
     use super::*;
 
-    use crate::metrics_extraction::TaggingRule;
-    use relay_general::store::BreakdownsConfig;
+    use relay_general::protocol::{Contexts, User};
+    use relay_general::store::{
+        self, BreakdownsConfig, LightNormalizationConfig, MeasurementsConfig,
+    };
     use relay_general::types::Annotated;
     use relay_metrics::DurationUnit;
+
+    use crate::metrics_extraction::TaggingRule;
+
+    /// Returns an aggregator config that permits every timestamp.
+    fn aggregator_config() -> AggregatorConfig {
+        AggregatorConfig {
+            max_secs_in_past: u64::MAX,
+            max_secs_in_future: u64::MAX,
+            ..Default::default()
+        }
+    }
 
     #[test]
     fn test_extract_transaction_metrics() {
@@ -461,6 +622,7 @@ mod tests {
             "dist": "foo ",
             "environment": "fake_environment",
             "transaction": "mytransaction",
+            "transaction_info": {"source": "custom"},
             "user": {
                 "id": "user123"
             },
@@ -470,10 +632,12 @@ mod tests {
             },
             "measurements": {
                 "foo": {"value": 420.69},
-                "lcp": {"value": 3000.0}
+                "lcp": {"value": 3000.0, "unit": "millisecond"}
             },
             "contexts": {
                 "trace": {
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "span_id": "bd429c44b67a3eb4",
                     "op": "myop",
                     "status": "ok"
                 }
@@ -507,85 +671,135 @@ mod tests {
         )
         .unwrap();
 
-        let event = Annotated::from_json(json).unwrap();
-
-        let mut metrics = vec![];
-        extract_transaction_metrics(
-            &TransactionMetricsConfig::default(),
-            Some(&breakdowns_config),
-            &[],
-            event.value().unwrap(),
-            &mut metrics,
-        );
-        assert_eq!(metrics, &[]);
+        let mut event = Annotated::from_json(json).unwrap();
 
         let config: TransactionMetricsConfig = serde_json::from_str(
             r#"
         {
-            "extractMetrics": [
-                "d:transactions/measurements.foo@none",
-                "d:transactions/measurements.lcp@millisecond",
-                "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
-                "d:transactions/duration@millisecond",
-                "s:transactions/user@none"
-            ],
+            "version": 1,
             "extractCustomTags": ["fOO"]
         }
         "#,
         )
         .unwrap();
 
+        let aggregator_config = aggregator_config();
+
+        // Normalize first, to make sure that all things are correct as in the real pipeline:
+        let res = store::light_normalize_event(
+            &mut event,
+            &LightNormalizationConfig {
+                breakdowns_config: Some(&breakdowns_config),
+                ..Default::default()
+            },
+        );
+        assert!(res.is_ok());
+
         let mut metrics = vec![];
         extract_transaction_metrics(
+            &aggregator_config,
             &config,
-            Some(&breakdowns_config),
             &[],
             event.value().unwrap(),
             &mut metrics,
-        );
+        )
+        .unwrap();
 
-        assert_eq!(metrics.len(), 5, "{:?}", metrics);
-
-        assert_eq!(metrics[0].name, "d:transactions/measurements.foo@none");
-        assert_eq!(
-            metrics[1].name,
-            "d:transactions/measurements.lcp@millisecond"
-        );
-        assert_eq!(
-            metrics[2].name,
-            "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond"
-        );
-
-        let duration_metric = &metrics[3];
-        assert_eq!(duration_metric.name, "d:transactions/duration@millisecond");
-        if let MetricValue::Distribution(value) = duration_metric.value {
-            assert_eq!(value, 59000.0);
-        } else {
-            panic!(); // Duration must be set
-        }
-
-        let user_metric = &metrics[4];
-        assert_eq!(user_metric.name, "s:transactions/user@none");
-        assert!(matches!(user_metric.value, MetricValue::Set(_)));
-
-        assert_eq!(metrics[1].tags["measurement_rating"], "meh");
-
-        for metric in &metrics[0..4] {
-            assert!(matches!(metric.value, MetricValue::Distribution(_)));
-        }
-
-        for metric in metrics {
-            assert_eq!(metric.tags["release"], "1.2.3");
-            assert_eq!(metric.tags["dist"], "foo");
-            assert_eq!(metric.tags["environment"], "fake_environment");
-            assert_eq!(metric.tags["transaction"], "mytransaction");
-            assert_eq!(metric.tags["fOO"], "bar");
-            assert_eq!(metric.tags["http.method"], "POST");
-            assert_eq!(metric.tags["transaction.status"], "ok");
-            assert_eq!(metric.tags["transaction.op"], "myop");
-            assert_eq!(metric.tags["platform"], "javascript");
-            assert!(!metric.tags.contains_key("bogus"));
-        }
+        insta::assert_debug_snapshot!(metrics, @r###"
+        [
+            Metric {
+                name: "d:transactions/measurements.foo@none",
+                value: Distribution(
+                    420.69,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "dist": "foo",
+                    "environment": "fake_environment",
+                    "fOO": "bar",
+                    "http.method": "POST",
+                    "platform": "javascript",
+                    "release": "1.2.3",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                    "transaction.status": "ok",
+                },
+            },
+            Metric {
+                name: "d:transactions/measurements.lcp@millisecond",
+                value: Distribution(
+                    3000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "dist": "foo",
+                    "environment": "fake_environment",
+                    "fOO": "bar",
+                    "http.method": "POST",
+                    "measurement_rating": "meh",
+                    "platform": "javascript",
+                    "release": "1.2.3",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                    "transaction.status": "ok",
+                },
+            },
+            Metric {
+                name: "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
+                value: Distribution(
+                    9.910106,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "dist": "foo",
+                    "environment": "fake_environment",
+                    "fOO": "bar",
+                    "http.method": "POST",
+                    "platform": "javascript",
+                    "release": "1.2.3",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                    "transaction.status": "ok",
+                },
+            },
+            Metric {
+                name: "d:transactions/duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "dist": "foo",
+                    "environment": "fake_environment",
+                    "fOO": "bar",
+                    "http.method": "POST",
+                    "platform": "javascript",
+                    "release": "1.2.3",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                    "transaction.status": "ok",
+                },
+            },
+            Metric {
+                name: "s:transactions/user@none",
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "dist": "foo",
+                    "environment": "fake_environment",
+                    "fOO": "bar",
+                    "http.method": "POST",
+                    "platform": "javascript",
+                    "release": "1.2.3",
+                    "transaction": "mytransaction",
+                    "transaction.op": "myop",
+                    "transaction.status": "ok",
+                },
+            },
+        ]
+        "###);
     }
 
     #[test]
@@ -599,47 +813,84 @@ mod tests {
                 "fcp": {"value": 1.1},
                 "stall_count": {"value": 3.3},
                 "foo": {"value": 8.8}
+            },
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053"
+                }
             }
         }
         "#;
 
-        let config: TransactionMetricsConfig = serde_json::from_str(
-            r#"
-        {
-            "extractMetrics": [
-                "d:transactions/measurements.fcp@millisecond",
-                "d:transactions/measurements.stall_count@none",
-                "d:transactions/measurements.foo@none"
-            ]
-        }
-        "#,
+        let config = TransactionMetricsConfig::default();
+        let aggregator_config = aggregator_config();
+
+        let mut event = Annotated::from_json(json).unwrap();
+
+        // Normalize first, to make sure the units are correct:
+        let res = store::light_normalize_event(&mut event, &LightNormalizationConfig::default());
+        assert!(res.is_ok(), "{:?}", res);
+
+        let mut metrics = vec![];
+        extract_transaction_metrics(
+            &aggregator_config,
+            &config,
+            &[],
+            event.value().unwrap(),
+            &mut metrics,
         )
         .unwrap();
 
-        let event = Annotated::from_json(json).unwrap();
-
-        let mut metrics = vec![];
-        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
-
-        assert_eq!(metrics.len(), 3, "{:?}", metrics);
-
-        assert_eq!(
-            metrics[0].name, "d:transactions/measurements.fcp@millisecond",
-            "{:?}",
-            metrics[0]
-        );
-
-        assert_eq!(
-            metrics[1].name, "d:transactions/measurements.foo@none",
-            "{:?}",
-            metrics[1]
-        );
-
-        assert_eq!(
-            metrics[2].name, "d:transactions/measurements.stall_count@none",
-            "{:?}",
-            metrics[2]
-        );
+        insta::assert_debug_snapshot!(metrics, @r###"
+        [
+            Metric {
+                name: "d:transactions/measurements.fcp@millisecond",
+                value: Distribution(
+                    1.1,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "measurement_rating": "good",
+                    "platform": "other",
+                    "transaction.status": "unknown",
+                },
+            },
+            Metric {
+                name: "d:transactions/measurements.foo@none",
+                value: Distribution(
+                    8.8,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "platform": "other",
+                    "transaction.status": "unknown",
+                },
+            },
+            Metric {
+                name: "d:transactions/measurements.stall_count@none",
+                value: Distribution(
+                    3.3,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "platform": "other",
+                    "transaction.status": "unknown",
+                },
+            },
+            Metric {
+                name: "d:transactions/duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "platform": "other",
+                    "transaction.status": "unknown",
+                },
+            },
+        ]
+        "###);
     }
 
     #[test]
@@ -651,30 +902,73 @@ mod tests {
             "measurements": {
                 "fcp": {"value": 1.1, "unit": "second"},
                 "lcp": {"value": 2.2, "unit": "none"}
+            },
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053"
+                }
             }
         }"#;
 
-        let config: TransactionMetricsConfig = serde_json::from_str(
-            r#"{
-                "extractMetrics": [
-                    "d:transactions/measurements.fcp@second",
-                    "d:transactions/measurements.lcp@none"
-                ]
-            }"#,
+        let config: TransactionMetricsConfig = TransactionMetricsConfig::default();
+        let aggregator_config = aggregator_config();
+
+        let mut event = Annotated::from_json(json).unwrap();
+
+        // Normalize first, to make sure the units are correct:
+        let res = store::light_normalize_event(&mut event, &LightNormalizationConfig::default());
+        assert!(res.is_ok(), "{:?}", res);
+
+        let mut metrics = vec![];
+        extract_transaction_metrics(
+            &aggregator_config,
+            &config,
+            &[],
+            event.value().unwrap(),
+            &mut metrics,
         )
         .unwrap();
 
-        let event = Annotated::from_json(json).unwrap();
-
-        let mut metrics = vec![];
-        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
-
-        assert_eq!(metrics.len(), 2);
-
-        assert_eq!(metrics[0].name, "d:transactions/measurements.fcp@second");
-
-        // None is an override, too.
-        assert_eq!(metrics[1].name, "d:transactions/measurements.lcp@none");
+        insta::assert_debug_snapshot!(metrics, @r###"
+        [
+            Metric {
+                name: "d:transactions/measurements.fcp@second",
+                value: Distribution(
+                    1.1,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "measurement_rating": "good",
+                    "platform": "other",
+                    "transaction.status": "unknown",
+                },
+            },
+            Metric {
+                name: "d:transactions/measurements.lcp@none",
+                value: Distribution(
+                    2.2,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "measurement_rating": "good",
+                    "platform": "other",
+                    "transaction.status": "unknown",
+                },
+            },
+            Metric {
+                name: "d:transactions/duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "platform": "other",
+                    "transaction.status": "unknown",
+                },
+            },
+        ]
+        "###);
     }
 
     #[test]
@@ -698,18 +992,18 @@ mod tests {
 
         let event = Annotated::from_json(json).unwrap();
 
-        let config: TransactionMetricsConfig = serde_json::from_str(
-            r#"
-        {
-            "extractMetrics": [
-                "d:transactions/duration@millisecond"
-            ]
-        }
-        "#,
+        let config = TransactionMetricsConfig::default();
+        let aggregator_config = aggregator_config();
+
+        let mut metrics = vec![];
+        extract_transaction_metrics(
+            &aggregator_config,
+            &config,
+            &[],
+            event.value().unwrap(),
+            &mut metrics,
         )
         .unwrap();
-        let mut metrics = vec![];
-        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
 
         assert_eq!(metrics.len(), 1);
 
@@ -721,11 +1015,10 @@ mod tests {
             panic!(); // Duration must be set
         }
 
-        assert_eq!(duration_metric.tags.len(), 5);
+        assert_eq!(duration_metric.tags.len(), 4);
         assert_eq!(duration_metric.tags["release"], "1.2.3");
         assert_eq!(duration_metric.tags["transaction.status"], "ok");
         assert_eq!(duration_metric.tags["environment"], "fake_environment");
-        assert_eq!(duration_metric.tags["transaction"], "mytransaction");
         assert_eq!(duration_metric.tags["platform"], "other");
     }
 
@@ -752,11 +1045,7 @@ mod tests {
 
         let config: TransactionMetricsConfig = serde_json::from_str(
             r#"
-        {
-            "extractMetrics": [
-                "d:transactions/duration@millisecond",
-                "s:transactions/user@none"
-            ],
+            {
             "satisfactionThresholds": {
                 "projectThreshold": {
                     "metric": "duration",
@@ -768,17 +1057,27 @@ mod tests {
         "#,
         )
         .unwrap();
+
+        let aggregator_config = aggregator_config();
+
         let mut metrics = vec![];
-        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(
+            &aggregator_config,
+            &config,
+            &[],
+            event.value().unwrap(),
+            &mut metrics,
+        )
+        .unwrap();
         assert_eq!(metrics.len(), 2);
 
         let duration_metric = &metrics[0];
-        assert_eq!(duration_metric.tags.len(), 4);
+        assert_eq!(duration_metric.tags.len(), 3);
         assert_eq!(duration_metric.tags["satisfaction"], "tolerated");
         assert_eq!(duration_metric.tags["transaction.status"], "ok");
 
         let user_metric = &metrics[1];
-        assert_eq!(user_metric.tags.len(), 4);
+        assert_eq!(user_metric.tags.len(), 3);
         assert_eq!(user_metric.tags["satisfaction"], "tolerated");
     }
 
@@ -791,7 +1090,7 @@ mod tests {
             "start_timestamp": "2021-04-26T08:00:00+0100",
             "timestamp": "2021-04-26T08:00:02+0100",
             "measurements": {
-                "lcp": {"value": 41}
+                "lcp": {"value": 41, "unit": "millisecond"}
             }
         }
         "#;
@@ -801,9 +1100,6 @@ mod tests {
         let config: TransactionMetricsConfig = serde_json::from_str(
             r#"
         {
-            "extractMetrics": [
-                "d:transactions/duration@millisecond"
-            ],
             "satisfactionThresholds": {
                 "projectThreshold": {
                     "metric": "duration",
@@ -820,14 +1116,44 @@ mod tests {
         "#,
         )
         .unwrap();
-        let mut metrics = vec![];
-        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
-        assert_eq!(metrics.len(), 1);
 
-        for metric in metrics {
-            assert_eq!(metric.tags.len(), 3);
-            assert_eq!(metric.tags["satisfaction"], "satisfied");
-        }
+        let aggregator_config = aggregator_config();
+
+        let mut metrics = vec![];
+        extract_transaction_metrics(
+            &aggregator_config,
+            &config,
+            &[],
+            event.value().unwrap(),
+            &mut metrics,
+        )
+        .unwrap();
+        insta::assert_debug_snapshot!(metrics, @r###"
+        [
+            Metric {
+                name: "d:transactions/measurements.lcp@millisecond",
+                value: Distribution(
+                    41.0,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "measurement_rating": "good",
+                    "platform": "other",
+                },
+            },
+            Metric {
+                name: "d:transactions/duration@millisecond",
+                value: Distribution(
+                    2000.0,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "platform": "other",
+                    "satisfaction": "satisfied",
+                },
+            },
+        ]
+        "###);
     }
 
     #[test]
@@ -839,7 +1165,7 @@ mod tests {
             "start_timestamp": "2021-04-26T08:00:00+0100",
             "timestamp": "2021-04-26T08:00:02+0100",
             "measurements": {
-                "lcp": {"value": 41}
+                "lcp": {"value": 41, "unit": "millisecond"}
             }
         }
         "#;
@@ -849,9 +1175,6 @@ mod tests {
         let config: TransactionMetricsConfig = serde_json::from_str(
             r#"
         {
-            "extractMetrics": [
-                "d:transactions/duration@millisecond"
-            ],
             "satisfactionThresholds": {
                 "projectThreshold": {
                     "metric": "unknown_metric",
@@ -862,14 +1185,149 @@ mod tests {
         "#,
         )
         .unwrap();
-        let mut metrics = vec![];
-        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
-        assert_eq!(metrics.len(), 1);
 
-        for metric in metrics {
-            assert_eq!(metric.tags.len(), 2);
-            assert!(!metric.tags.contains_key("satisfaction"));
+        let aggregator_config = aggregator_config();
+
+        let mut metrics = vec![];
+        extract_transaction_metrics(
+            &aggregator_config,
+            &config,
+            &[],
+            event.value().unwrap(),
+            &mut metrics,
+        )
+        .unwrap();
+
+        insta::assert_debug_snapshot!(metrics, @r###"
+        [
+            Metric {
+                name: "d:transactions/measurements.lcp@millisecond",
+                value: Distribution(
+                    41.0,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "measurement_rating": "good",
+                    "platform": "other",
+                },
+            },
+            Metric {
+                name: "d:transactions/duration@millisecond",
+                value: Distribution(
+                    2000.0,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "platform": "other",
+                },
+            },
+        ]
+        "###);
+    }
+
+    #[test]
+    fn test_custom_measurements() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "timestamp": "2021-04-26T08:00:02+0100",
+            "measurements": {
+                "a_custom1": {"value": 41},
+                "fcp": {"value": 0.123, "unit": "millisecond"},
+                "g_custom2": {"value": 42, "unit": "second"},
+                "h_custom3": {"value": 43}
+            },
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053"
+                }}
         }
+        "#;
+
+        let mut event = Annotated::from_json(json).unwrap();
+
+        // Normalize first, to make sure the units are correct:
+        let measurements_config: MeasurementsConfig = serde_json::from_value(serde_json::json!(
+            {
+                "builtinMeasurements": [{"name": "fcp", "unit": "millisecond"}],
+                "maxCustomMeasurements": 2
+            }
+        ))
+        .unwrap();
+        let res = store::light_normalize_event(
+            &mut event,
+            &LightNormalizationConfig {
+                measurements_config: Some(&measurements_config),
+                ..Default::default()
+            },
+        );
+        assert!(res.is_ok(), "{:?}", res);
+
+        let config = TransactionMetricsConfig::default();
+        let aggregator_config = aggregator_config();
+
+        let mut metrics = vec![];
+        extract_transaction_metrics(
+            &aggregator_config,
+            &config,
+            &[],
+            event.value().unwrap(),
+            &mut metrics,
+        )
+        .unwrap();
+
+        insta::assert_debug_snapshot!(metrics, @r###"
+            [
+                Metric {
+                    name: "d:transactions/measurements.a_custom1@none",
+                    value: Distribution(
+                        41.0,
+                    ),
+                    timestamp: UnixTimestamp(1619420402),
+                    tags: {
+                        "platform": "other",
+                        "transaction.status": "unknown",
+                    },
+                },
+                Metric {
+                    name: "d:transactions/measurements.fcp@millisecond",
+                    value: Distribution(
+                        0.123,
+                    ),
+                    timestamp: UnixTimestamp(1619420402),
+                    tags: {
+                        "measurement_rating": "good",
+                        "platform": "other",
+                        "transaction.status": "unknown",
+                    },
+                },
+                Metric {
+                    name: "d:transactions/measurements.g_custom2@second",
+                    value: Distribution(
+                        42.0,
+                    ),
+                    timestamp: UnixTimestamp(1619420402),
+                    tags: {
+                        "platform": "other",
+                        "transaction.status": "unknown",
+                    },
+                },
+                Metric {
+                    name: "d:transactions/duration@millisecond",
+                    value: Distribution(
+                        2000.0,
+                    ),
+                    timestamp: UnixTimestamp(1619420402),
+                    tags: {
+                        "platform": "other",
+                        "transaction.status": "unknown",
+                    },
+                },
+            ]
+        "###);
     }
 
     #[test]
@@ -881,23 +1339,15 @@ mod tests {
             "start_timestamp": "2021-04-26T08:00:00+0100",
             "timestamp": "2021-04-26T08:00:02+0100",
             "measurements": {
-                "lcp": {"value": 41}
+                "lcp": {"value": 41, "unit": "millisecond"}
             }
         }
         "#;
 
         let event = Annotated::from_json(json).unwrap();
 
-        let config: TransactionMetricsConfig = serde_json::from_str(
-            r#"
-        {
-            "extractMetrics": [
-                "d:transactions/duration@millisecond"
-            ]
-        }
-        "#,
-        )
-        .unwrap();
+        let config = TransactionMetricsConfig::default();
+        let aggregator_config = aggregator_config();
 
         let tagging_config: Vec<TaggingRule> = serde_json::from_str(
             r#"
@@ -927,29 +1377,40 @@ mod tests {
 
         let mut metrics = vec![];
         extract_transaction_metrics(
+            &aggregator_config,
             &config,
-            None,
             &tagging_config,
             event.value().unwrap(),
             &mut metrics,
-        );
-        assert_eq!(
-            metrics,
-            &[Metric::new_mri(
-                METRIC_NAMESPACE,
-                "duration",
-                MetricUnit::Duration(DurationUnit::MilliSecond),
-                MetricValue::Distribution(2000.0),
-                UnixTimestamp::from_secs(1619420402),
-                {
-                    let mut tags = BTreeMap::new();
-                    tags.insert("satisfaction".to_owned(), "tolerated".to_owned());
-                    tags.insert("transaction".to_owned(), "foo".to_owned());
-                    tags.insert("platform".to_owned(), "other".to_owned());
-                    tags
-                }
-            )]
-        );
+        )
+        .unwrap();
+
+        insta::assert_debug_snapshot!(metrics, @r###"
+        [
+            Metric {
+                name: "d:transactions/measurements.lcp@millisecond",
+                value: Distribution(
+                    41.0,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "measurement_rating": "good",
+                    "platform": "other",
+                },
+            },
+            Metric {
+                name: "d:transactions/duration@millisecond",
+                value: Distribution(
+                    2000.0,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "platform": "other",
+                    "satisfaction": "tolerated",
+                },
+            },
+        ]
+        "###);
     }
 
     #[test]
@@ -961,23 +1422,15 @@ mod tests {
             "start_timestamp": "2021-04-26T08:00:00+0100",
             "timestamp": "2021-04-26T08:00:02+0100",
             "measurements": {
-                "lcp": {"value": 41}
+                "lcp": {"value": 41, "unit": "millisecond"}
             }
         }
         "#;
 
         let event = Annotated::from_json(json).unwrap();
 
-        let config: TransactionMetricsConfig = serde_json::from_str(
-            r#"
-        {
-            "extractMetrics": [
-                "d:transactions/measurements.lcp@millisecond"
-            ]
-        }
-        "#,
-        )
-        .unwrap();
+        let config = TransactionMetricsConfig::default();
+        let aggregator_config = aggregator_config();
 
         let tagging_config: Vec<TaggingRule> = serde_json::from_str(
             r#"
@@ -1007,12 +1460,14 @@ mod tests {
 
         let mut metrics = vec![];
         extract_transaction_metrics(
+            &aggregator_config,
             &config,
-            None,
             &tagging_config,
             event.value().unwrap(),
             &mut metrics,
-        );
+        )
+        .unwrap();
+        metrics.retain(|m| m.name.contains("lcp"));
         assert_eq!(
             metrics,
             &[Metric::new_mri(
@@ -1025,11 +1480,550 @@ mod tests {
                     let mut tags = BTreeMap::new();
                     tags.insert("satisfaction".to_owned(), "frustrated".to_owned());
                     tags.insert("measurement_rating".to_owned(), "good".to_owned());
-                    tags.insert("transaction".to_owned(), "foo".to_owned());
                     tags.insert("platform".to_owned(), "other".to_owned());
                     tags
                 }
             )]
         );
+    }
+
+    #[test]
+    fn test_unknown_transaction_status_no_trace_context() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100"
+        }
+        "#;
+
+        let config = TransactionMetricsConfig::default();
+        let aggregator_config = aggregator_config();
+
+        let event = Annotated::from_json(json).unwrap();
+
+        let mut metrics = vec![];
+        extract_transaction_metrics(
+            &aggregator_config,
+            &config,
+            &[],
+            event.value().unwrap(),
+            &mut metrics,
+        )
+        .unwrap();
+
+        assert_eq!(metrics.len(), 1, "{:?}", metrics);
+
+        assert_eq!(metrics[0].name, "d:transactions/duration@millisecond");
+        assert_eq!(
+            metrics[0].tags,
+            BTreeMap::from([("platform".to_string(), "other".to_string())])
+        );
+    }
+
+    #[test]
+    fn test_unknown_transaction_status() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}}
+        }
+        "#;
+
+        let config = TransactionMetricsConfig::default();
+        let aggregator_config = aggregator_config();
+
+        let event = Annotated::from_json(json).unwrap();
+
+        let mut metrics = vec![];
+        extract_transaction_metrics(
+            &aggregator_config,
+            &config,
+            &[],
+            event.value().unwrap(),
+            &mut metrics,
+        )
+        .unwrap();
+
+        assert_eq!(metrics.len(), 1, "{:?}", metrics);
+
+        assert_eq!(metrics[0].name, "d:transactions/duration@millisecond");
+        assert_eq!(
+            metrics[0].tags,
+            BTreeMap::from([
+                ("transaction.status".to_string(), "unknown".to_string()),
+                ("platform".to_string(), "other".to_string())
+            ])
+        );
+    }
+
+    #[test]
+    fn test_expired_timestamp() {
+        let config = TransactionMetricsConfig::default();
+        let aggregator_config = AggregatorConfig {
+            max_secs_in_past: 3600,
+            ..Default::default()
+        };
+
+        let timestamp = Timestamp(chrono::Utc::now() - chrono::Duration::seconds(7200));
+
+        let event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(timestamp),
+            start_timestamp: Annotated::new(timestamp),
+            contexts: Annotated::new({
+                let mut contexts = Contexts::new();
+                contexts.add(Context::Trace(Box::default()));
+                contexts
+            }),
+            ..Default::default()
+        });
+
+        let mut metrics = vec![];
+        let result = extract_transaction_metrics(
+            &aggregator_config,
+            &config,
+            &[],
+            event.value().unwrap(),
+            &mut metrics,
+        );
+
+        assert_eq!(result, Err(ExtractMetricsError::InvalidTimestamp));
+        assert_eq!(metrics, &[]);
+    }
+
+    /// Helper function to check if the transaction name is set correctly
+    fn extract_transaction_name(json: &str, strategy: AcceptTransactionNames) -> Option<String> {
+        let mut config = TransactionMetricsConfig::default();
+        let aggregator_config = aggregator_config();
+
+        let event = Annotated::<Event>::from_json(json).unwrap();
+        config.accept_transaction_names = strategy;
+
+        let mut metrics = vec![];
+        extract_transaction_metrics(
+            &aggregator_config,
+            &config,
+            &[],
+            event.value().unwrap(),
+            &mut metrics,
+        )
+        .unwrap();
+
+        assert_eq!(metrics.len(), 1);
+        metrics[0].tags.get("transaction").cloned()
+    }
+
+    #[test]
+    fn test_js_unknown_strict() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "sentry.javascript.browser"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::Strict);
+        assert!(name.is_none());
+    }
+
+    #[test]
+    fn test_js_unknown_client_based() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "sentry.javascript.browser"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        assert!(name.is_none());
+    }
+
+    #[test]
+    fn test_js_url_strict() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "sentry.javascript.browser"},
+            "transaction_info": {"source": "url"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::Strict);
+        assert_eq!(name, Some("<< unparameterized >>".to_owned()));
+    }
+
+    #[test]
+    fn test_js_url_client_based() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "sentry.javascript.browser"},
+            "transaction_info": {"source": "url"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        assert_eq!(name, Some("<< unparameterized >>".to_owned()));
+    }
+
+    #[test]
+    fn test_python_404_strict() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "sentry.python", "integrations":["django"]},
+            "tags": {"http.status": "404"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::Strict);
+        assert!(name.is_none());
+    }
+
+    #[test]
+    fn test_python_404_client_based() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "sentry.python", "integrations":["django"]},
+            "tags": {"http.status_code": "404"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        assert!(name.is_none());
+    }
+
+    #[test]
+    fn test_python_200_client_based() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "sentry.python", "integrations":["django"]},
+            "tags": {"http.status_code": "200"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        assert_eq!(name, Some("foo".to_owned()));
+    }
+
+    #[test]
+    fn test_express_options_strict() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "sentry.javascript.node", "integrations":["Express"]},
+            "request": {"method": "OPTIONS"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::Strict);
+        assert!(name.is_none());
+    }
+
+    #[test]
+    fn test_express_options_client_based() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "sentry.javascript.node", "integrations":["Express"]},
+            "request": {"method": "OPTIONS"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        assert!(name.is_none());
+    }
+
+    #[test]
+    fn test_express_get_client_based() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "sentry.javascript.node", "integrations":["Express"]},
+            "request": {"method": "GET"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        assert_eq!(name, Some("foo".to_owned()));
+    }
+
+    #[test]
+    fn test_other_client_unknown_strict() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "some_client"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::Strict);
+        assert!(name.is_none());
+    }
+
+    #[test]
+    fn test_other_client_unknown_client_based() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "some_client"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        assert_eq!(name, Some("foo".to_owned()));
+    }
+
+    #[test]
+    fn test_other_client_url_strict() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "some_client"},
+            "transaction_info": {"source": "url"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::Strict);
+        assert_eq!(name, Some("<< unparameterized >>".to_owned()));
+    }
+
+    #[test]
+    fn test_other_client_url_client_based() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "some_client"},
+            "transaction_info": {"source": "url"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        assert_eq!(name, Some("<< unparameterized >>".to_owned()));
+    }
+
+    #[test]
+    fn test_any_client_route_strict() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "some_client"},
+            "transaction_info": {"source": "route"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::Strict);
+        assert_eq!(name, Some("foo".to_owned()));
+    }
+
+    #[test]
+    fn test_any_client_route_client_based() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "some_client"},
+            "transaction_info": {"source": "route"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        assert_eq!(name, Some("foo".to_owned()));
+    }
+
+    #[test]
+    fn test_parse_transaction_name_strategy() {
+        for (config, expected_strategy) in [
+            (r#"{}"#, AcceptTransactionNames::Strict),
+            (
+                r#"{"acceptTransactionNames": "unknown-strategy"}"#,
+                AcceptTransactionNames::Strict,
+            ),
+            (
+                r#"{"acceptTransactionNames": "strict"}"#,
+                AcceptTransactionNames::Strict,
+            ),
+            (
+                r#"{"acceptTransactionNames": "clientBased"}"#,
+                AcceptTransactionNames::ClientBased,
+            ),
+        ] {
+            let config: TransactionMetricsConfig = serde_json::from_str(config).unwrap();
+            assert_eq!(config.accept_transaction_names, expected_strategy);
+        }
+    }
+
+    #[test]
+    fn test_computed_metrics() {
+        let json = r#"{
+            "type": "transaction",
+            "timestamp": 1619420520,
+            "start_timestamp": 1619420400,
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053"
+                }
+            },
+            "measurements": {
+                "frames_frozen": {
+                    "value": 2
+                },
+                "frames_slow": {
+                    "value": 1
+                },
+                "frames_total": {
+                    "value": 4
+                },
+                "stall_total_time": {
+                    "value": 4,
+                    "unit": "millisecond"
+                }
+            }
+        }"#;
+
+        let config = TransactionMetricsConfig::default();
+        let aggregator_config = aggregator_config();
+
+        let mut event = Annotated::from_json(json).unwrap();
+        // Normalize first, to make sure that the metrics were computed:
+        let _ = store::light_normalize_event(&mut event, &LightNormalizationConfig::default());
+
+        let mut metrics = vec![];
+        extract_transaction_metrics(
+            &aggregator_config,
+            &config,
+            &[],
+            event.value().unwrap(),
+            &mut metrics,
+        )
+        .unwrap();
+
+        let metrics_names: Vec<_> = metrics.into_iter().map(|m| m.name).collect();
+        insta::assert_debug_snapshot!(metrics_names, @r###"
+        [
+            "d:transactions/measurements.frames_frozen@none",
+            "d:transactions/measurements.frames_frozen_rate@ratio",
+            "d:transactions/measurements.frames_slow@none",
+            "d:transactions/measurements.frames_slow_rate@ratio",
+            "d:transactions/measurements.frames_total@none",
+            "d:transactions/measurements.stall_percentage@ratio",
+            "d:transactions/measurements.stall_total_time@millisecond",
+            "d:transactions/duration@millisecond",
+        ]
+        "###);
+    }
+
+    #[test]
+    fn test_get_eventuser_tag() {
+        // Note: If this order changes,
+        // https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/models/eventuser.py#L18
+        // has to be changed. Though it is probably not a good idea!
+        let user = User {
+            id: Annotated::new("ident".to_owned().into()),
+            username: Annotated::new("username".to_owned()),
+            email: Annotated::new("email".to_owned()),
+            ip_address: Annotated::new("127.0.0.1".parse().unwrap()),
+            ..User::default()
+        };
+
+        assert_eq!(get_eventuser_tag(&user).unwrap(), "id:ident");
+
+        let user = User {
+            username: Annotated::new("username".to_owned()),
+            email: Annotated::new("email".to_owned()),
+            ip_address: Annotated::new("127.0.0.1".parse().unwrap()),
+            ..User::default()
+        };
+
+        assert_eq!(get_eventuser_tag(&user).unwrap(), "username:username");
+
+        let user = User {
+            email: Annotated::new("email".to_owned()),
+            ip_address: Annotated::new("127.0.0.1".parse().unwrap()),
+            ..User::default()
+        };
+
+        assert_eq!(get_eventuser_tag(&user).unwrap(), "email:email");
+
+        let user = User {
+            ip_address: Annotated::new("127.0.0.1".parse().unwrap()),
+            ..User::default()
+        };
+
+        assert_eq!(get_eventuser_tag(&user).unwrap(), "ip:127.0.0.1");
+
+        let user = User::default();
+
+        assert!(get_eventuser_tag(&user).is_none());
     }
 }

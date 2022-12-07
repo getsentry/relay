@@ -1,0 +1,26 @@
+{
+  "name": "ChangelogChecker",
+  "version": "1.0.0",
+  "description": "Makes sure that the CHANGELOG.md has the entry for the current pull request.",
+  "main": "index.js",
+  "scripts": {
+    "format": "prettier --write index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/getsentry/relay.git"
+  },
+  "author": "Oleksandr Kylymnychenko <oleksandr@sentry.io>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/getsentry/relay/issues"
+  },
+  "homepage": "https://github.com/getsentry/relay#readme",
+  "dependencies": {
+    "@actions/core": "^1.10.0",
+    "@actions/github": "^5.1.1"
+  },
+  "devDependencies": {
+    "prettier": "2.8.0"
+  }
+}

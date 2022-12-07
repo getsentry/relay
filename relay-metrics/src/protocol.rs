@@ -5,11 +5,10 @@ use std::iter::FusedIterator;
 use hash32::{FnvHasher, Hasher};
 use serde::{Deserialize, Serialize};
 
-pub use relay_common::UnixTimestamp;
-
 #[doc(inline)]
 pub use relay_common::{
     CustomUnit, DurationUnit, FractionUnit, InformationUnit, MetricUnit, ParseMetricUnitError,
+    UnixTimestamp,
 };
 
 /// Type used for Counter metric
@@ -583,6 +582,31 @@ impl Metric {
     /// ```
     pub fn parse_all(slice: &[u8], timestamp: UnixTimestamp) -> ParseMetrics<'_> {
         ParseMetrics { slice, timestamp }
+    }
+}
+
+/// Common interface for `Metric` and `Bucket`.
+pub trait MetricsContainer {
+    /// Returns the full metric name (MRI) of this container.
+    fn name(&self) -> &str;
+
+    /// Returns the number of raw data points in this container.
+    /// See [`crate::aggregation::BucketValue::len()`].
+    fn len(&self) -> usize;
+
+    /// Returns `true` if this container contains no values.
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+impl MetricsContainer for Metric {
+    fn name(&self) -> &str {
+        self.name.as_str()
+    }
+
+    fn len(&self) -> usize {
+        1
     }
 }
 

@@ -27,8 +27,7 @@ use std::time::Instant;
 use ::actix::fut;
 use ::actix::prelude::*;
 use actix_web::http::{header, Method};
-use failure::Fail;
-use futures::{future, prelude::*, sync::oneshot};
+use futures01::{future, prelude::*, sync::oneshot};
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
@@ -46,26 +45,26 @@ use crate::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
 use crate::statsd::{RelayHistograms, RelayTimers};
 use crate::utils::{self, ApiErrorResponse, IntoTracked, RelayErrorAction, TrackedFutureFinished};
 
-#[derive(Fail, Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum UpstreamRequestError {
-    #[fail(display = "attempted to send upstream request without credentials configured")]
+    #[error("attempted to send upstream request without credentials configured")]
     NoCredentials,
 
     /// As opposed to HTTP variant this contains all network errors.
-    #[fail(display = "could not send request to upstream")]
-    SendFailed(#[cause] reqwest::Error),
+    #[error("could not send request to upstream")]
+    SendFailed(#[source] reqwest::Error),
 
     /// Likely a bad HTTP status code or unparseable response.
-    #[fail(display = "could not send request")]
-    Http(#[cause] HttpError),
+    #[error("could not send request")]
+    Http(#[source] HttpError),
 
-    #[fail(display = "upstream requests rate limited")]
+    #[error("upstream requests rate limited")]
     RateLimited(UpstreamRateLimits),
 
-    #[fail(display = "upstream request returned error {}", _0)]
-    ResponseError(StatusCode, #[cause] ApiErrorResponse),
+    #[error("upstream request returned error {0}")]
+    ResponseError(StatusCode, #[source] ApiErrorResponse),
 
-    #[fail(display = "channel closed")]
+    #[error("channel closed")]
     ChannelClosed,
 }
 
@@ -506,7 +505,7 @@ impl UpstreamRelay {
         );
 
         ctx.run_later(next_backoff, |slf, ctx| {
-            let request = EnqueuedRequest::new(GetHealthcheck);
+            let request = EnqueuedRequest::new(GetHealthCheck);
             slf.enqueue(request, ctx, EnqueuePosition::Front);
         });
     }
@@ -964,9 +963,9 @@ impl Handler<ScheduleConnectionCheck> for UpstreamRelay {
 }
 
 /// Checks the status of the network connection with the upstream server
-struct GetHealthcheck;
+struct GetHealthCheck;
 
-impl UpstreamRequest for GetHealthcheck {
+impl UpstreamRequest for GetHealthCheck {
     fn method(&self) -> Method {
         Method::GET
     }

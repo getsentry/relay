@@ -153,7 +153,10 @@ def test_attachments_ratelimit(
 
 
 def test_attachments_quotas(
-    mini_sentry, relay_with_processing, attachments_consumer, outcomes_consumer,
+    mini_sentry,
+    relay_with_processing,
+    attachments_consumer,
+    outcomes_consumer,
 ):
     event_id = "515539018c9b4260a6f999572f1661ee"
     attachment_body = b"blabla"
@@ -163,7 +166,7 @@ def test_attachments_quotas(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["quotas"] = [
         {
-            "id": "test_rate_limiting_{}".format(uuid.uuid4().hex),
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
             "categories": ["attachment"],
             "window": 3600,
             "limit": 5 * len(attachment_body),

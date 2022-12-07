@@ -1,5 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
+use std::convert::TryInto;
 use std::env;
+use std::error::Error;
 use std::fmt;
 use std::fs;
 use std::io;
@@ -9,12 +11,15 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::Duration;
 
-use failure::{Backtrace, Context, Fail};
+use anyhow::Context;
 use serde::de::{Unexpected, Visitor};
 use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize, Serializer};
 
 use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
 use relay_common::{Dsn, Uuid};
+use relay_kafka::{
+    ConfigError as KafkaConfigError, KafkaConfig, KafkaConfigParam, KafkaTopic, TopicAssignments,
+};
 use relay_metrics::AggregatorConfig;
 use relay_redis::RedisConfig;
 
@@ -22,6 +27,41 @@ use crate::byte_size::ByteSize;
 use crate::upstream::UpstreamDescriptor;
 
 const DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD: u64 = 10;
+
+/// Indicates config related errors.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub enum ConfigErrorKind {
+    /// Failed to open the file.
+    CouldNotOpenFile,
+    /// Failed to save a file.
+    CouldNotWriteFile,
+    /// Parsing YAML failed.
+    BadYaml,
+    /// Parsing JSON failed.
+    BadJson,
+    /// Invalid config value
+    InvalidValue,
+    /// The user attempted to run Relay with processing enabled, but uses a binary that was
+    /// compiled without the processing feature.
+    ProcessingNotAvailable,
+}
+
+impl fmt::Display for ConfigErrorKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::CouldNotOpenFile => write!(f, "could not open config file"),
+            Self::CouldNotWriteFile => write!(f, "could not write config file"),
+            Self::BadYaml => write!(f, "could not parse yaml config file"),
+            Self::BadJson => write!(f, "could not parse json config file"),
+            Self::InvalidValue => write!(f, "invalid config value"),
+            Self::ProcessingNotAvailable => write!(
+                f,
+                "was not compiled with processing, cannot enable processing"
+            ),
+        }
+    }
+}
 
 /// Defines the source of a config error
 #[derive(Debug)]
@@ -40,107 +80,63 @@ impl Default for ConfigErrorSource {
     }
 }
 
+impl fmt::Display for ConfigErrorSource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ConfigErrorSource::None => Ok(()),
+            ConfigErrorSource::File(file_name) => {
+                write!(f, " (file {})", file_name.display())
+            }
+            ConfigErrorSource::FieldOverride(name) => write!(f, " (field {})", name),
+        }
+    }
+}
+
 /// Indicates config related errors.
 #[derive(Debug)]
 pub struct ConfigError {
     source: ConfigErrorSource,
-    inner: Context<ConfigErrorKind>,
+    kind: ConfigErrorKind,
 }
 
 impl ConfigError {
     #[inline]
-    fn new<C>(context: C) -> Self
-    where
-        C: Into<Context<ConfigErrorKind>>,
-    {
+    fn new(kind: ConfigErrorKind) -> Self {
         Self {
             source: ConfigErrorSource::None,
-            inner: context.into(),
+            kind,
         }
     }
 
     #[inline]
-    fn wrap<E>(inner: E, kind: ConfigErrorKind) -> Self
-    where
-        E: Fail,
-    {
-        Self::new(inner.context(kind))
+    fn field(field: &'static str) -> Self {
+        Self {
+            source: ConfigErrorSource::FieldOverride(field.to_owned()),
+            kind: ConfigErrorKind::InvalidValue,
+        }
     }
 
     #[inline]
-    fn for_field<E>(inner: E, field: &'static str) -> Self
-    where
-        E: Fail,
-    {
-        Self::wrap(inner, ConfigErrorKind::InvalidValue).field(field)
-    }
-
-    #[inline]
-    fn file<P: AsRef<Path>>(mut self, p: P) -> Self {
-        self.source = ConfigErrorSource::File(p.as_ref().to_path_buf());
-        self
-    }
-
-    #[inline]
-    fn field(mut self, name: &'static str) -> Self {
-        self.source = ConfigErrorSource::FieldOverride(name.to_owned());
-        self
+    fn file(kind: ConfigErrorKind, p: impl AsRef<Path>) -> Self {
+        Self {
+            source: ConfigErrorSource::File(p.as_ref().to_path_buf()),
+            kind,
+        }
     }
 
     /// Returns the error kind of the error.
     pub fn kind(&self) -> ConfigErrorKind {
-        *self.inner.get_context()
-    }
-}
-
-impl Fail for ConfigError {
-    fn cause(&self) -> Option<&dyn Fail> {
-        self.inner.cause()
-    }
-
-    fn backtrace(&self) -> Option<&Backtrace> {
-        self.inner.backtrace()
+        self.kind
     }
 }
 
 impl fmt::Display for ConfigError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.source {
-            ConfigErrorSource::None => self.inner.fmt(f),
-            ConfigErrorSource::File(file_name) => {
-                write!(f, "{} (file {})", self.inner, file_name.display())
-            }
-            ConfigErrorSource::FieldOverride(name) => write!(f, "{} (field {})", self.inner, name),
-        }
+        write!(f, "{}{}", self.kind(), self.source)
     }
 }
 
-/// Indicates config related errors.
-#[derive(Fail, Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub enum ConfigErrorKind {
-    /// Failed to open the file.
-    #[fail(display = "could not open config file")]
-    CouldNotOpenFile,
-    /// Failed to save a file.
-    #[fail(display = "could not write config file")]
-    CouldNotWriteFile,
-    /// Parsing YAML failed.
-    #[fail(display = "could not parse yaml config file")]
-    BadYaml,
-    /// Parsing JSON failed.
-    #[fail(display = "could not parse json config file")]
-    BadJson,
-    /// Invalid config value
-    #[fail(display = "invalid config value")]
-    InvalidValue,
-    /// The user attempted to run Relay with processing enabled, but uses a binary that was
-    /// compiled without the processing feature.
-    #[fail(display = "was not compiled with processing, cannot enable processing")]
-    ProcessingNotAvailable,
-    /// The user referenced a kafka config name that does not exist.
-    #[fail(display = "unknown kafka config name")]
-    UnknownKafkaConfigName,
-}
+impl Error for ConfigError {}
 
 enum ConfigFormat {
     Yaml,
@@ -169,32 +165,22 @@ trait ConfigObject: DeserializeOwned + Serialize {
     }
 
     /// Loads the config file from a file within the given directory location.
-    fn load(base: &Path) -> Result<Self, ConfigError> {
+    fn load(base: &Path) -> anyhow::Result<Self> {
         let path = Self::path(base);
 
         let f = fs::File::open(&path)
-            .map_err(|e| ConfigError::wrap(e, ConfigErrorKind::CouldNotOpenFile).file(&path))?;
+            .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotOpenFile, &path))?;
 
         match Self::format() {
             ConfigFormat::Yaml => serde_yaml::from_reader(io::BufReader::new(f))
-                .map_err(|e| ConfigError::wrap(e, ConfigErrorKind::BadYaml).file(&path)),
+                .with_context(|| ConfigError::file(ConfigErrorKind::BadYaml, &path)),
             ConfigFormat::Json => serde_json::from_reader(io::BufReader::new(f))
-                .map_err(|e| ConfigError::wrap(e, ConfigErrorKind::BadJson).file(&path)),
-        }
-    }
-
-    /// Writes the configuration object to the given writer.
-    fn write<W: Write>(&self, writer: &mut W) -> Result<(), ConfigError> {
-        match Self::format() {
-            ConfigFormat::Yaml => serde_yaml::to_writer(writer, self)
-                .map_err(|e| ConfigError::wrap(e, ConfigErrorKind::CouldNotWriteFile)),
-            ConfigFormat::Json => serde_json::to_writer_pretty(writer, self)
-                .map_err(|e| ConfigError::wrap(e, ConfigErrorKind::CouldNotWriteFile)),
+                .with_context(|| ConfigError::file(ConfigErrorKind::BadJson, &path)),
         }
     }
 
     /// Writes the configuration to a file within the given directory location.
-    fn save(&self, base: &Path) -> Result<(), ConfigError> {
+    fn save(&self, base: &Path) -> anyhow::Result<()> {
         let path = Self::path(base);
         let mut options = fs::OpenOptions::new();
         options.write(true).truncate(true).create(true);
@@ -208,9 +194,15 @@ trait ConfigObject: DeserializeOwned + Serialize {
 
         let mut f = options
             .open(&path)
-            .map_err(|e| ConfigError::wrap(e, ConfigErrorKind::CouldNotWriteFile).file(&path))?;
+            .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotWriteFile, &path))?;
 
-        self.write(&mut f).map_err(|e| e.file(&path))?;
+        match Self::format() {
+            ConfigFormat::Yaml => serde_yaml::to_writer(&mut f, self)
+                .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotWriteFile, &path))?,
+            ConfigFormat::Json => serde_json::to_writer_pretty(&mut f, self)
+                .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotWriteFile, &path))?,
+        }
+
         f.write_all(b"\n").ok();
 
         Ok(())
@@ -275,9 +267,9 @@ impl Credentials {
     }
 
     /// Serializes this configuration to JSON.
-    pub fn to_json_string(&self) -> Result<String, ConfigError> {
+    pub fn to_json_string(&self) -> anyhow::Result<String> {
         serde_json::to_string(self)
-            .map_err(|e| ConfigError::wrap(e, ConfigErrorKind::CouldNotWriteFile))
+            .with_context(|| ConfigError::new(ConfigErrorKind::CouldNotWriteFile))
     }
 }
 
@@ -353,8 +345,23 @@ impl fmt::Display for RelayMode {
     }
 }
 
+/// Error returned when parsing an invalid [`RelayMode`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ParseRelayModeError;
+
+impl fmt::Display for ParseRelayModeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Relay mode must be one of: managed, static, proxy, capture"
+        )
+    }
+}
+
+impl Error for ParseRelayModeError {}
+
 impl FromStr for RelayMode {
-    type Err = Context<&'static str>;
+    type Err = ParseRelayModeError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
@@ -362,9 +369,7 @@ impl FromStr for RelayMode {
             "static" => Ok(RelayMode::Static),
             "managed" => Ok(RelayMode::Managed),
             "capture" => Ok(RelayMode::Capture),
-            _ => Err(Context::new(
-                "Relay mode must be one of: managed, static, proxy, capture",
-            )),
+            _ => Err(ParseRelayModeError),
         }
     }
 }
@@ -565,7 +570,7 @@ impl Default for Limits {
             max_api_payload_size: ByteSize::mebibytes(20),
             max_api_file_upload_size: ByteSize::mebibytes(40),
             max_api_chunk_upload_size: ByteSize::mebibytes(100),
-            max_profile_size: ByteSize::mebibytes(10),
+            max_profile_size: ByteSize::mebibytes(50),
             max_thread_count: num_cpus::get(),
             query_timeout: 30,
             max_connection_rate: 256,
@@ -727,7 +732,11 @@ struct Cache {
     project_grace_period: u32,
     /// The cache timeout for downstream relay info (public keys) in seconds.
     relay_expiry: u32,
-    /// The cache timeout for envelopes (store) before dropping them.
+    /// Unused cache timeout for envelopes.
+    ///
+    /// The envelope buffer is instead controlled by `envelope_buffer_size`, which controls the
+    /// maximum number of envelopes in the buffer. A time based configuration may be re-introduced
+    /// at a later point.
     #[serde(alias = "event_expiry")]
     envelope_expiry: u32,
     /// The maximum amount of envelopes to queue before dropping them.
@@ -762,161 +771,6 @@ impl Default for Cache {
             eviction_interval: 60, // 60 seconds
         }
     }
-}
-
-/// Define the topics over which Relay communicates with Sentry.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum KafkaTopic {
-    /// Simple events (without attachments) topic.
-    Events,
-    /// Complex events (with attachments) topic.
-    Attachments,
-    /// Transaction events topic.
-    Transactions,
-    /// Shared outcomes topic for Relay and Sentry.
-    Outcomes,
-    /// Override for billing critical outcomes.
-    OutcomesBilling,
-    /// Session health updates.
-    Sessions,
-    /// Any metric that is extracted from sessions.
-    MetricsSessions,
-    /// Any metric that is extracted from transactions.
-    MetricsTransactions,
-    /// Profiles
-    Profiles,
-    /// ReplayRecording, large blobs sent by the replay sdk
-    ReplayRecordings,
-}
-
-/// Configuration for topics.
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(default)]
-pub struct TopicAssignments {
-    /// Simple events topic name.
-    pub events: TopicAssignment,
-    /// Events with attachments topic name.
-    pub attachments: TopicAssignment,
-    /// Transaction events topic name.
-    pub transactions: TopicAssignment,
-    /// Outcomes topic name.
-    pub outcomes: TopicAssignment,
-    /// Outcomes topic name for billing critical outcomes. Defaults to the assignment of `outcomes`.
-    pub outcomes_billing: Option<TopicAssignment>,
-    /// Session health topic name.
-    pub sessions: TopicAssignment,
-    /// Default topic name for all aggregate metrics. Specialized topics for session-based and
-    /// transaction-based metrics can be configured via `metrics_sessions` and
-    /// `metrics_transactions` each.
-    pub metrics: TopicAssignment,
-    /// Topic name for metrics extracted from sessions. Defaults to the assignment of `metrics`.
-    pub metrics_sessions: Option<TopicAssignment>,
-    /// Topic name for metrics extracted from transactions. Defaults to the assignment of `metrics`.
-    pub metrics_transactions: Option<TopicAssignment>,
-    /// Stacktrace topic name
-    pub profiles: TopicAssignment,
-    /// Recordings topic name.
-    pub replay_recordings: TopicAssignment,
-}
-
-impl TopicAssignments {
-    /// Get a topic assignment by KafkaTopic value
-    pub fn get(&self, kafka_topic: KafkaTopic) -> &TopicAssignment {
-        match kafka_topic {
-            KafkaTopic::Attachments => &self.attachments,
-            KafkaTopic::Events => &self.events,
-            KafkaTopic::Transactions => &self.transactions,
-            KafkaTopic::Outcomes => &self.outcomes,
-            KafkaTopic::OutcomesBilling => self.outcomes_billing.as_ref().unwrap_or(&self.outcomes),
-            KafkaTopic::Sessions => &self.sessions,
-            KafkaTopic::MetricsSessions => self.metrics_sessions.as_ref().unwrap_or(&self.metrics),
-            KafkaTopic::MetricsTransactions => {
-                self.metrics_transactions.as_ref().unwrap_or(&self.metrics)
-            }
-            KafkaTopic::Profiles => &self.profiles,
-            KafkaTopic::ReplayRecordings => &self.replay_recordings,
-        }
-    }
-}
-
-impl Default for TopicAssignments {
-    fn default() -> Self {
-        Self {
-            events: "ingest-events".to_owned().into(),
-            attachments: "ingest-attachments".to_owned().into(),
-            transactions: "ingest-transactions".to_owned().into(),
-            outcomes: "outcomes".to_owned().into(),
-            outcomes_billing: None,
-            sessions: "ingest-sessions".to_owned().into(),
-            metrics: "ingest-metrics".to_owned().into(),
-            metrics_sessions: None,
-            metrics_transactions: None,
-            profiles: "profiles".to_owned().into(),
-            replay_recordings: "ingest-replay-recordings".to_owned().into(),
-        }
-    }
-}
-
-/// Configuration for a "logical" topic/datasink that Relay should forward data into.
-///
-/// Can be either a string containing the kafka topic name to produce into (using the default
-/// `kafka_config`), or an object containing keys `topic_name` and `kafka_config_name` for using a
-/// custom kafka cluster.
-///
-/// See documentation for `secondary_kafka_configs` for more information.
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(untagged)]
-pub enum TopicAssignment {
-    /// String containing the kafka topic name. In this case the default kafka cluster configured
-    /// in `kafka_config` will be used.
-    Primary(String),
-    /// Object containing topic name and string identifier of one of the clusters configured in
-    /// `secondary_kafka_configs`. In this case that custom kafkaconfig will be used to produce
-    /// data to the given topic name.
-    Secondary {
-        /// The topic name to use.
-        #[serde(rename = "name")]
-        topic_name: String,
-        /// An identifier referencing one of the kafka configurations in `secondary_kafka_configs`.
-        #[serde(rename = "config")]
-        kafka_config_name: String,
-    },
-}
-
-impl From<String> for TopicAssignment {
-    fn from(topic_name: String) -> TopicAssignment {
-        TopicAssignment::Primary(topic_name)
-    }
-}
-
-impl TopicAssignment {
-    /// Get the topic name from this topic assignment.
-    fn topic_name(&self) -> &str {
-        match *self {
-            TopicAssignment::Primary(ref s) => s.as_str(),
-            TopicAssignment::Secondary { ref topic_name, .. } => topic_name.as_str(),
-        }
-    }
-
-    /// Get the name of the kafka config to use. `None` means default configuration.
-    fn kafka_config_name(&self) -> Option<&str> {
-        match *self {
-            TopicAssignment::Primary(_) => None,
-            TopicAssignment::Secondary {
-                ref kafka_config_name,
-                ..
-            } => Some(kafka_config_name.as_str()),
-        }
-    }
-}
-
-/// A name value pair of Kafka config parameter.
-#[derive(Serialize, Deserialize, Debug)]
-pub struct KafkaConfigParam {
-    /// Name of the Kafka config parameter.
-    pub name: String,
-    /// Value of the Kafka config parameter.
-    pub value: String,
 }
 
 fn default_max_secs_in_future() -> u32 {
@@ -1160,11 +1014,11 @@ pub struct MinimalConfig {
 
 impl MinimalConfig {
     /// Saves the config in the given config folder as config.yml
-    pub fn save_in_folder<P: AsRef<Path>>(&self, p: P) -> Result<(), ConfigError> {
+    pub fn save_in_folder<P: AsRef<Path>>(&self, p: P) -> anyhow::Result<()> {
         let path = p.as_ref();
         if fs::metadata(path).is_err() {
             fs::create_dir_all(path)
-                .map_err(|e| ConfigError::wrap(e, ConfigErrorKind::CouldNotOpenFile).file(path))?;
+                .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotOpenFile, path))?;
         }
         self.save(path)
     }
@@ -1314,7 +1168,7 @@ impl fmt::Debug for Config {
 
 impl Config {
     /// Loads a config from a given config folder.
-    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Config, ConfigError> {
+    pub fn from_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Config> {
         let path = env::current_dir()
             .map(|x| x.join(path.as_ref()))
             .unwrap_or_else(|_| path.as_ref().to_path_buf());
@@ -1330,7 +1184,7 @@ impl Config {
         };
 
         if cfg!(not(feature = "processing")) && config.processing_enabled() {
-            return Err(ConfigError::new(ConfigErrorKind::ProcessingNotAvailable).file(&path));
+            return Err(ConfigError::file(ConfigErrorKind::ProcessingNotAvailable, &path).into());
         }
 
         Ok(config)
@@ -1339,10 +1193,10 @@ impl Config {
     /// Creates a config from a JSON value.
     ///
     /// This is mostly useful for tests.
-    pub fn from_json_value(value: serde_json::Value) -> Result<Config, ConfigError> {
+    pub fn from_json_value(value: serde_json::Value) -> anyhow::Result<Config> {
         Ok(Config {
             values: serde_json::from_value(value)
-                .map_err(|err| ConfigError::wrap(err, ConfigErrorKind::BadJson))?,
+                .with_context(|| ConfigError::new(ConfigErrorKind::BadJson))?,
             credentials: None,
             path: PathBuf::new(),
         })
@@ -1353,37 +1207,37 @@ impl Config {
     pub fn apply_override(
         &mut self,
         mut overrides: OverridableConfig,
-    ) -> Result<&mut Self, ConfigError> {
+    ) -> anyhow::Result<&mut Self> {
         let relay = &mut self.values.relay;
 
         if let Some(mode) = overrides.mode {
             relay.mode = mode
                 .parse::<RelayMode>()
-                .map_err(|err| ConfigError::for_field(err, "mode"))?;
+                .with_context(|| ConfigError::field("mode"))?;
         }
 
         if let Some(upstream) = overrides.upstream {
             relay.upstream = upstream
                 .parse::<UpstreamDescriptor>()
-                .map_err(|err| ConfigError::for_field(err, "upstream"))?;
+                .with_context(|| ConfigError::field("upstream"))?;
         } else if let Some(upstream_dsn) = overrides.upstream_dsn {
             relay.upstream = upstream_dsn
                 .parse::<Dsn>()
                 .map(|dsn| UpstreamDescriptor::from_dsn(&dsn).into_owned())
-                .map_err(|err| ConfigError::for_field(err, "upstream_dsn"))?;
+                .with_context(|| ConfigError::field("upstream_dsn"))?;
         }
 
         if let Some(host) = overrides.host {
             relay.host = host
                 .parse::<IpAddr>()
-                .map_err(|err| ConfigError::for_field(err, "host"))?;
+                .with_context(|| ConfigError::field("host"))?;
         }
 
         if let Some(port) = overrides.port {
             relay.port = port
                 .as_str()
                 .parse()
-                .map_err(|err| ConfigError::for_field(err, "port"))?;
+                .with_context(|| ConfigError::field("port"))?;
         }
 
         let processing = &mut self.values.processing;
@@ -1391,9 +1245,7 @@ impl Config {
             match enabled.to_lowercase().as_str() {
                 "true" | "1" => processing.enabled = true,
                 "false" | "0" | "" => processing.enabled = false,
-                _ => {
-                    return Err(ConfigError::new(ConfigErrorKind::InvalidValue).field("processing"));
-                }
+                _ => return Err(ConfigError::field("processing").into()),
             }
         }
 
@@ -1418,7 +1270,7 @@ impl Config {
         }
         // credentials overrides
         let id = if let Some(id) = overrides.id {
-            let id = Uuid::parse_str(&id).map_err(|err| ConfigError::for_field(err, "id"))?;
+            let id = Uuid::parse_str(&id).with_context(|| ConfigError::field("id"))?;
             Some(id)
         } else {
             None
@@ -1426,7 +1278,7 @@ impl Config {
         let public_key = if let Some(public_key) = overrides.public_key {
             let public_key = public_key
                 .parse::<PublicKey>()
-                .map_err(|err| ConfigError::for_field(err, "public_key"))?;
+                .with_context(|| ConfigError::field("public_key"))?;
             Some(public_key)
         } else {
             None
@@ -1435,7 +1287,7 @@ impl Config {
         let secret_key = if let Some(secret_key) = overrides.secret_key {
             let secret_key = secret_key
                 .parse::<SecretKey>()
-                .map_err(|err| ConfigError::for_field(err, "secret_key"))?;
+                .with_context(|| ConfigError::field("secret_key"))?;
             Some(secret_key)
         } else {
             None
@@ -1471,8 +1323,7 @@ impl Config {
                     // don't need them in the current command or we'll override them later
                 }
                 _ => {
-                    return Err(ConfigError::new(ConfigErrorKind::InvalidValue)
-                        .field("incomplete credentials"));
+                    return Err(ConfigError::field("incomplete credentials").into());
                 }
             }
         }
@@ -1503,15 +1354,15 @@ impl Config {
     }
 
     /// Dumps out a YAML string of the values.
-    pub fn to_yaml_string(&self) -> Result<String, ConfigError> {
+    pub fn to_yaml_string(&self) -> anyhow::Result<String> {
         serde_yaml::to_string(&self.values)
-            .map_err(|e| ConfigError::wrap(e, ConfigErrorKind::CouldNotWriteFile))
+            .with_context(|| ConfigError::new(ConfigErrorKind::CouldNotWriteFile))
     }
 
     /// Regenerates the relay credentials.
     ///
     /// This also writes the credentials back to the file.
-    pub fn regenerate_credentials(&mut self) -> Result<(), ConfigError> {
+    pub fn regenerate_credentials(&mut self) -> anyhow::Result<()> {
         let creds = Credentials::generate();
         creds.save(&self.path)?;
         self.credentials = Some(creds);
@@ -1529,7 +1380,7 @@ impl Config {
     pub fn replace_credentials(
         &mut self,
         credentials: Option<Credentials>,
-    ) -> Result<bool, ConfigError> {
+    ) -> anyhow::Result<bool> {
         if self.credentials == credentials {
             return Ok(false);
         }
@@ -1541,8 +1392,8 @@ impl Config {
             None => {
                 let path = Credentials::path(&self.path);
                 if fs::metadata(&path).is_ok() {
-                    fs::remove_file(&path).map_err(|e| {
-                        ConfigError::wrap(e, ConfigErrorKind::CouldNotWriteFile).file(&path)
+                    fs::remove_file(&path).with_context(|| {
+                        ConfigError::file(ConfigErrorKind::CouldNotWriteFile, &path)
                     })?;
                 }
             }
@@ -1711,12 +1562,12 @@ impl Config {
     /// Returns the socket addresses for statsd.
     ///
     /// If stats is disabled an empty vector is returned.
-    pub fn statsd_addrs(&self) -> Result<Vec<SocketAddr>, ConfigError> {
+    pub fn statsd_addrs(&self) -> anyhow::Result<Vec<SocketAddr>> {
         if let Some(ref addr) = self.values.metrics.statsd {
             let addrs = addr
                 .as_str()
                 .to_socket_addrs()
-                .map_err(|e| ConfigError::wrap(e, ConfigErrorKind::InvalidValue).file(&self.path))?
+                .with_context(|| ConfigError::file(ConfigErrorKind::InvalidValue, &self.path))?
                 .collect();
             Ok(addrs)
         } else {
@@ -1774,14 +1625,13 @@ impl Config {
         Duration::from_secs(self.values.cache.relay_expiry.into())
     }
 
-    /// Returns the timeout for buffered envelopes (due to upstream errors).
-    pub fn envelope_buffer_expiry(&self) -> Duration {
-        Duration::from_secs(self.values.cache.envelope_expiry.into())
-    }
-
     /// Returns the maximum number of buffered envelopes
-    pub fn envelope_buffer_size(&self) -> u32 {
-        self.values.cache.envelope_buffer_size
+    pub fn envelope_buffer_size(&self) -> usize {
+        self.values
+            .cache
+            .envelope_buffer_size
+            .try_into()
+            .unwrap_or(usize::MAX)
     }
 
     /// Returns the expiry timeout for cached misses before trying to refetch.
@@ -1942,29 +1792,12 @@ impl Config {
         self.values.processing.max_session_secs_in_past.into()
     }
 
-    /// Topic name and list of Kafka configuration parameters for a given topic.
-    pub fn kafka_topic_name(&self, topic: KafkaTopic) -> &str {
-        self.values.processing.topics.get(topic).topic_name()
-    }
-
     /// Configuration name and list of Kafka configuration parameters for a given topic.
-    pub fn kafka_config(
-        &self,
-        topic: KafkaTopic,
-    ) -> Result<(Option<&str>, &[KafkaConfigParam]), ConfigErrorKind> {
-        if let Some(config_name) = self.values.processing.topics.get(topic).kafka_config_name() {
-            Ok((
-                Some(config_name),
-                self.values
-                    .processing
-                    .secondary_kafka_configs
-                    .get(config_name)
-                    .ok_or(ConfigErrorKind::UnknownKafkaConfigName)?
-                    .as_slice(),
-            ))
-        } else {
-            Ok((None, self.values.processing.kafka_config.as_slice()))
-        }
+    pub fn kafka_config(&self, topic: KafkaTopic) -> Result<KafkaConfig, KafkaConfigError> {
+        self.values.processing.topics.get(topic).kafka_config(
+            &self.values.processing.kafka_config,
+            &self.values.processing.secondary_kafka_configs,
+        )
     }
 
     /// Redis servers to connect to, for rate limiting.
@@ -1989,8 +1822,8 @@ impl Config {
     }
 
     /// Returns configuration for the metrics [aggregator](relay_metrics::Aggregator).
-    pub fn aggregator_config(&self) -> AggregatorConfig {
-        self.values.aggregator.clone()
+    pub fn aggregator_config(&self) -> &AggregatorConfig {
+        &self.values.aggregator
     }
 
     /// Return the statically configured Relays.

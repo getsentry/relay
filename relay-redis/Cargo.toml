@@ -4,17 +4,20 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Pooled Redis and Redis cluster abstraction for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "22.6.0"
-edition = "2018"
+version = "22.11.0"
+edition = "2021"
 license-file = "../LICENSE"
 publish = false
 
 [dependencies]
-failure = "0.1.8"
-r2d2 = { version = "0.8.8", optional = true }
-redis = { version = "0.15.1", optional = true, features = ["cluster", "r2d2"] }
+r2d2 = { version = "0.8.10", optional = true }
+redis = { version = "0.22.1", optional = true, features = ["cluster", "r2d2"] }
 serde = { version = "1.0.114", features = ["derive"] }
+thiserror = "1.0.20"
 
 [features]
 default = []
 impl = ["r2d2", "redis"]
+
+[dev-dependencies]
+serde_yaml = "0.8.13"

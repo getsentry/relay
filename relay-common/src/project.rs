@@ -1,6 +1,8 @@
 use std::fmt;
 use std::str::FromStr;
 
+use crate::macros::impl_str_serde;
+
 #[doc(inline)]
 pub use sentry_types::{ParseProjectIdError, ProjectId};
 
@@ -41,6 +43,11 @@ impl ProjectKey {
         let mut iter = key.split('.');
         let key = ProjectKey::parse(iter.next().ok_or(ParseProjectKeyError)?)?;
         Ok((key, iter.collect()))
+    }
+
+    /// Returns the bytes of the project key.
+    pub fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
     }
 
     /// Returns the string representation of the project key.

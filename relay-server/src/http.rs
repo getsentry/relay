@@ -10,9 +10,8 @@
 ///! logic.
 use std::io;
 
-use failure::Fail;
-use futures::prelude::*;
-use futures03::{FutureExt, TryFutureExt, TryStreamExt};
+use futures::{FutureExt, TryFutureExt, TryStreamExt};
+use futures01::prelude::*;
 use serde::de::DeserializeOwned;
 
 use relay_config::HttpEncoding;
@@ -20,16 +19,16 @@ use relay_config::HttpEncoding;
 #[doc(inline)]
 pub use reqwest::StatusCode;
 
-#[derive(Fail, Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum HttpError {
-    #[fail(display = "payload too large")]
+    #[error("payload too large")]
     Overflow,
-    #[fail(display = "could not send request")]
-    Reqwest(#[cause] reqwest::Error),
-    #[fail(display = "failed to stream payload")]
-    Io(#[cause] io::Error),
-    #[fail(display = "failed to parse JSON response")]
-    Json(#[cause] serde_json::Error),
+    #[error("could not send request")]
+    Reqwest(#[from] reqwest::Error),
+    #[error("failed to stream payload")]
+    Io(#[from] io::Error),
+    #[error("failed to parse JSON response")]
+    Json(#[from] serde_json::Error),
 }
 
 impl HttpError {
@@ -43,18 +42,6 @@ impl HttpError {
             Self::Json(_) => false,
             HttpError::Overflow => false,
         }
-    }
-}
-
-impl From<reqwest::Error> for HttpError {
-    fn from(e: reqwest::Error) -> Self {
-        HttpError::Reqwest(e)
-    }
-}
-
-impl From<io::Error> for HttpError {
-    fn from(e: io::Error) -> Self {
-        HttpError::Io(e)
     }
 }
 

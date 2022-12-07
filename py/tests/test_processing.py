@@ -93,12 +93,42 @@ def test_legacy_json():
 
 def test_broken_json():
     normalizer = sentry_relay.StoreNormalizer(project_id=1)
-    bad_str = u"Hello\ud83dWorld🇦🇹!"
+    bad_str = "Hello\ud83dWorld🇦🇹!"
     event = normalizer.normalize_event({"message": bad_str})
     assert "Hello" in event["logentry"]["formatted"]
     assert "World" in event["logentry"]["formatted"]
     if not PY2:
         assert event["logentry"]["formatted"] != bad_str
+
+
+@pytest.mark.parametrize(
+    "must_normalize",
+    [None, False, True],
+)
+def test_normalize_user_agent(must_normalize):
+    normalizer = sentry_relay.StoreNormalizer(
+        project_id=1, normalize_user_agent=must_normalize
+    )
+    event = normalizer.normalize_event(
+        {
+            "request": {
+                "headers": [
+                    [
+                        "User-Agent",
+                        "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:15.0) Gecko/20100101 Firefox/15.0.1",
+                    ],
+                ],
+            },
+        }
+    )
+
+    if must_normalize:
+        assert event["contexts"] == {
+            "browser": {"name": "Firefox", "version": "15.0.1", "type": "browser"},
+            "client_os": {"name": "Ubuntu", "type": "os"},
+        }
+    else:
+        assert "contexts" not in event
 
 
 def test_validate_pii_config():

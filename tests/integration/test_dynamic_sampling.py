@@ -1,22 +1,23 @@
 import uuid
+import json
 
 import pytest
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 import queue
 
 
-def _create_transaction_item():
+def _create_transaction_item(trace_id=None, event_id=None, transaction=None):
     """
     Creates an transaction item that can be added to an envelope
 
     :return: a tuple (transaction_item, trace_id)
     """
-    trace_id = uuid.uuid4().hex
-    event_id = uuid.uuid4().hex
+    trace_id = trace_id or uuid.uuid4().hex
+    event_id = event_id or uuid.uuid4().hex
     item = {
         "event_id": event_id,
         "type": "transaction",
-        "transaction": "tr1",
+        "transaction": transaction or "tr1",
         "start_timestamp": 1597976392.6542819,
         "timestamp": 1597976400.6189718,
         "contexts": {
@@ -32,18 +33,29 @@ def _create_transaction_item():
     return item, trace_id, event_id
 
 
-def _create_event_item(environment=None, release=None):
+def _create_event_item(
+    environment=None, release=None, trace_id=None, event_id=None, transaction=None
+):
     """
     Creates an event with the specified environment and release
     :return: a tuple (event_item, event_id)
     """
-    event_id = uuid.uuid4().hex
-    trace_id = uuid.uuid4().hex
+    event_id = event_id or uuid.uuid4().hex
+    trace_id = trace_id or uuid.uuid4().hex
     item = {
         "event_id": event_id,
         "message": "Hello, World!",
+        "contexts": {
+            "trace": {
+                "trace_id": trace_id,
+                "span_id": "FA90FDEAD5F74052",
+                "type": "trace",
+            }
+        },
         "extra": {"id": event_id},
     }
+    if transaction is not None:
+        item["transaction"] = transaction
     if environment is not None:
         item["environment"] = environment
     if release is not None:
@@ -83,7 +95,11 @@ def _add_sampling_config(
     field_prefix = "trace." if rule_type == "trace" else "event."
     if releases is not None:
         conditions.append(
-            {"op": "glob", "name": field_prefix + "release", "value": releases,}
+            {
+                "op": "glob",
+                "name": field_prefix + "release",
+                "value": releases,
+            }
         )
     if user_segments is not None:
         conditions.append(
@@ -91,7 +107,9 @@ def _add_sampling_config(
                 "op": "eq",
                 "name": field_prefix + "user",
                 "value": user_segments,
-                "options": {"ignoreCase": True,},
+                "options": {
+                    "ignoreCase": True,
+                },
             }
         )
     if environments is not None:
@@ -100,7 +118,9 @@ def _add_sampling_config(
                 "op": "eq",
                 "name": field_prefix + "environment",
                 "value": environments,
-                "options": {"ignoreCase": True,},
+                "options": {
+                    "ignoreCase": True,
+                },
             }
         )
 
@@ -114,7 +134,15 @@ def _add_sampling_config(
     return rules
 
 
-def _add_trace_info(envelope, trace_id, public_key, release=None, user_segment=None):
+def _add_trace_info(
+    envelope,
+    trace_id,
+    public_key,
+    release=None,
+    user_segment=None,
+    client_sample_rate=None,
+    transaction=None,
+):
     """
     Adds trace information to an envelope (to the envelope headers)
     """
@@ -130,6 +158,10 @@ def _add_trace_info(envelope, trace_id, public_key, release=None, user_segment=N
     if user_segment is not None:
         trace_info["user"] = user_segment
 
+    if client_sample_rate is not None:
+        # yes, sdks ought to send this as string and so do we
+        trace_info["sample_rate"] = json.dumps(client_sample_rate)
+
 
 def test_it_removes_transactions(mini_sentry, relay):
     """
@@ -143,6 +175,7 @@ def test_it_removes_transactions(mini_sentry, relay):
     # add a sampling rule to project config that removes all transactions (sample_rate=0)
     public_key = config["publicKeys"][0]["publicKey"]
     rules = _add_sampling_config(config, sample_rate=0, rule_type="trace")
+    config["config"]["transactionMetrics"] = {"version": 1}
 
     # create an envelope with a trace context that is initiated by this project (for simplicity)
     envelope = Envelope()
@@ -159,7 +192,8 @@ def test_it_removes_transactions(mini_sentry, relay):
     outcomes = mini_sentry.captured_outcomes.get(timeout=2)
     assert outcomes is not None
     outcome = outcomes["outcomes"][0]
-    assert outcome.get("outcome") == 1
+    assert outcome.get("outcome") == 1  # filtered
+    assert outcome.get("category") == 9  # transaction_indexed
     assert outcome.get("reason") == f"Sampled:{rules[0]['id']}"
 
 
@@ -198,20 +232,40 @@ def test_it_keeps_transactions(mini_sentry, relay):
         mini_sentry.captured_outcomes.get(timeout=2)
 
 
-def _create_event_envelope(public_key):
+def _create_event_envelope(
+    public_key, client_sample_rate=None, trace_id=None, event_id=None, transaction=None
+):
     envelope = Envelope()
-    event, trace_id, event_id = _create_event_item()
+    event, trace_id, event_id = _create_event_item(
+        trace_id=trace_id, event_id=event_id, transaction=transaction
+    )
     envelope.add_event(event)
-    _add_trace_info(envelope, trace_id=trace_id, public_key=public_key)
+    _add_trace_info(
+        envelope,
+        trace_id=trace_id,
+        public_key=public_key,
+        client_sample_rate=client_sample_rate,
+        transaction=transaction,
+    )
 
     return envelope, trace_id, event_id
 
 
-def _create_transaction_envelope(public_key):
+def _create_transaction_envelope(
+    public_key, client_sample_rate=None, trace_id=None, event_id=None, transaction=None
+):
     envelope = Envelope()
-    transaction, trace_id, event_id = _create_transaction_item()
-    envelope.add_transaction(transaction)
-    _add_trace_info(envelope, trace_id=trace_id, public_key=public_key)
+    transaction_event, trace_id, event_id = _create_transaction_item(
+        trace_id=trace_id, event_id=event_id, transaction=transaction
+    )
+    envelope.add_transaction(transaction_event)
+    _add_trace_info(
+        envelope,
+        trace_id=trace_id,
+        public_key=public_key,
+        client_sample_rate=client_sample_rate,
+        transaction=transaction,
+    )
     return envelope, trace_id, event_id
 
 
@@ -329,7 +383,11 @@ def test_bad_dynamic_rules_in_processing_relays(
     )
     last_rule = rules[-1]
     last_rule["condition"]["inner"].append(
-        {"op": "BadOperator", "name": "foo", "value": "bar",}
+        {
+            "op": "BadOperator",
+            "name": "foo",
+            "value": "bar",
+        }
     )
     _add_sampling_config(config, sample_rate=sample_rate, rule_type=rule_type)
     envelope, trace_id, event_id = event_factory(public_key)
@@ -339,6 +397,11 @@ def test_bad_dynamic_rules_in_processing_relays(
         consumer.assert_empty()
     else:
         consumer.get_event()
+
+    assert any(
+        "found unsupported rules" in str(e) for (_, e) in mini_sentry.test_failures
+    )
+    mini_sentry.test_failures.clear()
 
 
 @pytest.mark.parametrize(
@@ -366,7 +429,11 @@ def test_bad_dynamic_rules_in_non_processing_relays(
     rules = _add_sampling_config(config, sample_rate=0, rule_type=rule_type)
     last_rule = rules[-1]
     last_rule["condition"]["inner"].append(
-        {"op": "BadOperator", "name": "foo", "value": "bar",}
+        {
+            "op": "BadOperator",
+            "name": "foo",
+            "value": "bar",
+        }
     )
     # add a sampling rule to project config that drops all events (sample_rate=0), it should be ignored
     # because there is an invalid rule in the configuration
@@ -514,3 +581,146 @@ def test_multi_item_envelope(mini_sentry, relay, rule_type, event_factory):
 
         outcomes = mini_sentry.captured_outcomes.get(timeout=2)
         assert outcomes is not None
+
+
+@pytest.mark.parametrize(
+    "rule_type, event_factory",
+    [
+        ("error", _create_event_envelope),
+        ("transaction", _create_transaction_envelope),
+        ("trace", _create_transaction_envelope),
+    ],
+)
+def test_client_sample_rate_adjusted(mini_sentry, relay, rule_type, event_factory):
+    """
+    Tests that the client sample rate is honored when applying server-side
+    sampling. Do so by sending an envelope with a very low reported client sample rate
+    and a sampling rule with the same sample rate. The server should adjust
+    itself to 1.0. The chances of this test passing without the adjustment in
+    place are very low (but not 0).
+    """
+    project_id = 42
+    relay = relay(mini_sentry)
+    config = mini_sentry.add_basic_project_config(project_id)
+    public_key = config["publicKeys"][0]["publicKey"]
+
+    # the closer to 0, the less flaky the test is
+    # still needs to be distinguishable from 0 in a f32 in rust
+    SAMPLE_RATE = 0.001
+    _add_sampling_config(config, sample_rate=SAMPLE_RATE, rule_type=rule_type)
+
+    envelope, trace_id, event_id = event_factory(
+        public_key, client_sample_rate=SAMPLE_RATE
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    received_envelope = mini_sentry.captured_events.get(timeout=1)
+    if rule_type == "error":
+        event = received_envelope.get_event()
+    else:
+        event = received_envelope.get_transaction_event()
+
+    envelope, trace_id, event_id = event_factory(public_key, client_sample_rate=1.0)
+
+    relay.send_envelope(project_id, envelope)
+
+    # Relay is sending a client report, skip over it
+    received_envelope = mini_sentry.captured_events.get(timeout=1)
+    assert received_envelope.get_transaction_event() is None
+    assert received_envelope.get_event() is None
+
+    with pytest.raises(queue.Empty):
+        mini_sentry.captured_events.get(timeout=1)
+
+
+@pytest.mark.parametrize(
+    "rule_type, event_factory",
+    [
+        ("error", _create_event_envelope),
+        ("transaction", _create_transaction_envelope),
+        ("trace", _create_transaction_envelope),
+    ],
+)
+def test_relay_chain(
+    mini_sentry,
+    relay,
+    rule_type,
+    event_factory,
+):
+    """
+    Tests that nested relays do not end up double-sampling. This is guaranteed
+    by the fact that we never actually use an RNG, but hash either the event-
+    or trace-id.
+    """
+
+    project_id = 42
+    relay = relay(relay(mini_sentry))
+    config = mini_sentry.add_basic_project_config(project_id)
+    public_key = config["publicKeys"][0]["publicKey"]
+    SAMPLE_RATE = 0.001
+    _add_sampling_config(config, sample_rate=SAMPLE_RATE, rule_type=rule_type)
+
+    # A trace ID that gets hashed to a value lower than 0.001
+    magic_uuid = "414e119d37694a32869f9d81b76a0b70"
+
+    envelope, trace_id, event_id = event_factory(
+        public_key,
+        trace_id=None if rule_type != "trace" else magic_uuid,
+        event_id=None if rule_type == "trace" else magic_uuid,
+    )
+    relay.send_envelope(project_id, envelope)
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+
+    if rule_type == "error":
+        envelope.get_event()
+    else:
+        envelope.get_transaction_event()
+
+
+def test_event_rules_are_applied_after_trace_rules(
+    mini_sentry,
+    relay,
+):
+    """
+    Usecase: Some "baseline" trace sample rate is applied (100% because it's
+    easiest to test), but there's an additional transaction sample rule that
+    blocks all transaction events for the /healthcheck endpoint from coming
+    through.
+    """
+
+    project_id = 42
+    relay = relay(mini_sentry)
+    config = mini_sentry.add_basic_project_config(project_id)
+    public_key = config["publicKeys"][0]["publicKey"]
+    _add_sampling_config(config, sample_rate=1.0, rule_type="trace")
+    config["config"]["dynamicSampling"]["rules"].append(
+        {
+            "sampleRate": 0.0,
+            "type": "transaction",
+            "condition": {
+                "op": "eq",
+                "name": "event.transaction",
+                "value": "healthcheck",
+            },
+            "id": 99,
+        }
+    )
+
+    envelope, trace_id, event_id = _create_transaction_envelope(
+        public_key,
+        transaction="test1",
+    )
+
+    relay.send_envelope(project_id, envelope)
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    assert envelope.get_transaction_event()["transaction"] == "test1"
+
+    envelope, trace_id, event_id = _create_transaction_envelope(
+        public_key,
+        transaction="healthcheck",
+    )
+
+    with pytest.raises(queue.Empty):
+        envelope = mini_sentry.captured_events.get(timeout=1)

@@ -51,6 +51,7 @@ def processing_config(get_topic_name):
                 "outcomes": get_topic_name("outcomes"),
                 "sessions": get_topic_name("sessions"),
                 "metrics": get_topic_name("metrics"),
+                "replay_events": get_topic_name("replay_events"),
                 "replay_recordings": get_topic_name("replay_recordings"),
             }
 
@@ -199,6 +200,10 @@ def category_value(category):
         return 4
     if category == "session":
         return 5
+    if category == "transaction_processed":
+        return 8
+    if category == "transaction_indexed":
+        return 9
     assert False, "invalid category"
 
 
@@ -223,7 +228,7 @@ class OutcomesConsumer(ConsumerBase):
         assert len(outcomes) == 1, "More than one outcome was consumed"
         return outcomes[0]
 
-    def assert_rate_limited(self, reason, key_id=None, categories=None):
+    def assert_rate_limited(self, reason, key_id=None, categories=None, quantity=None):
         if categories is None:
             outcome = self.get_outcome()
             assert isinstance(outcome["category"], int)
@@ -240,15 +245,9 @@ class OutcomesConsumer(ConsumerBase):
             if key_id is not None:
                 assert outcome["key_id"] == key_id
 
-    def assert_dropped_internal(self):
-        outcome = self.get_outcome()
-        assert outcome["outcome"] == 3
-        assert outcome["reason"] == "internal"
-
-    def assert_dropped_unknown_project(self):
-        outcome = self.get_outcome()
-        assert outcome["outcome"] == 3
-        assert outcome["reason"] == "project_id"
+        if quantity is not None:
+            count = sum(outcome["quantity"] for outcome in outcomes)
+            assert count == quantity
 
 
 @pytest.fixture
@@ -276,14 +275,21 @@ def sessions_consumer(kafka_consumer):
 @pytest.fixture
 def metrics_consumer(kafka_consumer):
     # The default timeout of 3 seconds compensates for delays and jitter
-    return lambda timeout=3: MetricsConsumer(
-        timeout=timeout, *kafka_consumer("metrics")
+    return lambda timeout=3, topic=None: MetricsConsumer(
+        timeout=timeout, *kafka_consumer(topic or "metrics")
     )
 
 
 @pytest.fixture
 def replay_recordings_consumer(kafka_consumer):
     return lambda: ReplayRecordingsConsumer(*kafka_consumer("replay_recordings"))
+
+
+@pytest.fixture
+def replay_events_consumer(kafka_consumer):
+    return lambda timeout=None: ReplayEventsConsumer(
+        timeout=timeout, *kafka_consumer("replay_events")
+    )
 
 
 class MetricsConsumer(ConsumerBase):
@@ -293,6 +299,15 @@ class MetricsConsumer(ConsumerBase):
         assert message.error() is None
 
         return json.loads(message.value())
+
+    def get_metrics(self, timeout=None, max_attempts=100):
+        for _ in range(max_attempts):
+            message = self.poll(timeout=timeout)
+            if message is None:
+                return
+            else:
+                assert message.error() is None
+                yield json.loads(message.value())
 
 
 class SessionsConsumer(ConsumerBase):
@@ -360,3 +375,16 @@ class ReplayRecordingsConsumer(EventsConsumer):
         v = msgpack.unpackb(message.value(), raw=False, use_list=False)
         assert v["type"] == "replay_recording", v["type"]
         return v
+
+
+class ReplayEventsConsumer(ConsumerBase):
+    def get_replay_event(self):
+        message = self.poll()
+        assert message is not None
+        assert message.error() is None
+
+        event = json.loads(message.value())
+        payload = json.loads(bytes(event["payload"]))
+
+        assert payload["type"] == "replay_event"
+        return payload, event

@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+The minimum required Python version is now 3.8. This release does not contain known breaking changes for Python 3.7, but we no longer guarantee compatibility.
+
+## 0.8.15
+
+- Restore correct behavior when `is_renormalize` is specified on `normalize_event`. ([#1548](https://github.com/getsentry/relay/pull/1548))
+
+## 0.8.14 [YANKED]
+
+**Warning:** This release contains a regression. Please update to a more recent version.
+
+- Add `transaction_info` to event payloads, including the transaction's source and internal original transaction name. ([#1330](https://github.com/getsentry/relay/pull/1330))
+- Add user-agent parsing to replays processor. ([#1420](https://github.com/getsentry/relay/pull/1420))
+- `convert_datascrubbing_config` will now return an error string when conversion fails on big regexes. ([#1474](https://github.com/getsentry/relay/pull/1474))
+- `relay_pii_strip_event` now treats any key containing `token` as a password. ([#1527](https://github.com/getsentry/relay/pull/1527))
+- Add data category for indexed transactions. This will come to represent stored transactions, while the existing category will represent transaction metrics. ([#1535](https://github.com/getsentry/relay/pull/1535))
+
+## 0.8.13
+
+- Add a data category constant for Replays. ([#1239](https://github.com/getsentry/relay/pull/1239))
+- Add data category constant for processed transactions, encompassing all transactions that have been received and sent through dynamic sampling as well as metrics extraction. ([#1306](https://github.com/getsentry/relay/pull/1306))
+- Extend trace sampling protocol to deal with flat user data. ([#1318](https://github.com/getsentry/relay/pull/1318))
+
 ## 0.8.12
 
 - Fix missing profile data category in the python library of 0.8.11 by regenerating the header for C-bindings. ([#1278](https://github.com/getsentry/relay/pull/1278))

@@ -56,11 +56,23 @@ def test_unknown_item(mini_sentry, relay):
     envelope.add_item(
         Item(payload=PayloadRef(bytes=b"something"), type="invalid_unknown")
     )
+    attachment = Item(payload=PayloadRef(bytes=b"something"), type="attachment")
+    attachment.headers["attachment_type"] = "attachment_unknown"
+    envelope.add_item(attachment)
     relay.send_envelope(PROJECT_ID, envelope)
 
-    envelope = mini_sentry.captured_events.get(timeout=1)
-    assert len(envelope.items) == 1
-    assert envelope.items[0].type == "invalid_unknown"
+    envelopes = [  # non-event items are split into separate envelopes, so fetch 2x here
+        mini_sentry.captured_events.get(timeout=1),
+        mini_sentry.captured_events.get(timeout=1),
+    ]
+
+    types = {
+        (item.type, item.headers.get("attachment_type"))
+        for envelope in envelopes
+        for item in envelope.items
+    }
+
+    assert types == {("invalid_unknown", None), ("attachment", "attachment_unknown")}
 
 
 def test_drop_unknown_item(mini_sentry, relay):
@@ -69,12 +81,19 @@ def test_drop_unknown_item(mini_sentry, relay):
     mini_sentry.add_basic_project_config(PROJECT_ID)
 
     envelope = Envelope()
+    envelope.add_item(Item(payload=PayloadRef(bytes=b"something"), type="attachment"))
     envelope.add_item(
         Item(payload=PayloadRef(bytes=b"something"), type="invalid_unknown")
     )
+    attachment = Item(payload=PayloadRef(bytes=b"something"), type="attachment")
+    attachment.headers["attachment_type"] = "attachment_unknown"
+    envelope.add_item(attachment)
     relay.send_envelope(PROJECT_ID, envelope)
 
-    # there is nothing sent to the upstream
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    assert len(envelope.items) == 1
+    assert envelope.items[0].type == "attachment"
+
     with pytest.raises(queue.Empty):
         mini_sentry.captured_events.get(timeout=1)
 
@@ -84,6 +103,7 @@ def generate_transaction_item():
         "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
         "type": "transaction",
         "transaction": "/organizations/:orgId/performance/:eventSlug/",
+        "transaction_info": {"source": "route"},
         "start_timestamp": 1597976392.6542819,
         "timestamp": 1597976400.6189718,
         "contexts": {
@@ -122,6 +142,7 @@ def test_normalize_measurement_interface(
                 "LCP": {"value": 420.69},
                 "   lcp_final.element-Size123  ": {"value": 1},
                 "fid": {"value": 2020},
+                "inp": {"value": 100.14},
                 "cls": {"value": None},
                 "fp": {"value": "im a first paint"},
                 "Total Blocking Time": {"value": 3.14159},
@@ -139,11 +160,11 @@ def test_normalize_measurement_interface(
     assert "trace" in event["contexts"]
     assert "measurements" in event, event
     assert event["measurements"] == {
-        "lcp": {"value": 420.69},
-        "lcp_final.element-size123": {"value": 1},
-        "fid": {"value": 2020},
-        "cls": {"value": None},
-        "fp": {"value": None},
+        "cls": {"unit": "none", "value": None},
+        "fid": {"unit": "millisecond", "value": 2020.0},
+        "inp": {"unit": "millisecond", "value": 100.14},
+        "fp": {"unit": "millisecond", "value": None},
+        "lcp": {"unit": "millisecond", "value": 420.69},
         "missing_value": None,
     }
 
@@ -181,6 +202,7 @@ def test_strip_measurement_interface(
             "measurements": {
                 "LCP": {"value": 420.69},
                 "fid": {"value": 2020},
+                "inp": {"value": 100.14},
                 "cls": {"value": None},
             },
         }
