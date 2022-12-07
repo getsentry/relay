@@ -365,6 +365,7 @@ pub enum DiscardReason {
 
     // (Relay) We failed to parse the replay so we discard it.
     InvalidReplayEvent,
+    InvalidReplayRecordingEvent,
 }
 
 impl DiscardReason {
@@ -405,6 +406,7 @@ impl DiscardReason {
             DiscardReason::EmptyEnvelope => "empty_envelope",
             DiscardReason::InvalidProfile => "invalid_profile",
             DiscardReason::InvalidReplayEvent => "invalid_replay",
+            DiscardReason::InvalidReplayRecordingEvent => "invalid_replay_recording",
         }
     }
 }

@@ -1032,6 +1032,11 @@ impl EnvelopeProcessorService {
                         }
                         Err(e) => {
                             relay_log::warn!("failed to parse replay event: {}", e);
+                            context.track_outcome(
+                                Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent),
+                                DataCategory::Replay,
+                                1,
+                            );
                         }
                     }
                 }
