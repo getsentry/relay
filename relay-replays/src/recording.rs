@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Display;
-use std::io::{self, BufRead, Read, Write};
+use std::io::{self, Read, Write};
 
 use relay_general::pii::{PiiConfig, PiiProcessor};
 use relay_general::processor::{
@@ -18,14 +18,10 @@ use serde_json::{Error, Value};
 
 pub fn process_recording(bytes: &[u8]) -> Result<Vec<u8>, RecordingParseError> {
     // Find the header value.
-    let cursor = io::Cursor::new(bytes);
-    let header = cursor
-        .split(b'\n')
-        .map(|r| r.map_err(|e| e.to_string()).unwrap())
+    let header = bytes
+        .split(|b| b == &b'\n')
         .next()
-        .ok_or_else(|| {
-            RecordingParseError::Message("no headers found. was data provided?".to_string())
-        })?;
+        .ok_or_else(|| RecordingParseError::Message("no headers found.".to_string()))?;
 
     // Find the body value.
     let mut body: Vec<u8> = vec![];
@@ -41,7 +37,7 @@ pub fn process_recording(bytes: &[u8]) -> Result<Vec<u8>, RecordingParseError> {
 
     // Serialization.
     let out_bytes = dumps(events)?;
-    Ok([header, vec![b'\n'], out_bytes].concat())
+    Ok([header.into(), vec![b'\n'], out_bytes].concat())
 }
 
 fn loads(zipped_input: &[u8]) -> Result<Vec<Event>, RecordingParseError> {
