@@ -653,6 +653,23 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_process_recording_no_contents() {
+        // Empty payload can not be decompressed.  Header check never fails.
+        let payload: [u8; 0] = [];
+
+        let result = recording::process_recording(&payload);
+        match result {
+            Ok(_) => unreachable!(),
+            Err(e) => match e {
+                recording::RecordingParseError::IoError(er) => {
+                    assert_eq!(er.to_string(), "corrupt deflate stream".to_string())
+                }
+                _ => unreachable!(),
+            },
+        }
+    }
+
     // RRWeb Payload Coverage
 
     #[test]
