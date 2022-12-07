@@ -596,6 +596,63 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_process_recording_no_body_data() {
+        // Empty bodies can not be decompressed and fail.
+        let payload: [u8; 17] = [
+            123, 34, 115, 101, 103, 109, 101, 110, 116, 95, 105, 100, 34, 58, 51, 125, 10,
+        ];
+
+        let result = recording::process_recording(&payload);
+        match result {
+            Ok(_) => unreachable!(),
+            Err(e) => match e {
+                recording::RecordingParseError::IoError(er) => {
+                    assert_eq!(er.to_string(), "corrupt deflate stream".to_string())
+                }
+                _ => unreachable!(),
+            },
+        }
+    }
+
+    #[test]
+    fn test_process_recording_bad_body_data() {
+        // Invalid gzip body contents.  Can not deflate.
+        let payload: [u8; 18] = [
+            123, 34, 115, 101, 103, 109, 101, 110, 116, 95, 105, 100, 34, 58, 51, 125, 10, 22,
+        ];
+
+        let result = recording::process_recording(&payload);
+        match result {
+            Ok(_) => unreachable!(),
+            Err(e) => match e {
+                recording::RecordingParseError::IoError(er) => {
+                    assert_eq!(er.to_string(), "corrupt deflate stream".to_string())
+                }
+                _ => unreachable!(),
+            },
+        }
+    }
+
+    #[test]
+    fn test_process_recording_no_headers() {
+        // No header delimiter.  Entire payload is consumed as headers.  The empty body fails.
+        let payload: [u8; 16] = [
+            123, 34, 115, 101, 103, 109, 101, 110, 116, 95, 105, 100, 34, 58, 51, 125,
+        ];
+
+        let result = recording::process_recording(&payload);
+        match result {
+            Ok(_) => unreachable!(),
+            Err(e) => match e {
+                recording::RecordingParseError::IoError(er) => {
+                    assert_eq!(er.to_string(), "corrupt deflate stream".to_string())
+                }
+                _ => unreachable!(),
+            },
+        }
+    }
+
     // RRWeb Payload Coverage
 
     #[test]
