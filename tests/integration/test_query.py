@@ -183,6 +183,9 @@ def test_query_retry_maxed_out(
         {"limits": {"query_timeout": math.ceil(query_timeout)}}
     )
 
+    # No error messages yet
+    assert not mini_sentry.test_failures
+
     try:
         relay.send_event(42)
         time.sleep(query_timeout)
@@ -191,16 +194,11 @@ def test_query_retry_maxed_out(
         assert (outcome["outcome"], outcome["reason"]) == (3, "project_state")
         assert request_count == 1 + RETRIES
 
-        for (_, error) in mini_sentry.test_failures[:-1]:
-            assert isinstance(error, AssertionError)
-            error_msg = str(error)
-            assert (
-                "Failed to fetch project config from V3 endpoint" in error_msg
-                or "error fetching project states" in error_msg
-            )
-
-        _, last_error = mini_sentry.test_failures[-1]
-        assert "deadline exceeded" in str(last_error)
+        assert {str(e) for _, e in mini_sentry.test_failures} == {
+            "Relay sent us event: error fetching project states: upstream request returned error 500 Internal Server Error\n  caused by: no error details",
+            "Relay sent us event: error fetching project state 31a5a894b4524f74a9a8d0e27e21ba91: deadline exceeded",
+            "Relay sent us event: dropped envelope: invalid data (project_state)",
+        }
     finally:
         mini_sentry.test_failures.clear()
 

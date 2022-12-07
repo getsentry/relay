@@ -5,6 +5,7 @@ def generate_replay_sdk_event():
     return {
         "type": "replay_event",
         "replay_id": "d2132d31b39445f1938d7e21b6bf0ec4",
+        "replay_type": "session",
         "event_id": "123",
         "segment_id": 0,
         "timestamp": 1597977777.6189718,
@@ -61,6 +62,7 @@ def test_replay_event_with_processing(
     parsed_replay = json.loads(bytes(replay_event_message["payload"]))
     # Assert required fields were returned.
     assert parsed_replay["replay_id"] == replay["replay_id"]
+    assert parsed_replay["replay_type"] == replay["replay_type"]
     assert parsed_replay["event_id"] == replay["event_id"]
     assert parsed_replay["type"] == replay["type"]
     assert parsed_replay["segment_id"] == replay["segment_id"]
@@ -93,9 +95,19 @@ def test_replay_event_with_processing(
 
     # Assert contexts object was pulled out.
     assert parsed_replay["contexts"] == {
-        "browser": {"name": "Safari", "version": "15.5",},
-        "device": {"brand": "Apple", "family": "Mac", "model": "Mac",},
-        "os": {"name": "Mac OS X", "version": "10.15.7",},
+        "browser": {
+            "name": "Safari",
+            "version": "15.5",
+        },
+        "device": {
+            "brand": "Apple",
+            "family": "Mac",
+            "model": "Mac",
+        },
+        "os": {
+            "name": "Mac OS X",
+            "version": "10.15.7",
+        },
     }
 
 

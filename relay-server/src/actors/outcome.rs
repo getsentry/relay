@@ -15,9 +15,9 @@ use std::time::Duration;
 
 use actix::prelude::SystemService;
 use actix_web::http::Method;
-use chrono::{DateTime, SecondsFormat, Utc};
 #[cfg(feature = "processing")]
-use failure::Fail;
+use anyhow::Context;
+use chrono::{DateTime, SecondsFormat, Utc};
 use relay_system::{Interface, NoResponse};
 use serde::{Deserialize, Serialize};
 
@@ -27,6 +27,7 @@ use relay_filter::FilterStatKey;
 use relay_general::protocol::{ClientReport, DiscardedEvent, EventId};
 #[cfg(feature = "processing")]
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic};
+#[cfg(feature = "processing")]
 use relay_log::LogError;
 use relay_quotas::{ReasonCode, Scoping};
 use relay_sampling::RuleId;
@@ -36,11 +37,10 @@ use relay_system::{compat, Addr, FromMessage, Service};
 use crate::actors::envelopes::{EnvelopeManager, SendClientReports};
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 #[cfg(feature = "processing")]
-use crate::service::ServerErrorKind;
+use crate::service::ServerError;
 use crate::service::REGISTRY;
 use crate::statsd::RelayCounters;
 use crate::utils::SleepHandle;
-use crate::ServerError;
 
 /// Defines the structure of the HTTP outcomes requests
 #[derive(Debug, Default, Deserialize, Serialize)]
@@ -208,6 +208,22 @@ impl Outcome {
             Outcome::Abuse => None,
         }
     }
+
+    /// Returns true if there is a bug or an infrastructure problem causing event loss.
+    ///
+    /// This can happen when we introduce bugs or during incidents.
+    ///
+    /// During healthy operation, this should always return false.
+    pub fn is_unexpected(&self) -> bool {
+        matches!(
+            self,
+            Outcome::Invalid(
+                DiscardReason::Internal
+                    | DiscardReason::ProjectState
+                    | DiscardReason::ProjectStatePii,
+            )
+        )
+    }
 }
 
 impl fmt::Display for Outcome {
@@ -324,6 +340,10 @@ pub enum DiscardReason {
     /// (Relay) An event envelope was submitted but no payload could be extracted.
     NoEventPayload,
 
+    /// (Relay) The timestamp of an event was required for processing and either missing out of the
+    /// supported time range for ingestion.
+    Timestamp,
+
     /// (All) An error in Relay caused event ingestion to fail. This is the catch-all and usually
     /// indicates bugs in Relay, rather than an expected failure.
     Internal,
@@ -375,6 +395,7 @@ impl DiscardReason {
             DiscardReason::InvalidTransaction => "invalid_transaction",
             DiscardReason::InvalidEnvelope => "invalid_envelope",
             DiscardReason::InvalidCompression => "invalid_compression",
+            DiscardReason::Timestamp => "timestamp",
             DiscardReason::ProjectState => "project_state",
             DiscardReason::ProjectStatePii => "project_state_pii",
             DiscardReason::DuplicateItem => "duplicate_item",
@@ -491,12 +512,12 @@ impl FromMessage<Self> for TrackRawOutcome {
 }
 
 #[derive(Debug)]
-#[cfg_attr(feature = "processing", derive(Fail))]
+#[cfg_attr(feature = "processing", derive(thiserror::Error))]
 pub enum OutcomeError {
-    #[fail(display = "failed to send kafka message")]
+    #[error("failed to send kafka message")]
     #[cfg(feature = "processing")]
     SendFailed(ClientError),
-    #[fail(display = "json serialization error")]
+    #[error("json serialization error")]
     #[cfg(feature = "processing")]
     SerializationError(serde_json::Error),
 }
@@ -509,7 +530,7 @@ struct HttpOutcomeProducer {
 }
 
 impl HttpOutcomeProducer {
-    pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
+    pub fn create(config: Arc<Config>) -> anyhow::Result<Self> {
         Ok(Self {
             config,
             unsent_outcomes: Vec::new(),
@@ -538,7 +559,7 @@ impl HttpOutcomeProducer {
             match compat::send(UpstreamRelay::from_registry(), SendQuery(request)).await {
                 Ok(_) => relay_log::trace!("outcome batch sent."),
                 Err(error) => {
-                    relay_log::error!("outcome batch sending failed with: {}", LogError(&error))
+                    relay_log::error!("outcome batch sending failed with: {}", error)
                 }
             }
         });
@@ -686,17 +707,18 @@ impl KafkaOutcomesProducer {
     ///
     /// If the given Kafka configuration parameters are invalid, or an error happens during
     /// connecting during the broker, an error is returned.
-    pub fn create(config: &Config) -> Result<Self, ServerError> {
+    pub fn create(config: &Config) -> anyhow::Result<Self> {
         let mut client_builder = KafkaClient::builder();
 
         for topic in &[KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
             let kafka_config = &config
                 .kafka_config(*topic)
-                .map_err(|_| ServerErrorKind::KafkaError)?;
+                .context(ServerError::KafkaError)?;
             client_builder = client_builder
                 .add_kafka_topic_config(*topic, kafka_config)
-                .map_err(|_| ServerErrorKind::KafkaError)?;
+                .context(ServerError::KafkaError)?;
         }
+
         Ok(Self {
             client: client_builder.build(),
         })
@@ -760,7 +782,7 @@ pub struct OutcomeProducerService {
 }
 
 impl OutcomeProducerService {
-    pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
+    pub fn create(config: Arc<Config>) -> anyhow::Result<Self> {
         let producer = match config.emit_outcomes() {
             EmitOutcomes::AsOutcomes => {
                 // We emit outcomes as raw outcomes, and accept raw outcomes emitted by downstream

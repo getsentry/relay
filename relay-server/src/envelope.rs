@@ -37,7 +37,6 @@ use std::io::{self, Write};
 
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use failure::Fail;
 use relay_common::UnixTimestamp;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use smallvec::SmallVec;
@@ -52,24 +51,24 @@ use crate::utils::ErrorBoundary;
 
 pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 
-#[derive(Debug, Fail)]
+#[derive(Debug, thiserror::Error)]
 pub enum EnvelopeError {
-    #[fail(display = "unexpected end of file")]
+    #[error("unexpected end of file")]
     UnexpectedEof,
-    #[fail(display = "missing envelope header")]
+    #[error("missing envelope header")]
     MissingHeader,
-    #[fail(display = "missing newline after header or payload")]
+    #[error("missing newline after header or payload")]
     MissingNewline,
-    #[fail(display = "invalid envelope header")]
-    InvalidHeader(#[cause] serde_json::Error),
-    #[fail(display = "{} header mismatch between envelope and request", _0)]
+    #[error("invalid envelope header")]
+    InvalidHeader(#[source] serde_json::Error),
+    #[error("{0} header mismatch between envelope and request")]
     HeaderMismatch(&'static str),
-    #[fail(display = "invalid item header")]
-    InvalidItemHeader(#[cause] serde_json::Error),
-    #[fail(display = "failed to write header")]
-    HeaderIoFailed(#[cause] serde_json::Error),
-    #[fail(display = "failed to write payload")]
-    PayloadIoFailed(#[cause] io::Error),
+    #[error("invalid item header")]
+    InvalidItemHeader(#[source] serde_json::Error),
+    #[error("failed to write header")]
+    HeaderIoFailed(#[source] serde_json::Error),
+    #[error("failed to write payload")]
+    PayloadIoFailed(#[source] io::Error),
 }
 
 /// The type of an envelope item.
@@ -321,24 +320,20 @@ relay_common::impl_str_de!(ContentType, "a content type string");
 /// The type of an event attachment.
 ///
 /// These item types must align with the Sentry processing pipeline.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum AttachmentType {
     /// A regular attachment without special meaning.
-    #[serde(rename = "event.attachment")]
     Attachment,
 
     /// A minidump crash report (binary data).
-    #[serde(rename = "event.minidump")]
     Minidump,
 
     /// An apple crash report (text data).
-    #[serde(rename = "event.applecrashreport")]
     AppleCrashReport,
 
     /// A msgpack-encoded event payload submitted as part of multipart uploads.
     ///
     /// This attachment is processed by Relay immediately and never forwarded or persisted.
-    #[serde(rename = "event.payload")]
     EventPayload,
 
     /// A msgpack-encoded list of payloads.
@@ -347,7 +342,6 @@ pub enum AttachmentType {
     /// will be merged and truncated to the maxmimum number of allowed attachments.
     ///
     /// This attachment is processed by Relay immediately and never forwarded or persisted.
-    #[serde(rename = "event.breadcrumbs")]
     Breadcrumbs,
 
     /// This is a binary attachment present in Unreal 4 events containing event context information.
@@ -356,7 +350,6 @@ pub enum AttachmentType {
     /// [`symbolic_unreal::Unreal4Context`].
     ///
     /// [`symbolic_unreal::Unreal4Context`]: https://docs.rs/symbolic/*/symbolic/unreal/struct.Unreal4Context.html
-    #[serde(rename = "unreal.context")]
     UnrealContext,
 
     /// This is a binary attachment present in Unreal 4 events containing event Logs.
@@ -365,8 +358,14 @@ pub enum AttachmentType {
     /// [`symbolic_unreal::Unreal4LogEntry`].
     ///
     /// [`symbolic_unreal::Unreal4LogEntry`]: https://docs.rs/symbolic/*/symbolic/unreal/struct.Unreal4LogEntry.html
-    #[serde(rename = "unreal.logs")]
     UnrealLogs,
+
+    /// An application UI view hierarchy (json payload).
+    ViewHierarchy,
+
+    /// Unknown attachment type, forwarded for compatibility.
+    /// Attachments with this type will be dropped if `accept_unknown_items` is set to false.
+    Unknown(String),
 }
 
 impl Default for AttachmentType {
@@ -374,6 +373,45 @@ impl Default for AttachmentType {
         Self::Attachment
     }
 }
+
+impl fmt::Display for AttachmentType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AttachmentType::Attachment => write!(f, "event.attachment"),
+            AttachmentType::Minidump => write!(f, "event.minidump"),
+            AttachmentType::AppleCrashReport => write!(f, "event.applecrashreport"),
+            AttachmentType::EventPayload => write!(f, "event.payload"),
+            AttachmentType::Breadcrumbs => write!(f, "event.breadcrumbs"),
+            AttachmentType::UnrealContext => write!(f, "unreal.context"),
+            AttachmentType::UnrealLogs => write!(f, "unreal.logs"),
+            AttachmentType::ViewHierarchy => write!(f, "event.view_hierarchy"),
+            AttachmentType::Unknown(s) => s.fmt(f),
+        }
+    }
+}
+
+impl std::str::FromStr for AttachmentType {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "event.attachment" => AttachmentType::Attachment,
+            "event.minidump" => AttachmentType::Minidump,
+            "event.applecrashreport" => AttachmentType::AppleCrashReport,
+            "event.payload" => AttachmentType::EventPayload,
+            "event.breadcrumbs" => AttachmentType::Breadcrumbs,
+            "event.view_hierarchy" => AttachmentType::ViewHierarchy,
+            "unreal.context" => AttachmentType::UnrealContext,
+            "unreal.logs" => AttachmentType::UnrealLogs,
+            other => AttachmentType::Unknown(other.to_owned()),
+        })
+    }
+}
+
+relay_common::impl_str_serde!(
+    AttachmentType,
+    "an attachment type (see sentry develop docs)"
+);
 
 fn is_false(val: &bool) -> bool {
     !*val
@@ -491,9 +529,9 @@ impl Item {
     }
 
     /// Returns the attachment type if this item is an attachment.
-    pub fn attachment_type(&self) -> Option<AttachmentType> {
+    pub fn attachment_type(&self) -> Option<&AttachmentType> {
         // TODO: consider to replace this with an ItemType?
-        self.headers.attachment_type
+        self.headers.attachment_type.as_ref()
     }
 
     /// Sets the attachment type of this item.
@@ -607,15 +645,22 @@ impl Item {
 
             // Attachments are only event items if they are crash reports or if they carry partial
             // event payloads. Plain attachments never create event payloads.
-            ItemType::Attachment => match self.attachment_type().unwrap_or_default() {
-                AttachmentType::AppleCrashReport
-                | AttachmentType::Minidump
-                | AttachmentType::EventPayload
-                | AttachmentType::Breadcrumbs => true,
-                AttachmentType::Attachment
-                | AttachmentType::UnrealContext
-                | AttachmentType::UnrealLogs => false,
-            },
+            ItemType::Attachment => {
+                match self.attachment_type().unwrap_or(&AttachmentType::default()) {
+                    AttachmentType::AppleCrashReport
+                    | AttachmentType::Minidump
+                    | AttachmentType::EventPayload
+                    | AttachmentType::Breadcrumbs => true,
+                    AttachmentType::Attachment
+                    | AttachmentType::UnrealContext
+                    | AttachmentType::UnrealLogs
+                    | AttachmentType::ViewHierarchy => false,
+                    // When an outdated Relay instance forwards an unknown attachment type for compatibility,
+                    // we assume that the attachment does not create a new event. This will make it hard
+                    // to introduce new attachment types which _do_ create a new event.
+                    AttachmentType::Unknown(_) => false,
+                }
+            }
 
             // Form data items may contain partial event payloads, but those are only ever valid if
             // they occur together with an explicit event item, such as a minidump or apple crash
@@ -862,6 +907,23 @@ impl Envelope {
         self.headers.retention = Some(retention);
     }
 
+    /// Returns the dynamic sampling context from envelope headers, if present.
+    pub fn dsc(&self) -> Option<&DynamicSamplingContext> {
+        match &self.headers.trace {
+            None => None,
+            Some(ErrorBoundary::Err(e)) => {
+                relay_log::debug!("failed to parse sampling context: {:?}", e);
+                None
+            }
+            Some(ErrorBoundary::Ok(t)) => Some(t),
+        }
+    }
+
+    /// Overrides the dynamic sampling context in envelope headers.
+    pub fn set_dsc(&mut self, dsc: DynamicSamplingContext) {
+        self.headers.trace = Some(ErrorBoundary::Ok(dsc));
+    }
+
     /// Returns the specified header value, if present.
     #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn get_header<K>(&self, name: &K) -> Option<&Value>
@@ -951,17 +1013,6 @@ impl Envelope {
             headers: self.headers.clone(),
             items: split_items,
         })
-    }
-
-    pub fn sampling_context(&self) -> Option<&DynamicSamplingContext> {
-        match &self.headers.trace {
-            Option::None => None,
-            Option::Some(ErrorBoundary::Err(e)) => {
-                relay_log::debug!("failed to parse sampling context: {:?}", e);
-                None
-            }
-            Option::Some(ErrorBoundary::Ok(t)) => Some(t),
-        }
     }
 
     /// Retains only the items specified by the predicate.
@@ -1392,6 +1443,26 @@ mod tests {
         assert_eq!(envelope.len(), 1);
         let items: Vec<_> = envelope.items().collect();
         assert_eq!(items[0].ty(), &ItemType::ReplayRecording);
+    }
+
+    #[test]
+    fn test_deserialize_envelope_view_hierarchy() {
+        let bytes = Bytes::from(
+            "\
+             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
+             {\"type\":\"attachment\",\"length\":44,\"content_type\":\"application/json\",\"attachment_type\":\"event.view_hierarchy\"}\n\
+             {\"rendering_system\":\"compose\",\"windows\":[]}\n\
+             ",
+        );
+
+        let envelope = Envelope::parse_bytes(bytes).unwrap();
+        assert_eq!(envelope.len(), 1);
+        let items: Vec<_> = envelope.items().collect();
+        assert_eq!(items[0].ty(), &ItemType::Attachment);
+        assert_eq!(
+            items[0].attachment_type(),
+            Some(&AttachmentType::ViewHierarchy)
+        );
     }
 
     #[test]

@@ -16,7 +16,7 @@ use relay_log::LogError;
 use relay_statsd::metric;
 
 use crate::actors::project::ProjectState;
-use crate::actors::project_cache::{FetchProjectState, ProjectError, ProjectStateResponse};
+use crate::actors::project_cache::{FetchProjectState, ProjectError};
 use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{self, ErrorBoundary};
@@ -106,6 +106,7 @@ impl ProjectStateChannel {
     }
 }
 
+#[derive(Debug)]
 pub struct UpstreamProjectSource {
     backoff: RetryBackoff,
     config: Arc<Config>,
@@ -257,11 +258,10 @@ impl UpstreamProjectSource {
                                     .remove(&key)
                                     .unwrap_or(ErrorBoundary::Ok(None))
                                     .unwrap_or_else(|error| {
-                                        let e = LogError(error);
                                         relay_log::error!(
                                             "error fetching project state {}: {}",
                                             key,
-                                            e
+                                            LogError(error)
                                         );
                                         Some(ProjectState::err())
                                     })
@@ -330,7 +330,7 @@ impl Actor for UpstreamProjectSource {
         // Set the mailbox size to the size of the eveenvelopent buffer. This is a rough estimate
         // but should ensure that we're not dropping messages if the main arbiter running this actor
         // gets hammered a bit.
-        let mailbox_size = self.config.envelope_buffer_size() as usize;
+        let mailbox_size = self.config.envelope_buffer_size();
         context.set_mailbox_capacity(mailbox_size);
 
         relay_log::info!("project upstream cache started");
@@ -342,7 +342,7 @@ impl Actor for UpstreamProjectSource {
 }
 
 impl Handler<FetchProjectState> for UpstreamProjectSource {
-    type Result = ResponseFuture<ProjectStateResponse, ()>;
+    type Result = ResponseFuture<Arc<ProjectState>, ()>;
 
     fn handle(&mut self, message: FetchProjectState, context: &mut Self::Context) -> Self::Result {
         if !self.backoff.started() {
@@ -376,11 +376,6 @@ impl Handler<FetchProjectState> for UpstreamProjectSource {
             channel.no_cache();
         }
 
-        Box::new(
-            channel
-                .receiver()
-                .map_err(|_| ())
-                .map(|x| ProjectStateResponse::new((*x).clone())),
-        )
+        Box::new(channel.receiver().map_err(|_| ()).map(|x| (*x).clone()))
     }
 }

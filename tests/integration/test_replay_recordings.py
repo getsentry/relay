@@ -45,7 +45,13 @@ def test_replay_recordings_processing(
     outcomes_consumer = outcomes_consumer()
 
     envelope = Envelope(
-        headers=[["event_id", replay_id,], ["attachment_type", "replay_recording"]]
+        headers=[
+            [
+                "event_id",
+                replay_id,
+            ],
+            ["attachment_type", "replay_recording"],
+        ]
     )
     envelope.add_item(Item(payload=PayloadRef(bytes=b"test"), type="replay_recording"))
 

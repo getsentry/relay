@@ -119,6 +119,7 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         measurements_config: None, // only supported in relay
         breakdowns_config: None,   // only supported in relay
         normalize_user_agent: config.normalize_user_agent,
+        normalize_transaction_name: false, // only supported in relay
         is_renormalize: config.is_renormalize.unwrap_or(false),
     };
     light_normalize_event(&mut event, &light_normalization_config)?;

@@ -6,7 +6,6 @@ use std::num::TryFromIntError;
 use std::ops::Range;
 use std::str::Utf8Error;
 
-use failure::Fail;
 use minidump::format::{
     CvSignature, MINIDUMP_LOCATION_DESCRIPTOR, MINIDUMP_STREAM_TYPE as StreamType,
 };
@@ -20,30 +19,24 @@ use utf16string::{Utf16Error, WStr};
 use crate::pii::{PiiAttachmentsProcessor, ScrubEncodings};
 use crate::processor::{FieldAttrs, Pii, ValueType};
 
-#[derive(Debug, Fail)]
+#[derive(Debug, thiserror::Error)]
 pub enum ScrubMinidumpError {
-    #[fail(display = "failed to parse minidump")]
-    InvalidMinidump(#[cause] MinidumpError),
+    #[error("failed to parse minidump")]
+    InvalidMinidump(#[from] MinidumpError),
 
-    #[fail(display = "invalid memory address")]
+    #[error("invalid memory address")]
     InvalidAddress,
 
-    #[fail(display = "minidump offsets out of usize range")]
+    #[error("minidump offsets out of usize range")]
     OutOfRange,
 
-    #[fail(display = "string decoding error")]
+    #[error("string decoding error")]
     Decoding,
 }
 
 impl From<TryFromIntError> for ScrubMinidumpError {
     fn from(_source: TryFromIntError) -> Self {
         Self::OutOfRange
-    }
-}
-
-impl From<MinidumpError> for ScrubMinidumpError {
-    fn from(source: MinidumpError) -> Self {
-        Self::InvalidMinidump(source)
     }
 }
 

@@ -1,7 +1,7 @@
 use std::fmt;
 use std::sync::Arc;
 
-use failure::Fail;
+use thiserror::Error;
 
 use relay_common::UnixTimestamp;
 use relay_log::protocol::value;
@@ -17,11 +17,11 @@ use crate::REJECT_ALL_SECS;
 const GRACE: u64 = 60;
 
 /// An error returned by `RedisRateLimiter`.
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum RateLimitingError {
     /// Failed to communicate with Redis.
-    #[fail(display = "failed to communicate with redis")]
-    Redis(#[cause] RedisError),
+    #[error("failed to communicate with redis")]
+    Redis(#[source] RedisError),
 }
 
 fn load_lua_script() -> Script {

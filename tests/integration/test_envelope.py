@@ -56,11 +56,23 @@ def test_unknown_item(mini_sentry, relay):
     envelope.add_item(
         Item(payload=PayloadRef(bytes=b"something"), type="invalid_unknown")
     )
+    attachment = Item(payload=PayloadRef(bytes=b"something"), type="attachment")
+    attachment.headers["attachment_type"] = "attachment_unknown"
+    envelope.add_item(attachment)
     relay.send_envelope(PROJECT_ID, envelope)
 
-    envelope = mini_sentry.captured_events.get(timeout=1)
-    assert len(envelope.items) == 1
-    assert envelope.items[0].type == "invalid_unknown"
+    envelopes = [  # non-event items are split into separate envelopes, so fetch 2x here
+        mini_sentry.captured_events.get(timeout=1),
+        mini_sentry.captured_events.get(timeout=1),
+    ]
+
+    types = {
+        (item.type, item.headers.get("attachment_type"))
+        for envelope in envelopes
+        for item in envelope.items
+    }
+
+    assert types == {("invalid_unknown", None), ("attachment", "attachment_unknown")}
 
 
 def test_drop_unknown_item(mini_sentry, relay):
@@ -69,12 +81,19 @@ def test_drop_unknown_item(mini_sentry, relay):
     mini_sentry.add_basic_project_config(PROJECT_ID)
 
     envelope = Envelope()
+    envelope.add_item(Item(payload=PayloadRef(bytes=b"something"), type="attachment"))
     envelope.add_item(
         Item(payload=PayloadRef(bytes=b"something"), type="invalid_unknown")
     )
+    attachment = Item(payload=PayloadRef(bytes=b"something"), type="attachment")
+    attachment.headers["attachment_type"] = "attachment_unknown"
+    envelope.add_item(attachment)
     relay.send_envelope(PROJECT_ID, envelope)
 
-    # there is nothing sent to the upstream
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    assert len(envelope.items) == 1
+    assert envelope.items[0].type == "attachment"
+
     with pytest.raises(queue.Empty):
         mini_sentry.captured_events.get(timeout=1)
 

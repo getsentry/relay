@@ -1,10 +1,14 @@
 # Changelog
 
+## Unreleased
+
+The minimum required Python version is now 3.8. This release does not contain known breaking changes for Python 3.7, but we no longer guarantee compatibility.
+
 ## 0.8.15
 
 - Restore correct behavior when `is_renormalize` is specified on `normalize_event`. ([#1548](https://github.com/getsentry/relay/pull/1548))
 
-## 0.8.14
+## 0.8.14 [YANKED]
 
 **Warning:** This release contains a regression. Please update to a more recent version.
 

@@ -1,14 +1,11 @@
 use std::env;
 use std::io::{self, Write};
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use log::{Level, LevelFilter};
 use sentry::types::Dsn;
 use serde::{Deserialize, Serialize};
-
-use crate::sentry_failure::FailureIntegration;
 
 /// The full release name including the Relay version and SHA.
 const RELEASE: &str = std::env!("RELAY_RELEASE");
@@ -259,7 +256,6 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
                 "relay_server::",
                 "relay::",
             ],
-            integrations: vec![Arc::new(FailureIntegration::new())],
             release: Some(RELEASE.into()),
             attach_stacktrace: config.enable_backtraces,
             ..Default::default()

@@ -1,6 +1,5 @@
 ---
 source: relay-general/tests/test_fixtures.rs
-assertion_line: 109
 expression: "relay_general::protocol::event_json_schema()"
 ---
 {
@@ -471,6 +470,14 @@ expression: "relay_general::protocol::event_json_schema()"
                 "string",
                 "null"
               ]
+            },
+            "in_foreground": {
+              "description": " A flag indicating whether the app is in foreground or not. An app is in foreground when it's visible to the user.",
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
             }
           },
           "additionalProperties": false
@@ -824,6 +831,9 @@ expression: "relay_general::protocol::event_json_schema()"
         },
         {
           "$ref": "#/definitions/ResponseContext"
+        },
+        {
+          "$ref": "#/definitions/OtelContext"
         },
         {
           "type": "object",
@@ -2368,6 +2378,35 @@ expression: "relay_general::protocol::event_json_schema()"
         }
       ]
     },
+    "OtelContext": {
+      "description": " OpenTelemetry Context\n\n If an event has this context, it was generated from an OpenTelemetry signal (trace, metric, log).",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "attributes": {
+              "description": " Attributes of the OpenTelemetry span that maps to a Sentry event.\n\n <https://github.com/open-telemetry/opentelemetry-proto/blob/724e427879e3d2bae2edc0218fff06e37b9eb46e/opentelemetry/proto/trace/v1/trace.proto#L174-L186>",
+              "default": null,
+              "type": [
+                "object",
+                "null"
+              ],
+              "additionalProperties": true
+            },
+            "resource": {
+              "description": " Information about an OpenTelemetry resource.\n\n <https://github.com/open-telemetry/opentelemetry-proto/blob/724e427879e3d2bae2edc0218fff06e37b9eb46e/opentelemetry/proto/resource/v1/resource.proto>",
+              "default": null,
+              "type": [
+                "object",
+                "null"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "PosixSignal": {
       "description": " POSIX signal with optional extended data.\n\n On Apple systems, signals also carry a code in addition to the signal number describing the\n signal in more detail. On Linux, this code does not exist.",
       "anyOf": [
@@ -2904,7 +2943,7 @@ expression: "relay_general::protocol::event_json_schema()"
               ]
             },
             "current": {
-              "description": " A flag indicating whether the thread was in the foreground.  Defaults to `false`.",
+              "description": " A flag indicating whether the thread was in the foreground. Defaults to `false`.",
               "default": null,
               "type": [
                 "boolean",
@@ -2921,6 +2960,14 @@ expression: "relay_general::protocol::event_json_schema()"
                 {
                   "type": "null"
                 }
+              ]
+            },
+            "main": {
+              "description": " A flag indicating whether the thread was responsible for rendering the user interface.",
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
               ]
             },
             "name": {

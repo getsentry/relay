@@ -4,9 +4,11 @@ use std::marker::PhantomData;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::task::Context;
+use std::task::{Context, Poll};
 use std::time::Duration;
 
+use futures::future::Shared;
+use futures::FutureExt;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::MissedTickBehavior;
 
@@ -117,7 +119,7 @@ pub trait Interface: Send + 'static {}
 impl Interface for () {}
 
 /// An error when [sending](Addr::send) a message to a service fails.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SendError;
 
 impl fmt::Display for SendError {
@@ -198,6 +200,8 @@ impl<T> Sender<T> {
 /// Message response resulting in an asynchronous [`Request`].
 ///
 /// The sender must be placed on the interface in [`FromMessage::from_message`].
+///
+/// See [`FromMessage`] and [`Service`] for implementation advice and examples.
 pub struct AsyncResponse<T>(PhantomData<T>);
 
 impl<T> fmt::Debug for AsyncResponse<T> {
@@ -220,6 +224,8 @@ impl<T> MessageResponse for AsyncResponse<T> {
 ///
 /// There is no sender associated to this response. When implementing [`FromMessage`], the sender
 /// can be ignored.
+///
+/// See [`FromMessage`] and [`Service`] for implementation advice and examples.
 pub struct NoResponse;
 
 impl fmt::Debug for NoResponse {
@@ -234,6 +240,316 @@ impl MessageResponse for NoResponse {
 
     fn channel() -> (Self::Sender, Self::Output) {
         ((), ())
+    }
+}
+
+/// Initial response to a [`BroadcastRequest`].
+#[derive(Debug)]
+enum InitialResponse<T> {
+    /// The response value is immediately ready.
+    ///
+    /// The sender did not attach to a broadcast channel and instead resolved the requested value
+    /// immediately. The request is now ready and can resolve. See [`BroadcastChannel::attach`].
+    Ready(T),
+    /// The sender is attached to a channel that needs to be polled.
+    Poll(Shared<oneshot::Receiver<T>>),
+}
+
+/// States of a [`BroadcastRequest`].
+enum BroadcastState<T> {
+    /// The request is waiting for an initial response.
+    Pending(oneshot::Receiver<InitialResponse<T>>),
+    /// The request is attached to a [`BroadcastChannel`].
+    Attached(Shared<oneshot::Receiver<T>>),
+}
+
+/// The request when sending an asynchronous message to a service.
+///
+/// This is returned from [`Addr::send`] when the message responds asynchronously through
+/// [`BroadcastResponse`]. It is a future that should be awaited. The message still runs to
+/// completion if this future is dropped.
+///
+/// # Panics
+///
+/// This future is not fused and panics if it is polled again after it has resolved.
+pub struct BroadcastRequest<T>(BroadcastState<T>)
+where
+    T: Clone;
+
+impl<T: Clone> Future for BroadcastRequest<T> {
+    type Output = Result<T, SendError>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Poll::Ready(loop {
+            match self.0 {
+                BroadcastState::Pending(ref mut pending) => {
+                    match futures::ready!(Pin::new(pending).poll(cx)) {
+                        Ok(InitialResponse::Ready(value)) => break Ok(value),
+                        Ok(InitialResponse::Poll(shared)) => {
+                            self.0 = BroadcastState::Attached(shared)
+                        }
+                        Err(_) => break Err(SendError),
+                    }
+                }
+                BroadcastState::Attached(ref mut shared) => {
+                    match futures::ready!(Pin::new(shared).poll(cx)) {
+                        Ok(value) => break Ok(value),
+                        Err(_) => break Err(SendError),
+                    }
+                }
+            }
+        })
+    }
+}
+
+/// A channel that broadcasts values to attached [senders](BroadcastSender).
+///
+/// This is part of the [`BroadcastResponse`] message behavior to efficiently send delayed responses
+/// to a large number of senders. All requests that are attached to this channel via their senders
+/// resolve with the same value.
+///
+/// # Example
+///
+/// ```
+/// use relay_system::{BroadcastChannel, BroadcastSender};
+///
+/// struct MyService {
+///     channel: Option<BroadcastChannel<String>>,
+/// }
+///
+/// impl MyService {
+///     fn handle_message(&mut self, sender: BroadcastSender<String>) {
+///         if let Some(ref mut channel) = self.channel {
+///             channel.attach(sender);
+///         } else {
+///             self.channel = Some(sender.into_channel());
+///         }
+///     }
+///
+///     fn finish_compute(&mut self, value: String) {
+///         if let Some(channel) = self.channel.take() {
+///             channel.send(value);
+///         }
+///     }
+/// }
+/// ```
+#[derive(Debug)]
+pub struct BroadcastChannel<T>
+where
+    T: Clone,
+{
+    tx: oneshot::Sender<T>,
+    rx: Shared<oneshot::Receiver<T>>,
+}
+
+impl<T: Clone> BroadcastChannel<T> {
+    /// Creates a standalone channel.
+    ///
+    /// Use [`attach`](Self::attach) to add senders to this channel. Alternatively, create a channel
+    /// with [`BroadcastSender::into_channel`].
+    pub fn new() -> Self {
+        let (tx, rx) = oneshot::channel();
+        Self {
+            tx,
+            rx: rx.shared(),
+        }
+    }
+
+    /// Attaches a sender of another message to this channel to receive the same value.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_system::{BroadcastChannel, BroadcastResponse, BroadcastSender};
+    /// # use relay_system::MessageResponse;
+    ///
+    /// // This is usually done as part of `Addr::send`
+    /// let (sender, rx) = BroadcastResponse::<&str>::channel();
+    ///
+    /// let mut channel = BroadcastChannel::new();
+    /// channel.attach(sender);
+    /// ```
+    pub fn attach(&mut self, sender: BroadcastSender<T>) {
+        sender.0.send(InitialResponse::Poll(self.rx.clone())).ok();
+    }
+
+    /// Sends a value to all attached senders and closes the channel.
+    ///
+    /// This method succeeds even if no senders are attached to this channel anymore. To check if
+    /// this channel is still active with senders attached, use [`is_attached`](Self::is_attached).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_system::BroadcastResponse;
+    /// # use relay_system::MessageResponse;
+    /// # tokio::runtime::Builder::new_current_thread().build().unwrap().block_on(async {
+    ///
+    /// // This is usually done as part of `Addr::send`
+    /// let (sender, rx) = BroadcastResponse::<&str>::channel();
+    ///
+    /// let channel = sender.into_channel();
+    /// channel.send("test");
+    /// assert_eq!(rx.await, Ok("test"));
+    /// # })
+    /// ```
+    pub fn send(self, value: T) {
+        self.tx.send(value).ok();
+    }
+
+    /// Returns `true` if there are [requests](BroadcastRequest) waiting for this channel.
+    ///
+    /// The channel is not permanently closed when all waiting requests have detached. A new sender
+    /// can be attached using [`attach`](Self::attach) even after this method returns `false`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_system::BroadcastResponse;
+    /// # use relay_system::MessageResponse;
+    ///
+    /// // This is usually done as part of `Addr::send`
+    /// let (sender, rx) = BroadcastResponse::<&str>::channel();
+    ///
+    /// let channel = sender.into_channel();
+    /// assert!(channel.is_attached());
+    ///
+    /// drop(rx);
+    /// assert!(!channel.is_attached());
+    /// ```
+    pub fn is_attached(&self) -> bool {
+        self.rx.strong_count() > Some(1)
+    }
+}
+
+impl<T: Clone> Default for BroadcastChannel<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Sends a message response from a service back to the waiting [`BroadcastRequest`].
+///
+/// The sender is part of an [`BroadcastResponse`] and should be moved into the service interface
+/// type. If this sender is dropped without calling [`send`](Self::send), the request fails with
+/// [`SendError`].
+///
+/// As opposed to the regular [`Sender`] for asynchronous messages, this sender can be converted
+/// into a [channel](Self::into_channel) that efficiently shares a common response for multiple
+/// requests to the same data value. This is useful if resolving or computing the value takes more
+/// time.
+///
+/// # Example
+///
+/// ```
+/// use relay_system::BroadcastResponse;
+/// # use relay_system::MessageResponse;
+/// # tokio::runtime::Builder::new_current_thread().build().unwrap().block_on(async {
+///
+/// // This is usually done as part of `Addr::send`
+/// let (sender1, rx1) = BroadcastResponse::<&str>::channel();
+/// let (sender2, rx2) = BroadcastResponse::<&str>::channel();
+///
+/// // On the first time, convert the sender into a channel
+/// let mut channel = sender1.into_channel();
+///
+/// // The second time, attach the sender to the existing channel
+/// channel.attach(sender2);
+///
+/// // Send a value into the channel to resolve all requests simultaneously
+/// channel.send("test");
+/// assert_eq!(rx1.await, Ok("test"));
+/// assert_eq!(rx2.await, Ok("test"));
+/// # })
+/// ```
+#[derive(Debug)]
+pub struct BroadcastSender<T>(oneshot::Sender<InitialResponse<T>>)
+where
+    T: Clone;
+
+impl<T: Clone> BroadcastSender<T> {
+    /// Immediately resolve a ready value.
+    ///
+    /// This bypasses shared channels and directly sends the a value to the waiting
+    /// [request](BroadcastRequest). In terms of performance and behavior, using `send` is
+    /// equivalent to calling [`Sender::send`] for a regular [`AsyncResponse`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_system::BroadcastResponse;
+    /// # use relay_system::MessageResponse;
+    /// # tokio::runtime::Builder::new_current_thread().build().unwrap().block_on(async {
+    ///
+    /// // This is usually done as part of `Addr::send`
+    /// let (sender, rx) = BroadcastResponse::<&str>::channel();
+    ///
+    /// // sender is NOT converted into a channel!
+    ///
+    /// sender.send("test");
+    /// assert_eq!(rx.await, Ok("test"));
+    /// # })
+    /// ```
+    pub fn send(self, value: T) {
+        self.0.send(InitialResponse::Ready(value)).ok();
+    }
+
+    /// Creates a channel from this sender that can be shared with other senders.
+    ///
+    /// To add more senders to the created channel at a later point, use
+    /// [`attach`](BroadcastChannel::attach).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_system::{BroadcastChannel, BroadcastResponse};
+    /// # use relay_system::MessageResponse;
+    ///
+    /// // This is usually done as part of `Addr::send`
+    /// let (sender, rx) = BroadcastResponse::<&str>::channel();
+    ///
+    /// let channel: BroadcastChannel<&str> = sender.into_channel();
+    /// ```
+    pub fn into_channel(self) -> BroadcastChannel<T> {
+        let mut channel = BroadcastChannel::new();
+        channel.attach(self);
+        channel
+    }
+}
+
+/// Variation of [`AsyncResponse`] that efficiently broadcasts responses to many requests.
+///
+/// This response behavior is useful for services that cache or debounce requests. Instead of
+/// responding to each equivalent request via its individual sender, the broadcast behavior allows
+/// to create a [`BroadcastChannel`] that efficiently resolves all pending requests once the value
+/// is ready.
+///
+/// Similar to `AsyncResponse`, the service receives a sender that it can use to send a value
+/// directly back to the waiting request. Additionally, the sender can be converted into a channel
+/// or attached to an already existing channel, if the service expects more requests while computing
+/// the response.
+///
+/// See [`FromMessage`] and [`Service`] for implementation advice and examples.
+pub struct BroadcastResponse<T>(PhantomData<T>)
+where
+    T: Clone;
+
+impl<T: Clone> fmt::Debug for BroadcastResponse<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("BroadcastResponse")
+    }
+}
+
+impl<T: Clone> MessageResponse for BroadcastResponse<T> {
+    type Sender = BroadcastSender<T>;
+    type Output = BroadcastRequest<T>;
+
+    fn channel() -> (Self::Sender, Self::Output) {
+        let (tx, rx) = oneshot::channel();
+        (
+            BroadcastSender(tx),
+            BroadcastRequest(BroadcastState::Pending(rx)),
+        )
     }
 }
 
@@ -299,7 +615,36 @@ impl MessageResponse for NoResponse {
 /// }
 /// ```
 ///
-/// See [`Interface`] for more examples on how to build interfaces using this trait.
+/// # Broadcast Responses
+///
+/// [`BroadcastResponse`] is similar to the previous asynchronous response, but it additionally
+/// allows to efficiently handle duplicate requests for services that debounce equivalent requests
+/// or cache results. On the requesting side, this behavior is identical to the asynchronous
+/// behavior, but it provides more utilities to the implementing service.
+///
+/// ```
+/// use relay_system::{BroadcastResponse, BroadcastSender, FromMessage, Interface};
+///
+/// struct MyMessage;
+///
+/// enum MyInterface {
+///     MyMessage(MyMessage, BroadcastSender<bool>),
+///     // ...
+/// }
+///
+/// impl Interface for MyInterface {}
+///
+/// impl FromMessage<MyMessage> for MyInterface {
+///     type Response = BroadcastResponse<bool>;
+///
+///     fn from_message(message: MyMessage, sender: BroadcastSender<bool>) -> Self {
+///         Self::MyMessage(message, sender)
+///     }
+/// }
+/// ```
+///
+/// See [`Interface`] for more examples on how to build interfaces using this trait and [`Service`]
+/// documentation for patterns and advice to handle messages.
 pub trait FromMessage<M>: Interface {
     /// The behavior declaring the return value when sending this message.
     type Response: MessageResponse;
@@ -308,13 +653,100 @@ pub trait FromMessage<M>: Interface {
     fn from_message(message: M, sender: <Self::Response as MessageResponse>::Sender) -> Self;
 }
 
+/// Abstraction over address types for service channels.
+trait SendDispatch<M>: Send + Sync {
+    /// The behavior declaring the return value when sending this message.
+    ///
+    /// When this is implemented for a type bound to an [`Interface`], this is the same behavior as
+    /// used in [`FromMessage::Response`].
+    type Response: MessageResponse;
+
+    /// Sends a message to the service and returns the response.
+    ///
+    /// See [`Addr::send`] for more information on a concrete type.
+    fn send(&self, message: M) -> <Self::Response as MessageResponse>::Output;
+
+    /// Returns a trait object of this type.
+    fn to_trait_object(&self) -> Box<dyn SendDispatch<M, Response = Self::Response>>;
+}
+
+/// An address to a [`Service`] implementing any interface that takes a given message.
+///
+/// This is similar to an [`Addr`], but it is bound to a single message rather than an interface. As
+/// such, this type is not meant for communicating with a service implementation, but rather as a
+/// handle to any service that can consume a given message. These can be back-channels or hooks that
+/// are configured externally through Inversion of Control (IoC).
+///
+/// Recipients are created through [`Addr::recipient`].
+pub struct Recipient<M, R> {
+    inner: Box<dyn SendDispatch<M, Response = R>>,
+}
+
+impl<M, R> Recipient<M, R>
+where
+    R: MessageResponse,
+{
+    /// Sends a message to the service and returns the response.
+    ///
+    /// This is equivalent to [`send`](Addr::send) on the originating address.
+    pub fn send(&self, message: M) -> R::Output {
+        self.inner.send(message)
+    }
+}
+
+// Manual implementation since `XSender` cannot require `Clone` for object safety.
+impl<M, R: MessageResponse> Clone for Recipient<M, R> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.to_trait_object(),
+        }
+    }
+}
+
 /// The address of a [`Service`].
 ///
-/// The address of a [`Service`] allows you to [send](Self::send) messages to the service as
-/// long as the service is running. It can be freely cloned.
+/// Addresses allow to [send](Self::send) messages to a service that implements a corresponding
+/// [`Interface`] as long as the service is running.
+///
+/// Addresses can be freely cloned. When the last clone is dropped, the message channel of the
+/// service closes permanently, which signals to the service that it can shut down.
 pub struct Addr<I: Interface> {
     tx: mpsc::UnboundedSender<I>,
     queue_size: Arc<AtomicU64>,
+}
+
+impl<I: Interface> Addr<I> {
+    /// Sends a message to the service and returns the response.
+    ///
+    /// Depending on the message's response behavior, this either returns a future resolving to the
+    /// return value, or does not return anything for fire-and-forget messages. The communication
+    /// channel with the service is unbounded, so backlogs could occur when sending too many
+    /// messages.
+    ///
+    /// Sending asynchronous messages can fail with `Err(SendError)` if the service has shut down.
+    /// The result of asynchronous messages does not have to be awaited. The message will be
+    /// delivered and handled regardless:
+    pub fn send<M>(&self, message: M) -> <I::Response as MessageResponse>::Output
+    where
+        I: FromMessage<M>,
+    {
+        let (tx, rx) = I::Response::channel();
+        self.queue_size.fetch_add(1, Ordering::SeqCst);
+        self.tx.send(I::from_message(message, tx)).ok(); // it's ok to drop, the response will fail
+        rx
+    }
+
+    /// Returns a handle that can receive a given message independent of the interface.
+    ///
+    /// See [`Recipient`] for more information and examples.
+    pub fn recipient<M>(self) -> Recipient<M, I::Response>
+    where
+        I: FromMessage<M>,
+    {
+        Recipient {
+            inner: Box::new(self),
+        }
+    }
 }
 
 impl<I: Interface> fmt::Debug for Addr<I> {
@@ -337,25 +769,18 @@ impl<I: Interface> Clone for Addr<I> {
     }
 }
 
-impl<I: Interface> Addr<I> {
-    /// Sends a message to the service and returns the response.
-    ///
-    /// Depending on the message's response behavior, this either returns a future resolving to the
-    /// return value, or does not return anything for fire-and-forget messages. The communication
-    /// channel with the service is unbounded, so backlogs could occur when sending too many
-    /// messages.
-    ///
-    /// Sending asynchronous messages can fail with `Err(SendError)` if the service has shut down.
-    /// The result of asynchronous messages does not have to be awaited. The message will be
-    /// delivered and handled regardless:
-    pub fn send<M>(&self, message: M) -> <I::Response as MessageResponse>::Output
-    where
-        I: FromMessage<M>,
-    {
-        let (tx, rx) = I::Response::channel();
-        self.queue_size.fetch_add(1, Ordering::SeqCst);
-        self.tx.send(I::from_message(message, tx)).ok(); // it's ok to drop, the response will fail
-        rx
+impl<I, M> SendDispatch<M> for Addr<I>
+where
+    I: Interface + FromMessage<M>,
+{
+    type Response = <I as FromMessage<M>>::Response;
+
+    fn send(&self, message: M) -> <Self::Response as MessageResponse>::Output {
+        Addr::send(self, message)
+    }
+
+    fn to_trait_object(&self) -> Box<dyn SendDispatch<M, Response = Self::Response>> {
+        Box::new(self.clone())
     }
 }
 
@@ -487,6 +912,54 @@ pub fn channel<I: Interface>(name: &'static str) -> (Addr<I>, Receiver<I>) {
 ///
 /// let addr = MyService.start();
 /// ```
+///
+/// ## Debounce and Caching
+///
+/// Services that cache or debounce their responses can benefit from the [`BroadcastResponse`]
+/// behavior. To use this behavior, implement the message and interface identical to
+/// [`AsyncResponse`] above. This will provide a different sender type that can be converted into a
+/// channel to debounce responses. It is still possible to send values directly via the sender
+/// without a broadcast channel.
+///
+/// ```
+/// use std::collections::btree_map::{BTreeMap, Entry};
+/// use relay_system::{BroadcastChannel, BroadcastSender};
+///
+/// // FromMessage implementation using BroadcastResponse omitted for brevity.
+///
+/// struct MyService {
+///     cache: BTreeMap<u32, String>,
+///     channels: BTreeMap<u32, BroadcastChannel<String>>,
+/// }
+///
+/// impl MyService {
+///     fn handle_message(&mut self, id: u32, sender: BroadcastSender<String>) {
+///         if let Some(cached) = self.cache.get(&id) {
+///             sender.send(cached.clone());
+///             return;
+///         }
+///
+///         match self.channels.entry(id) {
+///             Entry::Vacant(entry) => {
+///                 entry.insert(sender.into_channel());
+///                 // Start async computation here.
+///             }
+///             Entry::Occupied(mut entry) => {
+///                 entry.get_mut().attach(sender);
+///             }
+///         }
+///     }
+///
+///     fn finish_compute(&mut self, id: u32, value: String) {
+///         if let Some(channel) = self.channels.remove(&id) {
+///             channel.send(value.clone());
+///         }
+///
+///         self.cache.insert(id, value);
+///     }
+/// }
+/// ```
+///
 pub trait Service: Sized {
     /// The interface of messages this service implements.
     ///
