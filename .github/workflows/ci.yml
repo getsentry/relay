@@ -362,16 +362,11 @@ jobs:
 
 
   self-hosted-end-to-end:
-    needs: []
     runs-on: ubuntu-latest
     # temporary, remove once we are confident the action is working
     continue-on-error: true
+    timeout-minutes: 30
     steps:
-      # TODO: move image build to its own step once we can push them
-      - name: Checkout Relay
-        uses: actions/checkout@v3
-        with:
-          submodules: recursive
       - name: Pull the test image
         id: image_pull
         env:
