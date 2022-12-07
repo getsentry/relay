@@ -17,6 +17,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Error, Value};
 
 pub fn process_recording(bytes: &[u8]) -> Result<Vec<u8>, RecordingParseError> {
+    // Check for null byte condition.
+    if bytes.is_empty() {
+        return Err(RecordingParseError::Message("no data found.".to_string()));
+    }
+
     // Find the header value.
     let header = bytes
         .split(|b| b == &b'\n')
@@ -28,6 +33,11 @@ pub fn process_recording(bytes: &[u8]) -> Result<Vec<u8>, RecordingParseError> {
     let mut cursor = io::Cursor::new(bytes);
     cursor.set_position((header.len() + 1).try_into().unwrap());
     cursor.read_to_end(&mut body)?;
+
+    // Check for null body condition.
+    if body.is_empty() {
+        return Err(RecordingParseError::Message("no body found.".to_string()));
+    }
 
     // Deserialization.
     let mut events = loads(body.as_slice())?;
@@ -607,8 +617,8 @@ mod tests {
         match result {
             Ok(_) => unreachable!(),
             Err(e) => match e {
-                recording::RecordingParseError::IoError(er) => {
-                    assert_eq!(er.to_string(), "corrupt deflate stream".to_string())
+                recording::RecordingParseError::Message(er) => {
+                    assert_eq!(er, "no body found.".to_string())
                 }
                 _ => unreachable!(),
             },
@@ -645,8 +655,8 @@ mod tests {
         match result {
             Ok(_) => unreachable!(),
             Err(e) => match e {
-                recording::RecordingParseError::IoError(er) => {
-                    assert_eq!(er.to_string(), "corrupt deflate stream".to_string())
+                recording::RecordingParseError::Message(er) => {
+                    assert_eq!(er, "no body found.".to_string())
                 }
                 _ => unreachable!(),
             },
@@ -662,8 +672,8 @@ mod tests {
         match result {
             Ok(_) => unreachable!(),
             Err(e) => match e {
-                recording::RecordingParseError::IoError(er) => {
-                    assert_eq!(er.to_string(), "corrupt deflate stream".to_string())
+                recording::RecordingParseError::Message(er) => {
+                    assert_eq!(er, "no data found.".to_string())
                 }
                 _ => unreachable!(),
             },
