@@ -1020,8 +1020,6 @@ impl EnvelopeProcessorService {
                 }
             }
             ItemType::ReplayRecording => {
-                // XXX: Temporarily, only the Sentry org will be allowed to parse replays while
-                // we measure the impact of this change.
                 if replays_enabled {
                     let parsed_recording =
                         relay_replays::recording::process_recording(&item.payload());
