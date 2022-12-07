@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Display;
-use std::io::{Read, Write};
+use std::io::{self, BufRead, Read, Write};
 
 use relay_general::pii::{PiiConfig, PiiProcessor};
 use relay_general::processor::{
@@ -17,24 +17,31 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Error, Value};
 
 pub fn process_recording(bytes: &[u8]) -> Result<Vec<u8>, RecordingParseError> {
-    // Split recording headers and body.
-    let mut x = bytes.split(|b| b == &b'\n');
-    let header = x.next().ok_or_else(|| {
-        RecordingParseError::Message("no headers found. was data provided?".to_string())
-    })?;
-    let body = x.next().ok_or_else(|| {
-        RecordingParseError::Message("no data found. are the headers missing?".to_string())
-    })?;
+    // Find the header value.
+    let cursor = io::Cursor::new(bytes);
+    let header = cursor
+        .split(b'\n')
+        .map(|r| r.map_err(|e| e.to_string()).unwrap())
+        .next()
+        .ok_or_else(|| {
+            RecordingParseError::Message("no headers found. was data provided?".to_string())
+        })?;
+
+    // Find the body value.
+    let mut body: Vec<u8> = vec![];
+    let mut cursor = io::Cursor::new(bytes);
+    cursor.set_position((header.len() + 1).try_into().unwrap());
+    cursor.read_to_end(&mut body)?;
 
     // Deserialization.
-    let mut events = loads(body)?;
+    let mut events = loads(body.as_slice())?;
 
     // Processing.
     strip_pii(&mut events).map_err(RecordingParseError::ProcessingAction)?;
 
     // Serialization.
     let out_bytes = dumps(events)?;
-    Ok([header.into(), vec![b'\n'], out_bytes].concat())
+    Ok([header, vec![b'\n'], out_bytes].concat())
 }
 
 fn loads(zipped_input: &[u8]) -> Result<Vec<Event>, RecordingParseError> {
@@ -564,19 +571,36 @@ mod tests {
         serde_json::from_slice(bytes)
     }
 
+    // End to end test coverage.
+
+    #[test]
+    fn test_process_recording_end_to_end() {
+        // Valid compressed rrweb payload.  Contains a 16 byte header followed by a new line
+        // character and concludes with a gzipped rrweb payload.
+        let payload: [u8; 241] = [
+            123, 34, 115, 101, 103, 109, 101, 110, 116, 95, 105, 100, 34, 58, 51, 125, 10, 120,
+            156, 149, 144, 91, 106, 196, 32, 20, 64, 247, 114, 191, 237, 160, 241, 145, 234, 38,
+            102, 1, 195, 124, 152, 104, 6, 33, 169, 193, 40, 52, 4, 247, 94, 91, 103, 40, 20, 108,
+            59, 191, 247, 30, 207, 225, 122, 57, 32, 238, 171, 5, 69, 17, 24, 29, 53, 168, 3, 54,
+            159, 194, 88, 70, 4, 193, 234, 55, 23, 157, 127, 219, 64, 93, 14, 120, 7, 37, 100, 1,
+            119, 80, 29, 102, 8, 156, 1, 213, 11, 4, 209, 45, 246, 60, 77, 155, 141, 160, 94, 232,
+            43, 206, 232, 206, 118, 127, 176, 132, 177, 7, 203, 42, 75, 36, 175, 44, 231, 63, 88,
+            217, 229, 107, 174, 179, 45, 234, 101, 45, 172, 232, 49, 163, 84, 22, 191, 232, 63, 61,
+            207, 93, 130, 229, 189, 216, 53, 138, 84, 182, 139, 178, 199, 191, 22, 139, 179, 238,
+            196, 227, 244, 134, 137, 240, 158, 60, 101, 34, 255, 18, 241, 6, 116, 42, 212, 119, 35,
+            234, 27, 40, 24, 130, 213, 102, 12, 105, 25, 160, 252, 147, 222, 103, 175, 205, 215,
+            182, 45, 168, 17, 48, 118, 210, 105, 142, 229, 217, 168, 163, 189, 249, 80, 254, 19,
+            146, 59, 13, 115, 10, 144, 115, 190, 126, 0, 2, 68, 180, 16,
+        ];
+
+        let result = recording::process_recording(&payload);
+        match result {
+            Ok(v) => assert!(!v.is_empty()),
+            Err(_) => unreachable!(),
+        }
+    }
+
     // RRWeb Payload Coverage
-
-    #[test]
-    fn test_process_recording_no_config() {
-        let payload = include_bytes!("../tests/fixtures/rrweb-binary.txt");
-        recording::process_recording(payload).unwrap();
-    }
-
-    #[test]
-    fn test_process_recording_has_config() {
-        let payload = include_bytes!("../tests/fixtures/rrweb-binary.txt");
-        recording::process_recording(payload).unwrap();
-    }
 
     #[test]
     fn test_pii_credit_card_removal() {
