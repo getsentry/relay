@@ -13,11 +13,16 @@
 <span id="13">13</span>
 <span id="14">14</span>
 <span id="15">15</span>
+<span id="16">16</span>
+<span id="17">17</span>
 </pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::ProfileError;
 
 <span class="kw">pub fn </span>discard_reason(err: ProfileError) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
     <span class="kw">match </span>err {
         ProfileError::CannotSerializePayload =&gt; <span class="string">&quot;profiling_failed_serialization&quot;</span>,
+        ProfileError::InvalidBase64Value =&gt; <span class="string">&quot;profiling_invalid_base64_value&quot;</span>,
+        ProfileError::InvalidJson(<span class="kw">_</span>) =&gt; <span class="string">&quot;profiling_invalid_json&quot;</span>,
+        ProfileError::InvalidSampledProfile =&gt; <span class="string">&quot;profiling_invalid_sampled_profile&quot;</span>,
         ProfileError::InvalidTransactionMetadata =&gt; <span class="string">&quot;profiling_invalid_transaction_metadata&quot;</span>,
         ProfileError::MalformedSamples =&gt; <span class="string">&quot;profiling_malformed_samples&quot;</span>,
         ProfileError::MalformedStacks =&gt; <span class="string">&quot;profiling_malformed_stacks&quot;</span>,
@@ -25,7 +30,6 @@
         ProfileError::NoTransactionAssociated =&gt; <span class="string">&quot;profiling_no_transaction_associated&quot;</span>,
         ProfileError::NotEnoughSamples =&gt; <span class="string">&quot;profiling_not_enough_samples&quot;</span>,
         ProfileError::PlatformNotSupported =&gt; <span class="string">&quot;profiling_platform_not_supported&quot;</span>,
-        <span class="kw">_ </span>=&gt; <span class="string">&quot;profiling_unknown&quot;</span>,
     }
 }
 </code></pre></div>
