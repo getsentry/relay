@@ -2869,8 +2869,6 @@
 <span id="2867">2867</span>
 <span id="2868">2868</span>
 <span id="2869">2869</span>
-<span id="2870">2870</span>
-<span id="2871">2871</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
@@ -3220,15 +3218,6 @@
             other =&gt; <span class="prelude-val">Some</span>(ReasonCode::new(other)),
         })),
     }
-}
-
-<span class="kw">fn </span>outcome_from_profile_error(err: relay_profiling::ProfileError) -&gt; Outcome {
-    <span class="kw">let </span>discard_reason = <span class="kw">match </span>err {
-        relay_profiling::ProfileError::CannotSerializePayload =&gt; DiscardReason::Internal,
-        relay_profiling::ProfileError::NotEnoughSamples =&gt; DiscardReason::InvalidProfile,
-        <span class="kw">_ </span>=&gt; DiscardReason::ProcessProfile,
-    };
-    Outcome::Invalid(discard_reason)
 }
 
 <span class="doccomment">/// Response of the [`ProcessEnvelope`] message.
@@ -3844,9 +3833,16 @@
             <span class="kw">match </span>relay_profiling::expand_profile(<span class="kw-2">&amp;</span>item.payload()[..]) {
                 <span class="prelude-val">Ok</span>(payloads) =&gt; new_profiles.extend(payloads),
                 <span class="prelude-val">Err</span>(err) =&gt; {
-                    <span class="macro">relay_log::debug!</span>(<span class="string">&quot;invalid profile: {:#?}&quot;</span>, err);
+                    <span class="kw">match </span>err {
+                        relay_profiling::ProfileError::InvalidJson(<span class="kw">_</span>) =&gt; {
+                            <span class="macro">relay_log::error!</span>(<span class="string">&quot;invalid profile: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>err));
+                        }
+                        <span class="kw">_ </span>=&gt; <span class="macro">relay_log::debug!</span>(<span class="string">&quot;invalid profile: {}&quot;</span>, err),
+                    };
                     context.track_outcome(
-                        outcome_from_profile_error(err),
+                        Outcome::Invalid(DiscardReason::Profiling(
+                            relay_profiling::discard_reason(err),
+                        )),
                         DataCategory::Profile,
                         <span class="number">1</span>,
                     );

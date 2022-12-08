@@ -21,12 +21,16 @@
 <span id="21">21</span>
 <span id="22">22</span>
 <span id="23">23</span>
+<span id="24">24</span>
+<span id="25">25</span>
+<span id="26">26</span>
+<span id="27">27</span>
 </pre><pre class="rust"><code><span class="kw">use </span>thiserror::Error;
 
 <span class="attribute">#[derive(Debug, Error)]
 </span><span class="kw">pub enum </span>ProfileError {
-    <span class="attribute">#[error(<span class="string">&quot;invalid json in profile&quot;</span>)]
-    </span>InvalidJson(<span class="attribute">#[source] </span>serde_json::Error),
+    <span class="attribute">#[error(transparent)]
+    </span>InvalidJson(<span class="attribute">#[from] </span>serde_json::Error),
     <span class="attribute">#[error(<span class="string">&quot;invalid base64 value&quot;</span>)]
     </span>InvalidBase64Value,
     <span class="attribute">#[error(<span class="string">&quot;invalid sampled profile&quot;</span>)]
@@ -43,6 +47,10 @@
     </span>InvalidTransactionMetadata,
     <span class="attribute">#[error(<span class="string">&quot;missing profile metadata&quot;</span>)]
     </span>MissingProfileMetadata,
+    <span class="attribute">#[error(<span class="string">&quot;malformed stacks&quot;</span>)]
+    </span>MalformedStacks,
+    <span class="attribute">#[error(<span class="string">&quot;malformed samples&quot;</span>)]
+    </span>MalformedSamples,
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_profiling" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

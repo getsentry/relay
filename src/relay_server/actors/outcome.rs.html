@@ -926,11 +926,6 @@
 <span id="924">924</span>
 <span id="925">925</span>
 <span id="926">926</span>
-<span id="927">927</span>
-<span id="928">928</span>
-<span id="929">929</span>
-<span id="930">930</span>
-<span id="931">931</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the actor that tracks outcomes.
 //!
 //! Outcomes describe the final &quot;fate&quot; of an envelope item. As such, for every item exactly one
@@ -1289,15 +1284,11 @@
     /// dynamic sampling rules.
     </span>TransactionSampled,
 
-    <span class="doccomment">/// (Relay) We failed to parse the profile so we discard the profile.
-    </span>ProcessProfile,
-
-    <span class="doccomment">/// (Relay) The profile is parseable but semantically invalid. This could happen if
-    /// profiles lack sufficient samples.
-    </span>InvalidProfile,
-
-    <span class="comment">// (Relay) We failed to parse the replay so we discard it.
+    <span class="doccomment">/// (Relay) We failed to parse the replay so we discard it.
     </span>InvalidReplayEvent,
+
+    <span class="doccomment">/// (Relay) Profiling related discard reasons
+    </span>Profiling(<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str),
 }
 
 <span class="kw">impl </span>DiscardReason {
@@ -1318,7 +1309,6 @@
             DiscardReason::SecurityReport =&gt; <span class="string">&quot;security_report&quot;</span>,
             DiscardReason::Cors =&gt; <span class="string">&quot;cors&quot;</span>,
             DiscardReason::ProcessUnreal =&gt; <span class="string">&quot;process_unreal&quot;</span>,
-            DiscardReason::ProcessProfile =&gt; <span class="string">&quot;process_profile&quot;</span>,
 
             <span class="comment">// Relay specific reasons (not present in Sentry)
             </span>DiscardReason::Payload =&gt; <span class="string">&quot;payload&quot;</span>,
@@ -1336,8 +1326,8 @@
             DiscardReason::Internal =&gt; <span class="string">&quot;internal&quot;</span>,
             DiscardReason::TransactionSampled =&gt; <span class="string">&quot;transaction_sampled&quot;</span>,
             DiscardReason::EmptyEnvelope =&gt; <span class="string">&quot;empty_envelope&quot;</span>,
-            DiscardReason::InvalidProfile =&gt; <span class="string">&quot;invalid_profile&quot;</span>,
             DiscardReason::InvalidReplayEvent =&gt; <span class="string">&quot;invalid_replay&quot;</span>,
+            DiscardReason::Profiling(reason) =&gt; reason,
         }
     }
 }

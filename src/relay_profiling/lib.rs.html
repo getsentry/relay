@@ -192,6 +192,8 @@
 <span id="192">192</span>
 <span id="193">193</span>
 <span id="194">194</span>
+<span id="195">195</span>
+<span id="196">196</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Profiling protocol and processing for Sentry.
 //!
 //! Profiles are captured during the life of a transaction on Sentry clients and sent to Relay for
@@ -294,6 +296,7 @@
 <span class="kw">mod </span>error;
 <span class="kw">mod </span>measurements;
 <span class="kw">mod </span>native_debug_image;
+<span class="kw">mod </span>outcomes;
 <span class="kw">mod </span>python;
 <span class="kw">mod </span>rust;
 <span class="kw">mod </span>sample;
@@ -309,6 +312,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::typescript::parse_typescript_profile;
 
 <span class="kw">pub use </span><span class="kw">crate</span>::error::ProfileError;
+<span class="kw">pub use </span><span class="kw">crate</span>::outcomes::discard_reason;
 
 <span class="attribute">#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = <span class="string">&quot;lowercase&quot;</span>)]
