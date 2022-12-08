@@ -2869,6 +2869,11 @@
 <span id="2867">2867</span>
 <span id="2868">2868</span>
 <span id="2869">2869</span>
+<span id="2870">2870</span>
+<span id="2871">2871</span>
+<span id="2872">2872</span>
+<span id="2873">2873</span>
+<span id="2874">2874</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
@@ -3901,6 +3906,11 @@
                         }
                         <span class="prelude-val">Err</span>(e) =&gt; {
                             <span class="macro">relay_log::warn!</span>(<span class="string">&quot;failed to parse replay event: {}&quot;</span>, e);
+                            context.track_outcome(
+                                Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent),
+                                DataCategory::Replay,
+                                <span class="number">1</span>,
+                            );
                         }
                     }
                 }
