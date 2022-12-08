@@ -964,7 +964,7 @@ impl EnvelopeProcessorService {
                 Err(err) => {
                     match err {
                         relay_profiling::ProfileError::InvalidJson(_) => {
-                            relay_log::error!("invalid profile: {}", LogError(&err));
+                            relay_log::warn!("invalid profile: {}", LogError(&err));
                         }
                         _ => relay_log::debug!("invalid profile: {}", err),
                     };
