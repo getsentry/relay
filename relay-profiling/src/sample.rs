@@ -496,7 +496,8 @@ mod tests {
         let payload = serde_json::to_vec(&profile).unwrap();
         let data = expand_sample_profile(&payload[..]);
 
-        assert!(data.is_err());
+        assert!(data.is_ok());
+        assert!(data.unwrap().is_empty());
     }
 
     #[test]
