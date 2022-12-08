@@ -50,7 +50,7 @@ struct RustProfile {
 
 pub fn parse_rust_profile(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
     let profile: RustProfile =
-        serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)?;
+        serde_json::from_slice(payload).map_err(ProfileError::InvalidJSON)?;
 
     if profile.sampled_profile.samples.is_empty() {
         return Err(ProfileError::NotEnoughSamples);

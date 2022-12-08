@@ -185,7 +185,7 @@ pub fn expand_cocoa_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileError
 
 fn parse_cocoa_profile(payload: &[u8]) -> Result<CocoaProfile, ProfileError> {
     let mut profile: CocoaProfile =
-        serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)?;
+        serde_json::from_slice(payload).map_err(ProfileError::InvalidJSON)?;
 
     profile.remove_single_samples_per_thread();
 

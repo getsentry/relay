@@ -33,7 +33,7 @@ struct TypescriptProfile {
 
 pub fn parse_typescript_profile(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
     let profile: TypescriptProfile =
-        serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)?;
+        serde_json::from_slice(payload).map_err(ProfileError::InvalidJSON)?;
 
     if profile.profile.is_empty() {
         return Err(ProfileError::NotEnoughSamples);
@@ -66,7 +66,7 @@ mod tests {
     }
 
     fn minimal_profile_from_json(data: &[u8]) -> Result<MinimalTypescriptProfile, ProfileError> {
-        serde_json::from_slice(data).map_err(ProfileError::InvalidJson)
+        serde_json::from_slice(data).map_err(ProfileError::InvalidJSON)
     }
 
     #[test]

@@ -100,6 +100,7 @@ mod cocoa;
 mod error;
 mod measurements;
 mod native_debug_image;
+mod outcomes;
 mod python;
 mod rust;
 mod sample;
@@ -115,6 +116,7 @@ use crate::sample::{expand_sample_profile, Version};
 use crate::typescript::parse_typescript_profile;
 
 pub use crate::error::ProfileError;
+pub use crate::outcomes::{discard_reason, DiscardReason};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
@@ -135,7 +137,7 @@ struct MinimalProfile {
 }
 
 fn minimal_profile_from_json(data: &[u8]) -> Result<MinimalProfile, ProfileError> {
-    serde_json::from_slice(data).map_err(ProfileError::InvalidJson)
+    serde_json::from_slice(data).map_err(ProfileError::InvalidJSON)
 }
 
 pub fn expand_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileError> {

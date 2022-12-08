@@ -53,7 +53,7 @@ struct PythonProfile {
 
 pub fn parse_python_profile(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
     let profile: PythonProfile =
-        serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)?;
+        serde_json::from_slice(payload).map_err(ProfileError::InvalidJSON)?;
 
     if profile.profile.samples.len() < 2 {
         return Err(ProfileError::NotEnoughSamples);

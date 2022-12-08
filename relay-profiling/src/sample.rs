@@ -42,7 +42,7 @@ impl Frame {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Sample {
-    stack_id: u32,
+    stack_id: usize,
     #[serde(deserialize_with = "deserialize_number_from_string")]
     thread_id: u64,
     #[serde(deserialize_with = "deserialize_number_from_string")]
@@ -69,7 +69,7 @@ struct QueueMetadata {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Profile {
     samples: Vec<Sample>,
-    stacks: Vec<Vec<u32>>,
+    stacks: Vec<Vec<usize>>,
     frames: Vec<Frame>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -179,6 +179,26 @@ impl SampleProfile {
         }
     }
 
+    fn check_samples(&self) -> bool {
+        for sample in &self.profile.samples {
+            if self.profile.stacks.get(sample.stack_id).is_none() {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn check_stacks(&self) -> bool {
+        for stack in &self.profile.stacks {
+            for frame_id in stack {
+                if self.profile.frames.get(*frame_id).is_none() {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
     /// Removes a sample when it's the only sample on its thread
     fn remove_single_samples_per_thread(&mut self) {
         let mut sample_count_by_thread_id: HashMap<u64, u32> = HashMap::new();
@@ -210,6 +230,14 @@ pub fn expand_sample_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileErro
         return Err(ProfileError::MissingProfileMetadata);
     }
 
+    if !profile.check_samples() {
+        return Err(ProfileError::MalformedSamples);
+    }
+
+    if !profile.check_stacks() {
+        return Err(ProfileError::MalformedStacks);
+    }
+
     let mut items: Vec<Vec<u8>> = Vec::new();
 
     // As we're getting one profile for multiple transactions and our backend doesn't support this,
@@ -233,6 +261,10 @@ pub fn expand_sample_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileErro
             }
         });
 
+        if new_profile.profile.samples.is_empty() {
+            return Err(ProfileError::NotEnoughSamples);
+        }
+
         match serde_json::to_vec(&new_profile) {
             Ok(payload) => items.push(payload),
             Err(_) => {
@@ -246,7 +278,7 @@ pub fn expand_sample_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileErro
 
 fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
     let mut profile: SampleProfile =
-        serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)?;
+        serde_json::from_slice(payload).map_err(ProfileError::InvalidJSON)?;
 
     profile
         .transactions
@@ -407,6 +439,64 @@ mod tests {
 
         let payload = serde_json::to_vec(&profile).unwrap();
         assert!(parse_profile(&payload[..]).is_err());
+    }
+
+    #[test]
+    fn test_expand_with_samples_outside_transaction() {
+        let mut profile = generate_profile();
+
+        profile.profile.frames.push(Frame {
+            abs_path: Some("".to_string()),
+            colno: Some(0),
+            filename: Some("".to_string()),
+            function: Some("".to_string()),
+            in_app: Some(false),
+            instruction_addr: Some(Addr(0)),
+            lineno: Some(0),
+            module: Some("".to_string()),
+        });
+        profile.transactions.push(TransactionMetadata {
+            active_thread_id: 1,
+            id: EventId::new(),
+            name: "blah".to_string(),
+            relative_cpu_end_ms: 0,
+            relative_cpu_start_ms: 0,
+            relative_end_ns: 100,
+            relative_start_ns: 50,
+            trace_id: EventId::new(),
+        });
+        profile.profile.stacks.push(vec![0]);
+        profile.profile.samples.extend(vec![
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 10,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 20,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 30,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 40,
+                thread_id: 1,
+            },
+        ]);
+
+        let payload = serde_json::to_vec(&profile).unwrap();
+        let data = expand_sample_profile(&payload[..]);
+
+        assert!(data.is_err());
     }
 
     #[test]
