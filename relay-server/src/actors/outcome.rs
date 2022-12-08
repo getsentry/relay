@@ -360,7 +360,7 @@ pub enum DiscardReason {
     InvalidReplayEvent,
 
     /// (Relay) Profiling related discard reasons
-    Profiling(relay_profiling::DiscardReason),
+    Profiling(&'static str),
 }
 
 impl DiscardReason {
@@ -399,7 +399,7 @@ impl DiscardReason {
             DiscardReason::TransactionSampled => "transaction_sampled",
             DiscardReason::EmptyEnvelope => "empty_envelope",
             DiscardReason::InvalidReplayEvent => "invalid_replay",
-            DiscardReason::Profiling(reason) => reason.name(),
+            DiscardReason::Profiling(reason) => reason,
         }
     }
 }

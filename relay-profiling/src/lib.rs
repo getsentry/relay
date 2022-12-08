@@ -116,7 +116,7 @@ use crate::sample::{expand_sample_profile, Version};
 use crate::typescript::parse_typescript_profile;
 
 pub use crate::error::ProfileError;
-pub use crate::outcomes::{discard_reason, DiscardReason};
+pub use crate::outcomes::discard_reason;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
