@@ -22,6 +22,7 @@
 - Normalize transaction name for URLs transaction source, by replacing UUIDs, SHAs and numerical IDs in transaction names by placeholders. ([#1621](https://github.com/getsentry/relay/pull/1621))
 - Parse string as number to handle a release bug. ([#1637](https://github.com/getsentry/relay/pull/1637))
 - Expand Profiling's discard reasons. ([#1661](https://github.com/getsentry/relay/pull/1661))
+- Allow to rate limit profiles on top of transactions. ([#1681](https://github.com/getsentry/relay/pull/1681))
 
 ## 22.11.0
 
