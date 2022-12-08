@@ -1052,6 +1052,11 @@
 <span id="1050">1050</span>
 <span id="1051">1051</span>
 <span id="1052">1052</span>
+<span id="1053">1053</span>
+<span id="1054">1054</span>
+<span id="1055">1055</span>
+<span id="1056">1056</span>
+<span id="1057">1057</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
 
 <span class="kw">use </span>relay_quotas::{
@@ -1590,6 +1595,11 @@
 
         <span class="comment">// Remove sessions independently of events
         </span><span class="kw">if </span>enforcement.sessions.is_active() &amp;&amp; item.ty() == <span class="kw-2">&amp;</span>ItemType::Session {
+            <span class="kw">return </span><span class="bool-val">false</span>;
+        }
+
+        <span class="comment">// Remove profiles even if the transaction is not rate limited
+        </span><span class="kw">if </span>enforcement.profiles.is_active() &amp;&amp; item.ty() == <span class="kw-2">&amp;</span>ItemType::Profile {
             <span class="kw">return </span><span class="bool-val">false</span>;
         }
 
