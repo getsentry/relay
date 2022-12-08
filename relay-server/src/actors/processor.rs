@@ -349,15 +349,6 @@ fn outcome_from_parts(field: ClientReportField, reason: &str) -> Result<Outcome,
     }
 }
 
-fn outcome_from_profile_error(err: relay_profiling::ProfileError) -> Outcome {
-    let discard_reason = match err {
-        relay_profiling::ProfileError::CannotSerializePayload => DiscardReason::Internal,
-        relay_profiling::ProfileError::NotEnoughSamples => DiscardReason::InvalidProfile,
-        _ => DiscardReason::ProcessProfile,
-    };
-    Outcome::Invalid(discard_reason)
-}
-
 /// Response of the [`ProcessEnvelope`] message.
 #[cfg_attr(not(feature = "processing"), allow(dead_code))]
 pub struct ProcessEnvelopeResponse {
@@ -971,9 +962,16 @@ impl EnvelopeProcessorService {
             match relay_profiling::expand_profile(&item.payload()[..]) {
                 Ok(payloads) => new_profiles.extend(payloads),
                 Err(err) => {
-                    relay_log::debug!("invalid profile: {:#?}", err);
+                    match err {
+                        relay_profiling::ProfileError::InvalidJson(_) => {
+                            relay_log::error!("invalid profile: {}", LogError(&err));
+                        }
+                        _ => relay_log::debug!("invalid profile: {}", err),
+                    };
                     context.track_outcome(
-                        outcome_from_profile_error(err),
+                        Outcome::Invalid(DiscardReason::Profiling(
+                            relay_profiling::discard_reason(err),
+                        )),
                         DataCategory::Profile,
                         1,
                     );
