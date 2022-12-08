@@ -389,3 +389,4 @@ jobs:
           project_name: relay
           local_image: ${{ steps.image_pull.outputs.relay-test-image-name }}
           docker_repo: docker.io/getsentry/relay
+          docker_password: ${{ secrets.DOCKERHUB_PASSWORD }}
