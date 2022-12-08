@@ -278,7 +278,7 @@ pub fn expand_sample_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileErro
 
 fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
     let mut profile: SampleProfile =
-        serde_json::from_slice(payload).map_err(ProfileError::InvalidJSON)?;
+        serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)?;
 
     profile
         .transactions

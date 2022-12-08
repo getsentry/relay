@@ -963,7 +963,7 @@ impl EnvelopeProcessorService {
                 Ok(payloads) => new_profiles.extend(payloads),
                 Err(err) => {
                     match err {
-                        relay_profiling::ProfileError::InvalidJSON(_) => {
+                        relay_profiling::ProfileError::InvalidJson(_) => {
                             relay_log::error!("invalid profile: {}", LogError(&err));
                         }
                         _ => relay_log::debug!("invalid profile: {}", err),

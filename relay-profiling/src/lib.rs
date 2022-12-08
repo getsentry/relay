@@ -137,7 +137,7 @@ struct MinimalProfile {
 }
 
 fn minimal_profile_from_json(data: &[u8]) -> Result<MinimalProfile, ProfileError> {
-    serde_json::from_slice(data).map_err(ProfileError::InvalidJSON)
+    serde_json::from_slice(data).map_err(ProfileError::InvalidJson)
 }
 
 pub fn expand_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileError> {

@@ -4,7 +4,7 @@ use crate::ProfileError;
 #[allow(dead_code)]
 pub enum DiscardReason {
     FailedSerialization,
-    InvalidJSON,
+    InvalidJson,
     InvalidProfileMetadata,
     InvalidTransactionMetadata,
     MalformedSamples,
@@ -18,7 +18,7 @@ impl DiscardReason {
     pub fn name(self) -> &'static str {
         match self {
             DiscardReason::FailedSerialization => "profiling_failed_serialization",
-            DiscardReason::InvalidJSON => "profiling_invalid_json",
+            DiscardReason::InvalidJson => "profiling_invalid_json",
             DiscardReason::InvalidProfileMetadata => "profiling_invalid_profile_metadata",
             DiscardReason::InvalidTransactionMetadata => "profiling_invalid_transaction_metadata",
             DiscardReason::MalformedSamples => "profiling_malformed_samples",

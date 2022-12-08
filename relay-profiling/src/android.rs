@@ -258,7 +258,7 @@ fn get_timestamp(clock: Clock, start_time: DateTime<Utc>, event_time: Time) -> u
 
 fn parse_android_profile(payload: &[u8]) -> Result<AndroidProfile, ProfileError> {
     let mut profile: AndroidProfile =
-        serde_json::from_slice(payload).map_err(ProfileError::InvalidJSON)?;
+        serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)?;
 
     if profile.transactions.is_empty() && !profile.has_transaction_metadata() {
         return Err(ProfileError::NoTransactionAssociated);

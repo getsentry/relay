@@ -3,7 +3,7 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum ProfileError {
     #[error(transparent)]
-    InvalidJSON(#[from] serde_json::Error),
+    InvalidJson(#[from] serde_json::Error),
     #[error("invalid base64 value")]
     InvalidBase64Value,
     #[error("invalid sampled profile")]
