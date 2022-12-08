@@ -262,7 +262,7 @@ pub fn expand_sample_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileErro
         });
 
         if new_profile.profile.samples.is_empty() {
-            return Err(ProfileError::NotEnoughSamples);
+            continue;
         }
 
         match serde_json::to_vec(&new_profile) {
