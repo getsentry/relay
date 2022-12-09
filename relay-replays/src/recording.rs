@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Display;
-use std::io::{self, Read, Write};
+use std::io::{Read, Write};
 
 use relay_general::pii::{PiiConfig, PiiProcessor};
 use relay_general::processor::{
