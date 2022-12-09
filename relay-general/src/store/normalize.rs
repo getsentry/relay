@@ -782,37 +782,6 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         Ok(())
     }
 
-    fn process_replay(
-        &mut self,
-        replay: &mut Replay,
-        _meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        replay.process_child_values(self, state)?;
-
-        // Override internal attributes, even if they were set in the payload
-        replay.ty = Annotated::from("replay_event".to_string());
-
-        // Determine if the platform is valid or err.
-        replay.platform.apply(|platform, _| {
-            if is_valid_platform(platform) {
-                Ok(())
-            } else {
-                Err(ProcessingAction::DeleteValueSoft)
-            }
-        })?;
-
-        // Null platforms are set to "other".
-        replay.platform.get_or_insert_with(|| "other".to_string());
-
-        // Default SDK data if none were set.
-        if replay.sdk.value().is_none() {
-            replay.sdk.set_value(self.get_sdk_info());
-        }
-
-        Ok(())
-    }
-
     fn process_breadcrumb(
         &mut self,
         breadcrumb: &mut Breadcrumb,

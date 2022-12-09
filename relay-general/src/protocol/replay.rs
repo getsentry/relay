@@ -1,10 +1,11 @@
 use crate::protocol::{
     ClientSdkInfo, Contexts, IpAddr, LenientString, Request, Tags, Timestamp, User,
 };
+use crate::store::is_valid_platform;
 use crate::store::user_agent::normalize_user_agent_generic;
 use crate::types::{Annotated, Array};
 use crate::user_agent;
-use std::net::IpAddr as RealIpAddr;
+use std::net::IpAddr as RealIPAddr;
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
@@ -12,6 +13,7 @@ use std::net::IpAddr as RealIpAddr;
 pub struct Replay {
     pub event_id: Annotated<String>,
     pub replay_id: Annotated<String>,
+    pub replay_type: Annotated<String>,
     pub segment_id: Annotated<u64>,
     pub timestamp: Annotated<Timestamp>,
     pub replay_start_timestamp: Annotated<Timestamp>,
@@ -64,7 +66,14 @@ pub struct Replay {
 }
 
 impl Replay {
-    pub fn normalize_ip_address(&mut self, ip_address: Option<RealIpAddr>) {
+    pub fn normalize(&mut self, client_ip: Option<RealIPAddr>, user_agent: Option<&str>) {
+        self.normalize_platform();
+        self.normalize_ip_address(client_ip);
+        self.normalize_user_agent(user_agent);
+        self.normalize_type();
+    }
+
+    fn normalize_ip_address(&mut self, ip_address: Option<RealIPAddr>) {
         if let Some(addr) = ip_address {
             if let Some(user) = self.user.value_mut() {
                 if user.ip_address.value().is_none() {
@@ -74,10 +83,13 @@ impl Replay {
         };
     }
 
-    pub fn normalize_user_agent(&mut self) {
+    fn normalize_user_agent(&mut self, default_user_agent: Option<&str>) {
         let user_agent = match user_agent::get_user_agent_generic(&self.request) {
             Some(ua) => ua,
-            None => return,
+            None => match default_user_agent {
+                Some(dua) => dua,
+                None => return,
+            },
         };
 
         if let Some(contexts) = self.contexts.value_mut() {
@@ -94,6 +106,20 @@ impl Replay {
                 self.contexts.set_value(Some(contexts));
             }
         }
+    }
+
+    fn normalize_platform(&mut self) {
+        // Null platforms are permitted but must be defaulted before continuing.
+        let platform = self.platform.get_or_insert_with(|| "other".to_string());
+
+        // Normalize bad platforms to "other" type.
+        if !is_valid_platform(platform) {
+            self.platform = Annotated::from("other".to_string());
+        }
+    }
+
+    fn normalize_type(&mut self) {
+        self.ty = Annotated::from("replay_event".to_string());
     }
 
     pub fn scrub_ip_address(&mut self) {
