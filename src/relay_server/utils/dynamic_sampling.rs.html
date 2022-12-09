@@ -709,7 +709,7 @@
     }
 
     <span class="doccomment">/// ugly hack to build an envelope with an optional trace context
-    </span><span class="kw">fn </span>new_envelope(with_trace_context: bool) -&gt; Envelope {
+    </span><span class="kw">fn </span>new_envelope(with_trace_context: bool) -&gt; Box&lt;Envelope&gt; {
         <span class="kw">let </span>dsn = <span class="string">&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42&quot;</span>;
         <span class="kw">let </span>event_id = EventId::new();
 

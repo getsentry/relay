@@ -762,7 +762,7 @@
 /// from the envelope, `None` is returned in place of the envelope.
 </span><span class="attribute">#[derive(Debug)]
 </span><span class="kw">pub struct </span>CheckedEnvelope {
-    <span class="kw">pub </span>envelope: <span class="prelude-ty">Option</span>&lt;(Envelope, EnvelopeContext)&gt;,
+    <span class="kw">pub </span>envelope: <span class="prelude-ty">Option</span>&lt;(Box&lt;Envelope&gt;, EnvelopeContext)&gt;,
     <span class="kw">pub </span>rate_limits: RateLimits,
 }
 
@@ -777,13 +777,13 @@
 ///  - Cached rate limits
 </span><span class="attribute">#[derive(Debug)]
 </span><span class="kw">pub struct </span>CheckEnvelope {
-    envelope: Envelope,
+    envelope: Box&lt;Envelope&gt;,
     context: EnvelopeContext,
 }
 
 <span class="kw">impl </span>CheckEnvelope {
     <span class="doccomment">/// Uses a cached project state and checks the envelope.
-    </span><span class="kw">pub fn </span>new(envelope: Envelope, context: EnvelopeContext) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>new(envelope: Box&lt;Envelope&gt;, context: EnvelopeContext) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ envelope, context }
     }
 }
@@ -800,12 +800,12 @@
 ///
 /// [`EnvelopeProcessor`]: crate::actors::processor::EnvelopeProcessor
 </span><span class="kw">pub struct </span>ValidateEnvelope {
-    envelope: Envelope,
+    envelope: Box&lt;Envelope&gt;,
     context: EnvelopeContext,
 }
 
 <span class="kw">impl </span>ValidateEnvelope {
-    <span class="kw">pub fn </span>new(envelope: Envelope, context: EnvelopeContext) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub fn </span>new(envelope: Box&lt;Envelope&gt;, context: EnvelopeContext) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ envelope, context }
     }
 }

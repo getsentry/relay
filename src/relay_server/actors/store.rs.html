@@ -1057,7 +1057,7 @@
 <span class="doccomment">/// Publishes an [`Envelope`] to the Sentry core application through Kafka topics.
 </span><span class="attribute">#[derive(Clone, Debug)]
 </span><span class="kw">pub struct </span>StoreEnvelope {
-    <span class="kw">pub </span>envelope: Envelope,
+    <span class="kw">pub </span>envelope: Box&lt;Envelope&gt;,
     <span class="kw">pub </span>start_time: Instant,
     <span class="kw">pub </span>scoping: Scoping,
 }

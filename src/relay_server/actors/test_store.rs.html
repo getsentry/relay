@@ -158,7 +158,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::service::REGISTRY;
 
 <span class="doccomment">/// Either a captured envelope or an error that occured during processing.
-</span><span class="kw">pub type </span>CapturedEnvelope = <span class="prelude-ty">Result</span>&lt;Envelope, String&gt;;
+</span><span class="kw">pub type </span>CapturedEnvelope = <span class="prelude-ty">Result</span>&lt;Box&lt;Envelope&gt;, String&gt;;
 
 <span class="doccomment">/// Inserts an envelope or failure into internal captures.
 ///
@@ -180,7 +180,7 @@
     }
 
     <span class="doccomment">/// Captures an accepted envelope.
-    </span><span class="kw">pub fn </span>accepted(envelope: Envelope) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>accepted(envelope: Box&lt;Envelope&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             event_id: envelope.event_id(),
             capture: <span class="prelude-val">Ok</span>(envelope),

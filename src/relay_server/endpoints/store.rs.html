@@ -174,7 +174,7 @@
     <span class="string">b&quot;GIF89a\x01\x00\x01\x00\x00\xff\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x00;&quot;</span>;
 
 <span class="doccomment">/// Parses a full `Envelope` request body.
-</span><span class="kw">fn </span>parse_envelope(meta: RequestMeta, data: Bytes) -&gt; <span class="prelude-ty">Result</span>&lt;Envelope, BadStoreRequest&gt; {
+</span><span class="kw">fn </span>parse_envelope(meta: RequestMeta, data: Bytes) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
     <span class="comment">// Use `parse_request` here to ensure that we&#39;re merging available request headers into the
     // envelope&#39;s headers.
     </span>Envelope::parse_request(data, meta).map_err(BadStoreRequest::InvalidEnvelope)
@@ -185,7 +185,7 @@
     meta: RequestMeta,
     content_type: ContentType,
     <span class="kw-2">mut </span>data: Bytes,
-) -&gt; <span class="prelude-ty">Result</span>&lt;Envelope, BadStoreRequest&gt; {
+) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
     <span class="comment">// Python clients are well known to send crappy JSON in the Sentry world.  The reason
     // for this is that they send NaN and Infinity as invalid JSON tokens.  The code sentry
     // server could deal with this but we cannot.  To work around this issue, we run a basic
@@ -224,7 +224,7 @@
 <span class="kw">fn </span>extract_envelope(
     request: <span class="kw-2">&amp;</span>HttpRequest&lt;ServiceState&gt;,
     meta: RequestMeta,
-) -&gt; ResponseFuture&lt;Envelope, BadStoreRequest&gt; {
+) -&gt; ResponseFuture&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
     <span class="kw">let </span>max_payload_size = request.state().config().max_event_size();
 
     <span class="comment">// If the content type is missing, assume &quot;application/json&quot;.

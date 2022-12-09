@@ -816,7 +816,7 @@
 /// Queueing can fail if the queue exceeds `envelope_buffer_size`. In this case, `Err` is
 /// returned and the envelope is not queued.
 </span><span class="kw">fn </span>queue_envelope(
-    <span class="kw-2">mut </span>envelope: Envelope,
+    <span class="kw-2">mut </span>envelope: Box&lt;Envelope&gt;,
     <span class="kw-2">mut </span>envelope_context: EnvelopeContext,
     buffer_guard: <span class="kw-2">&amp;</span>BufferGuard,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), BadStoreRequest&gt; {
@@ -881,7 +881,7 @@
 ) -&gt; ResponseFuture&lt;HttpResponse, BadStoreRequest&gt;
 <span class="kw">where
     </span>F: FnOnce(<span class="kw-2">&amp;</span>HttpRequest&lt;ServiceState&gt;, RequestMeta) -&gt; I + <span class="lifetime">&#39;static</span>,
-    I: IntoFuture&lt;Item = Envelope, Error = BadStoreRequest&gt; + <span class="lifetime">&#39;static</span>,
+    I: IntoFuture&lt;Item = Box&lt;Envelope&gt;, Error = BadStoreRequest&gt; + <span class="lifetime">&#39;static</span>,
     R: FnOnce(<span class="prelude-ty">Option</span>&lt;EventId&gt;) -&gt; HttpResponse + Copy + <span class="lifetime">&#39;static</span>,
 {
     <span class="comment">// For now, we only handle &lt;= v8 and drop everything else

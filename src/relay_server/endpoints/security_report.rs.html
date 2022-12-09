@@ -142,7 +142,7 @@
     request: <span class="kw-2">&amp;</span>HttpRequest&lt;ServiceState&gt;,
     meta: RequestMeta,
     params: SecurityReportParams,
-) -&gt; ResponseFuture&lt;Envelope, BadStoreRequest&gt; {
+) -&gt; ResponseFuture&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
     <span class="kw">let </span>max_payload_size = request.state().config().max_event_size();
     <span class="kw">let </span>future = StoreBody::new(request, max_payload_size)
         .map_err(BadStoreRequest::from)

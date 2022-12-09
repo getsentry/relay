@@ -557,7 +557,7 @@
 <span class="doccomment">/// Sends an envelope to the upstream or Kafka.
 </span><span class="attribute">#[derive(Debug)]
 </span><span class="kw">pub struct </span>SubmitEnvelope {
-    <span class="kw">pub </span>envelope: Envelope,
+    <span class="kw">pub </span>envelope: Box&lt;Envelope&gt;,
     <span class="kw">pub </span>envelope_context: EnvelopeContext,
 }
 
@@ -658,7 +658,7 @@
     <span class="doccomment">/// Sends an envelope to the upstream or Kafka.
     </span><span class="kw">async fn </span>submit_envelope(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="kw-2">mut </span>envelope: Envelope,
+        <span class="kw-2">mut </span>envelope: Box&lt;Envelope&gt;,
         scoping: Scoping,
         partition_key: <span class="prelude-ty">Option</span>&lt;String&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), SendEnvelopeError&gt; {

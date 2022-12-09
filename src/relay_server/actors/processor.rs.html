@@ -3095,7 +3095,7 @@
     ///
     /// The pipeline can mutate the envelope and remove or add items. In particular, event items are
     /// removed at the beginning of processing and re-added in the end.
-    </span>envelope: Envelope,
+    </span>envelope: Box&lt;Envelope&gt;,
 
     <span class="doccomment">/// The extracted event payload.
     ///
@@ -3233,7 +3233,7 @@
     /// This is `Some` if the envelope passed inbound filtering and rate limiting. Invalid items are
     /// removed from the envelope. Otherwise, if the envelope is empty or the entire envelope needs
     /// to be dropped, this is `None`.
-    </span><span class="kw">pub </span>envelope: <span class="prelude-ty">Option</span>&lt;(Envelope, EnvelopeContext)&gt;,
+    </span><span class="kw">pub </span>envelope: <span class="prelude-ty">Option</span>&lt;(Box&lt;Envelope&gt;, EnvelopeContext)&gt;,
 }
 
 <span class="doccomment">/// Applies processing to all contents of the given envelope.
@@ -3247,7 +3247,7 @@
 ///  - Rate limiters and inbound filters on events in processing mode.
 </span><span class="attribute">#[derive(Debug)]
 </span><span class="kw">pub struct </span>ProcessEnvelope {
-    <span class="kw">pub </span>envelope: Envelope,
+    <span class="kw">pub </span>envelope: Box&lt;Envelope&gt;,
     <span class="kw">pub </span>envelope_context: EnvelopeContext,
     <span class="kw">pub </span>project_state: Arc&lt;ProjectState&gt;,
     <span class="kw">pub </span>sampling_project_state: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;,

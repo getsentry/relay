@@ -312,7 +312,7 @@
 </span><span class="kw">fn </span>extract_envelope(
     request: <span class="kw-2">&amp;</span>HttpRequest&lt;ServiceState&gt;,
     meta: RequestMeta,
-) -&gt; ResponseFuture&lt;Envelope, BadStoreRequest&gt; {
+) -&gt; ResponseFuture&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
     <span class="kw">let </span>max_single_size = request.state().config().max_attachment_size();
     <span class="kw">let </span>max_multipart_size = request.state().config().max_attachments_size();
 

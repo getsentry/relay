@@ -83,7 +83,7 @@
 <span class="kw">fn </span>extract_envelope(
     request: <span class="kw-2">&amp;</span>HttpRequest&lt;ServiceState&gt;,
     meta: RequestMeta,
-) -&gt; ResponseFuture&lt;Envelope, BadStoreRequest&gt; {
+) -&gt; ResponseFuture&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
     <span class="kw">let </span>user_id = request.query().get(<span class="string">&quot;UserID&quot;</span>).cloned();
     <span class="kw">let </span>max_payload_size = request.state().config().max_attachments_size();
 
