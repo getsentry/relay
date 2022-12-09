@@ -219,7 +219,7 @@ struct ProcessEnvelopeState {
     ///
     /// The pipeline can mutate the envelope and remove or add items. In particular, event items are
     /// removed at the beginning of processing and re-added in the end.
-    envelope: Envelope,
+    envelope: Box<Envelope>,
 
     /// The extracted event payload.
     ///
@@ -357,7 +357,7 @@ pub struct ProcessEnvelopeResponse {
     /// This is `Some` if the envelope passed inbound filtering and rate limiting. Invalid items are
     /// removed from the envelope. Otherwise, if the envelope is empty or the entire envelope needs
     /// to be dropped, this is `None`.
-    pub envelope: Option<(Envelope, EnvelopeContext)>,
+    pub envelope: Option<(Box<Envelope>, EnvelopeContext)>,
 }
 
 /// Applies processing to all contents of the given envelope.
@@ -371,7 +371,7 @@ pub struct ProcessEnvelopeResponse {
 ///  - Rate limiters and inbound filters on events in processing mode.
 #[derive(Debug)]
 pub struct ProcessEnvelope {
-    pub envelope: Envelope,
+    pub envelope: Box<Envelope>,
     pub envelope_context: EnvelopeContext,
     pub project_state: Arc<ProjectState>,
     pub sampling_project_state: Option<Arc<ProjectState>>,
