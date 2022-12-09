@@ -80,7 +80,7 @@ impl Replay {
                     user.ip_address.set_value(Some(IpAddr(addr.to_string())));
                 }
             }
-        };
+        }
     }
 
     fn normalize_user_agent(&mut self, default_user_agent: Option<&str>) {
@@ -158,9 +158,12 @@ impl Replay {
 }
 
 mod test {
-    use crate::protocol::{Replay, TagEntry, Tags};
-    use crate::types::Annotated;
+    use crate::protocol::{
+        BrowserContext, Context, ContextInner, Contexts, DeviceContext, OsContext, Replay,
+        TagEntry, Tags,
+    };
     use crate::types::ErrorKind;
+    use crate::types::{Annotated, Object};
     use crate::types::{Map, Meta};
     use chrono::{TimeZone, Utc};
 
@@ -229,5 +232,137 @@ mod test {
 
         assert_eq!(event, Annotated::from_json(input).unwrap());
         assert_eq!(output, event.to_json().unwrap());
+    }
+
+    #[test]
+    fn test_set_user_agent_meta() {
+        let os_context = Annotated::new(ContextInner(Context::Os(Box::new(OsContext {
+            name: Annotated::new("Mac OS X".to_string()),
+            version: Annotated::new("10.15.7".to_string()),
+            ..Default::default()
+        }))));
+        let browser_context =
+            Annotated::new(ContextInner(Context::Browser(Box::new(BrowserContext {
+                name: Annotated::new("Safari".to_string()),
+                version: Annotated::new("15.5".to_string()),
+                ..Default::default()
+            }))));
+        let device_context =
+            Annotated::new(ContextInner(Context::Device(Box::new(DeviceContext {
+                family: Annotated::new("Mac".to_string()),
+                brand: Annotated::new("Apple".to_string()),
+                model: Annotated::new("Mac".to_string()),
+                ..Default::default()
+            }))));
+
+        // Parse user input.
+        let payload = include_str!("../../tests/fixtures/replays/replay.json");
+
+        let mut replay: Annotated<Replay> = Annotated::from_json(payload).unwrap();
+        let replay_value = replay.value_mut().as_mut().unwrap();
+        replay_value.normalize(None, None);
+
+        let loaded_browser_context = replay_value
+            .contexts
+            .value_mut()
+            .as_mut()
+            .unwrap()
+            .get("browser")
+            .unwrap()
+            .clone();
+
+        let loaded_os_context = replay_value
+            .contexts
+            .value_mut()
+            .as_mut()
+            .unwrap()
+            .get("client_os")
+            .unwrap()
+            .clone();
+
+        let loaded_device_context = replay_value
+            .contexts
+            .value_mut()
+            .as_mut()
+            .unwrap()
+            .get("device")
+            .unwrap()
+            .clone();
+
+        assert_eq!(loaded_browser_context, browser_context);
+        assert_eq!(loaded_os_context, os_context);
+        assert_eq!(loaded_device_context, device_context);
+    }
+
+    #[test]
+    fn test_set_user_agent_meta_no_request() {
+        let os_context = Annotated::new(ContextInner(Context::Os(Box::new(OsContext {
+            name: Annotated::new("Other".to_string()),
+            ..Default::default()
+        }))));
+        let browser_context =
+            Annotated::new(ContextInner(Context::Browser(Box::new(BrowserContext {
+                name: Annotated::new("Other".to_string()),
+                ..Default::default()
+            }))));
+        let device_context =
+            Annotated::new(ContextInner(Context::Device(Box::new(DeviceContext {
+                family: Annotated::new("Other".to_string()),
+                ..Default::default()
+            }))));
+
+        let payload = include_str!("../../tests/fixtures/replays/replay_no_requests.json");
+
+        let mut replay: Annotated<Replay> = Annotated::from_json(payload).unwrap();
+        let replay_value = replay.value_mut().as_mut().unwrap();
+        replay_value.normalize(None, None);
+
+        println!("{:?}", replay_value);
+
+        let loaded_browser_context = replay_value
+            .contexts
+            .value_mut()
+            .as_ref()
+            .unwrap()
+            .get("browser")
+            .unwrap()
+            .clone();
+
+        let loaded_os_context = replay_value
+            .contexts
+            .value_mut()
+            .as_ref()
+            .unwrap()
+            .get("client_os")
+            .unwrap()
+            .clone();
+
+        let loaded_device_context = replay_value
+            .contexts
+            .value_mut()
+            .as_ref()
+            .unwrap()
+            .get("device")
+            .unwrap()
+            .clone();
+
+        assert_eq!(loaded_browser_context, browser_context);
+        assert_eq!(loaded_os_context, os_context);
+        assert_eq!(loaded_device_context, device_context);
+    }
+
+    #[test]
+    fn test_loose_type_requirements() {
+        let payload = include_str!("../../tests/fixtures/replays/replay_failure_22_08_31.json");
+
+        let mut replay: Annotated<Replay> = Annotated::from_json(payload).unwrap();
+        let replay_value = replay.value_mut().as_mut().unwrap();
+        replay_value.normalize(None, None);
+
+        let user = replay_value.user.value_mut().as_mut().unwrap();
+        assert!(user.ip_address.value_mut().as_mut().unwrap().as_str() == "127.1.1.1");
+        assert!(user.username.value_mut().is_none());
+        assert!(user.email.value_mut().as_mut().unwrap().as_str() == "email@sentry.io");
+        assert!(user.id.value_mut().as_mut().unwrap().as_str() == "1");
     }
 }
