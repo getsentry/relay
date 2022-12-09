@@ -221,6 +221,35 @@
 <span id="219">219</span>
 <span id="220">220</span>
 <span id="221">221</span>
+<span id="222">222</span>
+<span id="223">223</span>
+<span id="224">224</span>
+<span id="225">225</span>
+<span id="226">226</span>
+<span id="227">227</span>
+<span id="228">228</span>
+<span id="229">229</span>
+<span id="230">230</span>
+<span id="231">231</span>
+<span id="232">232</span>
+<span id="233">233</span>
+<span id="234">234</span>
+<span id="235">235</span>
+<span id="236">236</span>
+<span id="237">237</span>
+<span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
+<span id="241">241</span>
+<span id="242">242</span>
+<span id="243">243</span>
+<span id="244">244</span>
+<span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
+<span id="248">248</span>
+<span id="249">249</span>
+<span id="250">250</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Envelope context type and helpers to ensure outcomes.
 
 </span><span class="kw">use </span>std::net;
@@ -237,6 +266,35 @@
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{EnvelopeSummary, SemaphorePermit};
+
+<span class="doccomment">/// Denotes the success of handling an envelope.
+</span><span class="attribute">#[derive(Clone, Copy, Debug)]
+</span><span class="kw">enum </span>Handling {
+    <span class="doccomment">/// The envelope was handled successfully.
+    ///
+    /// This can be the case even if the envelpoe was dropped. For example, if a rate limit is in
+    /// effect or if the corresponding project is disabled.
+    </span>Success,
+    <span class="doccomment">/// Handling the envelope failed due to an error or bug.
+    </span>Failure,
+}
+
+<span class="kw">impl </span>Handling {
+    <span class="kw">fn </span>from_outcome(outcome: <span class="kw-2">&amp;</span>Outcome) -&gt; <span class="self">Self </span>{
+        <span class="kw">if </span>outcome.is_unexpected() {
+            <span class="self">Self</span>::Failure
+        } <span class="kw">else </span>{
+            <span class="self">Self</span>::Success
+        }
+    }
+
+    <span class="kw">fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            Handling::Success =&gt; <span class="string">&quot;success&quot;</span>,
+            Handling::Failure =&gt; <span class="string">&quot;failure&quot;</span>,
+        }
+    }
+}
 
 <span class="doccomment">/// Tracks the lifetime of an [`Envelope`] in Relay.
 ///
@@ -348,7 +406,7 @@
     /// outcomes.
     </span><span class="kw">pub fn </span>accept(<span class="kw-2">mut </span><span class="self">self</span>) {
         <span class="kw">if </span>!<span class="self">self</span>.done {
-            <span class="self">self</span>.finish(RelayCounters::EnvelopeAccepted);
+            <span class="self">self</span>.finish(RelayCounters::EnvelopeAccepted, Handling::Success);
         }
     }
 
@@ -373,12 +431,12 @@
             <span class="kw">return</span>;
         }
 
-        <span class="comment">// Errors are only logged for what we consider infrastructure or implementation
-        // bugs. In other cases, we &quot;expect&quot; errors and log them as debug level.
-        </span><span class="kw">if </span>outcome.is_unexpected() {
-            <span class="macro">relay_log::error!</span>(<span class="string">&quot;dropped envelope: {}&quot;</span>, outcome);
-        } <span class="kw">else </span>{
-            <span class="macro">relay_log::debug!</span>(<span class="string">&quot;dropped envelope: {}&quot;</span>, outcome);
+        <span class="comment">// Errors are only logged for what we consider failed request handling. In other cases, we
+        // &quot;expect&quot; errors and log them as debug level.
+        </span><span class="kw">let </span>handling = Handling::from_outcome(<span class="kw-2">&amp;</span>outcome);
+        <span class="kw">match </span>handling {
+            Handling::Success =&gt; <span class="macro">relay_log::debug!</span>(<span class="string">&quot;dropped envelope: {}&quot;</span>, outcome),
+            Handling::Failure =&gt; <span class="macro">relay_log::error!</span>(<span class="string">&quot;dropped envelope: {}&quot;</span>, outcome),
         }
 
         <span class="comment">// TODO: This could be optimized with Capture::should_capture
@@ -404,7 +462,7 @@
             );
         }
 
-        <span class="self">self</span>.finish(RelayCounters::EnvelopeRejected);
+        <span class="self">self</span>.finish(RelayCounters::EnvelopeRejected, handling);
     }
 
     <span class="doccomment">/// Returns scoping stored in this context.
@@ -427,10 +485,10 @@
     }
 
     <span class="doccomment">/// Resets inner state to ensure there&#39;s no more logging.
-    </span><span class="kw">fn </span>finish(<span class="kw-2">&amp;mut </span><span class="self">self</span>, counter: RelayCounters) {
+    </span><span class="kw">fn </span>finish(<span class="kw-2">&amp;mut </span><span class="self">self</span>, counter: RelayCounters, handling: Handling) {
         <span class="self">self</span>.slot.take();
 
-        <span class="macro">relay_statsd::metric!</span>(counter(counter) += <span class="number">1</span>);
+        <span class="macro">relay_statsd::metric!</span>(counter(counter) += <span class="number">1</span>, handling = handling.as_str());
         <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::EnvelopeTotalTime) = <span class="self">self</span>.start_time.elapsed());
 
         <span class="self">self</span>.done = <span class="bool-val">true</span>;

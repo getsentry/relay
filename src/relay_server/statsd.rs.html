@@ -527,6 +527,14 @@
 <span id="525">525</span>
 <span id="526">526</span>
 <span id="527">527</span>
+<span id="528">528</span>
+<span id="529">529</span>
+<span id="530">530</span>
+<span id="531">531</span>
+<span id="532">532</span>
+<span id="533">533</span>
+<span id="534">534</span>
+<span id="535">535</span>
 </pre><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -873,6 +881,10 @@
     ///
     /// This represents requests that have successfully passed rate limits and filters, and have
     /// been sent to the upstream.
+    ///
+    /// This metric is tagged with:
+    ///  - `handling`: Either `&quot;success&quot;` if the envelope was handled correctly, or `&quot;failure&quot;` if
+    ///    there was an error or bug.
     </span>EnvelopeAccepted,
     <span class="doccomment">/// Number of envelopes rejected in the current time slot.
     ///
@@ -880,6 +892,10 @@
     /// processing (including filtered events, invalid payloads, and rate limits).
     ///
     /// To check the rejection reason, check `events.outcomes`, instead.
+    ///
+    /// This metric is tagged with:
+    ///  - `handling`: Either `&quot;success&quot;` if the envelope was handled correctly, or `&quot;failure&quot;` if
+    ///    there was an error or bug.
     </span>EnvelopeRejected,
     <span class="doccomment">/// Number of outcomes and reasons for rejected Envelopes.
     ///
