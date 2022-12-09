@@ -470,10 +470,10 @@
         <span class="kw">let </span>system = System::current();
         <span class="kw">let </span>registry = system.registry();
 
-        <span class="kw">let </span>main_runtime = utils::create_runtime(config.cpu_concurrency());
-        <span class="kw">let </span>project_runtime = utils::create_runtime(<span class="number">1</span>);
-        <span class="kw">let </span>aggregator_runtime = utils::create_runtime(<span class="number">1</span>);
-        <span class="kw">let </span>outcome_runtime = utils::create_runtime(<span class="number">1</span>);
+        <span class="kw">let </span>main_runtime = utils::create_runtime(<span class="string">&quot;main-rt&quot;</span>, config.cpu_concurrency());
+        <span class="kw">let </span>project_runtime = utils::create_runtime(<span class="string">&quot;project-rt&quot;</span>, <span class="number">1</span>);
+        <span class="kw">let </span>aggregator_runtime = utils::create_runtime(<span class="string">&quot;aggregator-rt&quot;</span>, <span class="number">1</span>);
+        <span class="kw">let </span>outcome_runtime = utils::create_runtime(<span class="string">&quot;outcome-rt&quot;</span>, <span class="number">1</span>);
         <span class="kw">let </span><span class="kw-2">mut </span>_store_runtime = <span class="prelude-val">None</span>;
 
         <span class="kw">let </span>upstream_relay = UpstreamRelay::new(config.clone());
@@ -500,7 +500,7 @@
 
         <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
         </span><span class="kw">if </span>config.processing_enabled() {
-            <span class="kw">let </span>rt = utils::create_runtime(<span class="number">1</span>);
+            <span class="kw">let </span>rt = utils::create_runtime(<span class="string">&quot;store-rt&quot;</span>, <span class="number">1</span>);
             <span class="kw">let </span>_guard = rt.enter();
             <span class="kw">let </span>store = StoreService::create(config.clone())<span class="question-mark">?</span>.start();
             envelope_manager.set_store_forwarder(store);

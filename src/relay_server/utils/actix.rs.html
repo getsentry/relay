@@ -22,6 +22,7 @@
 <span id="20">20</span>
 <span id="21">21</span>
 <span id="22">22</span>
+<span id="23">23</span>
 </pre><pre class="rust"><code><span class="kw">use </span>actix::System;
 <span class="kw">use </span>tokio::runtime::Runtime;
 
@@ -35,9 +36,10 @@
 ///
 /// The calling thread must have the actix system enabled, panics if this is invoked in a thread
 /// where actix is not enabled.
-</span><span class="kw">pub fn </span>create_runtime(threads: usize) -&gt; Runtime {
+</span><span class="kw">pub fn </span>create_runtime(name: <span class="kw-2">&amp;</span>str, threads: usize) -&gt; Runtime {
     <span class="kw">let </span>system = System::current();
     tokio::runtime::Builder::new_multi_thread()
+        .thread_name(name)
         .worker_threads(threads)
         .enable_all()
         .on_thread_start(<span class="kw">move </span>|| System::set_current(system.clone()))
