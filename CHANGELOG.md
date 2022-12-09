@@ -8,11 +8,13 @@
 - Add OpenTelemetry Context ([#1617](https://github.com/getsentry/relay/pull/1617))
 - Add `app.in_foreground` and `thread.main` flag to protocol. ([#1578](https://github.com/getsentry/relay/pull/1578))
 - Add support for View Hierarchy attachment_type. ([#1642](https://github.com/getsentry/relay/pull/1642))
+- Add invalid replay recording outcome. ([#1684]https://github.com/getsentry/relay/pull/1684)
 
 **Bug Fixes**:
 
 - Make `attachment_type` on envelope items forward compatible by adding fallback variant. ([#1638](https://github.com/getsentry/relay/pull/1638))
 - Relay no longer accepts transaction events older than 5 days. Previously the event was accepted and stored, but since metrics for such old transactions are not supported it did not show up in parts of Sentry such as the Performance landing page. ([#1663](https://github.com/getsentry/relay/pull/1663))
+- Apply dynamic sampling to transactions from older SDKs and even in case Relay cannot load project information. This avoids accidentally storing 100% of transactions. ([#1667](https://github.com/getsentry/relay/pull/1667))
 
 **Internal**:
 
@@ -20,6 +22,8 @@
 - Track metrics for OpenTelemetry events. ([#1618](https://github.com/getsentry/relay/pull/1618))
 - Normalize transaction name for URLs transaction source, by replacing UUIDs, SHAs and numerical IDs in transaction names by placeholders. ([#1621](https://github.com/getsentry/relay/pull/1621))
 - Parse string as number to handle a release bug. ([#1637](https://github.com/getsentry/relay/pull/1637))
+- Expand Profiling's discard reasons. ([#1661](https://github.com/getsentry/relay/pull/1661), [#1685](https://github.com/getsentry/relay/pull/1685))
+- Allow to rate limit profiles on top of transactions. ([#1681](https://github.com/getsentry/relay/pull/1681))
 
 ## 22.11.0
 
