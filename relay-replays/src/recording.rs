@@ -29,18 +29,12 @@ pub fn process_recording(bytes: &[u8]) -> Result<Vec<u8>, RecordingParseError> {
         .ok_or_else(|| RecordingParseError::Message("no headers found.".to_string()))?;
 
     // Find the body value.
-    let mut body: Vec<u8> = vec![];
-    let mut cursor = io::Cursor::new(bytes);
-    cursor.set_position((header.len() + 1).try_into().unwrap());
-    cursor.read_to_end(&mut body)?;
-
-    // Check for null body condition.
-    if body.is_empty() {
+    if bytes.len() <= header.len() + 1 {
         return Err(RecordingParseError::Message("no body found.".to_string()));
     }
 
     // Deserialization.
-    let mut events = loads(body.as_slice())?;
+    let mut events = loads(&bytes[header.len() + 1..])?;
 
     // Processing.
     strip_pii(&mut events).map_err(RecordingParseError::ProcessingAction)?;
