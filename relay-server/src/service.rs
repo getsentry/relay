@@ -120,10 +120,10 @@ impl ServiceState {
         let system = System::current();
         let registry = system.registry();
 
-        let main_runtime = utils::create_runtime(config.cpu_concurrency());
-        let project_runtime = utils::create_runtime(1);
-        let aggregator_runtime = utils::create_runtime(1);
-        let outcome_runtime = utils::create_runtime(1);
+        let main_runtime = utils::create_runtime("main-rt", config.cpu_concurrency());
+        let project_runtime = utils::create_runtime("project-rt", 1);
+        let aggregator_runtime = utils::create_runtime("aggregator-rt", 1);
+        let outcome_runtime = utils::create_runtime("outcome-rt", 1);
         let mut _store_runtime = None;
 
         let upstream_relay = UpstreamRelay::new(config.clone());
@@ -150,7 +150,7 @@ impl ServiceState {
 
         #[cfg(feature = "processing")]
         if config.processing_enabled() {
-            let rt = utils::create_runtime(1);
+            let rt = utils::create_runtime("store-rt", 1);
             let _guard = rt.enter();
             let store = StoreService::create(config.clone())?.start();
             envelope_manager.set_store_forwarder(store);

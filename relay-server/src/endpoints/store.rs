@@ -20,7 +20,7 @@ static PIXEL: &[u8] =
     b"GIF89a\x01\x00\x01\x00\x00\xff\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x00;";
 
 /// Parses a full `Envelope` request body.
-fn parse_envelope(meta: RequestMeta, data: Bytes) -> Result<Envelope, BadStoreRequest> {
+fn parse_envelope(meta: RequestMeta, data: Bytes) -> Result<Box<Envelope>, BadStoreRequest> {
     // Use `parse_request` here to ensure that we're merging available request headers into the
     // envelope's headers.
     Envelope::parse_request(data, meta).map_err(BadStoreRequest::InvalidEnvelope)
@@ -31,7 +31,7 @@ fn parse_event(
     meta: RequestMeta,
     content_type: ContentType,
     mut data: Bytes,
-) -> Result<Envelope, BadStoreRequest> {
+) -> Result<Box<Envelope>, BadStoreRequest> {
     // Python clients are well known to send crappy JSON in the Sentry world.  The reason
     // for this is that they send NaN and Infinity as invalid JSON tokens.  The code sentry
     // server could deal with this but we cannot.  To work around this issue, we run a basic
@@ -70,7 +70,7 @@ fn parse_event(
 fn extract_envelope(
     request: &HttpRequest<ServiceState>,
     meta: RequestMeta,
-) -> ResponseFuture<Envelope, BadStoreRequest> {
+) -> ResponseFuture<Box<Envelope>, BadStoreRequest> {
     let max_payload_size = request.state().config().max_event_size();
 
     // If the content type is missing, assume "application/json".

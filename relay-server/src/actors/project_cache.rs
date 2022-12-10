@@ -109,7 +109,7 @@ impl GetCachedProjectState {
 /// from the envelope, `None` is returned in place of the envelope.
 #[derive(Debug)]
 pub struct CheckedEnvelope {
-    pub envelope: Option<(Envelope, EnvelopeContext)>,
+    pub envelope: Option<(Box<Envelope>, EnvelopeContext)>,
     pub rate_limits: RateLimits,
 }
 
@@ -124,13 +124,13 @@ pub struct CheckedEnvelope {
 ///  - Cached rate limits
 #[derive(Debug)]
 pub struct CheckEnvelope {
-    envelope: Envelope,
+    envelope: Box<Envelope>,
     context: EnvelopeContext,
 }
 
 impl CheckEnvelope {
     /// Uses a cached project state and checks the envelope.
-    pub fn new(envelope: Envelope, context: EnvelopeContext) -> Self {
+    pub fn new(envelope: Box<Envelope>, context: EnvelopeContext) -> Self {
         Self { envelope, context }
     }
 }
@@ -147,12 +147,12 @@ impl CheckEnvelope {
 ///
 /// [`EnvelopeProcessor`]: crate::actors::processor::EnvelopeProcessor
 pub struct ValidateEnvelope {
-    envelope: Envelope,
+    envelope: Box<Envelope>,
     context: EnvelopeContext,
 }
 
 impl ValidateEnvelope {
-    pub fn new(envelope: Envelope, context: EnvelopeContext) -> Self {
+    pub fn new(envelope: Box<Envelope>, context: EnvelopeContext) -> Self {
         Self { envelope, context }
     }
 }
