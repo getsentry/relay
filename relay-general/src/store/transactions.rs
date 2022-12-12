@@ -280,7 +280,11 @@ impl Processor for TransactionsProcessor {
         let spans = event.spans.value_mut().get_or_insert_with(|| Vec::new());
 
         for span in spans {
-            if span.value().is_none() {
+            if let Some(val) = span.value_mut() {
+                if val.timestamp.value().is_none() {
+                    val.timestamp.set_value(event.timestamp.value().cloned());
+                }
+            } else {
                 return Err(ProcessingAction::InvalidTransaction(
                     "spans must be valid in transaction event",
                 ));
