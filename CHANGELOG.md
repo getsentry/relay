@@ -4,7 +4,7 @@
 
 **Features**:
 
-- The level of events created from the Unreal Crash Reports is now depending whether it was an actual crash or an assert. ([#1677](https://github.com/getsentry/relay/pull/1677))
+- The level of events created from Unreal Crash Reports now depends on whether it was an actual crash or an assert. ([#1677](https://github.com/getsentry/relay/pull/1677))
 - Dynamic sampling is now based on the volume received by Relay by default and does not include the original volume dropped by client-side sampling in SDKs. This is required for the final dynamic sampling feature in the latest Sentry plans. ([#1591](https://github.com/getsentry/relay/pull/1591))
 - Add OpenTelemetry Context ([#1617](https://github.com/getsentry/relay/pull/1617))
 - Add `app.in_foreground` and `thread.main` flag to protocol. ([#1578](https://github.com/getsentry/relay/pull/1578))
