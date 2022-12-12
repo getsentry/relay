@@ -1,3 +1,29 @@
+//! Replay processing and normalization module.
+//!
+//! Replays are multi-part values sent from Sentry integrations spanning arbitrary time-periods.
+//! They are ingested incrementally.
+//!
+//! # Protocol
+//!
+//! Relay is expecting a JSON object with some mandatory metadata.  However, environment and user
+//! metadata is usually sent in addition to the minimal payload.
+//!
+//! ```json
+//! {
+//!     "type": "replay_event",
+//!     "replay_id": "d2132d31b39445f1938d7e21b6bf0ec4",
+//!     "event_id": "63c5b0f895441a94340183c5f1e74cd4",
+//!     "segment_id": 0,
+//!     "timestamp": 1597976392.6542819,
+//!     "replay_start_timestamp": 1597976392.6542819,
+//!     "urls": ["https://sentry.io"],
+//!     "error_ids": ["d2132d31b39445f1938d7e21b6bf0ec4"],
+//!     "trace_ids": ["63c5b0f895441a94340183c5f1e74cd4"],
+//!     "request": {
+//!         "headers": {"User-Agent": "Mozilla/5.0..."}
+//!     },
+//! }
+//! ```
 use crate::protocol::{
     ClientSdkInfo, Contexts, IpAddr, LenientString, Request, Tags, Timestamp, User,
 };
@@ -166,6 +192,7 @@ mod test {
     use crate::types::{Annotated, Object};
     use crate::types::{Map, Meta};
     use chrono::{TimeZone, Utc};
+    use std::net::{IpAddr, Ipv4Addr};
 
     #[test]
     fn test_event_roundtrip() {
@@ -295,60 +322,39 @@ mod test {
     }
 
     #[test]
-    fn test_set_user_agent_meta_no_request() {
-        let os_context = Annotated::new(ContextInner(Context::Os(Box::new(OsContext {
-            name: Annotated::new("Other".to_string()),
-            ..Default::default()
-        }))));
-        let browser_context =
-            Annotated::new(ContextInner(Context::Browser(Box::new(BrowserContext {
-                name: Annotated::new("Other".to_string()),
-                ..Default::default()
-            }))));
-        let device_context =
-            Annotated::new(ContextInner(Context::Device(Box::new(DeviceContext {
-                family: Annotated::new("Other".to_string()),
-                ..Default::default()
-            }))));
-
-        let payload = include_str!("../../tests/fixtures/replays/replay_no_requests.json");
+    fn test_missing_user() {
+        let payload = include_str!("../../tests/fixtures/replays/replay_missing_user.json");
 
         let mut replay: Annotated<Replay> = Annotated::from_json(payload).unwrap();
         let replay_value = replay.value_mut().as_mut().unwrap();
         replay_value.normalize(None, None);
 
-        println!("{:?}", replay_value);
+        let user = replay_value.user.value();
+        assert!(user.is_none());
+    }
 
-        let loaded_browser_context = replay_value
-            .contexts
+    #[test]
+    fn test_set_ip_address_missing_user_ip_address() {
+        let ip_address = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
+
+        // IP-Address set.
+        let payload =
+            include_str!("../../tests/fixtures/replays/replay_missing_user_ip_address.json");
+
+        let mut replay: Annotated<Replay> = Annotated::from_json(payload).unwrap();
+        let replay_value = replay.value_mut().as_mut().unwrap();
+        replay_value.normalize(Some(ip_address), None);
+
+        let ipaddr = replay_value
+            .user
             .value_mut()
             .as_ref()
             .unwrap()
-            .get("browser")
+            .ip_address
+            .value()
             .unwrap()
-            .clone();
-
-        let loaded_os_context = replay_value
-            .contexts
-            .value_mut()
-            .as_ref()
-            .unwrap()
-            .get("client_os")
-            .unwrap()
-            .clone();
-
-        let loaded_device_context = replay_value
-            .contexts
-            .value_mut()
-            .as_ref()
-            .unwrap()
-            .get("device")
-            .unwrap()
-            .clone();
-
-        assert_eq!(loaded_browser_context, browser_context);
-        assert_eq!(loaded_os_context, os_context);
-        assert_eq!(loaded_device_context, device_context);
+            .as_str();
+        assert!("127.0.0.1" == ipaddr);
     }
 
     #[test]
