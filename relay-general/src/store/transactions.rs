@@ -283,6 +283,7 @@ impl Processor for TransactionsProcessor {
             if let Some(val) = span.value_mut() {
                 if val.timestamp.value().is_none() {
                     val.timestamp.set_value(event.timestamp.value().cloned());
+                    val.status = Annotated::new(SpanStatus::DeadlineExceeded);
                 }
             } else {
                 return Err(ProcessingAction::InvalidTransaction(
