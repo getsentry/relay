@@ -10,10 +10,13 @@ use crate::macros::impl_str_serde;
 ///
 /// Supported are `?` for a single char, `*` for all but a slash and
 /// `**` to match with slashes.
+///
+/// Supports replacement of all found `*` with provided replacement string using `apply` method.
 #[derive(Clone)]
 pub struct Glob {
     value: String,
     pattern: Regex,
+    replacer: Regex,
 }
 
 impl Glob {
@@ -40,9 +43,13 @@ impl Glob {
         pattern.push_str(&regex::escape(&glob[last..]));
         pattern.push('$');
 
+        // Prepare the new pattern replacing matches for `**` and `.` with non-capturing groups.
+        let replacer = pattern.replace("(.)", "(?:.)").replace("(.*?)", "(?:.*?)");
+
         Glob {
             value: glob.to_string(),
             pattern: Regex::new(&pattern).unwrap(),
+            replacer: Regex::new(&replacer).unwrap(),
         }
     }
 
@@ -56,6 +63,28 @@ impl Glob {
         self.pattern.is_match(value)
     }
 
+    /// Currently support replacing only all `*` in the input string with provided replacement.
+    /// If no match is found, then a copy of the string is returned unchanged.
+    pub fn apply(&self, input: &str, replacement: &str) -> String {
+        let mut output = String::new();
+        let mut current = 0;
+
+        for caps in self.replacer.captures_iter(input) {
+            // Create the iter on subcaptures and ignore the first capture, since this is always
+            // the entire string.
+            let mut iter = caps.iter();
+            let _ = iter.next();
+            for cap in iter.flatten() {
+                output.push_str(&input[current..cap.start()]);
+                output.push_str(replacement);
+                current = cap.end();
+            }
+        }
+
+        output.push_str(&input[current..]);
+        output
+    }
+
     /// Checks if the value matches and returns the wildcard matches.
     pub fn matches<'t>(&self, value: &'t str) -> Option<Vec<&'t str>> {
         self.pattern.captures(value).map(|caps| {
@@ -66,6 +95,14 @@ impl Glob {
         })
     }
 }
+
+impl PartialEq for Glob {
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value
+    }
+}
+
+impl Eq for Glob {}
 
 impl str::FromStr for Glob {
     type Err = ();
@@ -167,6 +204,17 @@ mod tests {
         let g = Glob::new("api/**/store/");
         assert!(g.is_match("api/some/stuff/here/store/"));
         assert!(g.is_match("api/some/store/"));
+
+        let g = Glob::new("/api/*/stuff/**");
+        assert!(g.is_match("/api/some/stuff/here/store/"));
+        assert!(!g.is_match("/api/some/store/"));
+
+        // Test replacements.
+        assert_eq!(
+            g.apply("/api/some/stuff/here/store", "*"),
+            "/api/*/stuff/here/store"
+        );
+        assert_eq!(g.apply("/api/testing/stuff/", "*"), "/api/*/stuff/");
     }
 
     #[test]
