@@ -274,10 +274,10 @@ impl Processor for TransactionsProcessor {
         let spans = event.spans.value_mut().get_or_insert_with(|| Vec::new());
 
         for span in spans {
-            if let Some(val) = span.value_mut() {
-                if val.timestamp.value().is_none() {
-                    val.timestamp.set_value(event.timestamp.value().cloned());
-                    val.status = Annotated::new(SpanStatus::DeadlineExceeded);
+            if let Some(span) = span.value_mut() {
+                if span.timestamp.value().is_none() {
+                    span.timestamp.set_value(event.timestamp.value().cloned());
+                    span.status = Annotated::new(SpanStatus::DeadlineExceeded);
                 }
             } else {
                 return Err(ProcessingAction::InvalidTransaction(
