@@ -1025,7 +1025,7 @@ impl EnvelopeProcessorService {
                     // decompressed temporarily and then immediately re-compressed. However, to
                     // limit memory pressure, we use the envelope limit as a good overall limit for
                     // allocations.
-                    let limit = self.config.max_envelope_size();
+                    let limit = self.config.max_replay_size();
                     let parsed_recording =
                         relay_replays::recording::process_recording(&item.payload(), limit);
 
