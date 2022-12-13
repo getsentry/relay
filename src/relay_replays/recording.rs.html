@@ -754,32 +754,6 @@
 <span id="754">754</span>
 <span id="755">755</span>
 <span id="756">756</span>
-<span id="757">757</span>
-<span id="758">758</span>
-<span id="759">759</span>
-<span id="760">760</span>
-<span id="761">761</span>
-<span id="762">762</span>
-<span id="763">763</span>
-<span id="764">764</span>
-<span id="765">765</span>
-<span id="766">766</span>
-<span id="767">767</span>
-<span id="768">768</span>
-<span id="769">769</span>
-<span id="770">770</span>
-<span id="771">771</span>
-<span id="772">772</span>
-<span id="773">773</span>
-<span id="774">774</span>
-<span id="775">775</span>
-<span id="776">776</span>
-<span id="777">777</span>
-<span id="778">778</span>
-<span id="779">779</span>
-<span id="780">780</span>
-<span id="781">781</span>
-<span id="782">782</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::fmt::Display;
@@ -791,51 +765,49 @@
 };
 <span class="kw">use </span>relay_general::types::{Meta, ProcessingAction};
 
-<span class="kw">use </span>flate2::read::ZlibDecoder;
-<span class="kw">use </span>flate2::write::ZlibEncoder;
-<span class="kw">use </span>flate2::Compression;
-<span class="kw">use </span>serde::de::Error <span class="kw">as </span>DError;
-<span class="kw">use </span>serde::{Deserialize, Serialize};
-<span class="kw">use </span>serde_json::{Error, Value};
+<span class="kw">use </span>flate2::{read::ZlibDecoder, write::ZlibEncoder, Compression};
+<span class="kw">use </span>serde::{de::Error <span class="kw">as </span>DError, Deserialize, Serialize};
+<span class="kw">use </span>serde_json::Value;
 
-<span class="kw">pub fn </span>process_recording(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, RecordingParseError&gt; {
+<span class="doccomment">/// Parses compressed replay recording payloads and applies data scrubbers.
+///
+/// `limit` controls the maximum size in bytes during decompression. This function returns an `Err`
+/// if decompressed contents exceed the limit.
+</span><span class="kw">pub fn </span>process_recording(bytes: <span class="kw-2">&amp;</span>[u8], limit: usize) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, RecordingParseError&gt; {
     <span class="comment">// Check for null byte condition.
     </span><span class="kw">if </span>bytes.is_empty() {
-        <span class="kw">return </span><span class="prelude-val">Err</span>(RecordingParseError::Message(<span class="string">&quot;no data found.&quot;</span>.to_string()));
+        <span class="kw">return </span><span class="prelude-val">Err</span>(RecordingParseError::Message(<span class="string">&quot;no data found&quot;</span>));
     }
 
-    <span class="comment">// Find the header value.
-    </span><span class="kw">let </span>header = bytes
-        .split(|b| b == <span class="kw-2">&amp;</span><span class="string">b&#39;\n&#39;</span>)
+    <span class="kw">let </span><span class="kw-2">mut </span>split = bytes.splitn(<span class="number">2</span>, |b| b == <span class="kw-2">&amp;</span><span class="string">b&#39;\n&#39;</span>);
+    <span class="kw">let </span>header = split
         .next()
-        .ok_or_else(|| RecordingParseError::Message(<span class="string">&quot;no headers found.&quot;</span>.to_string()))<span class="question-mark">?</span>;
+        .ok_or(RecordingParseError::Message(<span class="string">&quot;no headers found&quot;</span>))<span class="question-mark">?</span>;
 
-    <span class="comment">// Find the body value.
-    </span><span class="kw">if </span>bytes.len() &lt;= header.len() + <span class="number">1 </span>{
-        <span class="kw">return </span><span class="prelude-val">Err</span>(RecordingParseError::Message(<span class="string">&quot;no body found.&quot;</span>.to_string()));
-    }
+    <span class="kw">let </span>body = <span class="kw">match </span>split.next() {
+        <span class="prelude-val">Some</span>(<span class="string">b&quot;&quot;</span>) | <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(RecordingParseError::Message(<span class="string">&quot;no body found&quot;</span>)),
+        <span class="prelude-val">Some</span>(body) =&gt; body,
+    };
 
-    <span class="comment">// Deserialization.
-    </span><span class="kw">let </span><span class="kw-2">mut </span>events = loads(<span class="kw-2">&amp;</span>bytes[header.len() + <span class="number">1</span>..])<span class="question-mark">?</span>;
-
-    <span class="comment">// Processing.
-    </span>strip_pii(<span class="kw-2">&amp;mut </span>events).map_err(RecordingParseError::ProcessingAction)<span class="question-mark">?</span>;
-
-    <span class="comment">// Serialization.
-    </span><span class="kw">let </span>out_bytes = dumps(events)<span class="question-mark">?</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>events = deserialize_compressed(body, limit)<span class="question-mark">?</span>;
+    strip_pii(<span class="kw-2">&amp;mut </span>events).map_err(RecordingParseError::ProcessingAction)<span class="question-mark">?</span>;
+    <span class="kw">let </span>out_bytes = serialize_compressed(events)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>([header.into(), <span class="macro">vec!</span>[<span class="string">b&#39;\n&#39;</span>], out_bytes].concat())
 }
 
-<span class="kw">fn </span>loads(zipped_input: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Event&gt;, RecordingParseError&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>decoder = ZlibDecoder::new(zipped_input);
-    <span class="kw">let </span><span class="kw-2">mut </span>buffer = String::new();
-    decoder.read_to_string(<span class="kw-2">&amp;mut </span>buffer)<span class="question-mark">?</span>;
+<span class="kw">fn </span>deserialize_compressed(
+    zipped_input: <span class="kw-2">&amp;</span>[u8],
+    limit: usize,
+) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Event&gt;, RecordingParseError&gt; {
+    <span class="kw">let </span>decoder = ZlibDecoder::new(zipped_input);
 
-    <span class="kw">let </span>events: Vec&lt;Event&gt; = serde_json::from_str(<span class="kw-2">&amp;</span>buffer)<span class="question-mark">?</span>;
-    <span class="prelude-val">Ok</span>(events)
+    <span class="kw">let </span><span class="kw-2">mut </span>buffer = Vec::new();
+    decoder.take(limit <span class="kw">as </span>u64).read_to_end(<span class="kw-2">&amp;mut </span>buffer)<span class="question-mark">?</span>;
+
+    <span class="prelude-val">Ok</span>(serde_json::from_slice(<span class="kw-2">&amp;</span>buffer)<span class="question-mark">?</span>)
 }
 
-<span class="kw">fn </span>dumps(rrweb: Vec&lt;Event&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, RecordingParseError&gt; {
+<span class="kw">fn </span>serialize_compressed(rrweb: Vec&lt;Event&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, RecordingParseError&gt; {
     <span class="kw">let </span>buffer = serde_json::to_vec(<span class="kw-2">&amp;</span>rrweb)<span class="question-mark">?</span>;
 
     <span class="kw">let </span><span class="kw-2">mut </span>encoder = ZlibEncoder::new(Vec::new(), Compression::default());
@@ -860,17 +832,17 @@
 
 </span><span class="attribute">#[derive(Debug)]
 </span><span class="kw">pub enum </span>RecordingParseError {
-    SerdeError(Error),
-    IoError(std::io::Error),
-    Message(String),
+    Json(serde_json::Error),
+    Compression(std::io::Error),
+    Message(<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str),
     ProcessingAction(ProcessingAction),
 }
 
 <span class="kw">impl </span>Display <span class="kw">for </span>RecordingParseError {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; std::fmt::Result {
         <span class="kw">match </span><span class="self">self </span>{
-            RecordingParseError::SerdeError(serde_error) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, serde_error),
-            RecordingParseError::IoError(io_error) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, io_error),
+            RecordingParseError::Json(serde_error) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, serde_error),
+            RecordingParseError::Compression(io_error) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, io_error),
             RecordingParseError::Message(message) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, message),
             RecordingParseError::ProcessingAction(action) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, action),
         }
@@ -879,15 +851,15 @@
 
 <span class="kw">impl </span>std::error::Error <span class="kw">for </span>RecordingParseError {}
 
-<span class="kw">impl </span>From&lt;Error&gt; <span class="kw">for </span>RecordingParseError {
-    <span class="kw">fn </span>from(err: Error) -&gt; <span class="self">Self </span>{
-        RecordingParseError::SerdeError(err)
+<span class="kw">impl </span>From&lt;serde_json::Error&gt; <span class="kw">for </span>RecordingParseError {
+    <span class="kw">fn </span>from(err: serde_json::Error) -&gt; <span class="self">Self </span>{
+        RecordingParseError::Json(err)
     }
 }
 
 <span class="kw">impl </span>From&lt;std::io::Error&gt; <span class="kw">for </span>RecordingParseError {
     <span class="kw">fn </span>from(err: std::io::Error) -&gt; <span class="self">Self </span>{
-        RecordingParseError::IoError(err)
+        RecordingParseError::Compression(err)
     }
 }
 
@@ -1359,7 +1331,7 @@
     </span><span class="kw">fn </span>test_process_recording_end_to_end() {
         <span class="comment">// Valid compressed rrweb payload.  Contains a 16 byte header followed by a new line
         // character and concludes with a gzipped rrweb payload.
-        </span><span class="kw">let </span>payload: [u8; <span class="number">241</span>] = [
+        </span><span class="kw">let </span>payload: <span class="kw-2">&amp;</span>[u8] = <span class="kw-2">&amp;</span>[
             <span class="number">123</span>, <span class="number">34</span>, <span class="number">115</span>, <span class="number">101</span>, <span class="number">103</span>, <span class="number">109</span>, <span class="number">101</span>, <span class="number">110</span>, <span class="number">116</span>, <span class="number">95</span>, <span class="number">105</span>, <span class="number">100</span>, <span class="number">34</span>, <span class="number">58</span>, <span class="number">51</span>, <span class="number">125</span>, <span class="number">10</span>, <span class="number">120</span>,
             <span class="number">156</span>, <span class="number">149</span>, <span class="number">144</span>, <span class="number">91</span>, <span class="number">106</span>, <span class="number">196</span>, <span class="number">32</span>, <span class="number">20</span>, <span class="number">64</span>, <span class="number">247</span>, <span class="number">114</span>, <span class="number">191</span>, <span class="number">237</span>, <span class="number">160</span>, <span class="number">241</span>, <span class="number">145</span>, <span class="number">234</span>, <span class="number">38</span>,
             <span class="number">102</span>, <span class="number">1</span>, <span class="number">195</span>, <span class="number">124</span>, <span class="number">152</span>, <span class="number">104</span>, <span class="number">6</span>, <span class="number">33</span>, <span class="number">169</span>, <span class="number">193</span>, <span class="number">40</span>, <span class="number">52</span>, <span class="number">4</span>, <span class="number">247</span>, <span class="number">94</span>, <span class="number">91</span>, <span class="number">103</span>, <span class="number">40</span>, <span class="number">20</span>, <span class="number">108</span>,
@@ -1375,85 +1347,62 @@
             <span class="number">146</span>, <span class="number">59</span>, <span class="number">13</span>, <span class="number">115</span>, <span class="number">10</span>, <span class="number">144</span>, <span class="number">115</span>, <span class="number">190</span>, <span class="number">126</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">68</span>, <span class="number">180</span>, <span class="number">16</span>,
         ];
 
-        <span class="kw">let </span>result = recording::process_recording(<span class="kw-2">&amp;</span>payload);
-        <span class="kw">match </span>result {
-            <span class="prelude-val">Ok</span>(v) =&gt; <span class="macro">assert!</span>(!v.is_empty()),
-            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="macro">unreachable!</span>(),
-        }
+        <span class="kw">let </span>result = recording::process_recording(payload, <span class="number">1000</span>);
+        <span class="macro">assert!</span>(!result.unwrap().is_empty());
     }
 
     <span class="attribute">#[test]
     </span><span class="kw">fn </span>test_process_recording_no_body_data() {
         <span class="comment">// Empty bodies can not be decompressed and fail.
-        </span><span class="kw">let </span>payload: [u8; <span class="number">17</span>] = [
+        </span><span class="kw">let </span>payload: <span class="kw-2">&amp;</span>[u8] = <span class="kw-2">&amp;</span>[
             <span class="number">123</span>, <span class="number">34</span>, <span class="number">115</span>, <span class="number">101</span>, <span class="number">103</span>, <span class="number">109</span>, <span class="number">101</span>, <span class="number">110</span>, <span class="number">116</span>, <span class="number">95</span>, <span class="number">105</span>, <span class="number">100</span>, <span class="number">34</span>, <span class="number">58</span>, <span class="number">51</span>, <span class="number">125</span>, <span class="number">10</span>,
         ];
 
-        <span class="kw">let </span>result = recording::process_recording(<span class="kw-2">&amp;</span>payload);
-        <span class="kw">match </span>result {
-            <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="macro">unreachable!</span>(),
-            <span class="prelude-val">Err</span>(e) =&gt; <span class="kw">match </span>e {
-                recording::RecordingParseError::Message(er) =&gt; {
-                    <span class="macro">assert_eq!</span>(er, <span class="string">&quot;no body found.&quot;</span>.to_string())
-                }
-                <span class="kw">_ </span>=&gt; <span class="macro">unreachable!</span>(),
-            },
-        }
+        <span class="kw">let </span>result = recording::process_recording(payload, <span class="number">1000</span>);
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            result.unwrap_err(),
+            recording::RecordingParseError::Message(<span class="string">&quot;no body found&quot;</span>),
+        ));
     }
 
     <span class="attribute">#[test]
     </span><span class="kw">fn </span>test_process_recording_bad_body_data() {
         <span class="comment">// Invalid gzip body contents.  Can not deflate.
-        </span><span class="kw">let </span>payload: [u8; <span class="number">18</span>] = [
+        </span><span class="kw">let </span>payload: <span class="kw-2">&amp;</span>[u8] = <span class="kw-2">&amp;</span>[
             <span class="number">123</span>, <span class="number">34</span>, <span class="number">115</span>, <span class="number">101</span>, <span class="number">103</span>, <span class="number">109</span>, <span class="number">101</span>, <span class="number">110</span>, <span class="number">116</span>, <span class="number">95</span>, <span class="number">105</span>, <span class="number">100</span>, <span class="number">34</span>, <span class="number">58</span>, <span class="number">51</span>, <span class="number">125</span>, <span class="number">10</span>, <span class="number">22</span>,
         ];
 
-        <span class="kw">let </span>result = recording::process_recording(<span class="kw-2">&amp;</span>payload);
-        <span class="kw">match </span>result {
-            <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="macro">unreachable!</span>(),
-            <span class="prelude-val">Err</span>(e) =&gt; <span class="kw">match </span>e {
-                recording::RecordingParseError::IoError(er) =&gt; {
-                    <span class="macro">assert_eq!</span>(er.to_string(), <span class="string">&quot;corrupt deflate stream&quot;</span>.to_string())
-                }
-                <span class="kw">_ </span>=&gt; <span class="macro">unreachable!</span>(),
-            },
-        }
+        <span class="kw">let </span>result = recording::process_recording(payload, <span class="number">1000</span>);
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            result.unwrap_err(),
+            recording::RecordingParseError::Compression(<span class="kw">_</span>),
+        ));
     }
 
     <span class="attribute">#[test]
     </span><span class="kw">fn </span>test_process_recording_no_headers() {
         <span class="comment">// No header delimiter.  Entire payload is consumed as headers.  The empty body fails.
-        </span><span class="kw">let </span>payload: [u8; <span class="number">16</span>] = [
+        </span><span class="kw">let </span>payload: <span class="kw-2">&amp;</span>[u8] = <span class="kw-2">&amp;</span>[
             <span class="number">123</span>, <span class="number">34</span>, <span class="number">115</span>, <span class="number">101</span>, <span class="number">103</span>, <span class="number">109</span>, <span class="number">101</span>, <span class="number">110</span>, <span class="number">116</span>, <span class="number">95</span>, <span class="number">105</span>, <span class="number">100</span>, <span class="number">34</span>, <span class="number">58</span>, <span class="number">51</span>, <span class="number">125</span>,
         ];
 
-        <span class="kw">let </span>result = recording::process_recording(<span class="kw-2">&amp;</span>payload);
-        <span class="kw">match </span>result {
-            <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="macro">unreachable!</span>(),
-            <span class="prelude-val">Err</span>(e) =&gt; <span class="kw">match </span>e {
-                recording::RecordingParseError::Message(er) =&gt; {
-                    <span class="macro">assert_eq!</span>(er, <span class="string">&quot;no body found.&quot;</span>.to_string())
-                }
-                <span class="kw">_ </span>=&gt; <span class="macro">unreachable!</span>(),
-            },
-        }
+        <span class="kw">let </span>result = recording::process_recording(payload, <span class="number">1000</span>);
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            result.unwrap_err(),
+            recording::RecordingParseError::Message(<span class="string">&quot;no body found&quot;</span>),
+        ));
     }
 
     <span class="attribute">#[test]
     </span><span class="kw">fn </span>test_process_recording_no_contents() {
         <span class="comment">// Empty payload can not be decompressed.  Header check never fails.
-        </span><span class="kw">let </span>payload: [u8; <span class="number">0</span>] = [];
+        </span><span class="kw">let </span>payload: <span class="kw-2">&amp;</span>[u8] = <span class="kw-2">&amp;</span>[];
 
-        <span class="kw">let </span>result = recording::process_recording(<span class="kw-2">&amp;</span>payload);
-        <span class="kw">match </span>result {
-            <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="macro">unreachable!</span>(),
-            <span class="prelude-val">Err</span>(e) =&gt; <span class="kw">match </span>e {
-                recording::RecordingParseError::Message(er) =&gt; {
-                    <span class="macro">assert_eq!</span>(er, <span class="string">&quot;no data found.&quot;</span>.to_string())
-                }
-                <span class="kw">_ </span>=&gt; <span class="macro">unreachable!</span>(),
-            },
-        }
+        <span class="kw">let </span>result = recording::process_recording(payload, <span class="number">1000</span>);
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            result.unwrap_err(),
+            recording::RecordingParseError::Message(<span class="string">&quot;no data found&quot;</span>),
+        ));
     }
 
     <span class="comment">// RRWeb Payload Coverage
@@ -1472,7 +1421,7 @@
                 <span class="kw">if let </span>recording::NodeVariant::T2(<span class="kw-2">mut </span>ee) = dd.node.variant {
                     <span class="kw">let </span>ff = ee.child_nodes.pop().unwrap();
                     <span class="kw">if let </span>recording::NodeVariant::Rest(gg) = ff.variant {
-                        <span class="macro">assert!</span>(gg.text_content.as_str() == <span class="string">&quot;[creditcard]&quot;</span>);
+                        <span class="macro">assert_eq!</span>(gg.text_content, <span class="string">&quot;[creditcard]&quot;</span>);
                         <span class="kw">return</span>;
                     }
                 }
@@ -1495,8 +1444,7 @@
                 <span class="kw">if let </span>recording::NodeVariant::T2(<span class="kw-2">mut </span>ee) = dd.node.variant {
                     <span class="kw">let </span>ff = ee.child_nodes.pop().unwrap();
                     <span class="kw">if let </span>recording::NodeVariant::Rest(gg) = ff.variant {
-                        <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, gg.text_content.as_str());
-                        <span class="macro">assert!</span>(gg.text_content.as_str() == <span class="string">&quot;[ip]&quot;</span>);
+                        <span class="macro">assert_eq!</span>(gg.text_content, <span class="string">&quot;[ip]&quot;</span>);
                         <span class="kw">return</span>;
                     }
                 }

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":[["RecordingParseError",""]],"fn":[["process_recording",""]]};
+window.SIDEBAR_ITEMS = {"enum":[["RecordingParseError",""]],"fn":[["process_recording","Parses compressed replay recording payloads and applies data scrubbers."]]};

@@ -2874,6 +2874,11 @@
 <span id="2872">2872</span>
 <span id="2873">2873</span>
 <span id="2874">2874</span>
+<span id="2875">2875</span>
+<span id="2876">2876</span>
+<span id="2877">2877</span>
+<span id="2878">2878</span>
+<span id="2879">2879</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
@@ -3897,8 +3902,13 @@
                 <span class="comment">// XXX: Temporarily, only the Sentry org will be allowed to parse replays while
                 // we measure the impact of this change.
                 </span><span class="kw">if </span>replays_enabled &amp;&amp; state.project_state.organization_id == <span class="prelude-val">Some</span>(<span class="number">1</span>) {
+                    <span class="comment">// Limit expansion of recordings to the envelope size. The payload is
+                    // decompressed temporarily and then immediately re-compressed. However, to
+                    // limit memory pressure, we use the envelope limit as a good overall limit for
+                    // allocations.
+                    </span><span class="kw">let </span>limit = <span class="self">self</span>.config.max_envelope_size();
                     <span class="kw">let </span>parsed_recording =
-                        relay_replays::recording::process_recording(<span class="kw-2">&amp;</span>item.payload());
+                        relay_replays::recording::process_recording(<span class="kw-2">&amp;</span>item.payload(), limit);
 
                     <span class="kw">match </span>parsed_recording {
                         <span class="prelude-val">Ok</span>(recording) =&gt; {
