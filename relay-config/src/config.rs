@@ -536,7 +536,7 @@ struct Limits {
     max_api_chunk_upload_size: ByteSize,
     /// The maximum payload size for a profile
     max_profile_size: ByteSize,
-    /// The maximum payload size for a replay
+    /// The maximum payload size for a replay.
     max_replay_size: ByteSize,
     /// The maximum number of threads to spawn for CPU and web work, each.
     ///
