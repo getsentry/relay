@@ -9,9 +9,9 @@
 - Dynamic sampling is now based on the volume received by Relay by default and does not include the original volume dropped by client-side sampling in SDKs. This is required for the final dynamic sampling feature in the latest Sentry plans. ([#1591](https://github.com/getsentry/relay/pull/1591))
 - Add OpenTelemetry Context ([#1617](https://github.com/getsentry/relay/pull/1617))
 - Add `app.in_foreground` and `thread.main` flag to protocol. ([#1578](https://github.com/getsentry/relay/pull/1578))
-- Add support for View Hierarchy attachment_type. ([#1642](https://github.com/getsentry/relay/pull/1642))
-- Add invalid replay recording outcome. ([#1684] (https://github.com/getsentry/relay/pull/1684))
-- Stop rejecting spans without a timestamp, instead giving them their respective event timestamp and setting their status to DeadlineExceeded. ([#1690] (https://github.com/getsentry/relay/pull/1690))
+- Add support for View Hierarchy attachment_type.([#1642](https://github.com/getsentry/relay/pull/1642))
+- Add invalid replay recording outcome. ([#1684](https://github.com/getsentry/relay/pull/1684))
+- Stop rejecting spans without a timestamp, instead giving them their respective event timestamp and setting their status to DeadlineExceeded. ([#1690](https://github.com/getsentry/relay/pull/1690))
 
 **Bug Fixes**:
 
