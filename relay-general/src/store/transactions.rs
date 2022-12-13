@@ -345,7 +345,6 @@ impl Processor for TransactionsProcessor {
 
 #[cfg(test)]
 mod tests {
-    use std::default;
 
     use chrono::offset::TimeZone;
     use chrono::Utc;
