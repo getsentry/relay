@@ -275,8 +275,6 @@ impl Processor for TransactionsProcessor {
             normalize_transaction_name(&mut event.transaction)?;
         }
 
-        validate_transaction(event)?;
-
         let spans = event.spans.value_mut().get_or_insert_with(|| Vec::new());
 
         for span in spans {
@@ -291,6 +289,8 @@ impl Processor for TransactionsProcessor {
                 ));
             }
         }
+
+        validate_transaction(event)?;
 
         set_default_transaction_source(event);
 
@@ -349,6 +349,8 @@ impl Processor for TransactionsProcessor {
 
 #[cfg(test)]
 mod tests {
+    use std::default;
+
     use chrono::offset::TimeZone;
     use chrono::Utc;
     use similar_asserts::assert_eq;
@@ -423,6 +425,63 @@ mod tests {
             Err(ProcessingAction::InvalidTransaction(
                 "timestamp hard-required for transaction events"
             ))
+        );
+    }
+
+    #[test]
+    fn test_replace_missing_timestamp() {
+        let span = Span {
+            start_timestamp: Annotated::new(Utc.ymd(1968, 1, 1).and_hms_nano(0, 0, 1, 0).into()),
+            trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+            span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+            ..Default::default()
+        };
+
+        let mut event = new_test_event().0.unwrap();
+        event.spans = Annotated::new(vec![Annotated::new(span)]);
+
+        TransactionsProcessor::default()
+            .process_event(
+                &mut event,
+                &mut Meta::default(),
+                &ProcessingState::default(),
+            )
+            .unwrap();
+
+        assert_eq!(
+            event.spans.value().unwrap()[0].value().unwrap().timestamp,
+            event.timestamp
+        );
+    }
+
+    #[test]
+    fn test_deadline_exceed_status_when_missing_timestamp() {
+        let span = Span {
+            start_timestamp: Annotated::new(Utc.ymd(1968, 1, 1).and_hms_nano(0, 0, 1, 0).into()),
+            trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+            span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+            ..Default::default()
+        };
+
+        let mut event = new_test_event().0.unwrap();
+        event.spans = Annotated::new(vec![Annotated::new(span)]);
+
+        TransactionsProcessor::default()
+            .process_event(
+                &mut event,
+                &mut Meta::default(),
+                &ProcessingState::default(),
+            )
+            .unwrap();
+
+        assert_eq!(
+            event.spans.value().unwrap()[0]
+                .value()
+                .unwrap()
+                .status
+                .value()
+                .unwrap(),
+            &SpanStatus::DeadlineExceeded
         );
     }
 
