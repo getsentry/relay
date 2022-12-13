@@ -447,27 +447,6 @@ mod tests {
             event.spans.value().unwrap()[0].value().unwrap().timestamp,
             event.timestamp
         );
-    }
-
-    #[test]
-    fn test_deadline_exceed_status_when_missing_timestamp() {
-        let span = Span {
-            start_timestamp: Annotated::new(Utc.ymd(1968, 1, 1).and_hms_nano(0, 0, 1, 0).into()),
-            trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
-            span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-            ..Default::default()
-        };
-
-        let mut event = new_test_event().0.unwrap();
-        event.spans = Annotated::new(vec![Annotated::new(span)]);
-
-        TransactionsProcessor::default()
-            .process_event(
-                &mut event,
-                &mut Meta::default(),
-                &ProcessingState::default(),
-            )
-            .unwrap();
 
         assert_eq!(
             event.spans.value().unwrap()[0]
