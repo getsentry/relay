@@ -4,7 +4,10 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
+extern crate core;
+
 use std::borrow::Cow;
+use std::cmp::max;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::{self, Display, Formatter};
 use std::net::IpAddr;
@@ -355,6 +358,76 @@ impl TimeRange {
     }
 }
 
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DecayingFunctionType {
+    // For now only a linear decay is supported.
+    LinearDecay,
+    None,
+}
+
+impl Default for DecayingFunctionType {
+    fn default() -> Self {
+        Self::None
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct DecayingFunctionContext {
+    time_range: TimeRange,
+    now: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct DecayingFunction {
+    #[serde(default)]
+    function: DecayingFunctionType,
+    // TODO: how to we enforce from > to?
+    from: f64,
+    to: f64,
+}
+
+impl DecayingFunction {
+    /// Get the decaying sample rate.
+    fn get_decaying_sample_rate(&self, context: DecayingFunctionContext) -> Option<f64> {
+        match self.function {
+            DecayingFunctionType::LinearDecay => self.call_linear_decay(context),
+            DecayingFunctionType::None => None,
+        }
+    }
+
+    /// Computes the linear decay function.
+    ///
+    /// The linear decay works in the following way:
+    /// start = 100
+    /// end = 200
+    /// from = 0.7 (70% sample rate)
+    /// to = 0.5 (50% sample rate)
+    /// (from - to) = 0.2 (20% sample rate)
+    ///
+    /// If we have now = 170 it means we are at the 70% progress of the timerange, which means we
+    /// want to inversely reduce the sample rate in the interval (from - to). Thus, in the 70% case,
+    /// we would take only 30% of the (from - to) which is equal to 0.06.
+    fn call_linear_decay(&self, context: DecayingFunctionContext) -> Option<f64> {
+        if let (Some(start), Some(end)) = (context.time_range.start, context.time_range.end) {
+            let now_timestamp = context.now.timestamp();
+            let start_timestamp = start.timestamp();
+            let end_timestamp = end.timestamp();
+
+            if end_timestamp <= start_timestamp || now_timestamp < start_timestamp {
+                return None;
+            }
+
+            let progress = (now_timestamp - start_timestamp) / (end_timestamp - start_timestamp);
+            let sample_rate_interval = self.from - self.to;
+
+            return Some(sample_rate_interval * (max(0, 1 - progress) as f64));
+        }
+
+        None
+    }
+}
+
 /// A sampling rule as it is deserialized from the project configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -370,6 +443,8 @@ pub struct SamplingRule {
     /// closed on at least one end, the rule is considered a decaying rule.
     #[serde(default, skip_serializing_if = "TimeRange::is_empty")]
     pub time_range: TimeRange,
+    #[serde(default)]
+    pub decaying_function: DecayingFunction,
 }
 
 impl SamplingRule {
@@ -383,6 +458,17 @@ impl SamplingRule {
     /// neither idle nor expired.
     fn is_active(&self) -> bool {
         self.time_range.contains(Utc::now())
+    }
+
+    /// Returns the sample rate of this specific sampling rule based on the existence of the
+    /// decaying function.
+    pub fn get_sample_rate(&self, now: DateTime<Utc>) -> f64 {
+        self.decaying_function
+            .get_decaying_sample_rate(DecayingFunctionContext {
+                time_range: self.time_range,
+                now,
+            })
+            .map_or(self.sample_rate, |sample_rate| sample_rate)
     }
 }
 
@@ -2043,6 +2129,7 @@ mod tests {
                     ty: RuleType::Trace,
                     id: RuleId(1),
                     time_range: Default::default(),
+                    decaying_function: Default::default(),
                 },
                 // no user segments
                 SamplingRule {
@@ -2054,6 +2141,7 @@ mod tests {
                     ty: RuleType::Trace,
                     id: RuleId(2),
                     time_range: Default::default(),
+                    decaying_function: Default::default(),
                 },
                 // no releases
                 SamplingRule {
@@ -2065,6 +2153,7 @@ mod tests {
                     ty: RuleType::Trace,
                     id: RuleId(3),
                     time_range: Default::default(),
+                    decaying_function: Default::default(),
                 },
                 // no environments
                 SamplingRule {
@@ -2076,6 +2165,7 @@ mod tests {
                     ty: RuleType::Trace,
                     id: RuleId(4),
                     time_range: Default::default(),
+                    decaying_function: Default::default(),
                 },
                 // no user segments releases or environments
                 SamplingRule {
@@ -2084,6 +2174,7 @@ mod tests {
                     ty: RuleType::Trace,
                     id: RuleId(5),
                     time_range: Default::default(),
+                    decaying_function: Default::default(),
                 },
             ],
             mode: SamplingMode::Received,
@@ -2263,6 +2354,7 @@ mod tests {
                         start: Some(Utc.ymd(1970, 10, 10).and_hms(0, 0, 0)),
                         end: Some(Utc.ymd(1970, 10, 30).and_hms(0, 0, 0)),
                     },
+                    decaying_function: Default::default(),
                 },
                 // Idle
                 SamplingRule {
@@ -2274,6 +2366,7 @@ mod tests {
                         start: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
                         end: Some(Utc.ymd(3000, 10, 15).and_hms(0, 0, 0)),
                     },
+                    decaying_function: Default::default(),
                 },
                 // Start after finishing
                 SamplingRule {
@@ -2285,6 +2378,7 @@ mod tests {
                         start: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
                         end: Some(Utc.ymd(1970, 10, 30).and_hms(0, 0, 0)),
                     },
+                    decaying_function: Default::default(),
                 },
                 // Rule is ok
                 SamplingRule {
@@ -2296,6 +2390,7 @@ mod tests {
                         start: Some(Utc.ymd(1970, 10, 30).and_hms(0, 0, 0)),
                         end: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
                     },
+                    decaying_function: Default::default(),
                 },
                 // Fallback to non-decaying rule
                 SamplingRule {
@@ -2305,6 +2400,7 @@ mod tests {
                     ty: *rule_type,
                     id: RuleId(5),
                     time_range: Default::default(),
+                    decaying_function: Default::default(),
                 },
             ],
             mode: SamplingMode::Received,
@@ -2379,6 +2475,7 @@ mod tests {
                     ty: RuleType::Trace,
                     id: RuleId(1),
                     time_range: range,
+                    decaying_function: Default::default(),
                 }],
                 mode: SamplingMode::Received,
                 next_id: None,
@@ -2396,6 +2493,7 @@ mod tests {
                     ty: RuleType::Transaction,
                     id: RuleId(1),
                     time_range: range,
+                    decaying_function: Default::default(),
                 }],
                 mode: SamplingMode::Received,
                 next_id: None,

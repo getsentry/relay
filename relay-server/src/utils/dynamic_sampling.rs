@@ -1,5 +1,6 @@
 //! Functionality for calculating if a trace should be processed or dropped.
 //!
+use chrono::Utc;
 use std::net::IpAddr;
 
 use relay_common::{ProjectKey, Uuid};
@@ -67,9 +68,10 @@ fn get_trace_sampling_rule(
     check_unsupported_rules(processing_enabled, sampling_config)?;
 
     let rule = or_ok_none!(sampling_config.get_matching_trace_rule(dsc, ip_addr));
+    let now = Utc::now();
     let sample_rate = match sampling_config.mode {
-        SamplingMode::Received => rule.sample_rate,
-        SamplingMode::Total => dsc.adjusted_sample_rate(rule.sample_rate),
+        SamplingMode::Received => rule.get_sample_rate(now),
+        SamplingMode::Total => dsc.adjusted_sample_rate(rule.get_sample_rate(now)),
         SamplingMode::Unsupported => {
             if processing_enabled {
                 relay_log::error!("Found unsupported sampling mode even as processing Relay, keep");
@@ -99,9 +101,10 @@ fn get_event_sampling_rule(
     check_unsupported_rules(processing_enabled, sampling_config)?;
 
     let rule = or_ok_none!(sampling_config.get_matching_event_rule(event, ip_addr));
+    let now = Utc::now();
     let sample_rate = match (dsc, sampling_config.mode) {
-        (Some(dsc), SamplingMode::Total) => dsc.adjusted_sample_rate(rule.sample_rate),
-        _ => rule.sample_rate,
+        (Some(dsc), SamplingMode::Total) => dsc.adjusted_sample_rate(rule.get_sample_rate(now)),
+        _ => rule.get_sample_rate(now),
     };
 
     Ok(Some(SamplingSpec {
