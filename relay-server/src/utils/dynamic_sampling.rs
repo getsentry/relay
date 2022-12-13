@@ -169,11 +169,17 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
+    use chrono::DateTime;
 
+    use chrono::Duration as DateDuration;
     use relay_common::EventType;
+    use relay_common::MetricUnit::Duration;
     use relay_general::protocol::EventId;
     use relay_general::types::Annotated;
-    use relay_sampling::{RuleCondition, RuleId, RuleType, SamplingConfig, SamplingRule};
+    use relay_sampling::{
+        DecayingFunction, DecayingFunctionType, RuleCondition, RuleId, RuleType, SamplingConfig,
+        SamplingRule, TimeRange,
+    };
 
     use crate::envelope::Item;
 
@@ -190,13 +196,40 @@ mod tests {
         rule_type: RuleType,
         mode: SamplingMode,
     ) -> ProjectState {
+        return state_with_decaying_rule(
+            sample_rate,
+            rule_type,
+            mode,
+            DecayingFunctionType::None,
+            None,
+            None,
+            None,
+            None,
+        );
+    }
+
+    fn state_with_decaying_rule(
+        sample_rate: Option<f64>,
+        rule_type: RuleType,
+        mode: SamplingMode,
+        function: DecayingFunctionType,
+        start: Option<DateTime<Utc>>,
+        end: Option<DateTime<Utc>>,
+        from: Option<f64>,
+        to: Option<f64>,
+    ) -> ProjectState {
         let rules = match sample_rate {
             Some(sample_rate) => vec![SamplingRule {
                 condition: RuleCondition::all(),
                 sample_rate,
                 ty: rule_type,
                 id: RuleId(1),
-                time_range: Default::default(),
+                time_range: TimeRange { start, end },
+                decaying_function: DecayingFunction {
+                    function,
+                    from: from.unwrap_or(1.0),
+                    to: to.unwrap_or(sample_rate),
+                },
             }],
             None => Vec::new(),
         };
@@ -487,5 +520,36 @@ mod tests {
         );
 
         assert_eq!(spec.unwrap().unwrap().sample_rate, 0.2);
+    }
+
+    #[test]
+    fn test_event_function() {
+        // TODO: rewrite test with proper freezing.
+        let project_state = state_with_decaying_rule(
+            Some(0.1),
+            RuleType::Transaction,
+            SamplingMode::Total,
+            DecayingFunctionType::LinearDecay,
+            Some(Utc::now()),
+            Some(Utc::now() + DateDuration::days(1)),
+            Some(0.7),
+            Some(0.2),
+        );
+        let sampling_context = create_sampling_context(Some(1.0));
+        let event = Event {
+            id: Annotated::new(EventId::new()),
+            ty: Annotated::new(EventType::Transaction),
+            ..Event::default()
+        };
+
+        let spec = get_event_sampling_rule(
+            true, // irrelevant, just skips unsupported rules
+            &project_state,
+            Some(&sampling_context),
+            Some(&event),
+            None, // ip address not needed for uniform rule
+        );
+
+        assert_eq!(spec.unwrap().unwrap().sample_rate, 0.7);
     }
 }

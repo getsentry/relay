@@ -7,7 +7,6 @@
 extern crate core;
 
 use std::borrow::Cow;
-use std::cmp::max;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::{self, Display, Formatter};
 use std::net::IpAddr;
@@ -335,8 +334,8 @@ impl Display for RuleId {
 /// in such cases.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct TimeRange {
-    start: Option<DateTime<Utc>>,
-    end: Option<DateTime<Utc>>,
+    pub start: Option<DateTime<Utc>>,
+    pub end: Option<DateTime<Utc>>,
 }
 
 impl TimeRange {
@@ -380,11 +379,10 @@ struct DecayingFunctionContext {
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct DecayingFunction {
-    #[serde(default)]
-    function: DecayingFunctionType,
+    pub function: DecayingFunctionType,
     // TODO: how to we enforce from > to?
-    from: f64,
-    to: f64,
+    pub from: f64,
+    pub to: f64,
 }
 
 impl DecayingFunction {
@@ -418,10 +416,12 @@ impl DecayingFunction {
                 return None;
             }
 
-            let progress = (now_timestamp - start_timestamp) / (end_timestamp - start_timestamp);
             let sample_rate_interval = self.from - self.to;
+            let progress =
+                ((now_timestamp - start_timestamp) / (end_timestamp - start_timestamp)) as f64;
+            let inverse_progress = (1.0 - progress).clamp(0.0, 1.0);
 
-            return Some(sample_rate_interval * (max(0, 1 - progress) as f64));
+            return Some(self.to + (sample_rate_interval * inverse_progress));
         }
 
         None
@@ -468,7 +468,7 @@ impl SamplingRule {
                 time_range: self.time_range,
                 now,
             })
-            .map_or(self.sample_rate, |sample_rate| sample_rate)
+            .unwrap_or(self.sample_rate)
     }
 }
 
@@ -2354,7 +2354,11 @@ mod tests {
                         start: Some(Utc.ymd(1970, 10, 10).and_hms(0, 0, 0)),
                         end: Some(Utc.ymd(1970, 10, 30).and_hms(0, 0, 0)),
                     },
-                    decaying_function: Default::default(),
+                    decaying_function: DecayingFunction {
+                        function: DecayingFunctionType::LinearDecay,
+                        from: 0.7,
+                        to: 0.2,
+                    },
                 },
                 // Idle
                 SamplingRule {
@@ -2366,7 +2370,11 @@ mod tests {
                         start: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
                         end: Some(Utc.ymd(3000, 10, 15).and_hms(0, 0, 0)),
                     },
-                    decaying_function: Default::default(),
+                    decaying_function: DecayingFunction {
+                        function: DecayingFunctionType::LinearDecay,
+                        from: 0.7,
+                        to: 0.2,
+                    },
                 },
                 // Start after finishing
                 SamplingRule {
@@ -2378,7 +2386,11 @@ mod tests {
                         start: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
                         end: Some(Utc.ymd(1970, 10, 30).and_hms(0, 0, 0)),
                     },
-                    decaying_function: Default::default(),
+                    decaying_function: DecayingFunction {
+                        function: DecayingFunctionType::LinearDecay,
+                        from: 0.7,
+                        to: 0.2,
+                    },
                 },
                 // Rule is ok
                 SamplingRule {
@@ -2390,7 +2402,11 @@ mod tests {
                         start: Some(Utc.ymd(1970, 10, 30).and_hms(0, 0, 0)),
                         end: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
                     },
-                    decaying_function: Default::default(),
+                    decaying_function: DecayingFunction {
+                        function: DecayingFunctionType::LinearDecay,
+                        from: 0.7,
+                        to: 0.2,
+                    },
                 },
                 // Fallback to non-decaying rule
                 SamplingRule {
