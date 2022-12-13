@@ -66,11 +66,7 @@ pub fn validate_timestamps(
     }
 }
 
-pub fn validate_transaction(event: &mut Event) -> ProcessingResult {
-    if event.ty.value() != Some(&EventType::Transaction) {
-        return Ok(());
-    }
-
+fn validate_transaction(event: &mut Event) -> ProcessingResult {
     validate_timestamps(event)?;
 
     let err_trace_context_required = Err(ProcessingAction::InvalidTransaction(
