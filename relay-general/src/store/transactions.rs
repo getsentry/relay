@@ -814,45 +814,6 @@ mod tests {
     }
 
     #[test]
-    fn test_discards_transaction_event_with_span_with_missing_timestamp() {
-        let mut event = Annotated::new(Event {
-            ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
-            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
-            contexts: Annotated::new(Contexts({
-                let mut contexts = Object::new();
-                contexts.insert(
-                    "trace".to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
-                        trace_id: Annotated::new(TraceId(
-                            "4c79f60c11214eb38604f4ae0781bfb2".into(),
-                        )),
-                        span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                        op: Annotated::new("http.server".to_owned()),
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
-            spans: Annotated::new(vec![Annotated::new(Span {
-                ..Default::default()
-            })]),
-            ..Default::default()
-        });
-
-        assert_eq!(
-            process_value(
-                &mut event,
-                &mut TransactionsProcessor::default(),
-                ProcessingState::root()
-            ),
-            Err(ProcessingAction::InvalidTransaction(
-                "span is missing timestamp"
-            ))
-        );
-    }
-
-    #[test]
     fn test_discards_transaction_event_with_span_with_missing_start_timestamp() {
         let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
