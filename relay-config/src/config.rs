@@ -536,7 +536,7 @@ struct Limits {
     max_api_chunk_upload_size: ByteSize,
     /// The maximum payload size for a profile
     max_profile_size: ByteSize,
-    /// The maximum payload size for a replay
+    /// The maximum payload size for a replay.
     max_replay_size: ByteSize,
     /// The maximum number of threads to spawn for CPU and web work, each.
     ///
@@ -1717,7 +1717,7 @@ impl Config {
         self.values.limits.max_profile_size.as_bytes()
     }
 
-    /// Returns the maximum payload size for a replay
+    /// Returns the maximum payload size for a replay.
     pub fn max_replay_size(&self) -> usize {
         self.values.limits.max_replay_size.as_bytes()
     }
