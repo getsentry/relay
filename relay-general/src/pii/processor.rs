@@ -170,6 +170,9 @@ impl<'a> Processor for PiiProcessor<'a> {
     //     _meta: &mut Meta,
     //     state: &ProcessingState<'_>,
     // ) -> ProcessingResult {
+    //     if let Some(user) = replay.user.value_mut() {
+    //         self.process_user(user, _meta, state)?;
+    //     }
     //     Ok(())
     // }
 }
