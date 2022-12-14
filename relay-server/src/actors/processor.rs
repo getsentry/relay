@@ -40,7 +40,7 @@ use relay_system::{Addr, FromMessage, NoResponse, Service};
 
 use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::project::{Feature, ProjectState};
+use crate::actors::project::{Feature, ProjectConfig, ProjectState};
 use crate::actors::project_cache::ProjectCache;
 use crate::actors::upstream::{SendRequest, UpstreamRelay};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
@@ -1097,16 +1097,38 @@ impl EnvelopeProcessorService {
                 match result {
                     Ok(mut replay) => {
                         if let Some(replay_value) = replay.value_mut() {
+                            // Create the contexts object and specify a user ip-address if one
+                            // was not provided.
                             replay_value.normalize(client_addr, user_agent);
-                            item.set_payload(
-                                ContentType::Json,
-                                replay.to_json().unwrap().as_bytes(),
-                            );
-                        };
+
+                            // Scrub PII from configuration, possibly including the ip-address
+                            // we just added above.
+                            let scrub_result =
+                                self.scrub_replay(&mut replay, &state.project_state.config);
+
+                            match scrub_result {
+                                Ok(_) => {
+                                    item.set_payload(
+                                        ContentType::Json,
+                                        replay.to_json().unwrap().as_bytes(),
+                                    );
+                                    true
+                                }
+                                Err(e) => {
+                                    relay_log::warn!("Replay-event PII scrub failure: {}", e);
+                                    false
+                                }
+                            }
+                        } else {
+                            relay_log::warn!("Replay-event was deserialized but no data found.");
+                            false
+                        }
                     }
-                    Err(_) => return false,
+                    Err(e) => {
+                        relay_log::warn!("Replay-event could not be deserialized {}", e);
+                        false
+                    }
                 }
-                replays_enabled
             }
             ItemType::ReplayRecording => {
                 // XXX: Temporarily, only the Sentry org will be allowed to parse replays while
@@ -1869,6 +1891,32 @@ impl EnvelopeProcessorService {
                     .map_err(ProcessingError::ProcessingFailed)?;
             }
         });
+
+        Ok(())
+    }
+
+    /// Apply data privacy rules to the replay payload.
+    ///
+    /// This uses both the general `datascrubbing_settings`, as well as the the PII rules.
+    fn scrub_replay(
+        &self,
+        replay: &mut Annotated<Replay>,
+        config: &ProjectConfig,
+    ) -> Result<(), ProcessingError> {
+        if let Some(ref config) = config.pii_config {
+            let mut processor = PiiProcessor::new(config.compiled());
+            process_value(replay, &mut processor, ProcessingState::root())
+                .map_err(ProcessingError::ProcessingFailed)?;
+        }
+        let pii_config = config
+            .datascrubbing_settings
+            .pii_config()
+            .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
+        if let Some(config) = pii_config {
+            let mut processor = PiiProcessor::new(config.compiled());
+            process_value(replay, &mut processor, ProcessingState::root())
+                .map_err(ProcessingError::ProcessingFailed)?;
+        }
 
         Ok(())
     }

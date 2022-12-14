@@ -184,13 +184,14 @@ impl Replay {
 }
 
 mod test {
+    use crate::pii::{DataScrubbingConfig, PiiProcessor};
+    use crate::processor::process_value;
+    use crate::processor::{FieldAttrs, Pii, ProcessingState, Processor, ValueType};
     use crate::protocol::{
         BrowserContext, Context, ContextInner, Contexts, DeviceContext, OsContext, Replay,
         TagEntry, Tags,
     };
-    use crate::types::ErrorKind;
-    use crate::types::{Annotated, Object};
-    use crate::types::{Map, Meta};
+    use crate::types::{Annotated, ErrorKind, Map, Meta, Object, ProcessingAction};
     use chrono::{TimeZone, Utc};
     use std::net::{IpAddr, Ipv4Addr};
 
@@ -370,5 +371,31 @@ mod test {
         assert!(user.username.value_mut().is_none());
         assert!(user.email.value_mut().as_mut().unwrap().as_str() == "email@sentry.io");
         assert!(user.id.value_mut().as_mut().unwrap().as_str() == "1");
+    }
+
+    #[test]
+    fn test_scrub_pii_from_annotated_replay() {
+        let mut scrub_config = DataScrubbingConfig::default();
+        scrub_config.scrub_data = true;
+        scrub_config.scrub_defaults = true;
+        scrub_config.scrub_ip_addresses = true;
+
+        let pii_config = scrub_config.pii_config().unwrap().as_ref().unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+
+        let payload = include_str!("../../tests/fixtures/replays/replay.json");
+        let mut replay: Annotated<Replay> = Annotated::from_json(payload).unwrap();
+        process_value(&mut replay, &mut pii_processor, ProcessingState::root()).unwrap();
+
+        let maybe_ip_address = replay
+            .value()
+            .unwrap()
+            .user
+            .value()
+            .unwrap()
+            .ip_address
+            .value();
+
+        assert!(maybe_ip_address.is_none());
     }
 }
