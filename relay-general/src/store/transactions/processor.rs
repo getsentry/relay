@@ -40,17 +40,20 @@ impl<'r> TransactionsProcessor<'r> {
     ) -> ProcessingResult {
         let now = Utc::now();
         transaction.apply(|transaction, meta| {
+            let tran = format!("{}/", transaction.as_str());
             let rule = self.tx_name_rules.iter().find(|rule| {
                 &rule.scope.source == source
                     && rule.expiry > now
                     // Adding `/` at the end of the name, ensures that rules like /<something>/*/**
                     // will always match the string.
-                    && rule.pattern.is_match(&format!("{}/", transaction.as_str()))
+                    && rule.pattern.is_match(&tran)
             });
 
             if let Some(rule) = rule {
                 // Apply only if supported redaction rule is provided.
-                if let Some(result) = rule.apply(transaction) {
+                if let Some(mut result) = rule.apply(&tran) {
+                    // Remove the `/` at the end of the line we added for the check.
+                    let _ = result.pop();
                     if &result != transaction {
                         meta.set_original_value(Some(transaction.to_owned()));
                         // add also the rule which was applied to the transaction name
@@ -1483,7 +1486,7 @@ mod tests {
         let json = r#"
         {
             "type": "transaction",
-            "transaction": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0",
+            "transaction": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0/",
             "transaction_info": {
               "source": "url"
             },
@@ -1536,7 +1539,7 @@ mod tests {
         assert_annotated_snapshot!(event, @r###"
          {
            "type": "transaction",
-           "transaction": "/foo/*/user/*/0",
+           "transaction": "/foo/*/user/*/0/",
            "transaction_info": {
              "source": "sanitized"
            },
@@ -1567,7 +1570,7 @@ mod tests {
                      "s"
                    ]
                  ],
-                 "val": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0"
+                 "val": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0/"
                }
              }
            }
@@ -1589,7 +1592,7 @@ mod tests {
         assert_annotated_snapshot!(event, @r###"
          {
            "type": "transaction",
-           "transaction": "/foo/*/user/123/0",
+           "transaction": "/foo/*/user/123/0/",
            "transaction_info": {
              "source": "sanitized"
            },
@@ -1620,7 +1623,7 @@ mod tests {
                      "s"
                    ]
                  ],
-                 "val": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0"
+                 "val": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0/"
                }
              }
            }
