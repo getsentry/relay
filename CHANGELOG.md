@@ -26,7 +26,7 @@
 - Parse string as number to handle a release bug. ([#1637](https://github.com/getsentry/relay/pull/1637))
 - Expand Profiling's discard reasons. ([#1661](https://github.com/getsentry/relay/pull/1661), [#1685](https://github.com/getsentry/relay/pull/1685))
 - Allow to rate limit profiles on top of transactions. ([#1681](https://github.com/getsentry/relay/pull/1681))
-- Support transaction naming rules. The rules will be currently applied to transactions where the transaction source set to `url`.
+- Support transaction naming rules. The rules will be currently applied to transactions where the transaction source set to `url`. ([#1695](https://github.com/getsentry/relay/pull/1695))
 
 ## 22.11.0
 
