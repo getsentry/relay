@@ -163,8 +163,7 @@ impl<'a> Processor for PiiProcessor<'a> {
         Ok(())
     }
 
-    // Replay PII processor entry point.  Can be used if the default scrubbing behavior is not
-    // sufficient.
+    // Replay PII processor entry point.
     // fn process_replay(
     //     &mut self,
     //     replay: &mut Replay,
