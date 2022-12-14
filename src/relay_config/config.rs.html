@@ -1894,6 +1894,14 @@
 <span id="1892">1892</span>
 <span id="1893">1893</span>
 <span id="1894">1894</span>
+<span id="1895">1895</span>
+<span id="1896">1896</span>
+<span id="1897">1897</span>
+<span id="1898">1898</span>
+<span id="1899">1899</span>
+<span id="1900">1900</span>
+<span id="1901">1901</span>
+<span id="1902">1902</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::convert::TryInto;
 <span class="kw">use </span>std::env;
@@ -2432,6 +2440,8 @@
     </span>max_api_chunk_upload_size: ByteSize,
     <span class="doccomment">/// The maximum payload size for a profile
     </span>max_profile_size: ByteSize,
+    <span class="doccomment">/// The maximum payload size for a replay.
+    </span>max_replay_size: ByteSize,
     <span class="doccomment">/// The maximum number of threads to spawn for CPU and web work, each.
     ///
     /// The total number of threads spawned will roughly be `2 * max_thread_count + 1`. Defaults to
@@ -2467,6 +2477,7 @@
             max_api_file_upload_size: ByteSize::mebibytes(<span class="number">40</span>),
             max_api_chunk_upload_size: ByteSize::mebibytes(<span class="number">100</span>),
             max_profile_size: ByteSize::mebibytes(<span class="number">50</span>),
+            max_replay_size: ByteSize::mebibytes(<span class="number">100</span>),
             max_thread_count: num_cpus::get(),
             query_timeout: <span class="number">30</span>,
             max_connection_rate: <span class="number">256</span>,
@@ -3608,6 +3619,11 @@
     <span class="doccomment">/// Returns the maximum payload size for a profile
     </span><span class="kw">pub fn </span>max_profile_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
         <span class="self">self</span>.values.limits.max_profile_size.as_bytes()
+    }
+
+    <span class="doccomment">/// Returns the maximum payload size for a replay.
+    </span><span class="kw">pub fn </span>max_replay_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.values.limits.max_replay_size.as_bytes()
     }
 
     <span class="doccomment">/// Returns the maximum number of active requests
