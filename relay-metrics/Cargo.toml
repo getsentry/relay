@@ -4,14 +4,12 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Metrics protocol and processing"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "22.10.0"
+version = "22.11.0"
 edition = "2021"
 license-file = "../LICENSE"
 publish = false
 
 [dependencies]
-actix = "0.7.9"
-failure = "0.1.8"
 float-ord = "0.3.1"
 fnv = "1.0.7"
 hash32 = "0.1.1"
@@ -21,13 +19,15 @@ relay-statsd = { path = "../relay-statsd" }
 relay-system = { path = "../relay-system" }
 serde = { version = "1.0.114", features = ["derive"] }
 serde_json = "1.0.55"
+thiserror = "1.0.20"
 tokio = { version = "1.0", features = ["macros", "time"] }
 
 [dev-dependencies]
 criterion = "0.3"
-futures01 = { version = "0.1.28", package = "futures" }
 insta = "1.19.0"
+relay-statsd = { path = "../relay-statsd", features = ["test"] }
 relay-test = { path = "../relay-test" }
+tokio = { version = "1.0", features = ["test-util"] }
 
 [[bench]]
 name = "aggregator"

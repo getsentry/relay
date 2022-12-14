@@ -1,23 +1,27 @@
-use failure::Fail;
+use thiserror::Error;
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum ProfileError {
-    #[fail(display = "invalid json in profile")]
-    InvalidJson(#[cause] serde_json::Error),
-    #[fail(display = "invalid base64 value")]
+    #[error(transparent)]
+    InvalidJson(#[from] serde_json::Error),
+    #[error("invalid base64 value")]
     InvalidBase64Value,
-    #[fail(display = "invalid sampled profile")]
+    #[error("invalid sampled profile")]
     InvalidSampledProfile,
-    #[fail(display = "cannot serialize payload")]
+    #[error("cannot serialize payload")]
     CannotSerializePayload,
-    #[fail(display = "not enough samples")]
+    #[error("not enough samples")]
     NotEnoughSamples,
-    #[fail(display = "platform not supported")]
+    #[error("platform not supported")]
     PlatformNotSupported,
-    #[fail(display = "no transaction associated")]
+    #[error("no transaction associated")]
     NoTransactionAssociated,
-    #[fail(display = "invalid transaction metadata")]
+    #[error("invalid transaction metadata")]
     InvalidTransactionMetadata,
-    #[fail(display = "missing profile metadata")]
+    #[error("missing profile metadata")]
     MissingProfileMetadata,
+    #[error("malformed stacks")]
+    MalformedStacks,
+    #[error("malformed samples")]
+    MalformedSamples,
 }

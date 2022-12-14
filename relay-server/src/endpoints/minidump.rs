@@ -92,7 +92,7 @@ fn get_embedded_minidump(
 fn extract_envelope(
     request: &HttpRequest<ServiceState>,
     meta: RequestMeta,
-) -> ResponseFuture<Envelope, BadStoreRequest> {
+) -> ResponseFuture<Box<Envelope>, BadStoreRequest> {
     let max_single_size = request.state().config().max_attachment_size();
     let max_multipart_size = request.state().config().max_attachments_size();
 
@@ -126,7 +126,7 @@ fn extract_envelope(
         .and_then(move |mut items| {
             let minidump_index = items
                 .iter()
-                .position(|item| item.attachment_type() == Some(AttachmentType::Minidump));
+                .position(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
 
             let mut minidump_item = match minidump_index {
                 Some(index) => items.swap_remove(index),

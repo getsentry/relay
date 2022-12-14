@@ -13,12 +13,12 @@ use crate::service::{ServiceApp, ServiceState};
 fn extract_envelope(
     request: &HttpRequest<ServiceState>,
     meta: RequestMeta,
-) -> ResponseFuture<Envelope, BadStoreRequest> {
+) -> ResponseFuture<Box<Envelope>, BadStoreRequest> {
     let user_id = request.query().get("UserID").cloned();
     let max_payload_size = request.state().config().max_attachments_size();
 
     let future = RequestBody::new(request, max_payload_size)
-        .map_err(BadStoreRequest::PayloadError)
+        .map_err(BadStoreRequest::from)
         .and_then(move |data| {
             if data.is_empty() {
                 return Err(BadStoreRequest::EmptyBody);

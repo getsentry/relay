@@ -663,6 +663,7 @@ pub struct LightNormalizationConfig<'a> {
     pub measurements_config: Option<&'a MeasurementsConfig>,
     pub breakdowns_config: Option<&'a BreakdownsConfig>,
     pub normalize_user_agent: Option<bool>,
+    pub normalize_transaction_name: bool,
     pub is_renormalize: bool,
 }
 
@@ -679,7 +680,9 @@ pub fn light_normalize_event(
         // (internally noops for non-transaction events).
         // TODO: Parts of this processor should probably be a filter so we
         // can revert some changes to ProcessingAction
-        transactions::TransactionsProcessor.process_event(event, meta, ProcessingState::root())?;
+        let mut transactions_processor =
+            transactions::TransactionsProcessor::new(config.normalize_transaction_name);
+        transactions_processor.process_event(event, meta, ProcessingState::root())?;
 
         // Check for required and non-empty values
         schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())?;

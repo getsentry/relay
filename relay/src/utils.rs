@@ -1,11 +1,10 @@
 use std::fmt::Display;
 use std::str::FromStr;
 
+use anyhow::Result;
 use console::Style;
-use dialoguer::Input;
-use failure::Error;
-
 use dialoguer::theme::{ColorfulTheme, Theme};
+use dialoguer::Input;
 use once_cell::sync::Lazy;
 
 static THEME: Lazy<ColorfulTheme> = Lazy::new(|| ColorfulTheme {
@@ -22,7 +21,7 @@ pub fn get_theme() -> &'static dyn Theme {
 }
 
 /// Prompts for a value that has a default.
-pub fn prompt_value<V: FromStr + Display>(name: &str, v: &mut V) -> Result<(), Error>
+pub fn prompt_value<V: FromStr + Display>(name: &str, v: &mut V) -> Result<()>
 where
     <V as FromStr>::Err: Display,
 {
@@ -45,7 +44,7 @@ where
 }
 
 /// Prompts for a value without a default.
-pub fn prompt_value_no_default<V: FromStr + Display>(name: &str) -> Result<V, Error>
+pub fn prompt_value_no_default<V: FromStr + Display>(name: &str) -> Result<V>
 where
     <V as FromStr>::Err: Display,
 {

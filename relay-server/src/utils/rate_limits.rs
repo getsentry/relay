@@ -539,6 +539,11 @@ where
             return false;
         }
 
+        // Remove profiles even if the transaction is not rate limited
+        if enforcement.profiles.is_active() && item.ty() == &ItemType::Profile {
+            return false;
+        }
+
         true
     }
 }

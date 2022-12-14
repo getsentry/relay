@@ -3,7 +3,6 @@ import os
 import queue
 from time import sleep
 import uuid
-import six
 import socket
 import threading
 import pytest
@@ -408,7 +407,7 @@ def test_processing_quotas(
         {
             "id": f"test_rate_limiting_{uuid.uuid4().hex}",
             "scope": "key",
-            "scopeId": six.text_type(key_id),
+            "scopeId": str(key_id),
             "categories": [category],
             "limit": 5,
             "window": window,
@@ -512,7 +511,7 @@ def test_rate_limit_metrics_buckets(
         {
             "id": f"test_rate_limiting_{uuid.uuid4().hex}",
             "scope": "key",
-            "scopeId": six.text_type(key_id),
+            "scopeId": str(key_id),
             "categories": ["transaction"],
             "limit": 5,
             "window": 86400,
@@ -649,12 +648,18 @@ def test_rate_limit_metrics_buckets(
     ]
 
     outcomes_consumer.assert_rate_limited(
-        reason_code, key_id=key_id, categories=["transaction"], quantity=3,
+        reason_code,
+        key_id=key_id,
+        categories=["transaction"],
+        quantity=3,
     )
 
 
 def test_processing_quota_transaction_indexing(
-    mini_sentry, relay_with_processing, metrics_consumer, transactions_consumer,
+    mini_sentry,
+    relay_with_processing,
+    metrics_consumer,
+    transactions_consumer,
 ):
     relay = relay_with_processing(
         {
@@ -677,7 +682,7 @@ def test_processing_quota_transaction_indexing(
         {
             "id": f"test_rate_limiting_{uuid.uuid4().hex}",
             "scope": "key",
-            "scopeId": six.text_type(key_id),
+            "scopeId": str(key_id),
             "categories": ["transaction_indexed"],
             "limit": 1,
             "window": 86400,
@@ -686,7 +691,7 @@ def test_processing_quota_transaction_indexing(
         {
             "id": f"test_rate_limiting_{uuid.uuid4().hex}",
             "scope": "key",
-            "scopeId": six.text_type(key_id),
+            "scopeId": str(key_id),
             "categories": ["transaction"],
             "limit": 2,
             "window": 86400,

@@ -39,8 +39,8 @@ pub enum RelayErrorCode {
 
 impl RelayErrorCode {
     /// This maps all errors that can possibly happen.
-    pub fn from_error(error: &failure::Error) -> RelayErrorCode {
-        for cause in error.iter_chain() {
+    pub fn from_error(error: &anyhow::Error) -> RelayErrorCode {
+        for cause in error.chain() {
             if let Some(..) = cause.downcast_ref::<Panic>() {
                 return RelayErrorCode::Panic;
             }
@@ -111,7 +111,7 @@ pub extern "C" fn relay_err_get_last_message() -> RelayStr {
     use std::fmt::Write;
     relay_ffi::with_last_error(|err| {
         let mut msg = err.to_string();
-        for cause in err.iter_chain().skip(1) {
+        for cause in err.chain().skip(1) {
             write!(&mut msg, "\n  caused by: {}", cause).ok();
         }
         RelayStr::from_string(msg)

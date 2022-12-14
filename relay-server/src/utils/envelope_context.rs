@@ -15,6 +15,35 @@ use crate::envelope::Envelope;
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{EnvelopeSummary, SemaphorePermit};
 
+/// Denotes the success of handling an envelope.
+#[derive(Clone, Copy, Debug)]
+enum Handling {
+    /// The envelope was handled successfully.
+    ///
+    /// This can be the case even if the envelpoe was dropped. For example, if a rate limit is in
+    /// effect or if the corresponding project is disabled.
+    Success,
+    /// Handling the envelope failed due to an error or bug.
+    Failure,
+}
+
+impl Handling {
+    fn from_outcome(outcome: &Outcome) -> Self {
+        if outcome.is_unexpected() {
+            Self::Failure
+        } else {
+            Self::Success
+        }
+    }
+
+    fn as_str(&self) -> &str {
+        match self {
+            Handling::Success => "success",
+            Handling::Failure => "failure",
+        }
+    }
+}
+
 /// Tracks the lifetime of an [`Envelope`] in Relay.
 ///
 /// The envelope context accompanies envelopes through the processing pipeline in Relay and ensures
@@ -125,7 +154,7 @@ impl EnvelopeContext {
     /// outcomes.
     pub fn accept(mut self) {
         if !self.done {
-            self.finish(RelayCounters::EnvelopeAccepted);
+            self.finish(RelayCounters::EnvelopeAccepted, Handling::Success);
         }
     }
 
@@ -150,7 +179,14 @@ impl EnvelopeContext {
             return;
         }
 
-        relay_log::debug!("dropped envelope: {}", outcome);
+        // Errors are only logged for what we consider failed request handling. In other cases, we
+        // "expect" errors and log them as debug level.
+        let handling = Handling::from_outcome(&outcome);
+        match handling {
+            Handling::Success => relay_log::debug!("dropped envelope: {}", outcome),
+            Handling::Failure => relay_log::error!("dropped envelope: {}", outcome),
+        }
+
         // TODO: This could be optimized with Capture::should_capture
         TestStore::from_registry().send(Capture::rejected(self.event_id, &outcome));
 
@@ -174,7 +210,7 @@ impl EnvelopeContext {
             );
         }
 
-        self.finish(RelayCounters::EnvelopeRejected);
+        self.finish(RelayCounters::EnvelopeRejected, handling);
     }
 
     /// Returns scoping stored in this context.
@@ -197,10 +233,10 @@ impl EnvelopeContext {
     }
 
     /// Resets inner state to ensure there's no more logging.
-    fn finish(&mut self, counter: RelayCounters) {
+    fn finish(&mut self, counter: RelayCounters, handling: Handling) {
         self.slot.take();
 
-        relay_statsd::metric!(counter(counter) += 1);
+        relay_statsd::metric!(counter(counter) += 1, handling = handling.as_str());
         relay_statsd::metric!(timer(RelayTimers::EnvelopeTotalTime) = self.start_time.elapsed());
 
         self.done = true;

@@ -6,8 +6,8 @@ use symbolic_unreal::{
 use relay_config::Config;
 use relay_general::protocol::{
     AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DeviceContext, Event, EventId,
-    GpuContext, LenientString, LogEntry, Message, OsContext, TagEntry, Tags, Timestamp, User,
-    UserReport, Values,
+    GpuContext, LenientString, Level, LogEntry, Message, OsContext, TagEntry, Tags, Timestamp,
+    User, UserReport, Values,
 };
 use relay_general::types::{self, Annotated, Array, Object, Value};
 
@@ -199,7 +199,7 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
 
     if let Some(memory_physical) = runtime_props.memory_stats_total_physical.take() {
         let device_context = contexts.get_or_insert_with(DeviceContext::default_key(), || {
-            Context::Device(Box::new(DeviceContext::default()))
+            Context::Device(Box::default())
         });
 
         if let Context::Device(device_context) = device_context {
@@ -209,9 +209,8 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
 
     // OS information is likely overwritten by Minidump processing later.
     if let Some(os_major) = runtime_props.misc_os_version_major.take() {
-        let os_context = contexts.get_or_insert_with(OsContext::default_key(), || {
-            Context::Os(Box::new(OsContext::default()))
-        });
+        let os_context =
+            contexts.get_or_insert_with(OsContext::default_key(), || Context::Os(Box::default()));
 
         if let Context::Os(os_context) = os_context {
             os_context.name = Annotated::new(os_major);
@@ -219,13 +218,20 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
     }
 
     if let Some(gpu_brand) = runtime_props.misc_primary_gpu_brand.take() {
-        let gpu_context = contexts.get_or_insert_with(GpuContext::default_key(), || {
-            Context::Gpu(Box::new(GpuContext::default()))
-        });
+        let gpu_context =
+            contexts.get_or_insert_with(GpuContext::default_key(), || Context::Gpu(Box::default()));
 
         if let Context::Gpu(gpu_context) = gpu_context {
             gpu_context.name = Annotated::new(gpu_brand);
         }
+    }
+
+    if runtime_props.is_assert.unwrap_or(false) {
+        event.level = Annotated::new(Level::Error)
+    }
+
+    if runtime_props.is_ensure.unwrap_or(false) {
+        event.level = Annotated::new(Level::Warning)
     }
 
     // Modules are not used and later replaced with Modules from the Minidump or Apple Crash Report.
@@ -274,9 +280,9 @@ pub fn process_unreal_envelope(
         .get_header(UNREAL_USER_HEADER)
         .and_then(Value::as_str);
     let context_item =
-        envelope.get_item_by(|item| item.attachment_type() == Some(AttachmentType::UnrealContext));
+        envelope.get_item_by(|item| item.attachment_type() == Some(&AttachmentType::UnrealContext));
     let logs_item =
-        envelope.get_item_by(|item| item.attachment_type() == Some(AttachmentType::UnrealLogs));
+        envelope.get_item_by(|item| item.attachment_type() == Some(&AttachmentType::UnrealLogs));
 
     // Early exit if there is no information.
     if user_header.is_none() && context_item.is_none() && logs_item.is_none() {
@@ -316,10 +322,10 @@ pub fn process_unreal_envelope(
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
-    #[test]
-    fn test_merge_unreal_context() {
+    fn get_context() -> Unreal4Context {
         let raw_context = br##"<?xml version="1.0" encoding="UTF-8"?>
 <FGenericCrashContext>
 	<RuntimeProperties>
@@ -348,12 +354,43 @@ mod tests {
 </FGenericCrashContext>
 "##;
 
-        let context = Unreal4Context::parse(raw_context).unwrap();
+        Unreal4Context::parse(raw_context).unwrap()
+    }
+
+    #[test]
+    fn test_merge_unreal_context() {
+        let context = get_context();
         let mut event = Event::default();
 
         merge_unreal_context(&mut event, context);
 
         insta::assert_snapshot!(Annotated::new(event).to_json_pretty().unwrap());
+    }
+
+    #[test]
+    fn test_merge_unreal_context_is_assert_level_error() {
+        let mut context = get_context();
+        let mut runtime_props = context.runtime_properties.as_mut().unwrap();
+        runtime_props.is_assert = Some(true);
+
+        let mut event = Event::default();
+
+        merge_unreal_context(&mut event, context);
+
+        assert_eq!(event.level, Annotated::new(Level::Error));
+    }
+
+    #[test]
+    fn test_merge_unreal_context_is_esure_level_warning() {
+        let mut context = get_context();
+        let mut runtime_props = context.runtime_properties.as_mut().unwrap();
+        runtime_props.is_ensure = Some(true);
+
+        let mut event = Event::default();
+
+        merge_unreal_context(&mut event, context);
+
+        assert_eq!(event.level, Annotated::new(Level::Warning));
     }
 
     #[test]

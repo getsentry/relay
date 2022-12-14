@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "22.10.0"
+version = "22.11.0"
 edition = "2021"
 build = "build.rs"
 license-file = "../LICENSE"
@@ -26,6 +26,7 @@ processing = [
 [dependencies]
 actix = "0.7.9"
 actix-web = { version = "0.7.19", default-features = false }
+anyhow = "1.0.66"
 base64 = "0.10.1"
 brotli2 = "0.3.2"
 bytes = { version = "0.4.12", features = ["serde"] }
@@ -70,6 +71,7 @@ smallvec = { version = "1.4.0", features = ["serde"] }
 symbolic-common = { version = "10.1.2", optional = true, default-features=false }
 symbolic-unreal = { version = "10.1.2", optional = true, default-features=false, features=["serde"] }
 take_mut = "0.2.2"
+thiserror = "1.0.37"
 tokio = { version = "1.0", features = ["rt-multi-thread", "sync", "macros"] }
 tokio-timer = "0.2.13"
 url = { version = "2.1.1", features = ["serde"] }

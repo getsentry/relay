@@ -3,7 +3,6 @@ use std::fmt;
 use std::ops::RangeInclusive;
 
 use enumset::{EnumSet, EnumSetType};
-use failure::Fail;
 use smallvec::SmallVec;
 
 use crate::macros::derive_fromstr_and_display;
@@ -11,9 +10,16 @@ use crate::processor::{ProcessValue, SelectorPathItem, SelectorSpec};
 use crate::types::Annotated;
 
 /// Error for unknown value types.
-#[derive(Debug, Fail)]
-#[fail(display = "unknown value type")]
+#[derive(Debug)]
 pub struct UnknownValueTypeError;
+
+impl fmt::Display for UnknownValueTypeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "unknown value type")
+    }
+}
+
+impl std::error::Error for UnknownValueTypeError {}
 
 /// The (simplified) type of a value.
 #[derive(Debug, Ord, PartialOrd, EnumSetType)]

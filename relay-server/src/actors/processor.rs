@@ -1,4 +1,3 @@
-use std::cmp::max;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::io::Write;
@@ -9,7 +8,6 @@ use std::time::{Duration, Instant};
 use actix::SystemService;
 use brotli2::write::BrotliEncoder;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
-use failure::Fail;
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use once_cell::sync::OnceCell;
@@ -45,9 +43,9 @@ use crate::actors::project_cache::ProjectCache;
 use crate::actors::upstream::{SendRequest, UpstreamRelay};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::metrics_extraction::sessions::{extract_session_metrics, SessionMetricsConfig};
-use crate::metrics_extraction::transactions::extract_transaction_metrics;
-use crate::service::{ServerError, REGISTRY};
-use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
+use crate::metrics_extraction::transactions::{extract_transaction_metrics, ExtractMetricsError};
+use crate::service::REGISTRY;
+use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{
     self, ChunkedFormDataAggregator, EnvelopeContext, ErrorBoundary, FormDataIter, SamplingResult,
 };
@@ -56,9 +54,9 @@ use crate::utils::{
 use {
     crate::actors::envelopes::SendMetrics,
     crate::actors::project_cache::UpdateRateLimits,
-    crate::service::ServerErrorKind,
+    crate::service::ServerError,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
-    failure::ResultExt,
+    anyhow::Context,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::ItemScoping,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
@@ -69,56 +67,59 @@ use {
 const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
 
 /// An error returned when handling [`ProcessEnvelope`].
-#[derive(Debug, Fail)]
+#[derive(Debug, thiserror::Error)]
 pub enum ProcessingError {
-    #[fail(display = "invalid json in event")]
-    InvalidJson(#[cause] serde_json::Error),
+    #[error("invalid json in event")]
+    InvalidJson(#[source] serde_json::Error),
 
-    #[fail(display = "invalid message pack event payload")]
-    InvalidMsgpack(#[cause] rmp_serde::decode::Error),
+    #[error("invalid message pack event payload")]
+    InvalidMsgpack(#[from] rmp_serde::decode::Error),
 
     #[cfg(feature = "processing")]
-    #[fail(display = "invalid unreal crash report")]
-    InvalidUnrealReport(#[cause] Unreal4Error),
+    #[error("invalid unreal crash report")]
+    InvalidUnrealReport(#[source] Unreal4Error),
 
-    #[fail(display = "event payload too large")]
+    #[error("event payload too large")]
     PayloadTooLarge,
 
-    #[fail(display = "invalid transaction event")]
+    #[error("invalid transaction event")]
     InvalidTransaction,
 
-    #[fail(display = "envelope processor failed")]
-    ProcessingFailed(#[cause] ProcessingAction),
+    #[error("envelope processor failed")]
+    ProcessingFailed(#[from] ProcessingAction),
 
-    #[fail(display = "duplicate {} in event", _0)]
+    #[error("duplicate {0} in event")]
     DuplicateItem(ItemType),
 
-    #[fail(display = "failed to extract event payload")]
+    #[error("failed to extract event payload")]
     NoEventPayload,
 
-    #[fail(display = "missing project id in DSN")]
+    #[error("missing project id in DSN")]
     MissingProjectId,
 
-    #[fail(display = "invalid security report type")]
+    #[error("invalid security report type")]
     InvalidSecurityType,
 
-    #[fail(display = "invalid security report")]
-    InvalidSecurityReport(#[cause] serde_json::Error),
+    #[error("invalid security report")]
+    InvalidSecurityReport(#[source] serde_json::Error),
 
-    #[fail(display = "event filtered with reason: {:?}", _0)]
+    #[error("event filtered with reason: {0:?}")]
     EventFiltered(FilterStatKey),
 
-    #[fail(display = "could not serialize event payload")]
-    SerializeFailed(#[cause] serde_json::Error),
+    #[error("missing or invalid required event timestamp")]
+    InvalidTimestamp,
+
+    #[error("could not serialize event payload")]
+    SerializeFailed(#[source] serde_json::Error),
 
     #[cfg(feature = "processing")]
-    #[fail(display = "failed to apply quotas")]
-    QuotasFailed(#[cause] RateLimitingError),
+    #[error("failed to apply quotas")]
+    QuotasFailed(#[from] RateLimitingError),
 
-    #[fail(display = "event dropped by sampling rule {}", _0)]
+    #[error("event dropped by sampling rule {0}")]
     Sampled(RuleId),
 
-    #[fail(display = "invalid pii config")]
+    #[error("invalid pii config")]
     PiiConfigError(PiiConfigError),
 }
 
@@ -132,6 +133,7 @@ impl ProcessingError {
             Self::InvalidSecurityType => Some(Outcome::Invalid(DiscardReason::SecurityReportType)),
             Self::InvalidSecurityReport(_) => Some(Outcome::Invalid(DiscardReason::SecurityReport)),
             Self::InvalidTransaction => Some(Outcome::Invalid(DiscardReason::InvalidTransaction)),
+            Self::InvalidTimestamp => Some(Outcome::Invalid(DiscardReason::Timestamp)),
             Self::DuplicateItem(_) => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::NoEventPayload => Some(Outcome::Invalid(DiscardReason::NoEventPayload)),
 
@@ -160,8 +162,9 @@ impl ProcessingError {
         }
     }
 
-    fn is_internal(&self) -> bool {
-        self.to_outcome() == Some(Outcome::Invalid(DiscardReason::Internal))
+    fn is_unexpected(&self) -> bool {
+        self.to_outcome()
+            .map_or(false, |outcome| outcome.is_unexpected())
     }
 
     fn should_keep_metrics(&self) -> bool {
@@ -175,6 +178,16 @@ impl From<Unreal4Error> for ProcessingError {
         match err.kind() {
             Unreal4ErrorKind::TooLarge => Self::PayloadTooLarge,
             _ => ProcessingError::InvalidUnrealReport(err),
+        }
+    }
+}
+
+impl From<ExtractMetricsError> for ProcessingError {
+    fn from(error: ExtractMetricsError) -> Self {
+        match error {
+            ExtractMetricsError::MissingTimestamp | ExtractMetricsError::InvalidTimestamp => {
+                Self::InvalidTimestamp
+            }
         }
     }
 }
@@ -206,7 +219,7 @@ struct ProcessEnvelopeState {
     ///
     /// The pipeline can mutate the envelope and remove or add items. In particular, event items are
     /// removed at the beginning of processing and re-added in the end.
-    envelope: Envelope,
+    envelope: Box<Envelope>,
 
     /// The extracted event payload.
     ///
@@ -336,118 +349,6 @@ fn outcome_from_parts(field: ClientReportField, reason: &str) -> Result<Outcome,
     }
 }
 
-fn outcome_from_profile_error(err: relay_profiling::ProfileError) -> Outcome {
-    let discard_reason = match err {
-        relay_profiling::ProfileError::CannotSerializePayload => DiscardReason::Internal,
-        relay_profiling::ProfileError::NotEnoughSamples => DiscardReason::InvalidProfile,
-        _ => DiscardReason::ProcessProfile,
-    };
-    Outcome::Invalid(discard_reason)
-}
-
-fn track_sampling_metrics(
-    project_state: &ProjectState,
-    context: &DynamicSamplingContext,
-    event: &Event,
-) {
-    // We only collect this metric for the root transaction event, so ignore secondary projects.
-    if !project_state.is_matching_key(context.public_key) {
-        return;
-    }
-
-    let transaction_info = match event.transaction_info.value() {
-        Some(info) => info,
-        None => return,
-    };
-
-    let changes = match transaction_info.changes.value() {
-        Some(value) => value.as_slice(),
-        None => return,
-    };
-
-    let last_change = changes
-        .iter()
-        .rev()
-        // skip all broken change records
-        .filter_map(|a| a.value())
-        // skip records without a timestamp
-        .filter(|c| c.timestamp.value().is_some())
-        // take the last that did not occur when the event was sent
-        .find(|c| c.timestamp.value() != event.timestamp.value());
-
-    let source = event.get_transaction_source().as_str();
-    let platform = event.platform.as_str().unwrap_or("other");
-    let sdk_name = event.sdk_name();
-    let sdk_version = event.sdk_version();
-
-    metric!(
-        histogram(RelayHistograms::DynamicSamplingChanges) = changes.len() as u64,
-        source = source,
-        platform = platform,
-        sdk_name = sdk_name,
-        sdk_version = sdk_version,
-    );
-
-    if let Some(&total) = transaction_info.propagations.value() {
-        // If there was no change, there were no propagations that happened with a wrong name.
-        let change = last_change
-            .and_then(|c| c.propagations.value())
-            .map_or(0, |v| *v);
-
-        metric!(
-            histogram(RelayHistograms::DynamicSamplingPropagationCount) = change,
-            source = source,
-            platform = platform,
-            sdk_name = sdk_name,
-            sdk_version = sdk_version,
-        );
-
-        let percentage = match (change, total) {
-            (0, 0) => 0.0, // 0% indicates no premature changes.
-            _ => ((change as f64) / (total as f64)).min(1.0) * 100.0,
-        };
-
-        metric!(
-            histogram(RelayHistograms::DynamicSamplingPropagationPercentage) = percentage,
-            source = source,
-            platform = platform,
-            sdk_name = sdk_name,
-            sdk_version = sdk_version,
-        );
-    }
-
-    if let (Some(&start), Some(&change), Some(&end)) = (
-        event.start_timestamp.value(),
-        last_change
-            .and_then(|c| c.timestamp.value())
-            .or_else(|| event.start_timestamp.value()), // default to start if there was no change
-        event.timestamp.value(),
-    ) {
-        let delay_ms = (change - start).num_milliseconds();
-        if delay_ms >= 0 {
-            metric!(
-                histogram(RelayHistograms::DynamicSamplingChangeDuration) = delay_ms as u64,
-                source = source,
-                platform = platform,
-                sdk_name = sdk_name,
-                sdk_version = sdk_version,
-            );
-        }
-
-        let duration_ms = (end - start).num_milliseconds() as f64;
-        if delay_ms >= 0 && duration_ms >= 0.0 {
-            let percentage = ((delay_ms as f64) / duration_ms).min(1.0) * 100.0;
-            metric!(
-                histogram(RelayHistograms::DynamicSamplingChangePercentage) = percentage,
-                source = source,
-                platform = platform,
-                sdk_name = sdk_name,
-                sdk_version = sdk_version,
-            );
-        }
-    }
-}
-
 /// Response of the [`ProcessEnvelope`] message.
 #[cfg_attr(not(feature = "processing"), allow(dead_code))]
 pub struct ProcessEnvelopeResponse {
@@ -456,7 +357,7 @@ pub struct ProcessEnvelopeResponse {
     /// This is `Some` if the envelope passed inbound filtering and rate limiting. Invalid items are
     /// removed from the envelope. Otherwise, if the envelope is empty or the entire envelope needs
     /// to be dropped, this is `None`.
-    pub envelope: Option<(Envelope, EnvelopeContext)>,
+    pub envelope: Option<(Box<Envelope>, EnvelopeContext)>,
 }
 
 /// Applies processing to all contents of the given envelope.
@@ -470,7 +371,7 @@ pub struct ProcessEnvelopeResponse {
 ///  - Rate limiters and inbound filters on events in processing mode.
 #[derive(Debug)]
 pub struct ProcessEnvelope {
-    pub envelope: Envelope,
+    pub envelope: Box<Envelope>,
     pub envelope_context: EnvelopeContext,
     pub project_state: Arc<ProjectState>,
     pub sampling_project_state: Option<Arc<ProjectState>>,
@@ -590,11 +491,11 @@ pub struct EnvelopeProcessorService {
 
 impl EnvelopeProcessorService {
     /// Creates a multi-threaded envelope processor.
-    pub fn new(config: Arc<Config>, _redis: Option<RedisPool>) -> Result<Self, ServerError> {
+    pub fn new(config: Arc<Config>, _redis: Option<RedisPool>) -> anyhow::Result<Self> {
         #[cfg(feature = "processing")]
         {
             let geoip_lookup = match config.geoip_path() {
-                Some(p) => Some(GeoIpLookup::open(p).context(ServerErrorKind::GeoIpError)?),
+                Some(p) => Some(GeoIpLookup::open(p).context(ServerError::GeoIpError)?),
                 None => None,
             };
 
@@ -1061,9 +962,16 @@ impl EnvelopeProcessorService {
             match relay_profiling::expand_profile(&item.payload()[..]) {
                 Ok(payloads) => new_profiles.extend(payloads),
                 Err(err) => {
-                    relay_log::debug!("invalid profile: {:#?}", err);
+                    match err {
+                        relay_profiling::ProfileError::InvalidJson(_) => {
+                            relay_log::warn!("invalid profile: {}", LogError(&err));
+                        }
+                        _ => relay_log::debug!("invalid profile: {}", err),
+                    };
                     context.track_outcome(
-                        outcome_from_profile_error(err),
+                        Outcome::Invalid(DiscardReason::Profiling(
+                            relay_profiling::discard_reason(err),
+                        )),
                         DataCategory::Profile,
                         1,
                     );
@@ -1134,8 +1042,13 @@ impl EnvelopeProcessorService {
                 // XXX: Temporarily, only the Sentry org will be allowed to parse replays while
                 // we measure the impact of this change.
                 if replays_enabled && state.project_state.organization_id == Some(1) {
+                    // Limit expansion of recordings to the envelope size. The payload is
+                    // decompressed temporarily and then immediately re-compressed. However, to
+                    // limit memory pressure, we use the envelope limit as a good overall limit for
+                    // allocations.
+                    let limit = self.config.max_envelope_size();
                     let parsed_recording =
-                        relay_replays::recording::process_recording(&item.payload());
+                        relay_replays::recording::process_recording(&item.payload(), limit);
 
                     match parsed_recording {
                         Ok(recording) => {
@@ -1143,6 +1056,11 @@ impl EnvelopeProcessorService {
                         }
                         Err(e) => {
                             relay_log::warn!("failed to parse replay event: {}", e);
+                            context.track_outcome(
+                                Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent),
+                                DataCategory::Replay,
+                                1,
+                            );
                         }
                     }
                 }
@@ -1379,8 +1297,7 @@ impl EnvelopeProcessorService {
         let mut deserializer = rmp_serde::Deserializer::new(payload.as_ref());
 
         while !deserializer.get_ref().is_empty() {
-            let breadcrumb = Annotated::deserialize_with_meta(&mut deserializer)
-                .map_err(ProcessingError::InvalidMsgpack)?;
+            let breadcrumb = Annotated::deserialize_with_meta(&mut deserializer)?;
             breadcrumbs.push(breadcrumb);
         }
 
@@ -1493,11 +1410,11 @@ impl EnvelopeProcessorService {
         let raw_security_item = envelope.take_item_by(|item| item.ty() == &ItemType::RawSecurity);
         let form_item = envelope.take_item_by(|item| item.ty() == &ItemType::FormData);
         let attachment_item = envelope
-            .take_item_by(|item| item.attachment_type() == Some(AttachmentType::EventPayload));
+            .take_item_by(|item| item.attachment_type() == Some(&AttachmentType::EventPayload));
         let breadcrumbs1 = envelope
-            .take_item_by(|item| item.attachment_type() == Some(AttachmentType::Breadcrumbs));
+            .take_item_by(|item| item.attachment_type() == Some(&AttachmentType::Breadcrumbs));
         let breadcrumbs2 = envelope
-            .take_item_by(|item| item.attachment_type() == Some(AttachmentType::Breadcrumbs));
+            .take_item_by(|item| item.attachment_type() == Some(&AttachmentType::Breadcrumbs));
 
         // Event items can never occur twice in an envelope.
         if let Some(duplicate) = envelope.get_item_by(|item| self.is_duplicate(item)) {
@@ -1572,9 +1489,9 @@ impl EnvelopeProcessorService {
         let envelope = &mut state.envelope;
 
         let minidump_attachment =
-            envelope.get_item_by(|item| item.attachment_type() == Some(AttachmentType::Minidump));
+            envelope.get_item_by(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
         let apple_crash_report_attachment = envelope
-            .get_item_by(|item| item.attachment_type() == Some(AttachmentType::AppleCrashReport));
+            .get_item_by(|item| item.attachment_type() == Some(&AttachmentType::AppleCrashReport));
 
         if let Some(item) = minidump_attachment {
             let event = state.event.get_or_insert_with(Event::default);
@@ -1630,7 +1547,7 @@ impl EnvelopeProcessorService {
 
             let attachment_size = envelope
                 .items()
-                .filter(|item| item.attachment_type() == Some(AttachmentType::Attachment))
+                .filter(|item| item.attachment_type() == Some(&AttachmentType::Attachment))
                 .map(|item| item.len() as u64)
                 .sum::<u64>();
 
@@ -1661,6 +1578,20 @@ impl EnvelopeProcessorService {
                     sdk = envelope.meta().client_name().unwrap_or("proprietary"),
                     platform = event.platform.as_str().unwrap_or("other"),
                 );
+
+                let otel_context = event
+                    .contexts
+                    .value()
+                    .and_then(|contexts| contexts.get("otel"))
+                    .and_then(Annotated::value);
+
+                if otel_context.is_some() {
+                    metric!(
+                        counter(RelayCounters::OpenTelemetryEvent) += 1,
+                        sdk = envelope.meta().client_name().unwrap_or("proprietary"),
+                        platform = event.platform.as_str().unwrap_or("other"),
+                    );
+                }
             }
         }
 
@@ -1734,7 +1665,7 @@ impl EnvelopeProcessorService {
             received_at: Some(envelope_context.received_at()),
             breakdowns: project_state.config.breakdowns_v2.clone(),
             span_attributes: project_state.config.span_attributes.clone(),
-            client_sample_rate: envelope.sampling_context().and_then(|ctx| ctx.sample_rate),
+            client_sample_rate: envelope.dsc().and_then(|ctx| ctx.sample_rate),
         };
 
         let mut store_processor = StoreProcessor::new(store_config, self.geoip_lookup.as_ref());
@@ -1747,6 +1678,42 @@ impl EnvelopeProcessorService {
         });
 
         Ok(())
+    }
+
+    /// Ensures there is a valid dynamic sampling context and corresponding project state.
+    ///
+    /// The dynamic sampling context (DSC) specifies the project_key of the project that initiated
+    /// the trace. That project state should have been loaded previously by the project cache and is
+    /// available on the `ProcessEnvelopeState`. Under these conditions, this cannot happen:
+    ///
+    ///  - There is no DSC in the envelope headers. This occurs with older or third-party SDKs.
+    ///  - The project key does not exist. This can happen if the project key was disabled, the
+    ///    project removed, or in rare cases when a project from another Sentry instance is referred
+    ///    to.
+    ///  - The project key refers to a project from another organization. In this case the project
+    ///    cache does not resolve the state and instead leaves it blank.
+    ///  - The project state could not be fetched. This is a runtime error, but in this case Relay
+    ///    should fall back to the next-best sampling rule set.
+    ///
+    /// In all of the above cases, this function will compute a new DSC using information from the
+    /// event payload, similar to how SDKs do this. The `sampling_project_state` is also switched to
+    /// the main project state.
+    ///
+    /// If there is no transaction event in the envelope, this function will do nothing.
+    fn normalize_dsc(&self, state: &mut ProcessEnvelopeState) {
+        if state.envelope.dsc().is_some() && state.sampling_project_state.is_some() {
+            return;
+        }
+
+        // The DSC can only be computed if there's a transaction event. Note that `from_transaction`
+        // below already checks for the event type.
+        let Some(event) = state.event.value() else { return };
+        let Some(key_config) = state.project_state.get_public_key_config() else { return };
+
+        if let Some(dsc) = DynamicSamplingContext::from_transaction(key_config.public_key, event) {
+            state.envelope.set_dsc(dsc);
+            state.sampling_project_state = Some(state.project_state.clone());
+        }
     }
 
     fn filter_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
@@ -1798,14 +1765,11 @@ impl EnvelopeProcessorService {
 
         let scoping = state.envelope_context.scoping();
         let (enforcement, limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
-            envelope_limiter
-                .enforce(&mut state.envelope, &scoping)
-                .map_err(ProcessingError::QuotasFailed)?
+            envelope_limiter.enforce(&mut state.envelope, &scoping)?
         });
 
         if limits.is_limited() {
-            ProjectCache::from_registry()
-                .do_send(UpdateRateLimits::new(scoping.project_key, limits));
+            ProjectCache::from_registry().send(UpdateRateLimits::new(scoping.project_key, limits));
         }
 
         if enforcement.event_active() {
@@ -1828,43 +1792,39 @@ impl EnvelopeProcessorService {
             return Ok(());
         }
 
-        let config = match state.project_state.config().transaction_metrics {
+        let project_config = state.project_state.config();
+        let extraction_config = match project_config.transaction_metrics {
             Some(ErrorBoundary::Ok(ref config)) => config,
             _ => return Ok(()),
         };
 
-        if !config.is_enabled() {
+        if !extraction_config.is_enabled() {
             return Ok(());
         }
 
-        let conditional_tagging_config = state
-            .project_state
-            .config
-            .metric_conditional_tagging
-            .as_slice();
-
         if let Some(event) = state.event.value() {
-            let extracted_anything;
+            let result;
             metric!(
                 timer(RelayTimers::TransactionMetricsExtraction),
-                extracted_anything = &extracted_anything.to_string(),
+                extracted_anything = &result.unwrap_or(false).to_string(),
                 {
                     // Actual logic outsourced for unit tests
-                    extracted_anything = extract_transaction_metrics(
-                        config,
-                        conditional_tagging_config,
+                    result = extract_transaction_metrics(
+                        self.config.aggregator_config(),
+                        extraction_config,
+                        &project_config.metric_conditional_tagging,
                         event,
                         &mut state.extracted_metrics,
                     );
                 }
             );
+
+            result?;
+
             state.transaction_metrics_extracted = true;
             state.envelope_context.set_event_metrics_extracted();
-
-            if let Some(context) = state.envelope.sampling_context() {
-                track_sampling_metrics(&state.project_state, context, event);
-            }
         }
+
         Ok(())
     }
 
@@ -1878,8 +1838,7 @@ impl EnvelopeProcessorService {
         metric!(timer(RelayTimers::EventProcessingPii), {
             if let Some(ref config) = config.pii_config {
                 let mut processor = PiiProcessor::new(config.compiled());
-                process_value(event, &mut processor, ProcessingState::root())
-                    .map_err(ProcessingError::ProcessingFailed)?;
+                process_value(event, &mut processor, ProcessingState::root())?;
             }
             let pii_config = config
                 .datascrubbing_settings
@@ -1887,8 +1846,7 @@ impl EnvelopeProcessorService {
                 .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
             if let Some(config) = pii_config {
                 let mut processor = PiiProcessor::new(config.compiled());
-                process_value(event, &mut processor, ProcessingState::root())
-                    .map_err(ProcessingError::ProcessingFailed)?;
+                process_value(event, &mut processor, ProcessingState::root())?;
             }
         });
 
@@ -1930,7 +1888,7 @@ impl EnvelopeProcessorService {
         let envelope = &mut state.envelope;
         if let Some(ref config) = state.project_state.config.pii_config {
             let minidump = envelope
-                .get_item_by_mut(|item| item.attachment_type() == Some(AttachmentType::Minidump));
+                .get_item_by_mut(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
 
             if let Some(item) = minidump {
                 let filename = item.filename().unwrap_or_default();
@@ -2002,7 +1960,7 @@ impl EnvelopeProcessorService {
         let client_ip = state.envelope.meta().client_addr();
 
         match utils::should_keep_event(
-            state.envelope.sampling_context(),
+            state.envelope.dsc(),
             state.event.value(),
             client_ip,
             &state.project_state,
@@ -2034,6 +1992,10 @@ impl EnvelopeProcessorService {
             measurements_config: state.project_state.config.measurements.as_ref(),
             breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
             normalize_user_agent: Some(true),
+            normalize_transaction_name: state
+                .project_state
+                .has_feature(Feature::TransactionNameNormalize),
+
             is_renormalize: false,
         };
 
@@ -2078,6 +2040,7 @@ impl EnvelopeProcessorService {
 
             self.finalize_event(state)?;
             self.light_normalize_event(state)?;
+            self.normalize_dsc(state);
             self.filter_event(state)?;
             self.extract_transaction_metrics(state)?;
             self.sample_envelope(state)?;
@@ -2144,7 +2107,7 @@ impl EnvelopeProcessorService {
                         if !state.extracted_metrics.is_empty() {
                             let project_cache = ProjectCache::from_registry();
                             project_cache
-                                .do_send(InsertMetrics::new(project_key, state.extracted_metrics));
+                                .send(InsertMetrics::new(project_key, state.extracted_metrics));
                         }
 
                         Ok(ProcessEnvelopeResponse {
@@ -2159,7 +2122,7 @@ impl EnvelopeProcessorService {
                         if !state.extracted_metrics.is_empty() && err.should_keep_metrics() {
                             let project_cache = ProjectCache::from_registry();
                             project_cache
-                                .do_send(InsertMetrics::new(project_key, state.extracted_metrics));
+                                .send(InsertMetrics::new(project_key, state.extracted_metrics));
                         }
 
                         Err(err)
@@ -2190,7 +2153,7 @@ impl EnvelopeProcessorService {
             Err(error) => {
                 // Errors are only logged for what we consider infrastructure or implementation
                 // bugs. In other cases, we "expect" errors and log them as debug level.
-                if error.is_internal() {
+                if error.is_unexpected() {
                     relay_log::with_scope(
                         |scope| scope.set_tag("project_key", project_key),
                         || relay_log::error!("error processing envelope: {}", LogError(&error)),
@@ -2221,19 +2184,11 @@ impl EnvelopeProcessorService {
                 let mut timestamp = item.timestamp().unwrap_or(received_timestamp);
                 clock_drift_processor.process_timestamp(&mut timestamp);
 
-                let min_timestamp = max(
-                    0,
-                    received.timestamp() - self.config.max_session_secs_in_past(),
-                ) as u64;
-                let max_timestamp =
-                    (received.timestamp() + self.config.max_secs_in_future()) as u64;
-                if min_timestamp <= timestamp.as_secs() && timestamp.as_secs() <= max_timestamp {
-                    let metrics =
-                        Metric::parse_all(&payload, timestamp).filter_map(|result| result.ok());
+                let metrics =
+                    Metric::parse_all(&payload, timestamp).filter_map(|result| result.ok());
 
-                    relay_log::trace!("inserting metrics into project cache");
-                    project_cache.do_send(InsertMetrics::new(public_key, metrics));
-                }
+                relay_log::trace!("inserting metrics into project cache");
+                project_cache.send(InsertMetrics::new(public_key, metrics));
             } else if item.ty() == &ItemType::MetricBuckets {
                 match Bucket::parse_all(&payload) {
                     Ok(mut buckets) => {
@@ -2242,7 +2197,7 @@ impl EnvelopeProcessorService {
                         }
 
                         relay_log::trace!("merging metric buckets into project cache");
-                        project_cache.do_send(MergeBuckets::new(public_key, buckets));
+                        project_cache.send(MergeBuckets::new(public_key, buckets));
                     }
                     Err(error) => {
                         relay_log::debug!("failed to parse metric bucket: {}", LogError(&error));
@@ -2290,7 +2245,7 @@ impl EnvelopeProcessorService {
                 if let Ok(limits) = rate_limits {
                     // Update the rate limits in the project cache.
                     ProjectCache::from_registry()
-                        .do_send(UpdateRateLimits::new(scoping.project_key, limits));
+                        .send(UpdateRateLimits::new(scoping.project_key, limits));
                 }
             }
         }
