@@ -989,6 +989,7 @@ impl EnvelopeProcessorService {
     /// Remove replays if the feature flag is not enabled
     fn process_replays(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let replays_enabled = state.project_state.has_feature(Feature::Replays);
+        let context = &state.envelope_context;
         let meta = state.envelope.meta().clone();
         let client_addr = meta.client_addr();
         let user_agent = meta.user_agent();
@@ -1024,16 +1025,31 @@ impl EnvelopeProcessorService {
                                 }
                                 Err(e) => {
                                     relay_log::warn!("Replay-event PII scrub failure: {}", e);
+                                    context.track_outcome(
+                                        Outcome::Invalid(DiscardReason::InvalidReplayEventPii),
+                                        DataCategory::Replay,
+                                        1,
+                                    );
                                     false
                                 }
                             }
                         } else {
                             relay_log::warn!("Replay-event was deserialized but no data found.");
+                            context.track_outcome(
+                                Outcome::Invalid(DiscardReason::InvalidReplayEventNoPayload),
+                                DataCategory::Replay,
+                                1,
+                            );
                             false
                         }
                     }
                     Err(e) => {
                         relay_log::warn!("Replay-event could not be deserialized {}", e);
+                        context.track_outcome(
+                            Outcome::Invalid(DiscardReason::InvalidReplayEvent),
+                            DataCategory::Replay,
+                            1,
+                        );
                         false
                     }
                 }
