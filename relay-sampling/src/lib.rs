@@ -387,12 +387,12 @@ impl DecayingFunctionContext {
                 return None;
             }
 
-            return Some(DecayingFunctionParams {
+            Some(DecayingFunctionParams {
                 base_sample_rate: self.base_sample_rate,
                 start,
                 end,
                 now: self.now,
-            });
+            })
         } else {
             None
         }
@@ -407,7 +407,7 @@ struct DecayingFunctionParams {
     now: DateTime<Utc>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum DecayingFunctionType {
     // For now only a linear decay is supported.
@@ -455,16 +455,17 @@ impl DecayingFunction {
     /// Thus, in the 70% case, we would take only 30% of the (from - base_sample_rate) which
     /// is equal to 0.06.
     fn call_linear_decay(&self, params: DecayingFunctionParams) -> f64 {
-        let now_timestamp = params.now.timestamp();
-        let start_timestamp = params.start.timestamp();
-        let end_timestamp = params.end.timestamp();
+        let now_timestamp = params.now.timestamp() as f64;
+        let start_timestamp = params.start.timestamp() as f64;
+        let end_timestamp = params.end.timestamp() as f64;
 
-        let sample_rate_difference = self.from_sample_rate - params.base_sample_rate;
-        let progress =
-            ((now_timestamp - start_timestamp) / (end_timestamp - start_timestamp)) as f64;
+        // We round to 2 digits in order to avoid high-precision sample rates that are more difficult
+        // to work with. Rounding is performed following the nearest integer.
+        let sample_rate_difference =
+            f64::round((self.from_sample_rate - params.base_sample_rate) * 100.0) / 100.0;
+        let progress = (now_timestamp - start_timestamp) / (end_timestamp - start_timestamp);
         let inverse_progress = (1.0 - progress).clamp(0.0, 1.0);
-
-        return params.base_sample_rate + (sample_rate_difference * inverse_progress);
+        params.base_sample_rate + (sample_rate_difference * inverse_progress)
     }
 }
 
