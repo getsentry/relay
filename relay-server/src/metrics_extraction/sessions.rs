@@ -158,7 +158,8 @@ pub fn extract_session_metrics<T: SessionLike>(
         ));
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
-            let mut tags_for_abnormal_session = tags.clone();
+            let mut tags_for_abnormal_session =
+                with_tag(&tags, "session.status", SessionStatus::Abnormal);
             if extract_abnormal_mechanism {
                 if let Some(ref abnormal_mechanism) = session.abnormal_mechanism() {
                     tags_for_abnormal_session.insert(
@@ -173,11 +174,7 @@ pub fn extract_session_metrics<T: SessionLike>(
                 MetricUnit::None,
                 MetricValue::set_from_str(distinct_id),
                 timestamp,
-                with_tag(
-                    &tags_for_abnormal_session,
-                    "session.status",
-                    SessionStatus::Abnormal,
-                ),
+                tags_for_abnormal_session,
             ));
         }
     }
@@ -432,7 +429,7 @@ mod tests {
             .unwrap();
 
             if let Some(mechanism) = abnormal_mechanism {
-                session.abnormal_mechanism = Some(mechanism);
+                session.abnormal_mechanism = mechanism;
             }
 
             let mut metrics = vec![];

@@ -99,6 +99,12 @@ impl Default for AbnormalMechanism {
     }
 }
 
+impl AbnormalMechanism {
+    fn is_none(&self) -> bool {
+        *self == Self::None
+    }
+}
+
 /// Additional attributes for Sessions.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SessionAttributes {
@@ -183,8 +189,8 @@ pub struct SessionUpdate {
     #[serde(rename = "attrs")]
     pub attributes: SessionAttributes,
     /// The abnormal mechanism.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub abnormal_mechanism: Option<AbnormalMechanism>,
+    #[serde(default, skip_serializing_if = "AbnormalMechanism::is_none")]
+    pub abnormal_mechanism: AbnormalMechanism,
 }
 
 impl SessionUpdate {
@@ -245,9 +251,8 @@ impl SessionLike for SessionUpdate {
 
     fn abnormal_mechanism(&self) -> Option<AbnormalMechanism> {
         match self.abnormal_mechanism {
-            None => None,
-            Some(AbnormalMechanism::None) => None,
-            Some(_) => self.abnormal_mechanism,
+            AbnormalMechanism::None => None,
+            _ => Some(self.abnormal_mechanism),
         }
     }
 }
@@ -379,7 +384,7 @@ mod tests {
             duration: None,
             init: false,
             status: SessionStatus::Ok,
-            abnormal_mechanism: None,
+            abnormal_mechanism: AbnormalMechanism::None,
             errors: 0,
             attributes: SessionAttributes {
                 release: "sentry-test@1.0.0".to_owned(),
@@ -440,7 +445,7 @@ mod tests {
             started: "2020-02-07T14:16:00Z".parse().unwrap(),
             duration: Some(1947.49),
             status: SessionStatus::Exited,
-            abnormal_mechanism: None,
+            abnormal_mechanism: AbnormalMechanism::None,
             errors: 0,
             init: true,
             attributes: SessionAttributes {
@@ -483,6 +488,6 @@ mod tests {
 }"#;
 
         let update = SessionUpdate::parse(json.as_bytes()).unwrap();
-        assert_eq!(update.abnormal_mechanism, Some(AbnormalMechanism::None));
+        assert_eq!(update.abnormal_mechanism, AbnormalMechanism::None);
     }
 }

@@ -479,7 +479,7 @@ impl StoreService {
                 started: protocol::datetime_to_timestamp(session.started),
                 duration: session.duration,
                 status: session.status,
-                abnormal_mechanism: session.abnormal_mechanism,
+                abnormal_mechanism: Some(session.abnormal_mechanism),
                 errors: session.errors.clamp(
                     (session.status == SessionStatus::Crashed) as _,
                     u16::MAX.into(),
