@@ -1021,11 +1021,11 @@ impl EnvelopeProcessorService {
                 // XXX: Temporarily, only the Sentry org will be allowed to parse replays while
                 // we measure the impact of this change.
                 if replays_enabled && state.project_state.organization_id == Some(1) {
-                    // Limit expansion of recordings to the envelope size. The payload is
+                    // Limit expansion of recordings to the max replay size. The payload is
                     // decompressed temporarily and then immediately re-compressed. However, to
-                    // limit memory pressure, we use the envelope limit as a good overall limit for
+                    // limit memory pressure, we use the replay limit as a good overall limit for
                     // allocations.
-                    let limit = self.config.max_envelope_size();
+                    let limit = self.config.max_replay_size();
                     let parsed_recording =
                         relay_replays::recording::process_recording(&item.payload(), limit);
 

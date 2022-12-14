@@ -11,6 +11,7 @@
 - Add support for View Hierarchy attachment_type. ([#1642](https://github.com/getsentry/relay/pull/1642))
 - Add support for `keepalive_timeout` configuration. ([#1645](https://github.com/getsentry/relay/pull/1645))
 - Add invalid replay recording outcome. ([#1684]https://github.com/getsentry/relay/pull/1684)
+- Add max replay size configuration parameter. ([#1694](https://github.com/getsentry/relay/pull/1694))
 
 **Bug Fixes**:
 
