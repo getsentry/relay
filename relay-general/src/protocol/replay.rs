@@ -398,5 +398,15 @@ mod tests {
             .value();
 
         assert!(maybe_ip_address.is_none());
+
+        let maybe_credit_card = replay
+            .value()
+            .unwrap()
+            .tags
+            .value()
+            .unwrap()
+            .get("credit-card");
+
+        assert!(maybe_credit_card.is_none());
     }
 }

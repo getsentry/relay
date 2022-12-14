@@ -11,7 +11,7 @@ use crate::pii::{CompiledPiiConfig, Redaction, RuleType};
 use crate::processor::{
     process_chunked_value, Chunk, Pii, ProcessValue, ProcessingState, Processor, ValueType,
 };
-use crate::protocol::{AsPair, IpAddr, NativeImagePath, PairList, User};
+use crate::protocol::{AsPair, IpAddr, NativeImagePath, PairList, Replay, User};
 use crate::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
 
 /// A processor that performs PII stripping.
@@ -164,17 +164,17 @@ impl<'a> Processor for PiiProcessor<'a> {
     }
 
     // Replay PII processor entry point.
-    // fn process_replay(
-    //     &mut self,
-    //     replay: &mut Replay,
-    //     _meta: &mut Meta,
-    //     state: &ProcessingState<'_>,
-    // ) -> ProcessingResult {
-    //     if let Some(user) = replay.user.value_mut() {
-    //         self.process_user(user, _meta, state)?;
-    //     }
-    //     Ok(())
-    // }
+    fn process_replay(
+        &mut self,
+        replay: &mut Replay,
+        _meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        if let Some(user) = replay.user.value_mut() {
+            user.process_child_values(self, state)?;
+        }
+        Ok(())
+    }
 }
 
 fn apply_rule_to_value(
