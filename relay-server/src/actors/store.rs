@@ -883,17 +883,18 @@ struct ReplayRecordingChunkMeta {
 #[derive(Debug, Serialize)]
 struct ReplayRecordingKafkaMessage {
     replay_id: EventId,
-    /// The project id for the current recording.
-    project_id: ProjectId,
     /// The key_id for the current recording.
     key_id: Option<u64>,
     /// The org id for the current recording.
     org_id: u64,
+    /// The project id for the current recording.
+    project_id: ProjectId,
     /// The timestamp of when the recording was Received by relay
     received: u64,
+    // Number of days to retain.
+    retention_days: u16,
     /// The recording attachment.
     replay_recording: ReplayRecordingChunkMeta,
-    retention_days: u16,
 }
 
 #[derive(Debug, Serialize)]
