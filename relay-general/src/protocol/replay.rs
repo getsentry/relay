@@ -183,7 +183,8 @@ impl Replay {
     }
 }
 
-mod test {
+#[cfg(test)]
+mod tests {
     use crate::pii::{DataScrubbingConfig, PiiProcessor};
     use crate::processor::process_value;
     use crate::processor::{FieldAttrs, Pii, ProcessingState, Processor, ValueType};
