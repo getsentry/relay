@@ -17,7 +17,7 @@ use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     self, AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId,
     EventType, Exception, Frame, HeaderName, HeaderValue, Headers, IpAddr, Level, LogEntry,
-    Measurement, Measurements, Replay, Request, SpanStatus, Stacktrace, Tags, TraceContext, User,
+    Measurement, Measurements, Request, SpanStatus, Stacktrace, Tags, TraceContext, User,
     VALID_PLATFORMS,
 };
 use crate::store::{ClockDriftProcessor, GeoIpLookup, StoreConfig};
