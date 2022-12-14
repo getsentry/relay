@@ -365,6 +365,7 @@ impl TimeRange {
     }
 }
 
+/// A context encapsulating all the required information for a decay function's execution.
 #[derive(Clone, Copy, Debug)]
 struct DecayingFunctionContext {
     base_sample_rate: f64,
@@ -373,6 +374,7 @@ struct DecayingFunctionContext {
 }
 
 impl DecayingFunctionContext {
+    /// Validates whether the context parameters follow the constraints set by decaying functions.
     fn validate(&self, from_sample_rate: f64) -> Option<DecayingFunctionParams> {
         if let Some((start, end)) = self.time_range.extract_interval_tuple() {
             // This condition verifies three very important rules that need to be valid in order
@@ -399,6 +401,7 @@ impl DecayingFunctionContext {
     }
 }
 
+/// A struct containing the set of validated params required by a decaying function.
 #[derive(Clone, Copy, Debug)]
 struct DecayingFunctionParams {
     base_sample_rate: f64,
@@ -407,6 +410,7 @@ struct DecayingFunctionParams {
     now: DateTime<Utc>,
 }
 
+/// An enum representing the types of decaying functions supported by Relay.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum DecayingFunctionType {
@@ -421,6 +425,10 @@ impl Default for DecayingFunctionType {
     }
 }
 
+/// A decaying function definition.
+///
+/// A decaying function is responsible of decaying the sample rate from a value to another following
+/// a given curve.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DecayingFunction {
@@ -429,7 +437,7 @@ pub struct DecayingFunction {
 }
 
 impl DecayingFunction {
-    /// Get the decaying sample rate.
+    /// Gets the decaying sample rate at a specific point in time after validating its context.
     fn get_decaying_sample_rate(&self, context: DecayingFunctionContext) -> Option<f64> {
         // We first validate the context and if it is valid we want to call the decaying function.
         let params = context.validate(self.from_sample_rate);
@@ -441,7 +449,7 @@ impl DecayingFunction {
         }
     }
 
-    /// Computes the linear decay function.
+    /// Computes the linear decay function at a specific point in time.
     ///
     /// The linear decay works in the following way:
     /// start = 100
