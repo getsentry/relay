@@ -14,7 +14,7 @@ def generate_replay_sdk_event():
         "error_ids": ["1", "2"],
         "trace_ids": ["3", "4"],
         "dist": "1.12",
-        "platform": "Python",
+        "platform": "python",
         "environment": "production",
         "release": 42,
         "tags": {"transaction": "/organizations/:orgId/performance/:eventSlug/"},
