@@ -271,11 +271,14 @@ impl Processor for TransactionsProcessor {
             normalize_transaction_name(&mut event.transaction)?;
         }
 
+        validate_transaction(event)?;
+
         let spans = event.spans.value_mut().get_or_insert_with(|| Vec::new());
 
         for span in spans {
             if let Some(span) = span.value_mut() {
                 if span.timestamp.value().is_none() {
+                    // event timestamp guaranteed to be `Some` due to validate_transaction call
                     span.timestamp.set_value(event.timestamp.value().cloned());
                     span.status = Annotated::new(SpanStatus::DeadlineExceeded);
                 }
@@ -285,8 +288,6 @@ impl Processor for TransactionsProcessor {
                 ));
             }
         }
-
-        validate_transaction(event)?;
 
         set_default_transaction_source(event);
 
