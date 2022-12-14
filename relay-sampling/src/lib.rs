@@ -344,6 +344,14 @@ impl TimeRange {
         self.start.is_none() && self.end.is_none()
     }
 
+    pub fn extract_interval_tuple(&self) -> Option<(DateTime<Utc>, DateTime<Utc>)> {
+        if let (Some(start), Some(end)) = (self.start, self.end) {
+            Some((start, end))
+        } else {
+            None
+        }
+    }
+
     /// Returns whether the provided time matches the time range.
     ///
     /// For a time to match a time range, the following conditions must match:
@@ -357,7 +365,49 @@ impl TimeRange {
     }
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug)]
+struct DecayingFunctionContext {
+    base_sample_rate: f64,
+    time_range: TimeRange,
+    now: DateTime<Utc>,
+}
+
+impl DecayingFunctionContext {
+    fn validate(&self, from_sample_rate: f64) -> Option<DecayingFunctionParams> {
+        if let Some((start, end)) = self.time_range.extract_interval_tuple() {
+            // This condition verifies three very important rules that need to be valid in order
+            // for any decaying function to successfully work:
+            // * from sample rate is > base sample rate because we need to decay from it.
+            // * end > start because we want to decay within a time interval.
+            // * now >= start because we cannot decay if we are not within the time interval.
+            //
+            // We don't check for now < end because once we go out of the boundaries we will just
+            // keep the base sample rate.
+            if from_sample_rate <= self.base_sample_rate || end <= start || self.now < start {
+                return None;
+            }
+
+            return Some(DecayingFunctionParams {
+                base_sample_rate: self.base_sample_rate,
+                start,
+                end,
+                now: self.now,
+            });
+        } else {
+            None
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct DecayingFunctionParams {
+    base_sample_rate: f64,
+    start: DateTime<Utc>,
+    end: DateTime<Utc>,
+    now: DateTime<Utc>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum DecayingFunctionType {
     // For now only a linear decay is supported.
@@ -371,26 +421,23 @@ impl Default for DecayingFunctionType {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-struct DecayingFunctionContext {
-    time_range: TimeRange,
-    now: DateTime<Utc>,
-}
-
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DecayingFunction {
     pub function: DecayingFunctionType,
-    // TODO: how to we enforce from > to?
-    pub from: f64,
-    pub to: f64,
+    pub from_sample_rate: f64,
 }
 
 impl DecayingFunction {
     /// Get the decaying sample rate.
     fn get_decaying_sample_rate(&self, context: DecayingFunctionContext) -> Option<f64> {
+        // We first validate the context and if it is valid we want to call the decaying function.
+        let params = context.validate(self.from_sample_rate);
         match self.function {
-            DecayingFunctionType::LinearDecay => self.call_linear_decay(context),
-            DecayingFunctionType::None => None,
+            DecayingFunctionType::LinearDecay if params.is_some() => {
+                Some(self.call_linear_decay(params.unwrap()))
+            }
+            _ => None,
         }
     }
 
@@ -400,31 +447,24 @@ impl DecayingFunction {
     /// start = 100
     /// end = 200
     /// from = 0.7 (70% sample rate)
-    /// to = 0.5 (50% sample rate)
-    /// (from - to) = 0.2 (20% sample rate)
+    /// base_sample_rate = 0.5 (50% sample rate)
+    /// (from - base_sample_rate) = 0.2 (20% sample rate)
     ///
     /// If we have now = 170 it means we are at the 70% progress of the timerange, which means we
-    /// want to inversely reduce the sample rate in the interval (from - to). Thus, in the 70% case,
-    /// we would take only 30% of the (from - to) which is equal to 0.06.
-    fn call_linear_decay(&self, context: DecayingFunctionContext) -> Option<f64> {
-        if let (Some(start), Some(end)) = (context.time_range.start, context.time_range.end) {
-            let now_timestamp = context.now.timestamp();
-            let start_timestamp = start.timestamp();
-            let end_timestamp = end.timestamp();
+    /// want to inversely reduce the sample rate in the interval (from - base_sample_rate).
+    /// Thus, in the 70% case, we would take only 30% of the (from - base_sample_rate) which
+    /// is equal to 0.06.
+    fn call_linear_decay(&self, params: DecayingFunctionParams) -> f64 {
+        let now_timestamp = params.now.timestamp();
+        let start_timestamp = params.start.timestamp();
+        let end_timestamp = params.end.timestamp();
 
-            if end_timestamp <= start_timestamp || now_timestamp < start_timestamp {
-                return None;
-            }
+        let sample_rate_difference = self.from_sample_rate - params.base_sample_rate;
+        let progress =
+            ((now_timestamp - start_timestamp) / (end_timestamp - start_timestamp)) as f64;
+        let inverse_progress = (1.0 - progress).clamp(0.0, 1.0);
 
-            let sample_rate_interval = self.from - self.to;
-            let progress =
-                ((now_timestamp - start_timestamp) / (end_timestamp - start_timestamp)) as f64;
-            let inverse_progress = (1.0 - progress).clamp(0.0, 1.0);
-
-            return Some(self.to + (sample_rate_interval * inverse_progress));
-        }
-
-        None
+        return params.base_sample_rate + (sample_rate_difference * inverse_progress);
     }
 }
 
@@ -456,15 +496,19 @@ impl SamplingRule {
     ///
     /// Non-decaying rules are always active. Decaying rules are active if they are
     /// neither idle nor expired.
-    fn is_active(&self) -> bool {
-        self.time_range.contains(Utc::now())
+    fn is_active(&self, now: DateTime<Utc>) -> bool {
+        self.time_range.contains(now)
     }
 
     /// Returns the sample rate of this specific sampling rule based on the existence of the
     /// decaying function.
+    ///
+    /// In case of any problems that render the decaying function impossible to compute, we are
+    /// going to fallback to the base sample rate.
     pub fn get_sample_rate(&self, now: DateTime<Utc>) -> f64 {
         self.decaying_function
             .get_decaying_sample_rate(DecayingFunctionContext {
+                base_sample_rate: self.sample_rate,
                 time_range: self.time_range,
                 now,
             })
@@ -819,12 +863,13 @@ impl SamplingConfig {
         &'a self,
         sampling_context: &DynamicSamplingContext,
         ip_addr: Option<IpAddr>,
+        now: DateTime<Utc>,
     ) -> Option<&'a SamplingRule> {
         self.rules.iter().find(|rule| {
             if rule.ty != RuleType::Trace {
                 return false;
             }
-            if !rule.is_active() {
+            if !rule.is_active(now) {
                 return false;
             }
             rule.condition.matches(sampling_context, ip_addr)
@@ -839,6 +884,7 @@ impl SamplingConfig {
         &'a self,
         event: &Event,
         ip_addr: Option<IpAddr>,
+        now: DateTime<Utc>,
     ) -> Option<&'a SamplingRule> {
         let ty = if let Some(EventType::Transaction) = &event.ty.0 {
             RuleType::Transaction
@@ -850,7 +896,7 @@ impl SamplingConfig {
             if rule.ty != ty {
                 return false;
             }
-            if !rule.is_active() {
+            if !rule.is_active(now) {
                 return false;
             }
             rule.condition.matches(event, ip_addr)
@@ -1973,7 +2019,7 @@ mod tests {
     }
 
     #[test]
-    fn test_decaying_sampling_rule_deserialization() {
+    fn test_sampling_rule_with_none_decaying_function_deserialization() {
         let serialized_rule = r#"{
             "condition":{
                 "op":"and",
@@ -1992,12 +2038,47 @@ mod tests {
         let rule: Result<SamplingRule, _> = serde_json::from_str(serialized_rule);
         let rule = rule.unwrap();
         let time_range = rule.time_range;
+        let decaying_function = rule.decaying_function;
 
         assert_eq!(
             time_range.start,
             Some(Utc.ymd(2022, 10, 10).and_hms(0, 0, 0))
         );
         assert_eq!(time_range.end, Some(Utc.ymd(2022, 10, 20).and_hms(0, 0, 0)));
+        assert_eq!(decaying_function.function, DecayingFunctionType::None);
+        assert_eq!(decaying_function.from_sample_rate, 0.0);
+    }
+
+    #[test]
+    fn test_sampling_rule_with_linear_decaying_function_deserialization() {
+        let serialized_rule = r#"{
+            "condition":{
+                "op":"and",
+                "inner": [
+                    { "op" : "glob", "name": "releases", "value":["1.1.1", "1.1.2"]}
+                ]
+            },
+            "sampleRate": 0.7,
+            "type": "trace",
+            "id": 1,
+            "timeRange": {
+                "start": "2022-10-10T00:00:00.000000Z",
+                "end": "2022-10-20T00:00:00.000000Z"
+            },
+            "decayingFunction": {
+                "function": "linearDecay",
+                "fromSampleRate": 0.9
+            }
+        }"#;
+        let rule: Result<SamplingRule, _> = serde_json::from_str(serialized_rule);
+        let rule = rule.unwrap();
+        let decaying_function = rule.decaying_function;
+
+        assert_eq!(
+            decaying_function.function,
+            DecayingFunctionType::LinearDecay
+        );
+        assert_eq!(decaying_function.from_sample_rate, 0.9)
     }
 
     #[test]
@@ -2195,7 +2276,7 @@ mod tests {
             other: BTreeMap::new(),
         };
 
-        let result = rules.get_matching_trace_rule(&trace_context, None);
+        let result = rules.get_matching_trace_rule(&trace_context, None, Utc::now());
         // complete match with first rule
         assert_eq!(
             result.unwrap().id,
@@ -2217,7 +2298,7 @@ mod tests {
             other: BTreeMap::new(),
         };
 
-        let result = rules.get_matching_trace_rule(&trace_context, None);
+        let result = rules.get_matching_trace_rule(&trace_context, None, Utc::now());
         // should mach the second rule because of the release
         assert_eq!(
             result.unwrap().id,
@@ -2239,7 +2320,7 @@ mod tests {
             other: BTreeMap::new(),
         };
 
-        let result = rules.get_matching_trace_rule(&trace_context, None);
+        let result = rules.get_matching_trace_rule(&trace_context, None, Utc::now());
         // should match the third rule because of the unknown release
         assert_eq!(
             result.unwrap().id,
@@ -2261,7 +2342,7 @@ mod tests {
             other: BTreeMap::new(),
         };
 
-        let result = rules.get_matching_trace_rule(&trace_context, None);
+        let result = rules.get_matching_trace_rule(&trace_context, None, Utc::now());
         // should match the fourth rule because of the unknown environment
         assert_eq!(
             result.unwrap().id,
@@ -2283,7 +2364,7 @@ mod tests {
             other: BTreeMap::new(),
         };
 
-        let result = rules.get_matching_trace_rule(&trace_context, None);
+        let result = rules.get_matching_trace_rule(&trace_context, None, Utc::now());
         // should match the fourth rule because of the unknown user segment
         assert_eq!(
             result.unwrap().id,
@@ -2309,7 +2390,7 @@ mod tests {
             sample_rate: None,
             other: BTreeMap::new(),
         };
-        let result = rules.get_matching_trace_rule(&new_release, None);
+        let result = rules.get_matching_trace_rule(&new_release, None, Utc::now());
         assert_eq!(result.unwrap().id, RuleId(4), "Did not match expected rule");
 
         let old_release = DynamicSamplingContext {
@@ -2325,7 +2406,7 @@ mod tests {
             sample_rate: None,
             other: BTreeMap::new(),
         };
-        let result = rules.get_matching_trace_rule(&old_release, None);
+        let result = rules.get_matching_trace_rule(&old_release, None, Utc::now());
         assert_eq!(result.unwrap().id, RuleId(5), "Did not match expected rule");
     }
 
@@ -2356,8 +2437,7 @@ mod tests {
                     },
                     decaying_function: DecayingFunction {
                         function: DecayingFunctionType::LinearDecay,
-                        from: 0.7,
-                        to: 0.2,
+                        from_sample_rate: 0.7,
                     },
                 },
                 // Idle
@@ -2372,8 +2452,7 @@ mod tests {
                     },
                     decaying_function: DecayingFunction {
                         function: DecayingFunctionType::LinearDecay,
-                        from: 0.7,
-                        to: 0.2,
+                        from_sample_rate: 0.7,
                     },
                 },
                 // Start after finishing
@@ -2388,8 +2467,7 @@ mod tests {
                     },
                     decaying_function: DecayingFunction {
                         function: DecayingFunctionType::LinearDecay,
-                        from: 0.7,
-                        to: 0.2,
+                        from_sample_rate: 0.7,
                     },
                 },
                 // Rule is ok
@@ -2404,8 +2482,7 @@ mod tests {
                     },
                     decaying_function: DecayingFunction {
                         function: DecayingFunctionType::LinearDecay,
-                        from: 0.7,
-                        to: 0.2,
+                        from_sample_rate: 0.7,
                     },
                 },
                 // Fallback to non-decaying rule
@@ -2434,7 +2511,7 @@ mod tests {
             environment: Annotated::new("testing".to_string()),
             ..Default::default()
         };
-        let result = rules.get_matching_event_rule(&new_release, None);
+        let result = rules.get_matching_event_rule(&new_release, None, Utc::now());
         assert_eq!(result.unwrap().id, RuleId(4), "Did not match expected rule");
 
         let old_release = Event {
@@ -2443,7 +2520,7 @@ mod tests {
             environment: Annotated::new("testing".to_string()),
             ..Default::default()
         };
-        let result = rules.get_matching_event_rule(&old_release, None);
+        let result = rules.get_matching_event_rule(&old_release, None, Utc::now());
         assert_eq!(result.unwrap().id, RuleId(5), "Did not match expected rule");
     }
 
@@ -2497,7 +2574,10 @@ mod tests {
                 next_id: None,
             };
             assert_eq!(
-                config.get_matching_trace_rule(&trace, None).unwrap().id,
+                config
+                    .get_matching_trace_rule(&trace, None, Utc::now())
+                    .unwrap()
+                    .id,
                 RuleId(1),
                 "Trace rule did not match",
             );
@@ -2516,7 +2596,7 @@ mod tests {
             };
             assert_eq!(
                 config
-                    .get_matching_event_rule(&transaction, None)
+                    .get_matching_event_rule(&transaction, None, Utc::now())
                     .unwrap()
                     .id,
                 RuleId(1),
