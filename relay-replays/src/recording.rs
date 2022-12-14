@@ -9,44 +9,49 @@ use relay_general::processor::{
 };
 use relay_general::types::{Meta, ProcessingAction};
 
-use flate2::read::ZlibDecoder;
-use flate2::write::ZlibEncoder;
-use flate2::Compression;
-use serde::de::Error as DError;
-use serde::{Deserialize, Serialize};
-use serde_json::{Error, Value};
+use flate2::{read::ZlibDecoder, write::ZlibEncoder, Compression};
+use serde::{de::Error as DError, Deserialize, Serialize};
+use serde_json::Value;
 
-pub fn process_recording(bytes: &[u8]) -> Result<Vec<u8>, RecordingParseError> {
-    // Split recording headers and body.
-    let mut x = bytes.split(|b| b == &b'\n');
-    let header = x.next().ok_or_else(|| {
-        RecordingParseError::Message("no headers found. was data provided?".to_string())
-    })?;
-    let body = x.next().ok_or_else(|| {
-        RecordingParseError::Message("no data found. are the headers missing?".to_string())
-    })?;
+/// Parses compressed replay recording payloads and applies data scrubbers.
+///
+/// `limit` controls the maximum size in bytes during decompression. This function returns an `Err`
+/// if decompressed contents exceed the limit.
+pub fn process_recording(bytes: &[u8], limit: usize) -> Result<Vec<u8>, RecordingParseError> {
+    // Check for null byte condition.
+    if bytes.is_empty() {
+        return Err(RecordingParseError::Message("no data found"));
+    }
 
-    // Deserialization.
-    let mut events = loads(body)?;
+    let mut split = bytes.splitn(2, |b| b == &b'\n');
+    let header = split
+        .next()
+        .ok_or(RecordingParseError::Message("no headers found"))?;
 
-    // Processing.
+    let body = match split.next() {
+        Some(b"") | None => return Err(RecordingParseError::Message("no body found")),
+        Some(body) => body,
+    };
+
+    let mut events = deserialize_compressed(body, limit)?;
     strip_pii(&mut events).map_err(RecordingParseError::ProcessingAction)?;
-
-    // Serialization.
-    let out_bytes = dumps(events)?;
+    let out_bytes = serialize_compressed(events)?;
     Ok([header.into(), vec![b'\n'], out_bytes].concat())
 }
 
-fn loads(zipped_input: &[u8]) -> Result<Vec<Event>, RecordingParseError> {
-    let mut decoder = ZlibDecoder::new(zipped_input);
-    let mut buffer = String::new();
-    decoder.read_to_string(&mut buffer)?;
+fn deserialize_compressed(
+    zipped_input: &[u8],
+    limit: usize,
+) -> Result<Vec<Event>, RecordingParseError> {
+    let decoder = ZlibDecoder::new(zipped_input);
 
-    let events: Vec<Event> = serde_json::from_str(&buffer)?;
-    Ok(events)
+    let mut buffer = Vec::new();
+    decoder.take(limit as u64).read_to_end(&mut buffer)?;
+
+    Ok(serde_json::from_slice(&buffer)?)
 }
 
-fn dumps(rrweb: Vec<Event>) -> Result<Vec<u8>, RecordingParseError> {
+fn serialize_compressed(rrweb: Vec<Event>) -> Result<Vec<u8>, RecordingParseError> {
     let buffer = serde_json::to_vec(&rrweb)?;
 
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
@@ -71,17 +76,17 @@ fn strip_pii(events: &mut Vec<Event>) -> Result<(), ProcessingAction> {
 
 #[derive(Debug)]
 pub enum RecordingParseError {
-    SerdeError(Error),
-    IoError(std::io::Error),
-    Message(String),
+    Json(serde_json::Error),
+    Compression(std::io::Error),
+    Message(&'static str),
     ProcessingAction(ProcessingAction),
 }
 
 impl Display for RecordingParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RecordingParseError::SerdeError(serde_error) => write!(f, "{}", serde_error),
-            RecordingParseError::IoError(io_error) => write!(f, "{}", io_error),
+            RecordingParseError::Json(serde_error) => write!(f, "{}", serde_error),
+            RecordingParseError::Compression(io_error) => write!(f, "{}", io_error),
             RecordingParseError::Message(message) => write!(f, "{}", message),
             RecordingParseError::ProcessingAction(action) => write!(f, "{}", action),
         }
@@ -90,15 +95,15 @@ impl Display for RecordingParseError {
 
 impl std::error::Error for RecordingParseError {}
 
-impl From<Error> for RecordingParseError {
-    fn from(err: Error) -> Self {
-        RecordingParseError::SerdeError(err)
+impl From<serde_json::Error> for RecordingParseError {
+    fn from(err: serde_json::Error) -> Self {
+        RecordingParseError::Json(err)
     }
 }
 
 impl From<std::io::Error> for RecordingParseError {
     fn from(err: std::io::Error) -> Self {
-        RecordingParseError::IoError(err)
+        RecordingParseError::Compression(err)
     }
 }
 
@@ -564,19 +569,87 @@ mod tests {
         serde_json::from_slice(bytes)
     }
 
+    // End to end test coverage.
+
+    #[test]
+    fn test_process_recording_end_to_end() {
+        // Valid compressed rrweb payload.  Contains a 16 byte header followed by a new line
+        // character and concludes with a gzipped rrweb payload.
+        let payload: &[u8] = &[
+            123, 34, 115, 101, 103, 109, 101, 110, 116, 95, 105, 100, 34, 58, 51, 125, 10, 120,
+            156, 149, 144, 91, 106, 196, 32, 20, 64, 247, 114, 191, 237, 160, 241, 145, 234, 38,
+            102, 1, 195, 124, 152, 104, 6, 33, 169, 193, 40, 52, 4, 247, 94, 91, 103, 40, 20, 108,
+            59, 191, 247, 30, 207, 225, 122, 57, 32, 238, 171, 5, 69, 17, 24, 29, 53, 168, 3, 54,
+            159, 194, 88, 70, 4, 193, 234, 55, 23, 157, 127, 219, 64, 93, 14, 120, 7, 37, 100, 1,
+            119, 80, 29, 102, 8, 156, 1, 213, 11, 4, 209, 45, 246, 60, 77, 155, 141, 160, 94, 232,
+            43, 206, 232, 206, 118, 127, 176, 132, 177, 7, 203, 42, 75, 36, 175, 44, 231, 63, 88,
+            217, 229, 107, 174, 179, 45, 234, 101, 45, 172, 232, 49, 163, 84, 22, 191, 232, 63, 61,
+            207, 93, 130, 229, 189, 216, 53, 138, 84, 182, 139, 178, 199, 191, 22, 139, 179, 238,
+            196, 227, 244, 134, 137, 240, 158, 60, 101, 34, 255, 18, 241, 6, 116, 42, 212, 119, 35,
+            234, 27, 40, 24, 130, 213, 102, 12, 105, 25, 160, 252, 147, 222, 103, 175, 205, 215,
+            182, 45, 168, 17, 48, 118, 210, 105, 142, 229, 217, 168, 163, 189, 249, 80, 254, 19,
+            146, 59, 13, 115, 10, 144, 115, 190, 126, 0, 2, 68, 180, 16,
+        ];
+
+        let result = recording::process_recording(payload, 1000);
+        assert!(!result.unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_process_recording_no_body_data() {
+        // Empty bodies can not be decompressed and fail.
+        let payload: &[u8] = &[
+            123, 34, 115, 101, 103, 109, 101, 110, 116, 95, 105, 100, 34, 58, 51, 125, 10,
+        ];
+
+        let result = recording::process_recording(payload, 1000);
+        assert!(matches!(
+            result.unwrap_err(),
+            recording::RecordingParseError::Message("no body found"),
+        ));
+    }
+
+    #[test]
+    fn test_process_recording_bad_body_data() {
+        // Invalid gzip body contents.  Can not deflate.
+        let payload: &[u8] = &[
+            123, 34, 115, 101, 103, 109, 101, 110, 116, 95, 105, 100, 34, 58, 51, 125, 10, 22,
+        ];
+
+        let result = recording::process_recording(payload, 1000);
+        assert!(matches!(
+            result.unwrap_err(),
+            recording::RecordingParseError::Compression(_),
+        ));
+    }
+
+    #[test]
+    fn test_process_recording_no_headers() {
+        // No header delimiter.  Entire payload is consumed as headers.  The empty body fails.
+        let payload: &[u8] = &[
+            123, 34, 115, 101, 103, 109, 101, 110, 116, 95, 105, 100, 34, 58, 51, 125,
+        ];
+
+        let result = recording::process_recording(payload, 1000);
+        assert!(matches!(
+            result.unwrap_err(),
+            recording::RecordingParseError::Message("no body found"),
+        ));
+    }
+
+    #[test]
+    fn test_process_recording_no_contents() {
+        // Empty payload can not be decompressed.  Header check never fails.
+        let payload: &[u8] = &[];
+
+        let result = recording::process_recording(payload, 1000);
+        assert!(matches!(
+            result.unwrap_err(),
+            recording::RecordingParseError::Message("no data found"),
+        ));
+    }
+
     // RRWeb Payload Coverage
-
-    #[test]
-    fn test_process_recording_no_config() {
-        let payload = include_bytes!("../tests/fixtures/rrweb-binary.txt");
-        recording::process_recording(payload).unwrap();
-    }
-
-    #[test]
-    fn test_process_recording_has_config() {
-        let payload = include_bytes!("../tests/fixtures/rrweb-binary.txt");
-        recording::process_recording(payload).unwrap();
-    }
 
     #[test]
     fn test_pii_credit_card_removal() {
@@ -592,7 +665,7 @@ mod tests {
                 if let recording::NodeVariant::T2(mut ee) = dd.node.variant {
                     let ff = ee.child_nodes.pop().unwrap();
                     if let recording::NodeVariant::Rest(gg) = ff.variant {
-                        assert!(gg.text_content.as_str() == "[creditcard]");
+                        assert_eq!(gg.text_content, "[creditcard]");
                         return;
                     }
                 }
@@ -615,8 +688,7 @@ mod tests {
                 if let recording::NodeVariant::T2(mut ee) = dd.node.variant {
                     let ff = ee.child_nodes.pop().unwrap();
                     if let recording::NodeVariant::Rest(gg) = ff.variant {
-                        println!("{}", gg.text_content.as_str());
-                        assert!(gg.text_content.as_str() == "[ip]");
+                        assert_eq!(gg.text_content, "[ip]");
                         return;
                     }
                 }

@@ -136,7 +136,7 @@ impl UpstreamRequest for SendEnvelope {
 /// Sends an envelope to the upstream or Kafka.
 #[derive(Debug)]
 pub struct SubmitEnvelope {
-    pub envelope: Envelope,
+    pub envelope: Box<Envelope>,
     pub envelope_context: EnvelopeContext,
 }
 
@@ -237,7 +237,7 @@ impl EnvelopeManagerService {
     /// Sends an envelope to the upstream or Kafka.
     async fn submit_envelope(
         &self,
-        mut envelope: Envelope,
+        mut envelope: Box<Envelope>,
         scoping: Scoping,
         partition_key: Option<String>,
     ) -> Result<(), SendEnvelopeError> {

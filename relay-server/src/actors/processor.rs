@@ -219,7 +219,7 @@ struct ProcessEnvelopeState {
     ///
     /// The pipeline can mutate the envelope and remove or add items. In particular, event items are
     /// removed at the beginning of processing and re-added in the end.
-    envelope: Envelope,
+    envelope: Box<Envelope>,
 
     /// The extracted event payload.
     ///
@@ -357,7 +357,7 @@ pub struct ProcessEnvelopeResponse {
     /// This is `Some` if the envelope passed inbound filtering and rate limiting. Invalid items are
     /// removed from the envelope. Otherwise, if the envelope is empty or the entire envelope needs
     /// to be dropped, this is `None`.
-    pub envelope: Option<(Envelope, EnvelopeContext)>,
+    pub envelope: Option<(Box<Envelope>, EnvelopeContext)>,
 }
 
 /// Applies processing to all contents of the given envelope.
@@ -371,7 +371,7 @@ pub struct ProcessEnvelopeResponse {
 ///  - Rate limiters and inbound filters on events in processing mode.
 #[derive(Debug)]
 pub struct ProcessEnvelope {
-    pub envelope: Envelope,
+    pub envelope: Box<Envelope>,
     pub envelope_context: EnvelopeContext,
     pub project_state: Arc<ProjectState>,
     pub sampling_project_state: Option<Arc<ProjectState>>,
@@ -1021,8 +1021,13 @@ impl EnvelopeProcessorService {
                 // XXX: Temporarily, only the Sentry org will be allowed to parse replays while
                 // we measure the impact of this change.
                 if replays_enabled && state.project_state.organization_id == Some(1) {
+                    // Limit expansion of recordings to the max replay size. The payload is
+                    // decompressed temporarily and then immediately re-compressed. However, to
+                    // limit memory pressure, we use the replay limit as a good overall limit for
+                    // allocations.
+                    let limit = self.config.max_replay_size();
                     let parsed_recording =
-                        relay_replays::recording::process_recording(&item.payload());
+                        relay_replays::recording::process_recording(&item.payload(), limit);
 
                     match parsed_recording {
                         Ok(recording) => {

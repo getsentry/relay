@@ -74,7 +74,7 @@ impl Producer {
 /// Publishes an [`Envelope`] to the Sentry core application through Kafka topics.
 #[derive(Clone, Debug)]
 pub struct StoreEnvelope {
-    pub envelope: Envelope,
+    pub envelope: Box<Envelope>,
     pub start_time: Instant,
     pub scoping: Scoping,
 }

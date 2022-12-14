@@ -529,7 +529,7 @@ pub struct Project {
     config: Arc<Config>,
     state: Option<Arc<ProjectState>>,
     state_channel: Option<StateChannel>,
-    pending_validations: VecDeque<(Envelope, EnvelopeContext)>,
+    pending_validations: VecDeque<(Box<Envelope>, EnvelopeContext)>,
     pending_sampling: VecDeque<ProcessEnvelope>,
     rate_limits: RateLimits,
     last_no_cache: Instant,
@@ -761,7 +761,7 @@ impl Project {
     ///  - Otherwise, the envelope is directly submitted to the [`EnvelopeProcessor`].
     fn flush_validation(
         &mut self,
-        envelope: Envelope,
+        envelope: Box<Envelope>,
         envelope_context: EnvelopeContext,
         project_state: Arc<ProjectState>,
     ) {
@@ -801,7 +801,7 @@ impl Project {
     ///
     /// This method will trigger an update of the project state internally if the state is stale or
     /// outdated.
-    pub fn enqueue_validation(&mut self, envelope: Envelope, context: EnvelopeContext) {
+    pub fn enqueue_validation(&mut self, envelope: Box<Envelope>, context: EnvelopeContext) {
         match self.get_cached_state(envelope.meta().no_cache()) {
             Some(state) => self.flush_validation(envelope, context, state),
             None => self.pending_validations.push_back((envelope, context)),
@@ -900,7 +900,7 @@ impl Project {
 
     pub fn check_envelope(
         &mut self,
-        mut envelope: Envelope,
+        mut envelope: Box<Envelope>,
         mut envelope_context: EnvelopeContext,
     ) -> Result<CheckedEnvelope, DiscardReason> {
         let state = self.valid_state();
