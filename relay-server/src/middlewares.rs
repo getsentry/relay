@@ -3,7 +3,7 @@
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use tokio::time::Instant;
 
 use actix_web::error::Error;
 use actix_web::middleware::{Finished, Middleware, Response, Started};

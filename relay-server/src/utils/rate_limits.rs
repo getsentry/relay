@@ -281,7 +281,8 @@ impl Enforcement {
 
         for limit in [event, attachments, profiles, replays, event_metrics] {
             if limit.is_active() {
-                let timestamp = relay_common::instant_to_date_time(envelope.meta().start_time());
+                let timestamp =
+                    relay_common::instant_to_date_time(envelope.meta().start_time().into_std());
                 TrackOutcome::from_registry().send(TrackOutcome {
                     timestamp,
                     scoping: *scoping,

@@ -22,7 +22,7 @@ use std::collections::VecDeque;
 use std::fmt;
 use std::str;
 use std::sync::Arc;
-use std::time::Instant;
+use tokio::time::Instant;
 
 use ::actix::fut;
 use ::actix::prelude::*;

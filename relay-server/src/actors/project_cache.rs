@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use std::time::Instant;
+use tokio::time::Instant;
 
 use actix::{Actor, Message};
 use actix_web::ResponseError;
