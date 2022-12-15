@@ -89,6 +89,18 @@ impl AndroidProfile {
         }
     }
 
+    fn parse(&mut self) -> Result<(), ProfileError> {
+        let profile_bytes = match base64::decode(&self.sampled_profile) {
+            Ok(profile) => profile,
+            Err(_) => return Err(ProfileError::InvalidBase64Value),
+        };
+        self.profile = match android_trace_log::parse(&profile_bytes) {
+            Ok(profile) => profile,
+            Err(_) => return Err(ProfileError::InvalidSampledProfile),
+        };
+        Ok(())
+    }
+
     fn has_transaction_metadata(&self) -> bool {
         !self.transaction_name.is_empty() && self.duration_ns > 0
     }
@@ -138,12 +150,7 @@ fn parse_profile(payload: &[u8]) -> Result<AndroidProfile, ProfileError> {
     }
 
     if !profile.sampled_profile.is_empty() {
-        let profile_bytes =
-            base64::decode(&profile.sampled_profile).map_err(|_| ProfileError::InvalidBase64Value);
-        let android_trace = android_trace_log::parse(&profile_bytes.unwrap())
-            .map_err(|_| ProfileError::InvalidSampledProfile);
-
-        profile.profile = android_trace.unwrap();
+        profile.parse()?;
         profile.remove_events_with_no_duration();
     }
 
