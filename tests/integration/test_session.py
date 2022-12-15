@@ -88,7 +88,6 @@ def test_session_with_processing(mini_sentry, relay_with_processing, sessions_co
         "environment": "production",
         "retention_days": 90,
         "sdk": "raven-node/2.6.3",
-        "abnormal_mechanism": None,
     }
 
 
@@ -137,7 +136,6 @@ def test_session_with_processing_two_events(
         "environment": "production",
         "retention_days": 90,
         "sdk": "raven-node/2.6.3",
-        "abnormal_mechanism": None,
     }
 
     relay.send_session(
@@ -173,7 +171,6 @@ def test_session_with_processing_two_events(
         "environment": "production",
         "retention_days": 90,
         "sdk": "raven-node/2.6.3",
-        "abnormal_mechanism": None,
     }
 
 
@@ -226,7 +223,6 @@ def test_session_aggregates(mini_sentry, relay_with_processing, sessions_consume
         "environment": "production",
         "retention_days": 90,
         "sdk": "raven-node/2.6.3",
-        "abnormal_mechanism": None,
     }
 
     session = sessions_consumer.get_session()
@@ -246,7 +242,6 @@ def test_session_aggregates(mini_sentry, relay_with_processing, sessions_consume
         "environment": "production",
         "retention_days": 90,
         "sdk": "raven-node/2.6.3",
-        "abnormal_mechanism": None,
     }
 
     session = sessions_consumer.get_session()
@@ -266,7 +261,6 @@ def test_session_aggregates(mini_sentry, relay_with_processing, sessions_consume
         "environment": "production",
         "retention_days": 90,
         "sdk": "raven-node/2.6.3",
-        "abnormal_mechanism": None,
     }
 
 
@@ -396,7 +390,6 @@ def test_session_force_errors_on_crash(
         "environment": "production",
         "retention_days": 90,
         "sdk": "raven-node/2.6.3",
-        "abnormal_mechanism": None,
     }
 
 

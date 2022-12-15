@@ -154,7 +154,7 @@ pub trait SessionLike {
     fn crashed_count(&self) -> u32;
     fn all_errors(&self) -> Option<SessionErrored>;
     fn final_duration(&self) -> Option<(f64, SessionStatus)>;
-    fn abnormal_mechanism(&self) -> Option<AbnormalMechanism>;
+    fn abnormal_mechanism(&self) -> AbnormalMechanism;
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -249,11 +249,8 @@ impl SessionLike for SessionUpdate {
         }
     }
 
-    fn abnormal_mechanism(&self) -> Option<AbnormalMechanism> {
-        match self.abnormal_mechanism {
-            AbnormalMechanism::None => None,
-            _ => Some(self.abnormal_mechanism),
-        }
+    fn abnormal_mechanism(&self) -> AbnormalMechanism {
+        self.abnormal_mechanism
     }
 }
 
@@ -318,8 +315,8 @@ impl SessionLike for SessionAggregateItem {
             None
         }
     }
-    fn abnormal_mechanism(&self) -> Option<AbnormalMechanism> {
-        None
+    fn abnormal_mechanism(&self) -> AbnormalMechanism {
+        AbnormalMechanism::None
     }
 }
 

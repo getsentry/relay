@@ -1,7 +1,9 @@
 use std::collections::BTreeMap;
 
 use relay_common::{UnixTimestamp, Uuid};
-use relay_general::protocol::{SessionAttributes, SessionErrored, SessionLike, SessionStatus};
+use relay_general::protocol::{
+    AbnormalMechanism, SessionAttributes, SessionErrored, SessionLike, SessionStatus,
+};
 use relay_metrics::{DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue};
 
 use super::utils::with_tag;
@@ -160,13 +162,12 @@ pub fn extract_session_metrics<T: SessionLike>(
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
             let mut tags_for_abnormal_session =
                 with_tag(&tags, "session.status", SessionStatus::Abnormal);
-            if extract_abnormal_mechanism {
-                if let Some(ref abnormal_mechanism) = session.abnormal_mechanism() {
-                    tags_for_abnormal_session.insert(
-                        "abnormal_mechanism".to_owned(),
-                        abnormal_mechanism.to_string(),
-                    );
-                }
+            if extract_abnormal_mechanism && session.abnormal_mechanism() != AbnormalMechanism::None
+            {
+                tags_for_abnormal_session.insert(
+                    "abnormal_mechanism".to_owned(),
+                    session.abnormal_mechanism().to_string(),
+                );
             }
             target.push(Metric::new_mri(
                 METRIC_NAMESPACE,
