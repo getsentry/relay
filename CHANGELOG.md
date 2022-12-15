@@ -8,6 +8,7 @@
 - Add OpenTelemetry Context ([#1617](https://github.com/getsentry/relay/pull/1617))
 - Add `app.in_foreground` and `thread.main` flag to protocol. ([#1578](https://github.com/getsentry/relay/pull/1578))
 - Add support for View Hierarchy attachment_type. ([#1642](https://github.com/getsentry/relay/pull/1642))
+- Add `abnormal_mechanism` field to SessionUpdate protocol. ([#1665](https://github.com/getsentry/relay/pull/1665))
 
 **Bug Fixes**:
 
