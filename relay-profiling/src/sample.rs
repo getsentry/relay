@@ -284,10 +284,7 @@ fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
 
 pub fn parse_sample_profile(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
     let profile = parse_profile(payload)?;
-    match serde_json::to_vec(&profile) {
-        Ok(payload) => Ok(payload),
-        Err(_) => Err(ProfileError::CannotSerializePayload),
-    }
+    serde_json::to_vec(&profile).map_err(|_| ProfileError::CannotSerializePayload)
 }
 
 #[cfg(test)]

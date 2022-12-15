@@ -163,10 +163,7 @@ fn parse_profile(payload: &[u8]) -> Result<AndroidProfile, ProfileError> {
 
 pub fn parse_android_profile(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
     let profile = parse_profile(payload)?;
-    match serde_json::to_vec(&profile) {
-        Ok(payload) => Ok(payload),
-        Err(_) => Err(ProfileError::CannotSerializePayload),
-    }
+    serde_json::to_vec(&profile).map_err(|_| ProfileError::CannotSerializePayload)
 }
 
 fn get_timestamp(clock: Clock, start_time: DateTime<Utc>, event_time: Time) -> u64 {
