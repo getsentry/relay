@@ -122,11 +122,7 @@ pub fn validate_timestamps(
     }
 }
 
-pub fn validate_transaction(event: &mut Event) -> ProcessingResult {
-    if event.ty.value() != Some(&EventType::Transaction) {
-        return Ok(());
-    }
-
+fn validate_transaction(event: &mut Event) -> ProcessingResult {
     validate_timestamps(event)?;
 
     let err_trace_context_required = Err(ProcessingAction::InvalidTransaction(
@@ -344,7 +340,13 @@ impl Processor for TransactionsProcessor<'_> {
         let spans = event.spans.value_mut().get_or_insert_with(|| Vec::new());
 
         for span in spans {
-            if span.value().is_none() {
+            if let Some(span) = span.value_mut() {
+                if span.timestamp.value().is_none() {
+                    // event timestamp guaranteed to be `Some` due to validate_transaction call
+                    span.timestamp.set_value(event.timestamp.value().cloned());
+                    span.status = Annotated::new(SpanStatus::DeadlineExceeded);
+                }
+            } else {
                 return Err(ProcessingAction::InvalidTransaction(
                     "spans must be valid in transaction event",
                 ));
@@ -408,6 +410,7 @@ impl Processor for TransactionsProcessor<'_> {
 
 #[cfg(test)]
 mod tests {
+
     use chrono::offset::TimeZone;
     use chrono::{Duration, Utc};
     use similar_asserts::assert_eq;
@@ -484,6 +487,42 @@ mod tests {
             Err(ProcessingAction::InvalidTransaction(
                 "timestamp hard-required for transaction events"
             ))
+        );
+    }
+
+    #[test]
+    fn test_replace_missing_timestamp() {
+        let span = Span {
+            start_timestamp: Annotated::new(Utc.ymd(1968, 1, 1).and_hms_nano(0, 0, 1, 0).into()),
+            trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+            span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+            ..Default::default()
+        };
+
+        let mut event = new_test_event().0.unwrap();
+        event.spans = Annotated::new(vec![Annotated::new(span)]);
+
+        TransactionsProcessor::default()
+            .process_event(
+                &mut event,
+                &mut Meta::default(),
+                &ProcessingState::default(),
+            )
+            .unwrap();
+
+        assert_eq!(
+            event.spans.value().unwrap()[0].value().unwrap().timestamp,
+            event.timestamp
+        );
+
+        assert_eq!(
+            event.spans.value().unwrap()[0]
+                .value()
+                .unwrap()
+                .status
+                .value()
+                .unwrap(),
+            &SpanStatus::DeadlineExceeded
         );
     }
 
@@ -837,45 +876,6 @@ mod tests {
             ),
             Err(ProcessingAction::InvalidTransaction(
                 "spans must be valid in transaction event"
-            ))
-        );
-    }
-
-    #[test]
-    fn test_discards_transaction_event_with_span_with_missing_timestamp() {
-        let mut event = Annotated::new(Event {
-            ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
-            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
-            contexts: Annotated::new(Contexts({
-                let mut contexts = Object::new();
-                contexts.insert(
-                    "trace".to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
-                        trace_id: Annotated::new(TraceId(
-                            "4c79f60c11214eb38604f4ae0781bfb2".into(),
-                        )),
-                        span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                        op: Annotated::new("http.server".to_owned()),
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
-            spans: Annotated::new(vec![Annotated::new(Span {
-                ..Default::default()
-            })]),
-            ..Default::default()
-        });
-
-        assert_eq!(
-            process_value(
-                &mut event,
-                &mut TransactionsProcessor::default(),
-                ProcessingState::root()
-            ),
-            Err(ProcessingAction::InvalidTransaction(
-                "span is missing timestamp"
             ))
         );
     }
