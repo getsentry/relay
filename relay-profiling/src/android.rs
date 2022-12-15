@@ -239,9 +239,9 @@ mod tests {
             include_bytes!("../tests/fixtures/profiles/android/multiple_transactions.json");
         let data = expand_android_profile(payload);
         assert!(data.is_ok());
-        assert_eq!(data.as_ref().unwrap().len(), 3);
+        assert_eq!(data.as_ref().unwrap().len(), 1); // just the first transaction
 
-        let profile = match parse_android_profile(&data.as_ref().unwrap()[0][..]) {
+        let profile = match parse_android_profile(&data.as_ref().unwrap()[0]) {
             Err(err) => panic!("cannot parse profile: {:?}", err),
             Ok(profile) => profile,
         };
