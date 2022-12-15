@@ -656,7 +656,7 @@ mod tests {
 
     #[test]
     fn test_pii_credit_card_removal() {
-        let payload = include_bytes!("../tests/fixtures/big1.json");
+        let payload = include_bytes!("../tests/fixtures/rrweb-pii.json");
         let mut events: Vec<Event> = serde_json::from_slice(payload).unwrap();
 
         recording::strip_pii(&mut events).unwrap();
