@@ -556,10 +556,106 @@
 <span id="554">554</span>
 <span id="555">555</span>
 <span id="556">556</span>
+<span id="557">557</span>
+<span id="558">558</span>
+<span id="559">559</span>
+<span id="560">560</span>
+<span id="561">561</span>
+<span id="562">562</span>
+<span id="563">563</span>
+<span id="564">564</span>
+<span id="565">565</span>
+<span id="566">566</span>
+<span id="567">567</span>
+<span id="568">568</span>
+<span id="569">569</span>
+<span id="570">570</span>
+<span id="571">571</span>
+<span id="572">572</span>
+<span id="573">573</span>
+<span id="574">574</span>
+<span id="575">575</span>
+<span id="576">576</span>
+<span id="577">577</span>
+<span id="578">578</span>
+<span id="579">579</span>
+<span id="580">580</span>
+<span id="581">581</span>
+<span id="582">582</span>
+<span id="583">583</span>
+<span id="584">584</span>
+<span id="585">585</span>
+<span id="586">586</span>
+<span id="587">587</span>
+<span id="588">588</span>
+<span id="589">589</span>
+<span id="590">590</span>
+<span id="591">591</span>
+<span id="592">592</span>
+<span id="593">593</span>
+<span id="594">594</span>
+<span id="595">595</span>
+<span id="596">596</span>
+<span id="597">597</span>
+<span id="598">598</span>
+<span id="599">599</span>
+<span id="600">600</span>
+<span id="601">601</span>
+<span id="602">602</span>
+<span id="603">603</span>
+<span id="604">604</span>
+<span id="605">605</span>
+<span id="606">606</span>
+<span id="607">607</span>
+<span id="608">608</span>
+<span id="609">609</span>
+<span id="610">610</span>
+<span id="611">611</span>
+<span id="612">612</span>
+<span id="613">613</span>
+<span id="614">614</span>
+<span id="615">615</span>
+<span id="616">616</span>
+<span id="617">617</span>
+<span id="618">618</span>
+<span id="619">619</span>
+<span id="620">620</span>
+<span id="621">621</span>
+<span id="622">622</span>
+<span id="623">623</span>
+<span id="624">624</span>
+<span id="625">625</span>
+<span id="626">626</span>
+<span id="627">627</span>
+<span id="628">628</span>
+<span id="629">629</span>
+<span id="630">630</span>
+<span id="631">631</span>
+<span id="632">632</span>
+<span id="633">633</span>
+<span id="634">634</span>
+<span id="635">635</span>
+<span id="636">636</span>
+<span id="637">637</span>
+<span id="638">638</span>
+<span id="639">639</span>
+<span id="640">640</span>
+<span id="641">641</span>
+<span id="642">642</span>
+<span id="643">643</span>
+<span id="644">644</span>
+<span id="645">645</span>
+<span id="646">646</span>
+<span id="647">647</span>
+<span id="648">648</span>
+<span id="649">649</span>
+<span id="650">650</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>relay_common::{UnixTimestamp, Uuid};
-<span class="kw">use </span>relay_general::protocol::{SessionAttributes, SessionErrored, SessionLike, SessionStatus};
+<span class="kw">use </span>relay_general::protocol::{
+    AbnormalMechanism, SessionAttributes, SessionErrored, SessionLike, SessionStatus,
+};
 <span class="kw">use </span>relay_metrics::{DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue};
 
 <span class="kw">use </span><span class="kw">super</span>::utils::with_tag;
@@ -568,7 +664,8 @@
 </span><span class="kw">const </span>METRIC_NAMESPACE: MetricNamespace = MetricNamespace::Sessions;
 
 <span class="doccomment">/// Current version of metrics extraction.
-</span><span class="kw">const </span>EXTRACT_VERSION: u16 = <span class="number">1</span>;
+</span><span class="kw">const </span>EXTRACT_VERSION: u16 = <span class="number">2</span>;
+<span class="kw">const </span>EXTRACT_ABNORMAL_MECHANISM_VERSION: u16 = <span class="number">2</span>;
 
 <span class="doccomment">/// Configuration for metric extraction from sessions.
 </span><span class="attribute">#[derive(Debug, Clone, Copy, Default, serde::Deserialize, serde::Serialize)]
@@ -598,6 +695,10 @@
         !<span class="self">self</span>.is_enabled()
     }
 
+    <span class="kw">pub fn </span>should_extract_abnormal_mechanism(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.version &gt;= EXTRACT_ABNORMAL_MECHANISM_VERSION
+    }
+
     <span class="doccomment">/// Returns `true` if the session should be dropped after extracting metrics.
     </span><span class="kw">pub fn </span>should_drop(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="self">self</span>.drop
@@ -621,6 +722,7 @@
     session: <span class="kw-2">&amp;</span>T,
     client: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
     target: <span class="kw-2">&amp;mut </span>Vec&lt;Metric&gt;,
+    extract_abnormal_mechanism: bool,
 ) {
     <span class="kw">let </span>timestamp = <span class="kw">match </span>UnixTimestamp::from_datetime(session.started()) {
         <span class="prelude-val">Some</span>(ts) =&gt; ts,
@@ -710,13 +812,22 @@
         ));
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(distinct_id) = nil_to_none(session.distinct_id()) {
+            <span class="kw">let </span><span class="kw-2">mut </span>tags_for_abnormal_session =
+                with_tag(<span class="kw-2">&amp;</span>tags, <span class="string">&quot;session.status&quot;</span>, SessionStatus::Abnormal);
+            <span class="kw">if </span>extract_abnormal_mechanism &amp;&amp; session.abnormal_mechanism() != AbnormalMechanism::None
+            {
+                tags_for_abnormal_session.insert(
+                    <span class="string">&quot;abnormal_mechanism&quot;</span>.to_owned(),
+                    session.abnormal_mechanism().to_string(),
+                );
+            }
             target.push(Metric::new_mri(
                 METRIC_NAMESPACE,
                 <span class="string">&quot;user&quot;</span>,
                 MetricUnit::None,
                 MetricValue::set_from_str(distinct_id),
                 timestamp,
-                with_tag(<span class="kw-2">&amp;</span>tags, <span class="string">&quot;session.status&quot;</span>, SessionStatus::Abnormal),
+                tags_for_abnormal_session,
             ));
         }
     }
@@ -760,7 +871,7 @@
 
 <span class="attribute">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span>relay_general::protocol::{SessionAggregates, SessionUpdate};
+    <span class="kw">use </span>relay_general::protocol::{AbnormalMechanism, SessionAggregates, SessionUpdate};
     <span class="kw">use </span>relay_metrics::MetricValue;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
@@ -808,7 +919,13 @@
         )
         .unwrap();
 
-        extract_session_metrics(<span class="kw-2">&amp;</span>session.attributes, <span class="kw-2">&amp;</span>session, <span class="prelude-val">Some</span>(client), <span class="kw-2">&amp;mut </span>metrics);
+        extract_session_metrics(
+            <span class="kw-2">&amp;</span>session.attributes,
+            <span class="kw-2">&amp;</span>session,
+            <span class="prelude-val">Some</span>(client),
+            <span class="kw-2">&amp;mut </span>metrics,
+            <span class="bool-val">true</span>,
+        );
 
         <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">2</span>);
 
@@ -846,7 +963,7 @@
         )
         .unwrap();
 
-        extract_session_metrics(<span class="kw-2">&amp;</span>session.attributes, <span class="kw-2">&amp;</span>session, <span class="prelude-val">None</span>, <span class="kw-2">&amp;mut </span>metrics);
+        extract_session_metrics(<span class="kw-2">&amp;</span>session.attributes, <span class="kw-2">&amp;</span>session, <span class="prelude-val">None</span>, <span class="kw-2">&amp;mut </span>metrics, <span class="bool-val">true</span>);
 
         <span class="comment">// A none-initial update which is not errored/crashed/abnormal will only emit a user metric.
         </span><span class="macro">assert_eq!</span>(metrics.len(), <span class="number">1</span>);
@@ -885,7 +1002,7 @@
             (update3, <span class="number">2</span>),
         ] {
             <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
-            extract_session_metrics(<span class="kw-2">&amp;</span>update.attributes, <span class="kw-2">&amp;</span>update, <span class="prelude-val">None</span>, <span class="kw-2">&amp;mut </span>metrics);
+            extract_session_metrics(<span class="kw-2">&amp;</span>update.attributes, <span class="kw-2">&amp;</span>update, <span class="prelude-val">None</span>, <span class="kw-2">&amp;mut </span>metrics, <span class="bool-val">true</span>);
 
             <span class="macro">assert_eq!</span>(metrics.len(), expected_metrics);
 
@@ -906,7 +1023,53 @@
 
     <span class="attribute">#[test]
     </span><span class="kw">fn </span>test_extract_session_metrics_fatal() {
-        <span class="kw">for </span>status <span class="kw">in </span><span class="kw-2">&amp;</span>[SessionStatus::Crashed, SessionStatus::Abnormal] {
+        <span class="kw">let </span>session = SessionUpdate::parse(
+            <span class="string">r#&quot;{
+                &quot;init&quot;: false,
+                &quot;started&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
+                &quot;attrs&quot;: {
+                    &quot;release&quot;: &quot;1.0.0&quot;
+                },
+                &quot;did&quot;: &quot;user123&quot;,
+                &quot;status&quot;: &quot;crashed&quot;
+            }&quot;#
+            </span>.as_bytes(),
+        )
+        .unwrap();
+
+        <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
+
+        extract_session_metrics(<span class="kw-2">&amp;</span>session.attributes, <span class="kw-2">&amp;</span>session, <span class="prelude-val">None</span>, <span class="kw-2">&amp;mut </span>metrics, <span class="bool-val">true</span>);
+
+        <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">4</span>);
+
+        <span class="macro">assert_eq!</span>(metrics[<span class="number">0</span>].name, <span class="string">&quot;s:sessions/error@none&quot;</span>);
+        <span class="macro">assert_eq!</span>(metrics[<span class="number">1</span>].name, <span class="string">&quot;s:sessions/user@none&quot;</span>);
+        <span class="macro">assert_eq!</span>(metrics[<span class="number">1</span>].tags[<span class="string">&quot;session.status&quot;</span>], <span class="string">&quot;errored&quot;</span>);
+
+        <span class="kw">let </span>session_metric = <span class="kw-2">&amp;</span>metrics[<span class="number">2</span>];
+        <span class="macro">assert_eq!</span>(session_metric.timestamp, started());
+        <span class="macro">assert_eq!</span>(session_metric.name, <span class="string">&quot;c:sessions/session@none&quot;</span>);
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(session_metric.value, MetricValue::Counter(<span class="kw">_</span>)));
+        <span class="macro">assert_eq!</span>(session_metric.tags[<span class="string">&quot;session.status&quot;</span>], <span class="string">&quot;crashed&quot;</span>);
+
+        <span class="kw">let </span>user_metric = <span class="kw-2">&amp;</span>metrics[<span class="number">3</span>];
+        <span class="macro">assert_eq!</span>(user_metric.timestamp, started());
+        <span class="macro">assert_eq!</span>(user_metric.name, <span class="string">&quot;s:sessions/user@none&quot;</span>);
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(user_metric.value, MetricValue::Set(<span class="kw">_</span>)));
+        <span class="macro">assert_eq!</span>(user_metric.tags[<span class="string">&quot;session.status&quot;</span>], <span class="string">&quot;crashed&quot;</span>);
+    }
+
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_extract_session_metrics_abnormal() {
+        <span class="kw">for </span>(abnormal_mechanism, expected_tag_value) <span class="kw">in </span>[
+            (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>),
+            (<span class="prelude-val">Some</span>(AbnormalMechanism::None), <span class="prelude-val">None</span>),
+            (
+                <span class="prelude-val">Some</span>(AbnormalMechanism::AnrForeground),
+                <span class="prelude-val">Some</span>(<span class="string">&quot;anr_foreground&quot;</span>),
+            ),
+        ] {
             <span class="kw">let </span><span class="kw-2">mut </span>session = SessionUpdate::parse(
                 <span class="string">r#&quot;{
                     &quot;init&quot;: false,
@@ -914,16 +1077,20 @@
                     &quot;attrs&quot;: {
                         &quot;release&quot;: &quot;1.0.0&quot;
                     },
-                    &quot;did&quot;: &quot;user123&quot;
+                    &quot;did&quot;: &quot;user123&quot;,
+                    &quot;status&quot;: &quot;abnormal&quot;
                 }&quot;#
                 </span>.as_bytes(),
             )
             .unwrap();
-            session.status = <span class="kw-2">*</span>status;
+
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(mechanism) = abnormal_mechanism {
+                session.abnormal_mechanism = mechanism;
+            }
 
             <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
 
-            extract_session_metrics(<span class="kw-2">&amp;</span>session.attributes, <span class="kw-2">&amp;</span>session, <span class="prelude-val">None</span>, <span class="kw-2">&amp;mut </span>metrics);
+            extract_session_metrics(<span class="kw-2">&amp;</span>session.attributes, <span class="kw-2">&amp;</span>session, <span class="prelude-val">None</span>, <span class="kw-2">&amp;mut </span>metrics, <span class="bool-val">true</span>);
 
             <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">4</span>);
 
@@ -935,13 +1102,28 @@
             <span class="macro">assert_eq!</span>(session_metric.timestamp, started());
             <span class="macro">assert_eq!</span>(session_metric.name, <span class="string">&quot;c:sessions/session@none&quot;</span>);
             <span class="macro">assert!</span>(<span class="macro">matches!</span>(session_metric.value, MetricValue::Counter(<span class="kw">_</span>)));
-            <span class="macro">assert_eq!</span>(session_metric.tags[<span class="string">&quot;session.status&quot;</span>], status.to_string());
+            <span class="macro">assert_eq!</span>(session_metric.tags[<span class="string">&quot;session.status&quot;</span>], <span class="string">&quot;abnormal&quot;</span>);
+
+            <span class="kw">let </span>session_metric_tag_keys: Vec&lt;String&gt; =
+                session_metric.tags.keys().cloned().collect();
+            <span class="macro">assert_eq!</span>(session_metric_tag_keys, [<span class="string">&quot;release&quot;</span>, <span class="string">&quot;session.status&quot;</span>]);
 
             <span class="kw">let </span>user_metric = <span class="kw-2">&amp;</span>metrics[<span class="number">3</span>];
             <span class="macro">assert_eq!</span>(user_metric.timestamp, started());
             <span class="macro">assert_eq!</span>(user_metric.name, <span class="string">&quot;s:sessions/user@none&quot;</span>);
             <span class="macro">assert!</span>(<span class="macro">matches!</span>(user_metric.value, MetricValue::Set(<span class="kw">_</span>)));
-            <span class="macro">assert_eq!</span>(user_metric.tags[<span class="string">&quot;session.status&quot;</span>], status.to_string());
+            <span class="macro">assert_eq!</span>(user_metric.tags[<span class="string">&quot;session.status&quot;</span>], <span class="string">&quot;abnormal&quot;</span>);
+
+            <span class="kw">let </span>user_metric_tag_keys: Vec&lt;String&gt; = user_metric.tags.keys().cloned().collect();
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = expected_tag_value {
+                <span class="macro">assert_eq!</span>(
+                    user_metric_tag_keys,
+                    [<span class="string">&quot;abnormal_mechanism&quot;</span>, <span class="string">&quot;release&quot;</span>, <span class="string">&quot;session.status&quot;</span>]
+                );
+                <span class="macro">assert_eq!</span>(user_metric.tags[<span class="string">&quot;abnormal_mechanism&quot;</span>], value);
+            } <span class="kw">else </span>{
+                <span class="macro">assert_eq!</span>(user_metric_tag_keys, [<span class="string">&quot;release&quot;</span>, <span class="string">&quot;session.status&quot;</span>]);
+            }
         }
     }
 
@@ -964,7 +1146,7 @@
         )
         .unwrap();
 
-        extract_session_metrics(<span class="kw-2">&amp;</span>session.attributes, <span class="kw-2">&amp;</span>session, <span class="prelude-val">None</span>, <span class="kw-2">&amp;mut </span>metrics);
+        extract_session_metrics(<span class="kw-2">&amp;</span>session.attributes, <span class="kw-2">&amp;</span>session, <span class="prelude-val">None</span>, <span class="kw-2">&amp;mut </span>metrics, <span class="bool-val">true</span>);
 
         <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">2</span>); <span class="comment">// duration and user ID
 
@@ -1012,7 +1194,13 @@
         .unwrap();
 
         <span class="kw">for </span>aggregate <span class="kw">in </span><span class="kw-2">&amp;</span>session.aggregates {
-            extract_session_metrics(<span class="kw-2">&amp;</span>session.attributes, aggregate, <span class="prelude-val">Some</span>(client), <span class="kw-2">&amp;mut </span>metrics);
+            extract_session_metrics(
+                <span class="kw-2">&amp;</span>session.attributes,
+                aggregate,
+                <span class="prelude-val">Some</span>(client),
+                <span class="kw-2">&amp;mut </span>metrics,
+                <span class="bool-val">true</span>,
+            );
         }
 
         <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###&quot;
