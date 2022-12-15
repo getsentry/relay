@@ -2890,6 +2890,16 @@
 <span id="2889">2889</span>
 <span id="2890">2890</span>
 <span id="2891">2891</span>
+<span id="2892">2892</span>
+<span id="2893">2893</span>
+<span id="2894">2894</span>
+<span id="2895">2895</span>
+<span id="2896">2896</span>
+<span id="2897">2897</span>
+<span id="2898">2898</span>
+<span id="2899">2899</span>
+<span id="2900">2900</span>
+<span id="2901">2901</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
@@ -3859,12 +3869,25 @@
             <span class="kw">return</span>;
         }
 
-        <span class="kw">let </span>context = <span class="kw-2">&amp;</span>state.envelope_context;
-        <span class="kw">let </span><span class="kw-2">mut </span>new_profiles = Vec::new();
-
-        <span class="kw">while let </span><span class="prelude-val">Some</span>(item) = envelope.take_item_by(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::Profile) {
-            <span class="kw">match </span>relay_profiling::expand_profile(<span class="kw-2">&amp;</span>item.payload()[..]) {
-                <span class="prelude-val">Ok</span>(payloads) =&gt; new_profiles.extend(payloads),
+        envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
+            ItemType::Profile =&gt; <span class="kw">match </span>relay_profiling::expand_profile(<span class="kw-2">&amp;</span>item.payload()) {
+                <span class="prelude-val">Ok</span>(payload) =&gt; {
+                    <span class="kw">if </span>payload.len() &lt;= <span class="self">self</span>.config.max_profile_size() {
+                        item.set_payload(ContentType::Json, payload);
+                        <span class="bool-val">true
+                    </span>} <span class="kw">else </span>{
+                        state.envelope_context.track_outcome(
+                            Outcome::Invalid(DiscardReason::Profiling(
+                                relay_profiling::discard_reason(
+                                    relay_profiling::ProfileError::ExceedSizeLimit,
+                                ),
+                            )),
+                            DataCategory::Profile,
+                            <span class="number">1</span>,
+                        );
+                        <span class="bool-val">false
+                    </span>}
+                }
                 <span class="prelude-val">Err</span>(err) =&gt; {
                     <span class="kw">match </span>err {
                         relay_profiling::ProfileError::InvalidJson(<span class="kw">_</span>) =&gt; {
@@ -3872,22 +3895,19 @@
                         }
                         <span class="kw">_ </span>=&gt; <span class="macro">relay_log::debug!</span>(<span class="string">&quot;invalid profile: {}&quot;</span>, err),
                     };
-                    context.track_outcome(
+
+                    state.envelope_context.track_outcome(
                         Outcome::Invalid(DiscardReason::Profiling(
                             relay_profiling::discard_reason(err),
                         )),
                         DataCategory::Profile,
                         <span class="number">1</span>,
                     );
-                }
-            }
-        }
-
-        <span class="kw">for </span>payload <span class="kw">in </span>new_profiles {
-            <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Profile);
-            item.set_payload(ContentType::Json, <span class="kw-2">&amp;</span>payload[..]);
-            envelope.add_item(item);
-        }
+                    <span class="bool-val">false
+                </span>}
+            },
+            <span class="kw">_ </span>=&gt; <span class="bool-val">true</span>,
+        });
     }
 
     <span class="doccomment">/// Remove replays if the feature flag is not enabled

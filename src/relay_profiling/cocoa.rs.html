@@ -306,54 +306,6 @@
 <span id="306">306</span>
 <span id="307">307</span>
 <span id="308">308</span>
-<span id="309">309</span>
-<span id="310">310</span>
-<span id="311">311</span>
-<span id="312">312</span>
-<span id="313">313</span>
-<span id="314">314</span>
-<span id="315">315</span>
-<span id="316">316</span>
-<span id="317">317</span>
-<span id="318">318</span>
-<span id="319">319</span>
-<span id="320">320</span>
-<span id="321">321</span>
-<span id="322">322</span>
-<span id="323">323</span>
-<span id="324">324</span>
-<span id="325">325</span>
-<span id="326">326</span>
-<span id="327">327</span>
-<span id="328">328</span>
-<span id="329">329</span>
-<span id="330">330</span>
-<span id="331">331</span>
-<span id="332">332</span>
-<span id="333">333</span>
-<span id="334">334</span>
-<span id="335">335</span>
-<span id="336">336</span>
-<span id="337">337</span>
-<span id="338">338</span>
-<span id="339">339</span>
-<span id="340">340</span>
-<span id="341">341</span>
-<span id="342">342</span>
-<span id="343">343</span>
-<span id="344">344</span>
-<span id="345">345</span>
-<span id="346">346</span>
-<span id="347">347</span>
-<span id="348">348</span>
-<span id="349">349</span>
-<span id="350">350</span>
-<span id="351">351</span>
-<span id="352">352</span>
-<span id="353">353</span>
-<span id="354">354</span>
-<span id="355">355</span>
-<span id="356">356</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 
 <span class="kw">use </span>serde::{de, Deserialize, Serialize};
@@ -465,13 +417,6 @@
 }
 
 <span class="kw">impl </span>CocoaProfile {
-    <span class="kw">fn </span>set_transaction(<span class="kw-2">&amp;mut </span><span class="self">self</span>, transaction: <span class="kw-2">&amp;</span>TransactionMetadata) {
-        <span class="self">self</span>.transaction_name = transaction.name.clone();
-        <span class="self">self</span>.transaction_id = transaction.id;
-        <span class="self">self</span>.trace_id = transaction.trace_id;
-        <span class="self">self</span>.duration_ns = transaction.duration_ns();
-    }
-
     <span class="kw">fn </span>has_transaction_metadata(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         !<span class="self">self</span>.transaction_name.is_empty() &amp;&amp; <span class="self">self</span>.duration_ns &gt; <span class="number">0
     </span>}
@@ -495,71 +440,40 @@
     }
 }
 
-<span class="kw">pub fn </span>expand_cocoa_profile(payload: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Vec&lt;u8&gt;&gt;, ProfileError&gt; {
-    <span class="kw">let </span>profile = parse_cocoa_profile(payload)<span class="question-mark">?</span>;
-    <span class="kw">let </span><span class="kw-2">mut </span>items: Vec&lt;Vec&lt;u8&gt;&gt; = Vec::new();
-
-    <span class="kw">if </span>profile.transactions.is_empty() &amp;&amp; profile.has_transaction_metadata() {
-        <span class="kw">match </span>serde_json::to_vec(<span class="kw-2">&amp;</span>profile) {
-            <span class="prelude-val">Ok</span>(payload) =&gt; items.push(payload),
-            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::CannotSerializePayload);
-            }
-        };
-
-        <span class="kw">return </span><span class="prelude-val">Ok</span>(items);
-    }
-
-    <span class="kw">for </span>transaction <span class="kw">in </span><span class="kw-2">&amp;</span>profile.transactions {
-        <span class="kw">let </span><span class="kw-2">mut </span>new_profile = profile.clone();
-
-        new_profile.profile_id = EventId::new();
-        new_profile.set_transaction(transaction);
-        new_profile.transactions.clear();
-
-        new_profile.sampled_profile.samples.retain_mut(|sample| {
-            <span class="kw">if </span>transaction.relative_start_ns &lt;= sample.relative_timestamp_ns
-                &amp;&amp; sample.relative_timestamp_ns &lt;= transaction.relative_end_ns
-            {
-                sample.relative_timestamp_ns -= transaction.relative_start_ns;
-                <span class="bool-val">true
-            </span>} <span class="kw">else </span>{
-                <span class="bool-val">false
-            </span>}
-        });
-
-        <span class="kw">match </span>serde_json::to_vec(<span class="kw-2">&amp;</span>new_profile) {
-            <span class="prelude-val">Ok</span>(payload) =&gt; items.push(payload),
-            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::CannotSerializePayload);
-            }
-        };
-    }
-
-    <span class="prelude-val">Ok</span>(items)
-}
-
-<span class="kw">fn </span>parse_cocoa_profile(payload: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;CocoaProfile, ProfileError&gt; {
+<span class="kw">fn </span>parse_profile(payload: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;CocoaProfile, ProfileError&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>profile: CocoaProfile =
         serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)<span class="question-mark">?</span>;
 
-    profile.remove_single_samples_per_thread();
+    <span class="kw">let </span>transaction_opt = profile.transactions.drain(..).next();
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction) = transaction_opt {
+        <span class="kw">if </span>!transaction.valid() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::InvalidTransactionMetadata);
+        }
 
+        profile.duration_ns = transaction.duration_ns();
+        profile.trace_id = transaction.trace_id;
+        profile.transaction_id = transaction.id;
+        profile.transaction_name = transaction.name;
+
+        profile.sampled_profile.samples.retain_mut(|sample| {
+            (transaction.relative_start_ns..transaction.relative_end_ns)
+                .contains(<span class="kw-2">&amp;</span>sample.relative_timestamp_ns)
+        });
+    } <span class="kw">else if </span>!profile.has_transaction_metadata() {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::NoTransactionAssociated);
+    }
+
+    profile.remove_single_samples_per_thread();
     <span class="kw">if </span>profile.sampled_profile.samples.is_empty() {
         <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::NotEnoughSamples);
     }
 
-    <span class="kw">if </span>profile.transactions.is_empty() &amp;&amp; !profile.has_transaction_metadata() {
-        <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::NoTransactionAssociated);
-    }
-
-    <span class="kw">for </span>transaction <span class="kw">in </span>profile.transactions.iter() {
-        <span class="kw">if </span>!transaction.valid() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::InvalidTransactionMetadata);
-        }
-    }
-
     <span class="prelude-val">Ok</span>(profile)
+}
+
+<span class="kw">pub fn </span>parse_cocoa_profile(payload: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, ProfileError&gt; {
+    <span class="kw">let </span>profile = parse_profile(payload)<span class="question-mark">?</span>;
+    serde_json::to_vec(<span class="kw-2">&amp;</span>profile).map_err(|<span class="kw">_</span>| ProfileError::CannotSerializePayload)
 }
 
 <span class="attribute">#[cfg(test)]
@@ -569,17 +483,10 @@
     <span class="attribute">#[test]
     </span><span class="kw">fn </span>test_roundtrip_cocoa() {
         <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/cocoa/roundtrip.json&quot;</span>);
-        <span class="kw">let </span>profile = parse_cocoa_profile(payload);
+        <span class="kw">let </span>profile = parse_profile(payload);
         <span class="macro">assert!</span>(profile.is_ok());
         <span class="kw">let </span>data = serde_json::to_vec(<span class="kw-2">&amp;</span>profile.unwrap());
         <span class="macro">assert!</span>(parse_cocoa_profile(<span class="kw-2">&amp;</span>data.unwrap()[..]).is_ok());
-    }
-
-    <span class="attribute">#[test]
-    </span><span class="kw">fn </span>test_parse_multiple_transactions() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/cocoa/multiple_transactions.json&quot;</span>);
-        <span class="kw">let </span>data = parse_cocoa_profile(payload);
-        <span class="macro">assert!</span>(data.is_ok());
     }
 
     <span class="attribute">#[test]
@@ -688,13 +595,10 @@
     }
 
     <span class="attribute">#[test]
-    </span><span class="kw">fn </span>test_expand_multiple_transactions() {
+    </span><span class="kw">fn </span>test_expand_transactions_to_top_level() {
         <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/cocoa/multiple_transactions.json&quot;</span>);
-        <span class="kw">let </span>data = expand_cocoa_profile(payload);
-        <span class="macro">assert!</span>(data.is_ok());
-        <span class="macro">assert_eq!</span>(data.as_ref().unwrap().len(), <span class="number">2</span>);
 
-        <span class="kw">let </span>profile = <span class="kw">match </span>parse_cocoa_profile(<span class="kw-2">&amp;</span>data.as_ref().unwrap()[<span class="number">0</span>][..]) {
+        <span class="kw">let </span>profile = <span class="kw">match </span>parse_profile(payload) {
             <span class="prelude-val">Err</span>(err) =&gt; <span class="macro">panic!</span>(<span class="string">&quot;cannot parse profile: {:?}&quot;</span>, err),
             <span class="prelude-val">Ok</span>(profile) =&gt; profile,
         };
@@ -702,7 +606,7 @@
             profile.transaction_id,
             <span class="string">&quot;30976f2ddbe04ac9b6bffe6e35d4710c&quot;</span>.parse().unwrap()
         );
-        <span class="macro">assert_eq!</span>(profile.duration_ns, <span class="number">8</span>);
+        <span class="macro">assert_eq!</span>(profile.duration_ns, <span class="number">10</span>);
         <span class="macro">assert_eq!</span>(profile.sampled_profile.samples.len(), <span class="number">2</span>);
 
         <span class="kw">for </span>sample <span class="kw">in </span><span class="kw-2">&amp;</span>profile.sampled_profile.samples {

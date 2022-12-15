@@ -251,141 +251,7 @@
 <span id="251">251</span>
 <span id="252">252</span>
 <span id="253">253</span>
-<span id="254">254</span>
-<span id="255">255</span>
-<span id="256">256</span>
-<span id="257">257</span>
-<span id="258">258</span>
-<span id="259">259</span>
-<span id="260">260</span>
-<span id="261">261</span>
-<span id="262">262</span>
-<span id="263">263</span>
-<span id="264">264</span>
-<span id="265">265</span>
-<span id="266">266</span>
-<span id="267">267</span>
-<span id="268">268</span>
-<span id="269">269</span>
-<span id="270">270</span>
-<span id="271">271</span>
-<span id="272">272</span>
-<span id="273">273</span>
-<span id="274">274</span>
-<span id="275">275</span>
-<span id="276">276</span>
-<span id="277">277</span>
-<span id="278">278</span>
-<span id="279">279</span>
-<span id="280">280</span>
-<span id="281">281</span>
-<span id="282">282</span>
-<span id="283">283</span>
-<span id="284">284</span>
-<span id="285">285</span>
-<span id="286">286</span>
-<span id="287">287</span>
-<span id="288">288</span>
-<span id="289">289</span>
-<span id="290">290</span>
-<span id="291">291</span>
-<span id="292">292</span>
-<span id="293">293</span>
-<span id="294">294</span>
-<span id="295">295</span>
-<span id="296">296</span>
-<span id="297">297</span>
-<span id="298">298</span>
-<span id="299">299</span>
-<span id="300">300</span>
-<span id="301">301</span>
-<span id="302">302</span>
-<span id="303">303</span>
-<span id="304">304</span>
-<span id="305">305</span>
-<span id="306">306</span>
-<span id="307">307</span>
-<span id="308">308</span>
-<span id="309">309</span>
-<span id="310">310</span>
-<span id="311">311</span>
-<span id="312">312</span>
-<span id="313">313</span>
-<span id="314">314</span>
-<span id="315">315</span>
-<span id="316">316</span>
-<span id="317">317</span>
-<span id="318">318</span>
-<span id="319">319</span>
-<span id="320">320</span>
-<span id="321">321</span>
-<span id="322">322</span>
-<span id="323">323</span>
-<span id="324">324</span>
-<span id="325">325</span>
-<span id="326">326</span>
-<span id="327">327</span>
-<span id="328">328</span>
-<span id="329">329</span>
-<span id="330">330</span>
-<span id="331">331</span>
-<span id="332">332</span>
-<span id="333">333</span>
-<span id="334">334</span>
-<span id="335">335</span>
-<span id="336">336</span>
-<span id="337">337</span>
-<span id="338">338</span>
-<span id="339">339</span>
-<span id="340">340</span>
-<span id="341">341</span>
-<span id="342">342</span>
-<span id="343">343</span>
-<span id="344">344</span>
-<span id="345">345</span>
-<span id="346">346</span>
-<span id="347">347</span>
-<span id="348">348</span>
-<span id="349">349</span>
-<span id="350">350</span>
-<span id="351">351</span>
-<span id="352">352</span>
-<span id="353">353</span>
-<span id="354">354</span>
-<span id="355">355</span>
-<span id="356">356</span>
-<span id="357">357</span>
-<span id="358">358</span>
-<span id="359">359</span>
-<span id="360">360</span>
-<span id="361">361</span>
-<span id="362">362</span>
-<span id="363">363</span>
-<span id="364">364</span>
-<span id="365">365</span>
-<span id="366">366</span>
-<span id="367">367</span>
-<span id="368">368</span>
-<span id="369">369</span>
-<span id="370">370</span>
-<span id="371">371</span>
-<span id="372">372</span>
-<span id="373">373</span>
-<span id="374">374</span>
-<span id="375">375</span>
-<span id="376">376</span>
-<span id="377">377</span>
-<span id="378">378</span>
-<span id="379">379</span>
-<span id="380">380</span>
-<span id="381">381</span>
-<span id="382">382</span>
-<span id="383">383</span>
-<span id="384">384</span>
-<span id="385">385</span>
-<span id="386">386</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{HashMap, HashSet};
-<span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>android_trace_log::chrono::{DateTime, Utc};
 <span class="kw">use </span>android_trace_log::{AndroidTraceLog, Clock, Time, Vm};
@@ -436,9 +302,17 @@
         skip_serializing_if = <span class="string">&quot;is_zero&quot;
     </span>)]
     </span>duration_ns: u64,
+    <span class="attribute">#[serde(
+        default,
+        deserialize_with = <span class="string">&quot;deserialize_number_from_string&quot;</span>,
+        skip_serializing_if = <span class="string">&quot;is_zero&quot;
+    </span>)]
+    </span>active_thread_id: u64,
 
     <span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
     </span>transactions: Vec&lt;TransactionMetadata&gt;,
+    <span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>transaction: <span class="prelude-ty">Option</span>&lt;TransactionMetadata&gt;,
 
     <span class="attribute">#[serde(default, skip_serializing)]
     </span>sampled_profile: String,
@@ -480,13 +354,6 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>set_transaction(<span class="kw-2">&amp;mut </span><span class="self">self</span>, transaction: <span class="kw-2">&amp;</span>TransactionMetadata) {
-        <span class="self">self</span>.transaction_name = transaction.name.clone();
-        <span class="self">self</span>.transaction_id = transaction.id;
-        <span class="self">self</span>.trace_id = transaction.trace_id;
-        <span class="self">self</span>.duration_ns = transaction.duration_ns();
-    }
-
     <span class="kw">fn </span>has_transaction_metadata(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         !<span class="self">self</span>.transaction_name.is_empty() &amp;&amp; <span class="self">self</span>.duration_ns &gt; <span class="number">0
     </span>}
@@ -512,98 +379,43 @@
     }
 }
 
-<span class="kw">pub fn </span>expand_android_profile(payload: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Vec&lt;u8&gt;&gt;, ProfileError&gt; {
-    <span class="kw">let </span>profile = parse_android_profile(payload)<span class="question-mark">?</span>;
-    <span class="kw">let </span><span class="kw-2">mut </span>items: Vec&lt;Vec&lt;u8&gt;&gt; = Vec::new();
+<span class="kw">fn </span>parse_profile(payload: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;AndroidProfile, ProfileError&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>profile: AndroidProfile =
+        serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)<span class="question-mark">?</span>;
 
-    <span class="kw">if </span>profile.transactions.is_empty() &amp;&amp; profile.has_transaction_metadata() {
-        <span class="kw">match </span>serde_json::to_vec(<span class="kw-2">&amp;</span>profile) {
-            <span class="prelude-val">Ok</span>(payload) =&gt; items.push(payload),
-            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::CannotSerializePayload);
-            }
-        };
-
-        <span class="kw">return </span><span class="prelude-val">Ok</span>(items);
-    }
-
-    <span class="kw">for </span>transaction <span class="kw">in </span><span class="kw-2">&amp;</span>profile.transactions {
-        <span class="kw">let </span><span class="kw-2">mut </span>new_profile = profile.clone();
-
-        new_profile.profile_id = EventId::new();
-        new_profile.set_transaction(transaction);
-        new_profile.transactions.clear();
-
-        <span class="kw">let </span>clock = new_profile.profile.clock;
-        <span class="kw">let </span>start_time = new_profile.profile.start_time;
-
-        new_profile.profile.events.retain_mut(|event| {
-            <span class="kw">let </span>event_timestamp = get_timestamp(clock, start_time, event.time);
-            <span class="kw">if </span>transaction.relative_start_ns &lt;= event_timestamp
-                &amp;&amp; event_timestamp &lt;= transaction.relative_end_ns
-            {
-                <span class="kw">let </span>relative_start = <span class="kw">match </span>clock {
-                    Clock::Cpu =&gt; Duration::from_millis(transaction.relative_cpu_start_ms),
-                    Clock::Wall | Clock::Dual | Clock::Global =&gt; {
-                        Duration::from_nanos(transaction.relative_start_ns)
-                    }
-                };
-                event.time = substract_to_timestamp(event.time, relative_start);
-                <span class="bool-val">true
-            </span>} <span class="kw">else </span>{
-                <span class="bool-val">false
-            </span>}
-        });
-
-        <span class="kw">if </span>new_profile.profile.events.is_empty() {
-            <span class="kw">continue</span>;
+    <span class="kw">let </span>transaction_opt = profile.transactions.drain(..).next();
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction) = transaction_opt {
+        <span class="kw">if </span>!transaction.valid() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::InvalidTransactionMetadata);
         }
 
-        <span class="kw">match </span>serde_json::to_vec(<span class="kw-2">&amp;</span>new_profile) {
-            <span class="prelude-val">Ok</span>(payload) =&gt; items.push(payload),
-            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::CannotSerializePayload);
-            }
-        };
+        <span class="comment">// this is for compatibility
+        </span>profile.active_thread_id = transaction.active_thread_id;
+        profile.duration_ns = transaction.duration_ns();
+        profile.trace_id = transaction.trace_id;
+        profile.transaction_id = transaction.id;
+        profile.transaction_name = transaction.name.clone();
+
+        profile.transaction = <span class="prelude-val">Some</span>(transaction);
+    } <span class="kw">else if </span>!profile.has_transaction_metadata() {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::NoTransactionAssociated);
     }
 
-    <span class="prelude-val">Ok</span>(items)
+    <span class="kw">if </span>!profile.sampled_profile.is_empty() {
+        profile.parse()<span class="question-mark">?</span>;
+        profile.remove_events_with_no_duration();
+    }
+
+    <span class="kw">if </span>profile.profile.events.is_empty() {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::NotEnoughSamples);
+    }
+
+    <span class="prelude-val">Ok</span>(profile)
 }
 
-<span class="kw">fn </span>substract_to_timestamp(time: Time, duration: Duration) -&gt; Time {
-    <span class="kw">match </span>time {
-        Time::Global(time) =&gt; Time::Global(time - duration),
-        Time::Monotonic {
-            cpu: <span class="prelude-val">Some</span>(time),
-            wall: <span class="prelude-val">None</span>,
-        } =&gt; Time::Monotonic {
-            cpu: time
-                .checked_sub(duration)
-                .or_else(|| <span class="prelude-val">Some</span>(Duration::default())),
-            wall: <span class="prelude-val">None</span>,
-        },
-        Time::Monotonic {
-            wall: <span class="prelude-val">Some</span>(time),
-            cpu: <span class="prelude-val">None</span>,
-        } =&gt; Time::Monotonic {
-            wall: time
-                .checked_sub(duration)
-                .or_else(|| <span class="prelude-val">Some</span>(Duration::default())),
-            cpu: <span class="prelude-val">None</span>,
-        },
-        Time::Monotonic {
-            cpu: <span class="prelude-val">Some</span>(cpu),
-            wall: <span class="prelude-val">Some</span>(wall),
-        } =&gt; Time::Monotonic {
-            cpu: cpu
-                .checked_sub(duration)
-                .or_else(|| <span class="prelude-val">Some</span>(Duration::default())),
-            wall: wall
-                .checked_sub(duration)
-                .or_else(|| <span class="prelude-val">Some</span>(Duration::default())),
-        },
-        <span class="kw">_ </span>=&gt; <span class="macro">unimplemented!</span>(),
-    }
+<span class="kw">pub fn </span>parse_android_profile(payload: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, ProfileError&gt; {
+    <span class="kw">let </span>profile = parse_profile(payload)<span class="question-mark">?</span>;
+    serde_json::to_vec(<span class="kw-2">&amp;</span>profile).map_err(|<span class="kw">_</span>| ProfileError::CannotSerializePayload)
 }
 
 <span class="kw">fn </span>get_timestamp(clock: Clock, start_time: DateTime&lt;Utc&gt;, event_time: Time) -&gt; u64 {
@@ -642,32 +454,6 @@
     }
 }
 
-<span class="kw">fn </span>parse_android_profile(payload: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;AndroidProfile, ProfileError&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>profile: AndroidProfile =
-        serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)<span class="question-mark">?</span>;
-
-    <span class="kw">if </span>profile.transactions.is_empty() &amp;&amp; !profile.has_transaction_metadata() {
-        <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::NoTransactionAssociated);
-    }
-
-    <span class="kw">for </span>transaction <span class="kw">in </span><span class="kw-2">&amp;</span>profile.transactions {
-        <span class="kw">if </span>!transaction.valid() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::InvalidTransactionMetadata);
-        }
-    }
-
-    <span class="kw">if </span>!profile.sampled_profile.is_empty() {
-        profile.parse()<span class="question-mark">?</span>;
-        profile.remove_events_with_no_duration();
-    }
-
-    <span class="kw">if </span>profile.profile.events.is_empty() {
-        <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::NotEnoughSamples);
-    }
-
-    <span class="prelude-val">Ok</span>(profile)
-}
-
 <span class="attribute">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
@@ -675,18 +461,10 @@
     <span class="attribute">#[test]
     </span><span class="kw">fn </span>test_roundtrip_android() {
         <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/android/roundtrip.json&quot;</span>);
-        <span class="kw">let </span>profile = parse_android_profile(payload);
+        <span class="kw">let </span>profile = parse_profile(payload);
         <span class="macro">assert!</span>(profile.is_ok());
         <span class="kw">let </span>data = serde_json::to_vec(<span class="kw-2">&amp;</span>profile.unwrap());
         <span class="macro">assert!</span>(parse_android_profile(<span class="kw-2">&amp;</span>(data.unwrap())[..]).is_ok());
-    }
-
-    <span class="attribute">#[test]
-    </span><span class="kw">fn </span>test_multiple_transactions() {
-        <span class="kw">let </span>payload =
-            <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/android/multiple_transactions.json&quot;</span>);
-        <span class="kw">let </span>data = parse_android_profile(payload);
-        <span class="macro">assert!</span>(data.is_ok());
     }
 
     <span class="attribute">#[test]
@@ -705,14 +483,11 @@
     }
 
     <span class="attribute">#[test]
-    </span><span class="kw">fn </span>test_expand_multiple_transactions() {
+    </span><span class="kw">fn </span>test_transactions_to_top_level() {
         <span class="kw">let </span>payload =
             <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/android/multiple_transactions.json&quot;</span>);
-        <span class="kw">let </span>data = expand_android_profile(payload);
-        <span class="macro">assert!</span>(data.is_ok());
-        <span class="macro">assert_eq!</span>(data.as_ref().unwrap().len(), <span class="number">3</span>);
 
-        <span class="kw">let </span>profile = <span class="kw">match </span>parse_android_profile(<span class="kw-2">&amp;</span>data.as_ref().unwrap()[<span class="number">0</span>][..]) {
+        <span class="kw">let </span>profile = <span class="kw">match </span>parse_profile(payload) {
             <span class="prelude-val">Err</span>(err) =&gt; <span class="macro">panic!</span>(<span class="string">&quot;cannot parse profile: {:?}&quot;</span>, err),
             <span class="prelude-val">Ok</span>(profile) =&gt; profile,
         };
@@ -720,54 +495,13 @@
             profile.transaction_id,
             <span class="string">&quot;7d6db784355e4d7dbf98671c69cbcc77&quot;</span>.parse().unwrap()
         );
+        <span class="macro">assert_eq!</span>(
+            profile.trace_id,
+            <span class="string">&quot;7d6db784355e4d7dbf98671c69cbcc77&quot;</span>.parse().unwrap()
+        );
+        <span class="macro">assert_eq!</span>(profile.active_thread_id, <span class="number">12345</span>);
+        <span class="macro">assert_eq!</span>(profile.transaction_name, <span class="string">&quot;transaction1&quot;</span>);
         <span class="macro">assert_eq!</span>(profile.duration_ns, <span class="number">1000000000</span>);
-        <span class="macro">assert_eq!</span>(profile.profile.events.len(), <span class="number">8453</span>);
-
-        <span class="kw">for </span>event <span class="kw">in </span><span class="kw-2">&amp;</span>profile.profile.events {
-            <span class="macro">assert!</span>(
-                get_timestamp(
-                    profile.profile.clock,
-                    profile.profile.start_time,
-                    event.time
-                ) &lt; profile.duration_ns
-            );
-        }
-    }
-
-    <span class="attribute">#[test]
-    </span><span class="kw">fn </span>test_substract_to_timestamp() {
-        <span class="kw">let </span>now = Utc::now();
-        <span class="kw">let </span>timestamps: Vec&lt;(Clock, Time)&gt; = <span class="macro">vec!</span>[
-            (
-                Clock::Global,
-                Time::Global(Duration::from_nanos(now.timestamp_nanos() <span class="kw">as </span>u64 + <span class="number">100</span>)),
-            ),
-            (
-                Clock::Cpu,
-                Time::Monotonic {
-                    cpu: <span class="prelude-val">Some</span>(Duration::from_nanos(<span class="number">100</span>)),
-                    wall: <span class="prelude-val">None</span>,
-                },
-            ),
-            (
-                Clock::Wall,
-                Time::Monotonic {
-                    wall: <span class="prelude-val">Some</span>(Duration::from_nanos(<span class="number">100</span>)),
-                    cpu: <span class="prelude-val">None</span>,
-                },
-            ),
-            (
-                Clock::Dual,
-                Time::Monotonic {
-                    cpu: <span class="prelude-val">Some</span>(Duration::from_nanos(<span class="number">20</span>)),
-                    wall: <span class="prelude-val">Some</span>(Duration::from_nanos(<span class="number">100</span>)),
-                },
-            ),
-        ];
-        <span class="kw">for </span>(clock, timestamp) <span class="kw">in </span>timestamps {
-            <span class="kw">let </span>result = substract_to_timestamp(timestamp, Duration::from_nanos(<span class="number">50</span>));
-            <span class="macro">assert_eq!</span>(get_timestamp(clock, now, result), <span class="number">50</span>);
-        }
     }
 }
 </code></pre></div>

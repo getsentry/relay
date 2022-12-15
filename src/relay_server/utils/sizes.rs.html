@@ -78,6 +78,7 @@
 <span id="77">77</span>
 <span id="78">78</span>
 <span id="79">79</span>
+<span id="80">80</span>
 </pre><pre class="rust"><code><span class="kw">use </span>relay_config::Config;
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, Envelope, ItemType};
@@ -94,6 +95,7 @@
 ///  - `max_attachment_size`
 ///  - `max_attachments_size`
 ///  - `max_session_count`
+///  - `max_profile_size`
 </span><span class="kw">pub fn </span>check_envelope_size_limits(config: <span class="kw-2">&amp;</span>Config, envelope: <span class="kw-2">&amp;</span>Envelope) -&gt; bool {
     <span class="kw">let </span><span class="kw-2">mut </span>event_size = <span class="number">0</span>;
     <span class="kw">let </span><span class="kw-2">mut </span>attachments_size = <span class="number">0</span>;

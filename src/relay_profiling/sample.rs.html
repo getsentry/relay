@@ -489,45 +489,6 @@
 <span id="489">489</span>
 <span id="490">490</span>
 <span id="491">491</span>
-<span id="492">492</span>
-<span id="493">493</span>
-<span id="494">494</span>
-<span id="495">495</span>
-<span id="496">496</span>
-<span id="497">497</span>
-<span id="498">498</span>
-<span id="499">499</span>
-<span id="500">500</span>
-<span id="501">501</span>
-<span id="502">502</span>
-<span id="503">503</span>
-<span id="504">504</span>
-<span id="505">505</span>
-<span id="506">506</span>
-<span id="507">507</span>
-<span id="508">508</span>
-<span id="509">509</span>
-<span id="510">510</span>
-<span id="511">511</span>
-<span id="512">512</span>
-<span id="513">513</span>
-<span id="514">514</span>
-<span id="515">515</span>
-<span id="516">516</span>
-<span id="517">517</span>
-<span id="518">518</span>
-<span id="519">519</span>
-<span id="520">520</span>
-<span id="521">521</span>
-<span id="522">522</span>
-<span id="523">523</span>
-<span id="524">524</span>
-<span id="525">525</span>
-<span id="526">526</span>
-<span id="527">527</span>
-<span id="528">528</span>
-<span id="529">529</span>
-<span id="530">530</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
@@ -688,6 +649,8 @@
 
     <span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
     </span>transactions: Vec&lt;TransactionMetadata&gt;,
+    <span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>transaction: <span class="prelude-ty">Option</span>&lt;TransactionMetadata&gt;,
 
     <span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span>measurements: <span class="prelude-ty">Option</span>&lt;HashMap&lt;String, Measurement&gt;&gt;,
@@ -753,11 +716,31 @@
     }
 }
 
-<span class="kw">pub fn </span>expand_sample_profile(payload: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Vec&lt;u8&gt;&gt;, ProfileError&gt; {
-    <span class="kw">let </span>profile = parse_profile(payload)<span class="question-mark">?</span>;
+<span class="kw">fn </span>parse_profile(payload: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;SampleProfile, ProfileError&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>profile: SampleProfile =
+        serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)<span class="question-mark">?</span>;
 
     <span class="kw">if </span>!profile.valid() {
         <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::MissingProfileMetadata);
+    }
+
+    <span class="kw">let </span><span class="prelude-val">Some</span>(transaction) = profile.transactions.get(<span class="number">0</span>).cloned() <span class="kw">else </span>{
+        <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::NoTransactionAssociated);
+    };
+
+    <span class="kw">if </span>!transaction.valid() {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::InvalidTransactionMetadata);
+    }
+
+    <span class="comment">// Clean samples before running the checks.
+    </span>profile.remove_single_samples_per_thread();
+    profile.profile.samples.retain_mut(|sample| {
+        (transaction.relative_start_ns..transaction.relative_end_ns)
+            .contains(<span class="kw-2">&amp;</span>sample.elapsed_since_start_ns)
+    });
+
+    <span class="kw">if </span>profile.profile.samples.is_empty() {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::NotEnoughSamples);
     }
 
     <span class="kw">if </span>!profile.check_samples() {
@@ -768,65 +751,17 @@
         <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::MalformedStacks);
     }
 
-    <span class="kw">let </span><span class="kw-2">mut </span>items: Vec&lt;Vec&lt;u8&gt;&gt; = Vec::new();
-
-    <span class="comment">// As we&#39;re getting one profile for multiple transactions and our backend doesn&#39;t support this,
-    // we need to duplicate the profile to have one profile for one transaction, filter the samples
-    // to match the transaction bounds and generate a new profile ID.
-    </span><span class="kw">for </span>transaction <span class="kw">in </span><span class="kw-2">&amp;</span>profile.transactions {
-        <span class="kw">let </span><span class="kw-2">mut </span>new_profile = profile.clone();
-
-        new_profile.event_id = EventId::new();
-        new_profile.transactions.clear();
-        new_profile.transactions.push(transaction.clone());
-
-        new_profile.profile.samples.retain_mut(|sample| {
-            <span class="kw">if </span>transaction.relative_start_ns &lt;= sample.elapsed_since_start_ns
-                &amp;&amp; sample.elapsed_since_start_ns &lt;= transaction.relative_end_ns
-            {
-                sample.elapsed_since_start_ns -= transaction.relative_start_ns;
-                <span class="bool-val">true
-            </span>} <span class="kw">else </span>{
-                <span class="bool-val">false
-            </span>}
-        });
-
-        <span class="kw">if </span>new_profile.profile.samples.is_empty() {
-            <span class="kw">continue</span>;
-        }
-
-        <span class="kw">match </span>serde_json::to_vec(<span class="kw-2">&amp;</span>new_profile) {
-            <span class="prelude-val">Ok</span>(payload) =&gt; items.push(payload),
-            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::CannotSerializePayload);
-            }
-        };
-    }
-
-    <span class="prelude-val">Ok</span>(items)
-}
-
-<span class="kw">fn </span>parse_profile(payload: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;SampleProfile, ProfileError&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>profile: SampleProfile =
-        serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)<span class="question-mark">?</span>;
-
-    profile
-        .transactions
-        .retain(|transaction| transaction.valid());
-
-    <span class="kw">if </span>profile.transactions.is_empty() {
-        <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::NoTransactionAssociated);
-    }
-
-    profile.remove_single_samples_per_thread();
-
-    <span class="kw">if </span>profile.profile.samples.is_empty() {
-        <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::NotEnoughSamples);
-    }
-
+    <span class="comment">// truncate to one transaction for compatibility reasons
+    </span>profile.transactions.truncate(<span class="number">1</span>);
+    profile.transaction = <span class="prelude-val">Some</span>(transaction);
     profile.strip_pointer_authentication_code();
 
     <span class="prelude-val">Ok</span>(profile)
+}
+
+<span class="kw">pub fn </span>parse_sample_profile(payload: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, ProfileError&gt; {
+    <span class="kw">let </span>profile = parse_profile(payload)<span class="question-mark">?</span>;
+    serde_json::to_vec(<span class="kw-2">&amp;</span>profile).map_err(|<span class="kw">_</span>| ProfileError::CannotSerializePayload)
 }
 
 <span class="attribute">#[cfg(test)]
@@ -845,7 +780,7 @@
     <span class="attribute">#[test]
     </span><span class="kw">fn </span>test_expand() {
         <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/sample/roundtrip.json&quot;</span>);
-        <span class="kw">let </span>profile = expand_sample_profile(payload);
+        <span class="kw">let </span>profile = parse_sample_profile(payload);
         <span class="macro">assert!</span>(profile.is_ok());
     }
 
@@ -853,14 +788,14 @@
     </span><span class="kw">fn </span>test_parse_multiple_transactions() {
         <span class="kw">let </span>payload =
             <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/sample/multiple_transactions.json&quot;</span>);
-        <span class="kw">let </span>data = parse_profile(payload);
+        <span class="kw">let </span>data = parse_sample_profile(payload);
         <span class="macro">assert!</span>(data.is_ok());
     }
 
     <span class="attribute">#[test]
     </span><span class="kw">fn </span>test_no_transaction() {
         <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/sample/no_transaction.json&quot;</span>);
-        <span class="kw">let </span>data = parse_profile(payload);
+        <span class="kw">let </span>data = parse_sample_profile(payload);
         <span class="macro">assert!</span>(data.is_err());
     }
 
@@ -892,6 +827,7 @@
                 frames: Vec::new(),
                 thread_metadata: <span class="prelude-val">Some</span>(HashMap::new()),
             },
+            transaction: Option::None,
             transactions: Vec::new(),
             release: <span class="string">&quot;1.0 (9999)&quot;</span>.to_string(),
             measurements: <span class="prelude-val">None</span>,
@@ -972,7 +908,7 @@
     }
 
     <span class="attribute">#[test]
-    </span><span class="kw">fn </span>test_expand_with_samples_outside_transaction() {
+    </span><span class="kw">fn </span>test_expand_with_all_samples_outside_transaction() {
         <span class="kw">let </span><span class="kw-2">mut </span>profile = generate_profile();
 
         profile.profile.frames.push(Frame {
@@ -1024,33 +960,19 @@
         ]);
 
         <span class="kw">let </span>payload = serde_json::to_vec(<span class="kw-2">&amp;</span>profile).unwrap();
-        <span class="kw">let </span>data = expand_sample_profile(<span class="kw-2">&amp;</span>payload[..]);
+        <span class="kw">let </span>data = parse_sample_profile(<span class="kw-2">&amp;</span>payload[..]);
 
-        <span class="macro">assert!</span>(data.is_ok());
-        <span class="macro">assert!</span>(data.unwrap().is_empty());
+        <span class="macro">assert!</span>(data.is_err());
     }
 
     <span class="attribute">#[test]
-    </span><span class="kw">fn </span>test_expand_multiple_transactions() {
+    </span><span class="kw">fn </span>test_filter_samples_for_transaction() {
         <span class="kw">let </span>payload =
             <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/sample/multiple_transactions.json&quot;</span>);
-
-        <span class="kw">let </span>data = expand_sample_profile(payload);
-        <span class="macro">assert!</span>(data.is_ok());
-        <span class="macro">assert_eq!</span>(data.as_ref().unwrap().len(), <span class="number">2</span>);
-
-        <span class="kw">let </span>original_profile = <span class="kw">match </span>parse_profile(payload) {
+        <span class="kw">let </span>expanded_profile = <span class="kw">match </span>parse_profile(payload) {
             <span class="prelude-val">Err</span>(err) =&gt; <span class="macro">panic!</span>(<span class="string">&quot;cannot parse profile: {:?}&quot;</span>, err),
             <span class="prelude-val">Ok</span>(profile) =&gt; profile,
         };
-        <span class="kw">let </span>expanded_profile = <span class="kw">match </span>parse_profile(<span class="kw-2">&amp;</span>data.as_ref().unwrap()[<span class="number">0</span>][..]) {
-            <span class="prelude-val">Err</span>(err) =&gt; <span class="macro">panic!</span>(<span class="string">&quot;cannot parse profile: {:?}&quot;</span>, err),
-            <span class="prelude-val">Ok</span>(profile) =&gt; profile,
-        };
-        <span class="macro">assert_eq!</span>(
-            original_profile.transactions[<span class="number">0</span>],
-            expanded_profile.transactions[<span class="number">0</span>]
-        );
         <span class="macro">assert_eq!</span>(expanded_profile.profile.samples.len(), <span class="number">4</span>);
 
         <span class="kw">for </span>sample <span class="kw">in </span><span class="kw-2">&amp;</span>expanded_profile.profile.samples {

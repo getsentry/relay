@@ -25,6 +25,8 @@
 <span id="25">25</span>
 <span id="26">26</span>
 <span id="27">27</span>
+<span id="28">28</span>
+<span id="29">29</span>
 </pre><pre class="rust"><code><span class="kw">use </span>thiserror::Error;
 
 <span class="attribute">#[derive(Debug, Error)]
@@ -51,6 +53,8 @@
     </span>MalformedStacks,
     <span class="attribute">#[error(<span class="string">&quot;malformed samples&quot;</span>)]
     </span>MalformedSamples,
+    <span class="attribute">#[error(<span class="string">&quot;exceed size limit&quot;</span>)]
+    </span>ExceedSizeLimit,
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_profiling" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0 (69f9c33d7 2022-12-12)" ></div></body></html>

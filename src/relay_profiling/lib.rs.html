@@ -179,21 +179,6 @@
 <span id="179">179</span>
 <span id="180">180</span>
 <span id="181">181</span>
-<span id="182">182</span>
-<span id="183">183</span>
-<span id="184">184</span>
-<span id="185">185</span>
-<span id="186">186</span>
-<span id="187">187</span>
-<span id="188">188</span>
-<span id="189">189</span>
-<span id="190">190</span>
-<span id="191">191</span>
-<span id="192">192</span>
-<span id="193">193</span>
-<span id="194">194</span>
-<span id="195">195</span>
-<span id="196">196</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Profiling protocol and processing for Sentry.
 //!
 //! Profiles are captured during the life of a transaction on Sentry clients and sent to Relay for
@@ -297,19 +282,13 @@
 <span class="kw">mod </span>measurements;
 <span class="kw">mod </span>native_debug_image;
 <span class="kw">mod </span>outcomes;
-<span class="kw">mod </span>python;
-<span class="kw">mod </span>rust;
 <span class="kw">mod </span>sample;
 <span class="kw">mod </span>transaction_metadata;
-<span class="kw">mod </span>typescript;
 <span class="kw">mod </span>utils;
 
-<span class="kw">use </span><span class="kw">crate</span>::android::expand_android_profile;
-<span class="kw">use </span><span class="kw">crate</span>::cocoa::expand_cocoa_profile;
-<span class="kw">use </span><span class="kw">crate</span>::python::parse_python_profile;
-<span class="kw">use </span><span class="kw">crate</span>::rust::parse_rust_profile;
-<span class="kw">use </span><span class="kw">crate</span>::sample::{expand_sample_profile, Version};
-<span class="kw">use </span><span class="kw">crate</span>::typescript::parse_typescript_profile;
+<span class="kw">use </span><span class="kw">crate</span>::android::parse_android_profile;
+<span class="kw">use </span><span class="kw">crate</span>::cocoa::parse_cocoa_profile;
+<span class="kw">use </span><span class="kw">crate</span>::sample::{parse_sample_profile, Version};
 
 <span class="kw">pub use </span><span class="kw">crate</span>::error::ProfileError;
 <span class="kw">pub use </span><span class="kw">crate</span>::outcomes::discard_reason;
@@ -322,7 +301,6 @@
     Node,
     Python,
     Rust,
-    Typescript,
 }
 
 <span class="attribute">#[derive(Debug, Deserialize)]
@@ -336,22 +314,14 @@
     serde_json::from_slice(data).map_err(ProfileError::InvalidJson)
 }
 
-<span class="kw">pub fn </span>expand_profile(payload: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Vec&lt;u8&gt;&gt;, ProfileError&gt; {
+<span class="kw">pub fn </span>expand_profile(payload: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, ProfileError&gt; {
     <span class="kw">let </span>profile: MinimalProfile = minimal_profile_from_json(payload)<span class="question-mark">?</span>;
     <span class="kw">match </span>profile.version {
-        Version::V1 =&gt; expand_sample_profile(payload),
+        Version::V1 =&gt; parse_sample_profile(payload),
         Version::Unknown =&gt; <span class="kw">match </span>profile.platform {
-            Platform::Android =&gt; expand_android_profile(payload),
-            Platform::Cocoa =&gt; expand_cocoa_profile(payload),
-            <span class="kw">_ </span>=&gt; {
-                <span class="kw">let </span>payload = <span class="kw">match </span>profile.platform {
-                    Platform::Python =&gt; parse_python_profile(payload),
-                    Platform::Rust =&gt; parse_rust_profile(payload),
-                    Platform::Typescript =&gt; parse_typescript_profile(payload),
-                    <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(ProfileError::PlatformNotSupported),
-                };
-                <span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[payload<span class="question-mark">?</span>])
-            }
+            Platform::Android =&gt; parse_android_profile(payload),
+            Platform::Cocoa =&gt; parse_cocoa_profile(payload),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(ProfileError::PlatformNotSupported),
         },
     }
 }
