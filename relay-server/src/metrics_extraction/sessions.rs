@@ -410,10 +410,13 @@ mod tests {
 
     #[test]
     fn test_extract_session_metrics_abnormal() {
-        for (abnormal_mechanism, expected_user_metric_tags) in [
-            (None, 2),
-            (Some(AbnormalMechanism::None), 2),
-            (Some(AbnormalMechanism::AnrForeground), 3),
+        for (abnormal_mechanism, expected_tag_value) in [
+            (None, None),
+            (Some(AbnormalMechanism::None), None),
+            (
+                Some(AbnormalMechanism::AnrForeground),
+                Some("anr_foreground"),
+            ),
         ] {
             let mut session = SessionUpdate::parse(
                 r#"{
@@ -448,14 +451,27 @@ mod tests {
             assert_eq!(session_metric.name, "c:sessions/session@none");
             assert!(matches!(session_metric.value, MetricValue::Counter(_)));
             assert_eq!(session_metric.tags["session.status"], "abnormal");
-            assert_eq!(session_metric.tags.len(), 2);
+
+            let session_metric_tag_keys: Vec<String> =
+                session_metric.tags.keys().cloned().collect();
+            assert_eq!(session_metric_tag_keys, ["release", "session.status"]);
 
             let user_metric = &metrics[3];
             assert_eq!(user_metric.timestamp, started());
             assert_eq!(user_metric.name, "s:sessions/user@none");
             assert!(matches!(user_metric.value, MetricValue::Set(_)));
             assert_eq!(user_metric.tags["session.status"], "abnormal");
-            assert_eq!(user_metric.tags.len(), expected_user_metric_tags);
+
+            let user_metric_tag_keys: Vec<String> = user_metric.tags.keys().cloned().collect();
+            if let Some(value) = expected_tag_value {
+                assert_eq!(
+                    user_metric_tag_keys,
+                    ["abnormal_mechanism", "release", "session.status"]
+                );
+                assert_eq!(user_metric.tags["abnormal_mechanism"], value);
+            } else {
+                assert_eq!(user_metric_tag_keys, ["release", "session.status"]);
+            }
         }
     }
 

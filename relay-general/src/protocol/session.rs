@@ -470,6 +470,22 @@ mod tests {
         let update = SessionUpdate::parse(json.as_bytes()).unwrap();
         assert_eq!(update.attributes.ip_address, Some(IpAddr::auto()));
     }
+    #[test]
+    fn test_session_abnormal_mechanism() {
+        let json = r#"{
+    "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+    "started": "2020-02-07T14:16:00Z",
+    "status": "abnormal",
+    "abnormal_mechanism": "anr_background",
+    "attrs": {
+    "release": "sentry-test@1.0.0",
+    "environment": "production"
+    }
+    }"#;
+
+        let update = SessionUpdate::parse(json.as_bytes()).unwrap();
+        assert_eq!(update.abnormal_mechanism, AbnormalMechanism::AnrBackground);
+    }
 
     #[test]
     fn test_session_invalid_abnormal_mechanism() {
