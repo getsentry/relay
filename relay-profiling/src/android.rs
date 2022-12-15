@@ -130,23 +130,22 @@ fn parse_profile(payload: &[u8]) -> Result<AndroidProfile, ProfileError> {
     let mut profile: AndroidProfile =
         serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)?;
 
-    if profile.transactions.is_empty() && !profile.has_transaction_metadata() {
-        return Err(ProfileError::NoTransactionAssociated);
-    }
-
-    if let Some(transaction) = profile.transactions.drain(..).next() {
+    let transaction_opt = profile.transactions.drain(..).next();
+    if let Some(transaction) = transaction_opt {
         if !transaction.valid() {
             return Err(ProfileError::InvalidTransactionMetadata);
         }
-
-        profile.transaction = Some(transaction.clone());
 
         // this is for compatibility
         profile.active_thread_id = transaction.active_thread_id;
         profile.duration_ns = transaction.duration_ns();
         profile.trace_id = transaction.trace_id;
         profile.transaction_id = transaction.id;
-        profile.transaction_name = transaction.name;
+        profile.transaction_name = transaction.name.clone();
+
+        profile.transaction = Some(transaction);
+    } else if !profile.has_transaction_metadata() {
+        return Err(ProfileError::NoTransactionAssociated);
     }
 
     if !profile.sampled_profile.is_empty() {

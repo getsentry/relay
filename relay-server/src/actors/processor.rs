@@ -968,14 +968,13 @@ impl EnvelopeProcessorService {
         }
 
         envelope.retain_items(|item| match item.ty() {
-            ItemType::Profile => match relay_profiling::expand_profile(&item.payload()[..]) {
+            ItemType::Profile => match relay_profiling::expand_profile(&item.payload()) {
                 Ok(payload) => {
                     if payload.len() <= self.config.max_profile_size() {
-                        item.set_payload(ContentType::Json, &payload[..]);
+                        item.set_payload(ContentType::Json, payload);
                         true
                     } else {
-                        let context = &state.envelope_context;
-                        context.track_outcome(
+                        state.envelope_context.track_outcome(
                             Outcome::Invalid(DiscardReason::Profiling(
                                 relay_profiling::discard_reason(
                                     relay_profiling::ProfileError::ExceedSizeLimit,
@@ -994,8 +993,8 @@ impl EnvelopeProcessorService {
                         }
                         _ => relay_log::debug!("invalid profile: {}", err),
                     };
-                    let context = &state.envelope_context;
-                    context.track_outcome(
+
+                    state.envelope_context.track_outcome(
                         Outcome::Invalid(DiscardReason::Profiling(
                             relay_profiling::discard_reason(err),
                         )),
