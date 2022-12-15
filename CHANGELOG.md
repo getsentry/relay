@@ -6,11 +6,12 @@
 
 - The level of events created from Unreal Crash Reports now depends on whether it was an actual crash or an assert. ([#1677](https://github.com/getsentry/relay/pull/1677))
 - Dynamic sampling is now based on the volume received by Relay by default and does not include the original volume dropped by client-side sampling in SDKs. This is required for the final dynamic sampling feature in the latest Sentry plans. ([#1591](https://github.com/getsentry/relay/pull/1591))
-- Add OpenTelemetry Context ([#1617](https://github.com/getsentry/relay/pull/1617))
+- Add OpenTelemetry Context. ([#1617](https://github.com/getsentry/relay/pull/1617))
 - Add `app.in_foreground` and `thread.main` flag to protocol. ([#1578](https://github.com/getsentry/relay/pull/1578))
 - Add support for View Hierarchy attachment_type. ([#1642](https://github.com/getsentry/relay/pull/1642))
 - Add support for `keepalive_timeout` configuration. ([#1645](https://github.com/getsentry/relay/pull/1645))
-- Add invalid replay recording outcome. ([#1684]https://github.com/getsentry/relay/pull/1684)
+- Add invalid replay recording outcome. ([#1684](https://github.com/getsentry/relay/pull/1684))
+- Stop rejecting spans without a timestamp, instead giving them their respective event timestamp and setting their status to DeadlineExceeded. ([#1690](https://github.com/getsentry/relay/pull/1690))
 - Add max replay size configuration parameter. ([#1694](https://github.com/getsentry/relay/pull/1694))
 
 **Bug Fixes**:
@@ -357,7 +358,7 @@
 **Features**:
 
 - Add sampling based on transaction name. ([#1058](https://github.com/getsentry/relay/pull/1058))
-- Support running Relay without config directory. The most important configuration, including Relay mode and credentials, can now be provided through commandline arguments or environment variables alone. ([#1055](https://github.com/getsentry/relay/pull/1055)
+- Support running Relay without config directory. The most important configuration, including Relay mode and credentials, can now be provided through commandline arguments or environment variables alone. ([#1055](https://github.com/getsentry/relay/pull/1055))
 - Protocol support for client reports. ([#1081](https://github.com/getsentry/relay/pull/1081))
 - Extract session metrics in non processing relays. ([#1073](https://github.com/getsentry/relay/pull/1073))
 
