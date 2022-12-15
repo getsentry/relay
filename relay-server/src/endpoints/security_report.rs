@@ -23,7 +23,7 @@ fn extract_envelope(
     request: &HttpRequest<ServiceState>,
     meta: RequestMeta,
     params: SecurityReportParams,
-) -> ResponseFuture<Envelope, BadStoreRequest> {
+) -> ResponseFuture<Box<Envelope>, BadStoreRequest> {
     let max_payload_size = request.state().config().max_event_size();
     let future = StoreBody::new(request, max_payload_size)
         .map_err(BadStoreRequest::from)
