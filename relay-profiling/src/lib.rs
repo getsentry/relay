@@ -105,9 +105,9 @@ mod sample;
 mod transaction_metadata;
 mod utils;
 
-use crate::android::expand_android_profile;
-use crate::cocoa::expand_cocoa_profile;
-use crate::sample::{expand_sample_profile, Version};
+use crate::android::parse_android_profile;
+use crate::cocoa::parse_cocoa_profile;
+use crate::sample::{parse_sample_profile, Version};
 
 pub use crate::error::ProfileError;
 pub use crate::outcomes::discard_reason;
@@ -120,7 +120,6 @@ enum Platform {
     Node,
     Python,
     Rust,
-    Typescript,
 }
 
 #[derive(Debug, Deserialize)]
@@ -137,10 +136,10 @@ fn minimal_profile_from_json(data: &[u8]) -> Result<MinimalProfile, ProfileError
 pub fn expand_profile(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
     let profile: MinimalProfile = minimal_profile_from_json(payload)?;
     match profile.version {
-        Version::V1 => expand_sample_profile(payload),
+        Version::V1 => parse_sample_profile(payload),
         Version::Unknown => match profile.platform {
-            Platform::Android => expand_android_profile(payload),
-            Platform::Cocoa => expand_cocoa_profile(payload),
+            Platform::Android => parse_android_profile(payload),
+            Platform::Cocoa => parse_cocoa_profile(payload),
             _ => Err(ProfileError::PlatformNotSupported),
         },
     }

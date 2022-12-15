@@ -58,6 +58,8 @@ struct AndroidProfile {
 
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     transactions: Vec<TransactionMetadata>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    transaction: Option<TransactionMetadata>,
 
     #[serde(default, skip_serializing)]
     sampled_profile: String,
@@ -124,10 +126,22 @@ impl AndroidProfile {
     }
 }
 
-pub fn expand_android_profile(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
-    let mut profile = parse_android_profile(payload)?;
+fn parse_profile(payload: &[u8]) -> Result<AndroidProfile, ProfileError> {
+    let mut profile: AndroidProfile =
+        serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)?;
+
+    if profile.transactions.is_empty() && !profile.has_transaction_metadata() {
+        return Err(ProfileError::NoTransactionAssociated);
+    }
 
     if let Some(transaction) = profile.transactions.drain(..).next() {
+        if !transaction.valid() {
+            return Err(ProfileError::InvalidTransactionMetadata);
+        }
+
+        profile.transaction = Some(transaction.clone());
+
+        // this is for compatibility
         profile.active_thread_id = transaction.active_thread_id;
         profile.duration_ns = transaction.duration_ns();
         profile.trace_id = transaction.trace_id;
@@ -135,6 +149,20 @@ pub fn expand_android_profile(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
         profile.transaction_name = transaction.name;
     }
 
+    if !profile.sampled_profile.is_empty() {
+        profile.parse()?;
+        profile.remove_events_with_no_duration();
+    }
+
+    if profile.profile.events.is_empty() {
+        return Err(ProfileError::NotEnoughSamples);
+    }
+
+    Ok(profile)
+}
+
+pub fn parse_android_profile(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
+    let profile = parse_profile(payload)?;
     match serde_json::to_vec(&profile) {
         Ok(payload) => Ok(payload),
         Err(_) => Err(ProfileError::CannotSerializePayload),
@@ -177,32 +205,6 @@ fn get_timestamp(clock: Clock, start_time: DateTime<Utc>, event_time: Time) -> u
     }
 }
 
-fn parse_android_profile(payload: &[u8]) -> Result<AndroidProfile, ProfileError> {
-    let mut profile: AndroidProfile =
-        serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)?;
-
-    if profile.transactions.is_empty() && !profile.has_transaction_metadata() {
-        return Err(ProfileError::NoTransactionAssociated);
-    }
-
-    for transaction in &profile.transactions {
-        if !transaction.valid() {
-            return Err(ProfileError::InvalidTransactionMetadata);
-        }
-    }
-
-    if !profile.sampled_profile.is_empty() {
-        profile.parse()?;
-        profile.remove_events_with_no_duration();
-    }
-
-    if profile.profile.events.is_empty() {
-        return Err(ProfileError::NotEnoughSamples);
-    }
-
-    Ok(profile)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -210,7 +212,7 @@ mod tests {
     #[test]
     fn test_roundtrip_android() {
         let payload = include_bytes!("../tests/fixtures/profiles/android/roundtrip.json");
-        let profile = parse_android_profile(payload);
+        let profile = parse_profile(payload);
         assert!(profile.is_ok());
         let data = serde_json::to_vec(&profile.unwrap());
         assert!(parse_android_profile(&(data.unwrap())[..]).is_ok());
@@ -235,10 +237,8 @@ mod tests {
     fn test_transactions_to_top_level() {
         let payload =
             include_bytes!("../tests/fixtures/profiles/android/multiple_transactions.json");
-        let data = expand_android_profile(payload);
-        assert!(data.is_ok());
 
-        let profile = match parse_android_profile(data.as_ref().unwrap()) {
+        let profile = match parse_profile(payload) {
             Err(err) => panic!("cannot parse profile: {:?}", err),
             Ok(profile) => profile,
         };
