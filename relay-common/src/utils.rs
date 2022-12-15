@@ -6,23 +6,60 @@ use regex::Regex;
 
 use crate::macros::impl_str_serde;
 
-/// A simple glob matcher.
-///
-/// Supported are `?` for a single char, `*` for all but a slash and
-/// `**` to match with slashes.
-///
-/// Supports replacement of all found `*` with provided replacement string using `apply` method.
-#[derive(Clone)]
-pub struct Glob {
-    value: String,
-    pattern: Regex,
-    replacer: Regex,
+/// Glob options is used to configure the behaviour underlying regex.
+#[derive(Debug)]
+struct GlobPatternOpts<'g> {
+    star: &'g str,
+    double_star: &'g str,
+    question_mark: &'g str,
 }
 
-impl Glob {
-    /// Creates a new glob from a string.
-    pub fn new(glob: &str) -> Glob {
-        let mut pattern = String::with_capacity(glob.len() + 100);
+/// `GlobBuilder` provides the posibility to fine tune the final [`Glob`], mainly what capture
+/// groups will be enabled in the underlying regex.
+#[derive(Debug)]
+pub struct GlobBuilder<'g> {
+    value: &'g str,
+    opts: GlobPatternOpts<'g>,
+}
+
+impl<'g> GlobBuilder<'g> {
+    /// Create a new builder with all the captures enabled by default.
+    pub fn new(value: &'g str) -> Self {
+        let opts = GlobPatternOpts {
+            star: "([^/]*?)",
+            double_star: "(.*?)",
+            question_mark: "(.)",
+        };
+        Self { value, opts }
+    }
+
+    /// Enable capture groups for `*` in the pattern.
+    pub fn capture_star(mut self, enable: bool) -> Self {
+        if !enable {
+            self.opts.star = "(?:[^/]*?)";
+        }
+        self
+    }
+
+    /// Enable capture groups for `**` in the pattern.
+    pub fn capture_double_star(mut self, enable: bool) -> Self {
+        if !enable {
+            self.opts.double_star = "(?:.*?)";
+        }
+        self
+    }
+
+    /// Enable capture groups for `?` in the pattern.
+    pub fn capture_question_mark(mut self, enable: bool) -> Self {
+        if !enable {
+            self.opts.question_mark = "(?:.)";
+        }
+        self
+    }
+
+    /// Create a new [`Glob`] from this builder.
+    pub fn build(self) -> Glob {
+        let mut pattern = String::with_capacity(&self.value.len() + 100);
         let mut last = 0;
 
         pattern.push('^');
@@ -30,27 +67,48 @@ impl Glob {
         static GLOB_RE: OnceCell<Regex> = OnceCell::new();
         let regex = GLOB_RE.get_or_init(|| Regex::new(r#"\?|\*\*|\*"#).unwrap());
 
-        for m in regex.find_iter(glob) {
-            pattern.push_str(&regex::escape(&glob[last..m.start()]));
+        for m in regex.find_iter(self.value) {
+            pattern.push_str(&regex::escape(&self.value[last..m.start()]));
             match m.as_str() {
-                "?" => pattern.push_str("(.)"),
-                "**" => pattern.push_str("(.*?)"),
-                "*" => pattern.push_str("([^/]*?)"),
+                "?" => pattern.push_str(self.opts.question_mark),
+                "**" => pattern.push_str(self.opts.double_star),
+                "*" => pattern.push_str(self.opts.star),
                 _ => {}
             }
             last = m.end();
         }
-        pattern.push_str(&regex::escape(&glob[last..]));
+        pattern.push_str(&regex::escape(&self.value[last..]));
         pattern.push('$');
 
-        // Prepare the new pattern replacing matches for `**` and `.` with non-capturing groups.
-        let replacer = pattern.replace("(.)", "(?:.)").replace("(.*?)", "(?:.*?)");
-
         Glob {
-            value: glob.to_string(),
+            value: self.value.to_owned(),
             pattern: Regex::new(&pattern).unwrap(),
-            replacer: Regex::new(&replacer).unwrap(),
         }
+    }
+}
+
+/// A simple glob matcher.
+///
+/// Supported are `?` for a single char, `*` for all but a slash and
+/// `**` to match with slashes.
+#[derive(Clone)]
+pub struct Glob {
+    value: String,
+    pattern: Regex,
+}
+
+impl Glob {
+    /// Creates the [`GlobBuilder`], which can be fine-tunned using helper methods.
+    pub fn builder(glob: &'_ str) -> GlobBuilder {
+        GlobBuilder::new(glob)
+    }
+
+    /// Creates a new glob from a string.
+    ///
+    /// All the glob patterns (wildcards) are enabled in the captures, and can be returned by
+    /// `matches` function.
+    pub fn new(glob: &str) -> Glob {
+        GlobBuilder::new(glob).build()
     }
 
     /// Returns the pattern as str.
@@ -69,12 +127,10 @@ impl Glob {
         let mut output = String::new();
         let mut current = 0;
 
-        for caps in self.replacer.captures_iter(input) {
+        for caps in self.pattern.captures_iter(input) {
             // Create the iter on subcaptures and ignore the first capture, since this is always
             // the entire string.
-            let mut iter = caps.iter();
-            let _ = iter.next();
-            for cap in iter.flatten() {
+            for cap in caps.iter().flatten().skip(1) {
                 output.push_str(&input[current..cap.start()]);
                 output.push_str(replacement);
                 current = cap.end();
@@ -208,13 +264,22 @@ mod tests {
         let g = Glob::new("/api/*/stuff/**");
         assert!(g.is_match("/api/some/stuff/here/store/"));
         assert!(!g.is_match("/api/some/store/"));
+    }
 
-        // Test replacements.
+    #[test]
+    fn test_glob_replace() {
+        let g = Glob::builder("/foo/*/bar/**")
+            .capture_star(true)
+            .capture_double_star(false)
+            .capture_question_mark(false)
+            .build();
+
         assert_eq!(
-            g.apply("/api/some/stuff/here/store", "*"),
-            "/api/*/stuff/here/store"
+            g.apply("/foo/some/bar/here/store", "*"),
+            "/foo/*/bar/here/store"
         );
-        assert_eq!(g.apply("/api/testing/stuff/", "*"), "/api/*/stuff/");
+        assert_eq!(g.apply("/foo/testing/bar/", "*"), "/foo/*/bar/");
+        assert_eq!(g.apply("/foo/testing/1/", "*"), "/foo/testing/1/");
     }
 
     #[test]

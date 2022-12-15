@@ -48,7 +48,6 @@ impl<'r> TransactionsProcessor<'r> {
                     // will always match the string.
                     && rule.pattern.is_match(&tran)
             });
-
             if let Some(rule) = rule {
                 // Apply only if supported redaction rule is provided.
                 if let Some(mut result) = rule.apply(&tran) {
@@ -1507,20 +1506,29 @@ mod tests {
         "#;
 
         let rule1 = TransactionNameRule {
-            pattern: Glob::new("/foo/*/user/*/**"),
+            pattern: Glob::builder("/foo/*/user/*/**")
+                .capture_double_star(false)
+                .capture_question_mark(false)
+                .build(),
             expiry: Utc::now() + Duration::hours(1),
             scope: Default::default(),
             redaction: Default::default(),
         };
         let rule2 = TransactionNameRule {
-            pattern: Glob::new("/foo/*/**"),
+            pattern: Glob::builder("/foo/*/**")
+                .capture_double_star(false)
+                .capture_question_mark(false)
+                .build(),
             expiry: Utc::now() + Duration::hours(1),
             scope: Default::default(),
             redaction: Default::default(),
         };
         // This should not happend, such rules shouldn't be sent to relay at all.
         let rule3 = TransactionNameRule {
-            pattern: Glob::new("/*/**"),
+            pattern: Glob::builder("/*/**")
+                .capture_double_star(false)
+                .capture_question_mark(false)
+                .build(),
             expiry: Utc::now() + Duration::hours(1),
             scope: Default::default(),
             redaction: Default::default(),

@@ -1,40 +1,21 @@
 use chrono::{DateTime, Utc};
 use relay_common::Glob;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::protocol::TransactionSource;
 
-/// The rule describes how transaction name should be changed.
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub struct TransactionNameRule {
-    /// The pattern which will be applied to transaction name.
-    pub pattern: Glob,
-    /// Date time when the rule expires and it should not be applied anymore.
-    pub expiry: DateTime<Utc>,
-    /// Object containing transaction attributes the rules must only be applied to.
-    #[serde(default)]
-    pub scope: RuleScope,
-    /// Object describing what to do with the matched pattern.
-    #[serde(default)]
-    pub redaction: RedactionRule,
-}
-
-impl TransactionNameRule {
-    /// Applies the rule to the provided value.
-    ///
-    /// Note: currently only `url` source for rules supported.
-    pub fn apply(&self, value: &str) -> Option<String> {
-        match &self.redaction {
-            RedactionRule::Replace(Replace { substitution }) => {
-                let result = self.pattern.apply(value, substitution);
-                Some(result)
-            }
-            other => {
-                relay_log::error!("Replacement rule {:?} unsupported!", other);
-                None
-            }
-        }
-    }
+/// Helper function to deserialize the string patter into the [`relay_common::Glob`].
+fn deserialize_glob_pattern<'de, D>(deserializer: D) -> Result<Glob, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let pattern = String::deserialize(deserializer)?;
+    let glob = Glob::builder(&pattern)
+        .capture_star(true)
+        .capture_double_star(false)
+        .capture_question_mark(false)
+        .build();
+    Ok(glob)
 }
 
 /// Contains transaction attribute the rule must only be applied to.
@@ -76,6 +57,40 @@ pub struct Replace {
 
 fn default_substitution() -> String {
     "*".to_string()
+}
+
+/// The rule describes how transaction name should be changed.
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub struct TransactionNameRule {
+    /// The pattern which will be applied to transaction name.
+    #[serde(deserialize_with = "deserialize_glob_pattern")]
+    pub pattern: Glob,
+    /// Date time when the rule expires and it should not be applied anymore.
+    pub expiry: DateTime<Utc>,
+    /// Object containing transaction attributes the rules must only be applied to.
+    #[serde(default)]
+    pub scope: RuleScope,
+    /// Object describing what to do with the matched pattern.
+    #[serde(default)]
+    pub redaction: RedactionRule,
+}
+
+impl TransactionNameRule {
+    /// Applies the rule to the provided value.
+    ///
+    /// Note: currently only `url` source for rules supported.
+    pub fn apply(&self, value: &str) -> Option<String> {
+        match &self.redaction {
+            RedactionRule::Replace(Replace { substitution }) => {
+                let result = self.pattern.apply(value, substitution);
+                Some(result)
+            }
+            other => {
+                relay_log::error!("Replacement rule {:?} unsupported!", other);
+                None
+            }
+        }
+    }
 }
 
 #[cfg(test)]
