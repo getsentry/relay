@@ -244,7 +244,7 @@ fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
     // Clean samples before running the checks.
     profile.remove_single_samples_per_thread();
     profile.profile.samples.retain_mut(|sample| {
-        (transaction.relative_start_ns..=transaction.relative_end_ns)
+        (transaction.relative_start_ns..transaction.relative_end_ns)
             .contains(&sample.elapsed_since_start_ns)
     });
 

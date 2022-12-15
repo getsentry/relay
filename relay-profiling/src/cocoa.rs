@@ -148,7 +148,7 @@ fn parse_profile(payload: &[u8]) -> Result<CocoaProfile, ProfileError> {
         profile.transaction_name = transaction.name;
 
         profile.sampled_profile.samples.retain_mut(|sample| {
-            (transaction.relative_start_ns..=transaction.relative_end_ns)
+            (transaction.relative_start_ns..transaction.relative_end_ns)
                 .contains(&sample.relative_timestamp_ns)
         });
     } else if !profile.has_transaction_metadata() {
@@ -298,7 +298,7 @@ mod tests {
             profile.transaction_id,
             "30976f2ddbe04ac9b6bffe6e35d4710c".parse().unwrap()
         );
-        assert_eq!(profile.duration_ns, 8);
+        assert_eq!(profile.duration_ns, 10);
         assert_eq!(profile.sampled_profile.samples.len(), 2);
 
         for sample in &profile.sampled_profile.samples {
