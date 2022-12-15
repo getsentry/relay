@@ -233,17 +233,24 @@ fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
         return Err(ProfileError::MissingProfileMetadata);
     }
 
-    if profile.transactions.is_empty() {
+    let Some(transaction) = profile.transactions.get(0).cloned() else {
         return Err(ProfileError::NoTransactionAssociated);
+    };
+
+    if !transaction.valid() {
+        return Err(ProfileError::InvalidTransactionMetadata);
     }
 
+    // Clean samples before running the checks.
     profile.remove_single_samples_per_thread();
+    profile.profile.samples.retain_mut(|sample| {
+        (transaction.relative_start_ns..=transaction.relative_end_ns)
+            .contains(&sample.elapsed_since_start_ns)
+    });
 
     if profile.profile.samples.is_empty() {
         return Err(ProfileError::NotEnoughSamples);
     }
-
-    profile.strip_pointer_authentication_code();
 
     if !profile.check_samples() {
         return Err(ProfileError::MalformedSamples);
@@ -255,29 +262,8 @@ fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
 
     // truncate to one transaction for compatibility reasons
     profile.transactions.truncate(1);
-
-    if let Some(transaction) = profile.transactions.get(0) {
-        if !transaction.valid() {
-            return Err(ProfileError::InvalidTransactionMetadata);
-        }
-
-        profile.profile.samples.retain_mut(|sample| {
-            if transaction.relative_start_ns <= sample.elapsed_since_start_ns
-                && sample.elapsed_since_start_ns <= transaction.relative_end_ns
-            {
-                sample.elapsed_since_start_ns -= transaction.relative_start_ns;
-                true
-            } else {
-                false
-            }
-        });
-
-        if profile.profile.samples.is_empty() {
-            return Err(ProfileError::NotEnoughSamples);
-        }
-
-        profile.transaction = Some(transaction.clone());
-    }
+    profile.transaction = Some(transaction);
+    profile.strip_pointer_authentication_code();
 
     Ok(profile)
 }

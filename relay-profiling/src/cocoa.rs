@@ -136,21 +136,8 @@ fn parse_profile(payload: &[u8]) -> Result<CocoaProfile, ProfileError> {
     let mut profile: CocoaProfile =
         serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)?;
 
-    if profile.transactions.is_empty() && !profile.has_transaction_metadata() {
-        return Err(ProfileError::NoTransactionAssociated);
-    }
-
-    profile.remove_single_samples_per_thread();
-
-    if profile.sampled_profile.samples.is_empty() {
-        return Err(ProfileError::NotEnoughSamples);
-    }
-
-    if profile.transactions.is_empty() && profile.has_transaction_metadata() {
-        return Ok(profile);
-    }
-
-    if let Some(transaction) = profile.transactions.drain(..).next() {
+    let transaction_opt = profile.transactions.drain(..).next();
+    if let Some(transaction) = transaction_opt {
         if !transaction.valid() {
             return Err(ProfileError::InvalidTransactionMetadata);
         }
@@ -161,15 +148,16 @@ fn parse_profile(payload: &[u8]) -> Result<CocoaProfile, ProfileError> {
         profile.transaction_name = transaction.name;
 
         profile.sampled_profile.samples.retain_mut(|sample| {
-            if transaction.relative_start_ns <= sample.relative_timestamp_ns
-                && sample.relative_timestamp_ns <= transaction.relative_end_ns
-            {
-                sample.relative_timestamp_ns -= transaction.relative_start_ns;
-                true
-            } else {
-                false
-            }
+            (transaction.relative_start_ns..=transaction.relative_end_ns)
+                .contains(&sample.relative_timestamp_ns)
         });
+    } else if !profile.has_transaction_metadata() {
+        return Err(ProfileError::NoTransactionAssociated);
+    }
+
+    profile.remove_single_samples_per_thread();
+    if profile.sampled_profile.samples.is_empty() {
+        return Err(ProfileError::NotEnoughSamples);
     }
 
     Ok(profile)
