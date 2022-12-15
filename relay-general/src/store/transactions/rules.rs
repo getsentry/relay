@@ -71,7 +71,6 @@ pub struct TransactionNameRule {
     #[serde(default)]
     pub scope: RuleScope,
     /// Object describing what to do with the matched pattern.
-    #[serde(default)]
     pub redaction: RedactionRule,
 }
 
@@ -130,7 +129,7 @@ mod tests {
     }
 
     #[test]
-    fn test_rule_check_defaults() {
+    fn test_rule_format_defaults() {
         let json = r###"
         {
           "pattern": "/auth/login/*/**",
