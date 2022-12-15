@@ -49,6 +49,12 @@ struct AndroidProfile {
         skip_serializing_if = "is_zero"
     )]
     duration_ns: u64,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_number_from_string",
+        skip_serializing_if = "is_zero"
+    )]
+    active_thread_id: u64,
 
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     transactions: Vec<TransactionMetadata>,
@@ -122,10 +128,13 @@ pub fn expand_android_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileErr
     let mut profile = parse_android_profile(payload)?;
 
     if let Some(transaction) = profile.transactions.drain(..).next() {
+        profile.active_thread_id = transaction.active_thread_id;
         profile.duration_ns = transaction.duration_ns();
-        profile.transaction_name = transaction.name;
-        profile.transaction_id = transaction.id;
         profile.trace_id = transaction.trace_id;
+        profile.transaction_id = transaction.id;
+        profile.transaction_name = transaction.name;
+    } else {
+        return Err(ProfileError::InvalidTransactionMetadata);
     }
 
     match serde_json::to_vec(&profile) {
