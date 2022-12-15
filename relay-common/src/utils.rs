@@ -123,7 +123,7 @@ impl Glob {
 
     /// Currently support replacing only all `*` in the input string with provided replacement.
     /// If no match is found, then a copy of the string is returned unchanged.
-    pub fn apply(&self, input: &str, replacement: &str) -> String {
+    pub fn replace_captures(&self, input: &str, replacement: &str) -> String {
         let mut output = String::new();
         let mut current = 0;
 
@@ -275,11 +275,14 @@ mod tests {
             .build();
 
         assert_eq!(
-            g.apply("/foo/some/bar/here/store", "*"),
+            g.replace_captures("/foo/some/bar/here/store", "*"),
             "/foo/*/bar/here/store"
         );
-        assert_eq!(g.apply("/foo/testing/bar/", "*"), "/foo/*/bar/");
-        assert_eq!(g.apply("/foo/testing/1/", "*"), "/foo/testing/1/");
+        assert_eq!(g.replace_captures("/foo/testing/bar/", "*"), "/foo/*/bar/");
+        assert_eq!(
+            g.replace_captures("/foo/testing/1/", "*"),
+            "/foo/testing/1/"
+        );
     }
 
     #[test]

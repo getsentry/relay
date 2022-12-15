@@ -197,6 +197,8 @@ pub struct LimitedProjectConfig {
     pub breakdowns_v2: Option<BreakdownsConfig>,
     #[serde(skip_serializing_if = "BTreeSet::is_empty")]
     pub features: BTreeSet<Feature>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub tx_name_rules: Vec<TransactionNameRule>,
 }
 
 /// The project state is a cached server state of a project.

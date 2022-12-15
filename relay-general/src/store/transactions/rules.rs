@@ -83,7 +83,7 @@ impl TransactionNameRule {
     pub fn apply(&self, value: &str) -> Option<String> {
         match &self.redaction {
             RedactionRule::Replace(Replace { substitution }) => {
-                let result = self.pattern.apply(value, substitution);
+                let result = self.pattern.replace_captures(value, substitution);
                 Some(result)
             }
             _ => {

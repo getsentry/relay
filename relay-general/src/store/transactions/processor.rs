@@ -32,6 +32,9 @@ impl<'r> TransactionsProcessor<'r> {
     /// - source matchining the one provided in the rule sorce, default `url`
     /// - rule hasn't epired yet
     /// - glob pattern matches the transaction name
+    ///
+    /// Note: we add `/` at the end of the transaction name if there isn't one, to make sure that
+    /// patterns like `/<something>/*/**` where we have `**` at the end are a match.
     pub fn apply_transaction_rename_rule(
         &self,
         transaction: &mut Annotated<String>,
@@ -40,34 +43,44 @@ impl<'r> TransactionsProcessor<'r> {
     ) -> ProcessingResult {
         let now = Utc::now();
         transaction.apply(|transaction, meta| {
-            let tran = format!("{}/", transaction.as_str());
+            let slash_is_present = transaction
+                .chars()
+                .last()
+                .map(|c| c == '/')
+                .unwrap_or_default();
+
+            // Add new `/` at the end of the transaction if there isn't one.
+            if !slash_is_present {
+                transaction.push('/');
+            }
+
             let rule = self.tx_name_rules.iter().find(|rule| {
                 &rule.scope.source == source
                     && rule.expiry > now
                     // Adding `/` at the end of the name, ensures that rules like /<something>/*/**
                     // will always match the string.
-                    && rule.pattern.is_match(&tran)
+                    && rule.pattern.is_match(transaction)
             });
-            if let Some(rule) = rule {
-                // Apply only if supported redaction rule is provided.
-                if let Some(mut result) = rule.apply(&tran) {
-                    // Remove the `/` at the end of the line we added for the check.
+            let result = rule.map(|r| (r.pattern.pattern(), r.apply(transaction)));
+
+            if let Some((rule, Some(mut result))) = result {
+                if !slash_is_present {
+                    let _ = transaction.pop();
                     let _ = result.pop();
-                    if &result != transaction {
-                        meta.set_original_value(Some(transaction.to_owned()));
-                        // add also the rule which was applied to the transaction name
-                        meta.add_remark(Remark::new(
-                            RemarkType::Substituted,
-                            rule.pattern.pattern(),
-                        ));
-                        *transaction = result;
-                        if let Some(info) = info {
-                            info.source
-                                .value_mut()
-                                .replace(TransactionSource::Sanitized);
-                        }
+                }
+                if &result != transaction {
+                    meta.set_original_value(Some(transaction.clone()));
+                    // add also the rule which was applied to the transaction name
+                    meta.add_remark(Remark::new(RemarkType::Substituted, rule));
+                    *transaction = result;
+                    if let Some(info) = info {
+                        info.source
+                            .value_mut()
+                            .replace(TransactionSource::Sanitized);
                     }
                 }
+            } else if !slash_is_present {
+                let _ = transaction.pop();
             }
             Ok(())
         })
@@ -1705,6 +1718,92 @@ mod tests {
           "spans": []
         }
         "###);
+    }
+
+    #[test]
+    fn test_transaction_name_rename_end_slash() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user",
+            "transaction_info": {
+              "source": "url"
+            },
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "rails.request",
+                    "status": "ok"
+                }
+            },
+            "sdk": {"name": "sentry.ruby"},
+            "modules": {"rack": "1.2.3"}
+
+        }
+        "#;
+
+        let rule = TransactionNameRule {
+            pattern: Glob::builder("/foo/*/**")
+                .capture_double_star(false)
+                .capture_question_mark(false)
+                .build(),
+            expiry: Utc::now() + Duration::hours(1),
+            scope: Default::default(),
+            redaction: Default::default(),
+        };
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor::new(false, &[rule]),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(event, @r###"
+         {
+           "type": "transaction",
+           "transaction": "/foo/*/user",
+           "transaction_info": {
+             "source": "sanitized"
+           },
+           "modules": {
+             "rack": "1.2.3"
+           },
+           "timestamp": 1619420400.0,
+           "start_timestamp": 1619420341.0,
+           "contexts": {
+             "trace": {
+               "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+               "span_id": "fa90fdead5f74053",
+               "op": "rails.request",
+               "status": "ok",
+               "type": "trace"
+             }
+           },
+           "sdk": {
+             "name": "sentry.ruby"
+           },
+           "spans": [],
+           "_meta": {
+             "transaction": {
+               "": {
+                 "rem": [
+                   [
+                     "/foo/*/**",
+                     "s"
+                   ]
+                 ],
+                 "val": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user"
+               }
+             }
+           }
+         }
+         "###);
     }
 
     macro_rules! transaction_name_test {
