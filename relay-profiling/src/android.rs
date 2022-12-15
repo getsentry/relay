@@ -120,36 +120,19 @@ impl AndroidProfile {
 
 pub fn expand_android_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileError> {
     let mut profile = parse_android_profile(payload)?;
-    let mut items: Vec<Vec<u8>> = Vec::new();
 
-    if profile.transactions.is_empty() && profile.has_transaction_metadata() {
-        match serde_json::to_vec(&profile) {
-            Ok(payload) => items.push(payload),
-            Err(_) => {
-                return Err(ProfileError::CannotSerializePayload);
-            }
-        };
-
-        return Ok(items);
+    let transactions = std::mem::take(&mut profile.transactions);
+    if let Some(transaction) = transactions.into_iter().next() {
+        profile.duration_ns = transaction.duration_ns();
+        profile.transaction_name = transaction.name;
+        profile.transaction_id = transaction.id;
+        profile.trace_id = transaction.trace_id;
     }
 
-    let transaction = &profile.transactions[0];
-
-    profile.transaction_name = transaction.name.clone();
-    profile.transaction_id = transaction.id;
-    profile.trace_id = transaction.trace_id;
-    profile.duration_ns = transaction.duration_ns();
-
-    profile.transactions.clear();
-
     match serde_json::to_vec(&profile) {
-        Ok(payload) => items.push(payload),
-        Err(_) => {
-            return Err(ProfileError::CannotSerializePayload);
-        }
-    };
-
-    Ok(items)
+        Ok(payload) => Ok(vec![payload]),
+        Err(_) => Err(ProfileError::CannotSerializePayload),
+    }
 }
 
 fn get_timestamp(clock: Clock, start_time: DateTime<Utc>, event_time: Time) -> u64 {
