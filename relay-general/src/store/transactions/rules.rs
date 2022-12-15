@@ -18,6 +18,11 @@ where
     Ok(glob)
 }
 
+/// Default value for substitution in [`RedactionRule`].
+fn default_substitution() -> String {
+    "*".to_string()
+}
+
 /// Contains transaction attribute the rule must only be applied to.
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct RuleScope {
@@ -33,11 +38,18 @@ impl Default for RuleScope {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub struct Replace {
+    #[serde(default = "default_substitution")]
+    substitution: String,
+}
+
 /// Describes what to do with the matched pattern.
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(tag = "method", rename_all = "snake_case")]
 pub enum RedactionRule {
     Replace(Replace),
+    #[serde(other, skip_serializing)]
     Other,
 }
 
@@ -47,16 +59,6 @@ impl Default for RedactionRule {
             substitution: default_substitution(),
         })
     }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub struct Replace {
-    #[serde(default = "default_substitution")]
-    substitution: String,
-}
-
-fn default_substitution() -> String {
-    "*".to_string()
 }
 
 /// The rule describes how transaction name should be changed.
@@ -84,8 +86,8 @@ impl TransactionNameRule {
                 let result = self.pattern.apply(value, substitution);
                 Some(result)
             }
-            other => {
-                relay_log::error!("Replacement rule {:?} unsupported!", other);
+            _ => {
+                relay_log::trace!("Replacement rule type is unsupported!");
                 None
             }
         }
@@ -151,5 +153,23 @@ mod tests {
         };
 
         assert_eq!(rule, result);
+    }
+
+    #[test]
+    fn test_rule_format_unsupported_reduction() {
+        let json = r###"
+        {
+          "pattern": "/auth/login/*/**",
+          "expiry": "2022-11-30T00:00:00.000000Z",
+          "redaction": {
+            "method": "update"
+          }
+        }
+        "###;
+
+        let rule: TransactionNameRule = serde_json::from_str(json).unwrap();
+        let result = rule.apply("/auth/login/test/");
+
+        assert!(result.is_none());
     }
 }
