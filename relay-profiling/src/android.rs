@@ -1,5 +1,4 @@
 use std::collections::{HashMap, HashSet};
-use std::time::Duration;
 
 use android_trace_log::chrono::{DateTime, Utc};
 use android_trace_log::{AndroidTraceLog, Clock, Time, Vm};
@@ -94,13 +93,6 @@ impl AndroidProfile {
         Ok(())
     }
 
-    fn set_transaction(&mut self, transaction: &TransactionMetadata) {
-        self.transaction_name = transaction.name.clone();
-        self.transaction_id = transaction.id;
-        self.trace_id = transaction.trace_id;
-        self.duration_ns = transaction.duration_ns();
-    }
-
     fn has_transaction_metadata(&self) -> bool {
         !self.transaction_name.is_empty() && self.duration_ns > 0
     }
@@ -127,7 +119,7 @@ impl AndroidProfile {
 }
 
 pub fn expand_android_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileError> {
-    let profile = parse_android_profile(payload)?;
+    let mut profile = parse_android_profile(payload)?;
     let mut items: Vec<Vec<u8>> = Vec::new();
 
     if profile.transactions.is_empty() && profile.has_transaction_metadata() {
@@ -141,83 +133,23 @@ pub fn expand_android_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileErr
         return Ok(items);
     }
 
-    for transaction in &profile.transactions {
-        let mut new_profile = profile.clone();
+    let transaction = &profile.transactions[0];
 
-        new_profile.profile_id = EventId::new();
-        new_profile.set_transaction(transaction);
-        new_profile.transactions.clear();
+    profile.transaction_name = transaction.name.clone();
+    profile.transaction_id = transaction.id;
+    profile.trace_id = transaction.trace_id;
+    profile.duration_ns = transaction.duration_ns();
 
-        let clock = new_profile.profile.clock;
-        let start_time = new_profile.profile.start_time;
+    profile.transactions.clear();
 
-        new_profile.profile.events.retain_mut(|event| {
-            let event_timestamp = get_timestamp(clock, start_time, event.time);
-            if transaction.relative_start_ns <= event_timestamp
-                && event_timestamp <= transaction.relative_end_ns
-            {
-                let relative_start = match clock {
-                    Clock::Cpu => Duration::from_millis(transaction.relative_cpu_start_ms),
-                    Clock::Wall | Clock::Dual | Clock::Global => {
-                        Duration::from_nanos(transaction.relative_start_ns)
-                    }
-                };
-                event.time = substract_to_timestamp(event.time, relative_start);
-                true
-            } else {
-                false
-            }
-        });
-
-        if new_profile.profile.events.is_empty() {
-            continue;
+    match serde_json::to_vec(&profile) {
+        Ok(payload) => items.push(payload),
+        Err(_) => {
+            return Err(ProfileError::CannotSerializePayload);
         }
-
-        match serde_json::to_vec(&new_profile) {
-            Ok(payload) => items.push(payload),
-            Err(_) => {
-                return Err(ProfileError::CannotSerializePayload);
-            }
-        };
-    }
+    };
 
     Ok(items)
-}
-
-fn substract_to_timestamp(time: Time, duration: Duration) -> Time {
-    match time {
-        Time::Global(time) => Time::Global(time - duration),
-        Time::Monotonic {
-            cpu: Some(time),
-            wall: None,
-        } => Time::Monotonic {
-            cpu: time
-                .checked_sub(duration)
-                .or_else(|| Some(Duration::default())),
-            wall: None,
-        },
-        Time::Monotonic {
-            wall: Some(time),
-            cpu: None,
-        } => Time::Monotonic {
-            wall: time
-                .checked_sub(duration)
-                .or_else(|| Some(Duration::default())),
-            cpu: None,
-        },
-        Time::Monotonic {
-            cpu: Some(cpu),
-            wall: Some(wall),
-        } => Time::Monotonic {
-            cpu: cpu
-                .checked_sub(duration)
-                .or_else(|| Some(Duration::default())),
-            wall: wall
-                .checked_sub(duration)
-                .or_else(|| Some(Duration::default())),
-        },
-        _ => unimplemented!(),
-    }
 }
 
 fn get_timestamp(clock: Clock, start_time: DateTime<Utc>, event_time: Time) -> u64 {
@@ -345,42 +277,6 @@ mod tests {
                     event.time
                 ) < profile.duration_ns
             );
-        }
-    }
-
-    #[test]
-    fn test_substract_to_timestamp() {
-        let now = Utc::now();
-        let timestamps: Vec<(Clock, Time)> = vec![
-            (
-                Clock::Global,
-                Time::Global(Duration::from_nanos(now.timestamp_nanos() as u64 + 100)),
-            ),
-            (
-                Clock::Cpu,
-                Time::Monotonic {
-                    cpu: Some(Duration::from_nanos(100)),
-                    wall: None,
-                },
-            ),
-            (
-                Clock::Wall,
-                Time::Monotonic {
-                    wall: Some(Duration::from_nanos(100)),
-                    cpu: None,
-                },
-            ),
-            (
-                Clock::Dual,
-                Time::Monotonic {
-                    cpu: Some(Duration::from_nanos(20)),
-                    wall: Some(Duration::from_nanos(100)),
-                },
-            ),
-        ];
-        for (clock, timestamp) in timestamps {
-            let result = substract_to_timestamp(timestamp, Duration::from_nanos(50));
-            assert_eq!(get_timestamp(clock, now, result), 50);
         }
     }
 }

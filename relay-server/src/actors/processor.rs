@@ -981,6 +981,16 @@ impl EnvelopeProcessorService {
 
         for payload in new_profiles {
             let mut item = Item::new(ItemType::Profile);
+            if payload.len() > self.config.max_profile_size() {
+                context.track_outcome(
+                    Outcome::Invalid(DiscardReason::Profiling(relay_profiling::discard_reason(
+                        relay_profiling::ProfileError::ExceedSizeLimit,
+                    ))),
+                    DataCategory::Profile,
+                    1,
+                );
+                continue;
+            }
             item.set_payload(ContentType::Json, &payload[..]);
             envelope.add_item(item);
         }
