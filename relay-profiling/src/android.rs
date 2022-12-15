@@ -219,14 +219,6 @@ mod tests {
     }
 
     #[test]
-    fn test_multiple_transactions() {
-        let payload =
-            include_bytes!("../tests/fixtures/profiles/android/multiple_transactions.json");
-        let data = parse_android_profile(payload);
-        assert!(data.is_ok());
-    }
-
-    #[test]
     fn test_no_transaction() {
         let payload = include_bytes!("../tests/fixtures/profiles/android/no_transaction.json");
         let data = parse_android_profile(payload);
@@ -242,7 +234,7 @@ mod tests {
     }
 
     #[test]
-    fn test_expand_multiple_transactions() {
+    fn test_transactions_to_top_level() {
         let payload =
             include_bytes!("../tests/fixtures/profiles/android/multiple_transactions.json");
         let data = expand_android_profile(payload);
@@ -257,17 +249,12 @@ mod tests {
             profile.transaction_id,
             "7d6db784355e4d7dbf98671c69cbcc77".parse().unwrap()
         );
+        assert_eq!(
+            profile.trace_id,
+            "7d6db784355e4d7dbf98671c69cbcc77".parse().unwrap()
+        );
+        assert_eq!(profile.active_thread_id, 12345);
+        assert_eq!(profile.transaction_name, "transaction1");
         assert_eq!(profile.duration_ns, 1000000000);
-        assert_eq!(profile.profile.events.len(), 8453);
-
-        for event in &profile.profile.events {
-            assert!(
-                get_timestamp(
-                    profile.profile.clock,
-                    profile.profile.start_time,
-                    event.time
-                ) < profile.duration_ns
-            );
-        }
     }
 }
