@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Remove concurrent profiling. ([#1697](https://github.com/getsentry/relay/pull/1697))
+
 ## 22.12.0
 
 **Features**:
@@ -30,7 +36,6 @@
 - Parse string as number to handle a release bug. ([#1637](https://github.com/getsentry/relay/pull/1637))
 - Expand Profiling's discard reasons. ([#1661](https://github.com/getsentry/relay/pull/1661), [#1685](https://github.com/getsentry/relay/pull/1685))
 - Allow to rate limit profiles on top of transactions. ([#1681](https://github.com/getsentry/relay/pull/1681))
-- Remove concurrent profiling. ([#1697](https://github.com/getsentry/relay/pull/1697))
 
 ## 22.11.0
 
