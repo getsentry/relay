@@ -25,7 +25,6 @@ impl SleepHandle {
 
     /// Sets the internal state to a future that will yield after `duration` time has elapsed.
     pub fn set(&mut self, duration: Duration) {
-        tokio::time::pause();
         self.0 = Some(Box::pin(tokio::time::sleep(duration)));
     }
 

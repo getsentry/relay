@@ -1,7 +1,7 @@
 use std::fmt;
 use std::net::IpAddr;
 use std::str::FromStr;
-use tokio::time::Instant;
+use std::time::Instant;
 
 use actix::ResponseFuture;
 use actix_web::http::header;

@@ -291,7 +291,7 @@ fn queue_envelope(
         EnvelopeProcessor::from_registry().send(ProcessMetrics {
             items: metric_items,
             project_key: envelope.meta().public_key(),
-            start_time: envelope.meta().start_time().into_std(),
+            start_time: envelope.meta().start_time(),
             sent_at: envelope.sent_at(),
         });
     }

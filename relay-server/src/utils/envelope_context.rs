@@ -1,7 +1,7 @@
 //! Envelope context type and helpers to ensure outcomes.
 
 use std::net;
-use tokio::time::Instant;
+use std::time::Instant;
 
 use chrono::{DateTime, Utc};
 
@@ -78,7 +78,7 @@ impl EnvelopeContext {
         Self {
             summary: EnvelopeSummary::compute(envelope),
             start_time: meta.start_time(),
-            received_at: relay_common::instant_to_date_time(meta.start_time().into_std()),
+            received_at: relay_common::instant_to_date_time(meta.start_time()),
             event_id: envelope.event_id(),
             remote_addr: meta.client_addr(),
             scoping: meta.get_partial_scoping(),

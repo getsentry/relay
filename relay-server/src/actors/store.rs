@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use tokio::time::Instant;
+use std::time::Instant;
 
 use bytes::Bytes;
 use once_cell::sync::OnceCell;
@@ -195,7 +195,7 @@ impl StoreService {
                             project_id: scoping.project_id,
                             key_id: scoping.key_id,
                             org_id: scoping.organization_id,
-                            received: UnixTimestamp::from_instant(start_time.into_std()).as_secs(),
+                            received: UnixTimestamp::from_instant(start_time).as_secs(),
                             retention_days: retention,
                             replay_recording,
                         });
@@ -226,7 +226,7 @@ impl StoreService {
             relay_log::trace!("Sending event item of envelope to kafka");
             let event_message = KafkaMessage::Event(EventKafkaMessage {
                 payload: event_item.payload(),
-                start_time: UnixTimestamp::from_instant(start_time.into_std()).as_secs(),
+                start_time: UnixTimestamp::from_instant(start_time).as_secs(),
                 event_id: event_id.ok_or(StoreError::NoEventId)?,
                 project_id: scoping.project_id,
                 remote_addr: envelope.meta().client_addr().map(|addr| addr.to_string()),
@@ -333,7 +333,7 @@ impl StoreService {
             project_id,
             event_id,
             payload: item.payload(),
-            start_time: UnixTimestamp::from_instant(start_time.into_std()).as_secs(),
+            start_time: UnixTimestamp::from_instant(start_time).as_secs(),
         });
 
         self.produce(KafkaTopic::Attachments, organization_id, message)
@@ -574,7 +574,7 @@ impl StoreService {
             organization_id,
             project_id,
             key_id,
-            received: UnixTimestamp::from_instant(start_time.into_std()).as_secs(),
+            received: UnixTimestamp::from_instant(start_time).as_secs(),
             payload: item.payload(),
         };
         relay_log::trace!("Sending profile to Kafka");
@@ -603,7 +603,7 @@ impl StoreService {
             replay_id,
             project_id,
             retention_days,
-            start_time: UnixTimestamp::from_instant(start_time.into_std()).as_secs(),
+            start_time: UnixTimestamp::from_instant(start_time).as_secs(),
             payload: item.payload(),
         };
         relay_log::trace!("Sending replay event to Kafka");
