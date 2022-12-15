@@ -1011,7 +1011,6 @@ mod tests {
         type Interface = MockMessage;
 
         fn spawn_handler(self, mut rx: Receiver<Self::Interface>) {
-            tokio::time::pause();
             tokio::spawn(async move {
                 while rx.recv().await.is_some() {
                     tokio::time::sleep(BACKLOG_INTERVAL * 2).await;
