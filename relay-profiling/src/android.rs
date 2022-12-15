@@ -124,7 +124,7 @@ impl AndroidProfile {
     }
 }
 
-pub fn expand_android_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileError> {
+pub fn expand_android_profile(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
     let mut profile = parse_android_profile(payload)?;
 
     if let Some(transaction) = profile.transactions.drain(..).next() {
@@ -133,12 +133,10 @@ pub fn expand_android_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileErr
         profile.trace_id = transaction.trace_id;
         profile.transaction_id = transaction.id;
         profile.transaction_name = transaction.name;
-    } else {
-        return Err(ProfileError::InvalidTransactionMetadata);
     }
 
     match serde_json::to_vec(&profile) {
-        Ok(payload) => Ok(vec![payload]),
+        Ok(payload) => Ok(payload),
         Err(_) => Err(ProfileError::CannotSerializePayload),
     }
 }
@@ -239,9 +237,8 @@ mod tests {
             include_bytes!("../tests/fixtures/profiles/android/multiple_transactions.json");
         let data = expand_android_profile(payload);
         assert!(data.is_ok());
-        assert_eq!(data.as_ref().unwrap().len(), 1); // just the first transaction
 
-        let profile = match parse_android_profile(&data.as_ref().unwrap()[0]) {
+        let profile = match parse_android_profile(data.as_ref().unwrap()) {
             Err(err) => panic!("cannot parse profile: {:?}", err),
             Ok(profile) => profile,
         };

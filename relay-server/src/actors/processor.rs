@@ -955,12 +955,26 @@ impl EnvelopeProcessorService {
             return;
         }
 
-        let context = &state.envelope_context;
-        let mut new_profiles = Vec::new();
-
-        while let Some(item) = envelope.take_item_by(|item| item.ty() == &ItemType::Profile) {
-            match relay_profiling::expand_profile(&item.payload()[..]) {
-                Ok(payloads) => new_profiles.extend(payloads),
+        envelope.retain_items(|item| match item.ty() {
+            ItemType::Profile => match relay_profiling::expand_profile(&item.payload()[..]) {
+                Ok(payload) => {
+                    if payload.len() <= self.config.max_profile_size() {
+                        item.set_payload(ContentType::Json, &payload[..]);
+                        true
+                    } else {
+                        let context = &state.envelope_context;
+                        context.track_outcome(
+                            Outcome::Invalid(DiscardReason::Profiling(
+                                relay_profiling::discard_reason(
+                                    relay_profiling::ProfileError::ExceedSizeLimit,
+                                ),
+                            )),
+                            DataCategory::Profile,
+                            1,
+                        );
+                        false
+                    }
+                }
                 Err(err) => {
                     match err {
                         relay_profiling::ProfileError::InvalidJson(_) => {
@@ -968,6 +982,7 @@ impl EnvelopeProcessorService {
                         }
                         _ => relay_log::debug!("invalid profile: {}", err),
                     };
+                    let context = &state.envelope_context;
                     context.track_outcome(
                         Outcome::Invalid(DiscardReason::Profiling(
                             relay_profiling::discard_reason(err),
@@ -975,25 +990,11 @@ impl EnvelopeProcessorService {
                         DataCategory::Profile,
                         1,
                     );
+                    false
                 }
-            }
-        }
-
-        for payload in new_profiles {
-            if payload.len() <= self.config.max_profile_size() {
-                let mut item = Item::new(ItemType::Profile);
-                item.set_payload(ContentType::Json, &payload[..]);
-                envelope.add_item(item);
-            } else {
-                context.track_outcome(
-                    Outcome::Invalid(DiscardReason::Profiling(relay_profiling::discard_reason(
-                        relay_profiling::ProfileError::ExceedSizeLimit,
-                    ))),
-                    DataCategory::Profile,
-                    1,
-                );
-            }
-        }
+            },
+            _ => true,
+        });
     }
 
     /// Remove replays if the feature flag is not enabled
