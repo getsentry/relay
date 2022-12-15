@@ -121,8 +121,7 @@ impl AndroidProfile {
 pub fn expand_android_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileError> {
     let mut profile = parse_android_profile(payload)?;
 
-    let transactions = std::mem::take(&mut profile.transactions);
-    if let Some(transaction) = transactions.into_iter().next() {
+    if let Some(transaction) = profile.transactions.drain(..).next() {
         profile.duration_ns = transaction.duration_ns();
         profile.transaction_name = transaction.name;
         profile.transaction_id = transaction.id;
