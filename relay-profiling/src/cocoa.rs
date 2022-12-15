@@ -146,9 +146,7 @@ pub fn expand_cocoa_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileError
     if profile.transactions.is_empty() && profile.has_transaction_metadata() {
         match serde_json::to_vec(&profile) {
             Ok(payload) => items.push(payload),
-            Err(_) => {
-                return Err(ProfileError::CannotSerializePayload);
-            }
+            Err(_) => return Err(ProfileError::CannotSerializePayload),
         };
 
         return Ok(items);
@@ -174,9 +172,7 @@ pub fn expand_cocoa_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileError
 
         match serde_json::to_vec(&new_profile) {
             Ok(payload) => items.push(payload),
-            Err(_) => {
-                return Err(ProfileError::CannotSerializePayload);
-            }
+            Err(_) => return Err(ProfileError::CannotSerializePayload),
         };
     }
 

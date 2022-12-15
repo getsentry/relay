@@ -267,9 +267,7 @@ pub fn expand_sample_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileErro
 
         match serde_json::to_vec(&new_profile) {
             Ok(payload) => items.push(payload),
-            Err(_) => {
-                return Err(ProfileError::CannotSerializePayload);
-            }
+            Err(_) => return Err(ProfileError::CannotSerializePayload),
         };
     }
 
