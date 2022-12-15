@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Remove concurrent profiling. ([#1697](https://github.com/getsentry/relay/pull/1697))
+
 ## 22.12.0
 
 **Features**:

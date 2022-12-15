@@ -24,4 +24,6 @@ pub enum ProfileError {
     MalformedStacks,
     #[error("malformed samples")]
     MalformedSamples,
+    #[error("exceed size limit")]
+    ExceedSizeLimit,
 }

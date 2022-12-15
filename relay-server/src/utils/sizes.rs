@@ -14,6 +14,7 @@ use crate::envelope::{AttachmentType, Envelope, ItemType};
 ///  - `max_attachment_size`
 ///  - `max_attachments_size`
 ///  - `max_session_count`
+///  - `max_profile_size`
 pub fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> bool {
     let mut event_size = 0;
     let mut attachments_size = 0;

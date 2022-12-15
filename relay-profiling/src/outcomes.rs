@@ -3,6 +3,7 @@ use crate::ProfileError;
 pub fn discard_reason(err: ProfileError) -> &'static str {
     match err {
         ProfileError::CannotSerializePayload => "profiling_failed_serialization",
+        ProfileError::ExceedSizeLimit => "profiling_exceed_size_limit",
         ProfileError::InvalidBase64Value => "profiling_invalid_base64_value",
         ProfileError::InvalidJson(_) => "profiling_invalid_json",
         ProfileError::InvalidSampledProfile => "profiling_invalid_sampled_profile",

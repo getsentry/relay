@@ -967,12 +967,25 @@ impl EnvelopeProcessorService {
             return;
         }
 
-        let context = &state.envelope_context;
-        let mut new_profiles = Vec::new();
-
-        while let Some(item) = envelope.take_item_by(|item| item.ty() == &ItemType::Profile) {
-            match relay_profiling::expand_profile(&item.payload()[..]) {
-                Ok(payloads) => new_profiles.extend(payloads),
+        envelope.retain_items(|item| match item.ty() {
+            ItemType::Profile => match relay_profiling::expand_profile(&item.payload()) {
+                Ok(payload) => {
+                    if payload.len() <= self.config.max_profile_size() {
+                        item.set_payload(ContentType::Json, payload);
+                        true
+                    } else {
+                        state.envelope_context.track_outcome(
+                            Outcome::Invalid(DiscardReason::Profiling(
+                                relay_profiling::discard_reason(
+                                    relay_profiling::ProfileError::ExceedSizeLimit,
+                                ),
+                            )),
+                            DataCategory::Profile,
+                            1,
+                        );
+                        false
+                    }
+                }
                 Err(err) => {
                     match err {
                         relay_profiling::ProfileError::InvalidJson(_) => {
@@ -980,22 +993,19 @@ impl EnvelopeProcessorService {
                         }
                         _ => relay_log::debug!("invalid profile: {}", err),
                     };
-                    context.track_outcome(
+
+                    state.envelope_context.track_outcome(
                         Outcome::Invalid(DiscardReason::Profiling(
                             relay_profiling::discard_reason(err),
                         )),
                         DataCategory::Profile,
                         1,
                     );
+                    false
                 }
-            }
-        }
-
-        for payload in new_profiles {
-            let mut item = Item::new(ItemType::Profile);
-            item.set_payload(ContentType::Json, &payload[..]);
-            envelope.add_item(item);
-        }
+            },
+            _ => true,
+        });
     }
 
     /// Remove replays if the feature flag is not enabled
