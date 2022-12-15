@@ -636,7 +636,13 @@ impl EnvelopeProcessorService {
 
         // Extract metrics if they haven't been extracted by a prior Relay
         if metrics_config.is_enabled() && !item.metrics_extracted() {
-            extract_session_metrics(&session.attributes, &session, client, extracted_metrics);
+            extract_session_metrics(
+                &session.attributes,
+                &session,
+                client,
+                extracted_metrics,
+                metrics_config.should_extract_abnormal_mechanism(),
+            );
             item.set_metrics_extracted(true);
         }
 
@@ -711,7 +717,13 @@ impl EnvelopeProcessorService {
         // Extract metrics if they haven't been extracted by a prior Relay
         if metrics_config.is_enabled() && !item.metrics_extracted() {
             for aggregate in &session.aggregates {
-                extract_session_metrics(&session.attributes, aggregate, client, extracted_metrics);
+                extract_session_metrics(
+                    &session.attributes,
+                    aggregate,
+                    client,
+                    extracted_metrics,
+                    metrics_config.should_extract_abnormal_mechanism(),
+                );
                 item.set_metrics_extracted(true);
             }
         }
