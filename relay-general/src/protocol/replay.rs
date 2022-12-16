@@ -185,15 +185,15 @@ impl Replay {
 
 #[cfg(test)]
 mod tests {
-    use crate::pii::{DataScrubbingConfig, PiiProcessor};
-    use crate::processor::process_value;
-    use crate::processor::{FieldAttrs, Pii, ProcessingState, Processor, ValueType};
+    use crate::pii::{PiiConfig, PiiProcessor};
+    use crate::processor::ProcessingState;
+    use crate::processor::{process_value, SelectorSpec};
     use crate::protocol::{
-        BrowserContext, Context, ContextInner, Contexts, DeviceContext, OsContext, Replay,
-        TagEntry, Tags,
+        BrowserContext, Context, ContextInner, DeviceContext, OsContext, Replay, TagEntry, Tags,
     };
-    use crate::types::{Annotated, ErrorKind, Map, Meta, Object, ProcessingAction};
+    use crate::types::Annotated;
     use chrono::{TimeZone, Utc};
+    use std::collections::BTreeMap;
     use std::net::{IpAddr, Ipv4Addr};
 
     #[test]
@@ -376,12 +376,9 @@ mod tests {
 
     #[test]
     fn test_scrub_pii_from_annotated_replay() {
-        let mut scrub_config = DataScrubbingConfig::default();
-        scrub_config.scrub_data = true;
-        scrub_config.scrub_defaults = true;
-        scrub_config.scrub_ip_addresses = true;
-
-        let pii_config = scrub_config.pii_config().unwrap().as_ref().unwrap();
+        let mut pii_config = PiiConfig::default();
+        pii_config.applications =
+            BTreeMap::from([(SelectorSpec::And(vec![]), vec!["@common".to_string()])]);
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
 
         let payload = include_str!("../../tests/fixtures/replays/replay.json");
@@ -397,7 +394,7 @@ mod tests {
             .ip_address
             .value();
 
-        assert!(maybe_ip_address.is_none());
+        assert_eq!(maybe_ip_address.unwrap().as_str(), "[ip]");
 
         let maybe_credit_card = replay
             .value()
@@ -407,6 +404,6 @@ mod tests {
             .unwrap()
             .get("credit-card");
 
-        assert!(maybe_credit_card.is_none());
+        assert_eq!(maybe_credit_card, Some("[creditcard]"));
     }
 }
