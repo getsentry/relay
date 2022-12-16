@@ -1300,7 +1300,6 @@
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str;
 <span class="kw">use </span>std::sync::Arc;
-<span class="kw">use </span>std::time::Instant;
 
 <span class="kw">use </span>::actix::fut;
 <span class="kw">use </span>::actix::prelude::<span class="kw-2">*</span>;
@@ -1309,6 +1308,7 @@
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>serde::de::DeserializeOwned;
 <span class="kw">use </span>serde::ser::Serialize;
+<span class="kw">use </span>tokio::time::Instant;
 
 <span class="kw">use </span>relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
 <span class="kw">use </span>relay_common::{tryf, RetryBackoff};
