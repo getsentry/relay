@@ -29,7 +29,7 @@ impl<'r> TransactionsProcessor<'r> {
     /// Applies the rule if any found to the transaction name.
     ///
     /// It find the first rule matching the criteria:
-    /// - source matchining the one provided in the rule sorce, default `url`
+    /// - source matchining the one provided in the rule sorce
     /// - rule hasn't epired yet
     /// - glob pattern matches the transaction name
     ///
@@ -65,8 +65,8 @@ impl<'r> TransactionsProcessor<'r> {
 
             if let Some((rule, Some(mut result))) = result {
                 if !slash_is_present {
-                    let _ = transaction.pop();
-                    let _ = result.pop();
+                    transaction.pop();
+                    result.pop();
                 }
                 if &result != transaction {
                     meta.set_original_value(Some(transaction.clone()));
@@ -80,7 +80,7 @@ impl<'r> TransactionsProcessor<'r> {
                     }
                 }
             } else if !slash_is_present {
-                let _ = transaction.pop();
+                transaction.pop();
             }
             Ok(())
         })

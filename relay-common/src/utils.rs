@@ -6,7 +6,7 @@ use regex::Regex;
 
 use crate::macros::impl_str_serde;
 
-/// Glob options is used to configure the behaviour underlying regex.
+/// Glob options represent the underlying regex emulating the globs.
 #[derive(Debug)]
 struct GlobPatternOpts<'g> {
     star: &'g str,

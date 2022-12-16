@@ -23,7 +23,7 @@ pub enum TransactionSource {
     View,
     /// Named after a software component, such as a function or class name.
     Component,
-    /// The transaction name was updated to remove high cardinality parts.
+    /// The transaction name was updated to reduce the name cardinality.
     Sanitized,
     /// Name of a background task (e.g. a Celery task).
     Task,
