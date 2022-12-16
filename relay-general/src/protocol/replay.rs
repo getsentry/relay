@@ -413,6 +413,6 @@ mod tests {
             .unwrap()
             .get("credit-card");
 
-        assert!(maybe_credit_card.is_none(), "{:?}", maybe_credit_card);
+        assert_eq!(maybe_credit_card, Some("[creditcard]"));
     }
 }
