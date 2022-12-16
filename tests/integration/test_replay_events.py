@@ -14,7 +14,7 @@ def generate_replay_sdk_event():
         "error_ids": ["1", "2"],
         "trace_ids": ["3", "4"],
         "dist": "1.12",
-        "platform": "python",
+        "platform": "javascript",
         "environment": "production",
         "release": 42,
         "tags": {"transaction": "/organizations/:orgId/performance/:eventSlug/"},
@@ -97,7 +97,7 @@ def test_replay_event_with_processing(
     assert parsed_replay["contexts"] == {
         "browser": {"name": "Safari", "version": "15.5", "type": "browser"},
         "device": {"brand": "Apple", "family": "Mac", "model": "Mac", "type": "device"},
-        "client_os": {"name": "Mac OS X", "version": "10.15.7", "type": "os"},
+        "os": {"name": "Mac OS X", "version": "10.15.7", "type": "os"},
         "trace": {
             "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
             "span_id": "fa90fdead5f74052",
