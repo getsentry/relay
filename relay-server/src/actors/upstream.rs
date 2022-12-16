@@ -22,7 +22,6 @@ use std::collections::VecDeque;
 use std::fmt;
 use std::str;
 use std::sync::Arc;
-use std::time::Instant;
 
 use ::actix::fut;
 use ::actix::prelude::*;
@@ -31,6 +30,7 @@ use futures01::{future, prelude::*, sync::oneshot};
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
+use tokio::time::Instant;
 
 use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
 use relay_common::{tryf, RetryBackoff};
@@ -788,7 +788,7 @@ impl Message for Authenticate {
 /// The `Authenticate` message is sent to the UpstreamRelay at Relay startup and coordinates the
 /// authentication of the current Relay with the upstream server.
 ///
-/// Any message the requires Relay authentication (i.e. SendQuery<T> messages) will be send only
+/// Any message the requires Relay authentication (i.e. `SendQuery<T>` messages) will be send only
 /// after Relay has successfully authenticated with the upstream server (i.e. an Authenticate
 /// message was successfully handled).
 ///
@@ -1223,7 +1223,7 @@ impl<T: UpstreamQuery> UpstreamRequest for UpstreamQueryRequest<T> {
     }
 }
 
-/// SendQuery<T> messages represent messages that need to be sent to the upstream server
+/// `SendQuery<T>` messages represent messages that need to be sent to the upstream server
 /// and use Relay authentication.
 ///
 /// The handler ensures that Relay is authenticated with the upstream server, adds the message

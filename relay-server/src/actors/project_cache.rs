@@ -1,9 +1,9 @@
 use std::sync::Arc;
-use std::time::Instant;
 
 use actix::{Actor, Message};
 use actix_web::ResponseError;
 use tokio::sync::mpsc;
+use tokio::time::Instant;
 
 use relay_common::ProjectKey;
 use relay_config::{Config, RelayMode};
