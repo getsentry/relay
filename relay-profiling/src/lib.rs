@@ -101,19 +101,13 @@ mod error;
 mod measurements;
 mod native_debug_image;
 mod outcomes;
-mod python;
-mod rust;
 mod sample;
 mod transaction_metadata;
-mod typescript;
 mod utils;
 
-use crate::android::expand_android_profile;
-use crate::cocoa::expand_cocoa_profile;
-use crate::python::parse_python_profile;
-use crate::rust::parse_rust_profile;
-use crate::sample::{expand_sample_profile, Version};
-use crate::typescript::parse_typescript_profile;
+use crate::android::parse_android_profile;
+use crate::cocoa::parse_cocoa_profile;
+use crate::sample::{parse_sample_profile, Version};
 
 pub use crate::error::ProfileError;
 pub use crate::outcomes::discard_reason;
@@ -126,7 +120,6 @@ enum Platform {
     Node,
     Python,
     Rust,
-    Typescript,
 }
 
 #[derive(Debug, Deserialize)]
@@ -140,22 +133,14 @@ fn minimal_profile_from_json(data: &[u8]) -> Result<MinimalProfile, ProfileError
     serde_json::from_slice(data).map_err(ProfileError::InvalidJson)
 }
 
-pub fn expand_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileError> {
+pub fn expand_profile(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
     let profile: MinimalProfile = minimal_profile_from_json(payload)?;
     match profile.version {
-        Version::V1 => expand_sample_profile(payload),
+        Version::V1 => parse_sample_profile(payload),
         Version::Unknown => match profile.platform {
-            Platform::Android => expand_android_profile(payload),
-            Platform::Cocoa => expand_cocoa_profile(payload),
-            _ => {
-                let payload = match profile.platform {
-                    Platform::Python => parse_python_profile(payload),
-                    Platform::Rust => parse_rust_profile(payload),
-                    Platform::Typescript => parse_typescript_profile(payload),
-                    _ => Err(ProfileError::PlatformNotSupported),
-                };
-                Ok(vec![payload?])
-            }
+            Platform::Android => parse_android_profile(payload),
+            Platform::Cocoa => parse_cocoa_profile(payload),
+            _ => Err(ProfileError::PlatformNotSupported),
         },
     }
 }

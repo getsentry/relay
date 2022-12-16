@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+**Internal**:
+
+- Remove concurrent profiling. ([#1697](https://github.com/getsentry/relay/pull/1697))
+
+## 22.12.0
+
 **Features**:
 
 - The level of events created from Unreal Crash Reports now depends on whether it was an actual crash or an assert. ([#1677](https://github.com/getsentry/relay/pull/1677))
@@ -13,6 +19,7 @@
 - Stop rejecting spans without a timestamp, instead giving them their respective event timestamp and setting their status to DeadlineExceeded. ([#1690](https://github.com/getsentry/relay/pull/1690))
 - Add max replay size configuration parameter. ([#1694](https://github.com/getsentry/relay/pull/1694))
 - Add nonchunked replay recording message type. ([#1653](https://github.com/getsentry/relay/pull/1653))
+- Add `abnormal_mechanism` field to SessionUpdate protocol. ([#1665](https://github.com/getsentry/relay/pull/1665))
 
 **Bug Fixes**:
 
