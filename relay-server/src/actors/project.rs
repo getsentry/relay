@@ -1,11 +1,12 @@
 use std::collections::{BTreeSet, VecDeque};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use smallvec::SmallVec;
+use tokio::time::Instant;
 use url::Url;
 
 use relay_auth::PublicKey;
