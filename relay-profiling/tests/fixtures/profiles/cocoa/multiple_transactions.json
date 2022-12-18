@@ -29,7 +29,7 @@
       {
         "thread_id": "259",
         "queue_address": "0x0000000102adc700",
-        "relative_timestamp_ns": "8",
+        "relative_timestamp_ns": "10",
         "frames": [
           {
             "instruction_addr": "0xa722447ffffffffc"
@@ -92,15 +92,8 @@
       "trace_id": "4b25bc58f14243d8b208d1e22a054164",
       "name": "example_ios_movies_sources.MoviesViewController",
       "id": "30976f2ddbe04ac9b6bffe6e35d4710c",
-      "relative_start_ns": "2",
+      "relative_start_ns": "0",
       "relative_end_ns": "10"
-    },
-    {
-      "trace_id": "4b25bc58f14243d8b208d1e22a054164",
-      "name": "example_ios_movies_sources.MoviesViewController",
-      "id": "30976f2ddbe04ac9b6bffe6e35d4710c",
-      "relative_start_ns": "5",
-      "relative_end_ns": "13"
     }
   ]
 }

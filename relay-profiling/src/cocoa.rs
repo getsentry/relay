@@ -109,13 +109,6 @@ struct CocoaProfile {
 }
 
 impl CocoaProfile {
-    fn set_transaction(&mut self, transaction: &TransactionMetadata) {
-        self.transaction_name = transaction.name.clone();
-        self.transaction_id = transaction.id;
-        self.trace_id = transaction.trace_id;
-        self.duration_ns = transaction.duration_ns();
-    }
-
     fn has_transaction_metadata(&self) -> bool {
         !self.transaction_name.is_empty() && self.duration_ns > 0
     }
@@ -139,71 +132,40 @@ impl CocoaProfile {
     }
 }
 
-pub fn expand_cocoa_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileError> {
-    let profile = parse_cocoa_profile(payload)?;
-    let mut items: Vec<Vec<u8>> = Vec::new();
-
-    if profile.transactions.is_empty() && profile.has_transaction_metadata() {
-        match serde_json::to_vec(&profile) {
-            Ok(payload) => items.push(payload),
-            Err(_) => {
-                return Err(ProfileError::CannotSerializePayload);
-            }
-        };
-
-        return Ok(items);
-    }
-
-    for transaction in &profile.transactions {
-        let mut new_profile = profile.clone();
-
-        new_profile.profile_id = EventId::new();
-        new_profile.set_transaction(transaction);
-        new_profile.transactions.clear();
-
-        new_profile.sampled_profile.samples.retain_mut(|sample| {
-            if transaction.relative_start_ns <= sample.relative_timestamp_ns
-                && sample.relative_timestamp_ns <= transaction.relative_end_ns
-            {
-                sample.relative_timestamp_ns -= transaction.relative_start_ns;
-                true
-            } else {
-                false
-            }
-        });
-
-        match serde_json::to_vec(&new_profile) {
-            Ok(payload) => items.push(payload),
-            Err(_) => {
-                return Err(ProfileError::CannotSerializePayload);
-            }
-        };
-    }
-
-    Ok(items)
-}
-
-fn parse_cocoa_profile(payload: &[u8]) -> Result<CocoaProfile, ProfileError> {
+fn parse_profile(payload: &[u8]) -> Result<CocoaProfile, ProfileError> {
     let mut profile: CocoaProfile =
         serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)?;
 
-    profile.remove_single_samples_per_thread();
+    let transaction_opt = profile.transactions.drain(..).next();
+    if let Some(transaction) = transaction_opt {
+        if !transaction.valid() {
+            return Err(ProfileError::InvalidTransactionMetadata);
+        }
 
+        profile.duration_ns = transaction.duration_ns();
+        profile.trace_id = transaction.trace_id;
+        profile.transaction_id = transaction.id;
+        profile.transaction_name = transaction.name;
+
+        profile.sampled_profile.samples.retain_mut(|sample| {
+            (transaction.relative_start_ns..transaction.relative_end_ns)
+                .contains(&sample.relative_timestamp_ns)
+        });
+    } else if !profile.has_transaction_metadata() {
+        return Err(ProfileError::NoTransactionAssociated);
+    }
+
+    profile.remove_single_samples_per_thread();
     if profile.sampled_profile.samples.is_empty() {
         return Err(ProfileError::NotEnoughSamples);
     }
 
-    if profile.transactions.is_empty() && !profile.has_transaction_metadata() {
-        return Err(ProfileError::NoTransactionAssociated);
-    }
-
-    for transaction in profile.transactions.iter() {
-        if !transaction.valid() {
-            return Err(ProfileError::InvalidTransactionMetadata);
-        }
-    }
-
     Ok(profile)
+}
+
+pub fn parse_cocoa_profile(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
+    let profile = parse_profile(payload)?;
+    serde_json::to_vec(&profile).map_err(|_| ProfileError::CannotSerializePayload)
 }
 
 #[cfg(test)]
@@ -213,17 +175,10 @@ mod tests {
     #[test]
     fn test_roundtrip_cocoa() {
         let payload = include_bytes!("../tests/fixtures/profiles/cocoa/roundtrip.json");
-        let profile = parse_cocoa_profile(payload);
+        let profile = parse_profile(payload);
         assert!(profile.is_ok());
         let data = serde_json::to_vec(&profile.unwrap());
         assert!(parse_cocoa_profile(&data.unwrap()[..]).is_ok());
-    }
-
-    #[test]
-    fn test_parse_multiple_transactions() {
-        let payload = include_bytes!("../tests/fixtures/profiles/cocoa/multiple_transactions.json");
-        let data = parse_cocoa_profile(payload);
-        assert!(data.is_ok());
     }
 
     #[test]
@@ -332,13 +287,10 @@ mod tests {
     }
 
     #[test]
-    fn test_expand_multiple_transactions() {
+    fn test_expand_transactions_to_top_level() {
         let payload = include_bytes!("../tests/fixtures/profiles/cocoa/multiple_transactions.json");
-        let data = expand_cocoa_profile(payload);
-        assert!(data.is_ok());
-        assert_eq!(data.as_ref().unwrap().len(), 2);
 
-        let profile = match parse_cocoa_profile(&data.as_ref().unwrap()[0][..]) {
+        let profile = match parse_profile(payload) {
             Err(err) => panic!("cannot parse profile: {:?}", err),
             Ok(profile) => profile,
         };
@@ -346,7 +298,7 @@ mod tests {
             profile.transaction_id,
             "30976f2ddbe04ac9b6bffe6e35d4710c".parse().unwrap()
         );
-        assert_eq!(profile.duration_ns, 8);
+        assert_eq!(profile.duration_ns, 10);
         assert_eq!(profile.sampled_profile.samples.len(), 2);
 
         for sample in &profile.sampled_profile.samples {
