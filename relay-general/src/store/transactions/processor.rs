@@ -1,5 +1,3 @@
-use chrono::Utc;
-
 use relay_common::SpanStatus;
 
 use crate::processor::{ProcessValue, ProcessingState, Processor};
@@ -40,7 +38,6 @@ impl<'r> TransactionsProcessor<'r> {
         transaction: &mut Annotated<String>,
         info: &mut std::option::Option<TransactionInfo>,
     ) -> ProcessingResult {
-        let now = Utc::now();
         transaction.apply(|transaction, meta| {
             let slash_is_present = transaction
                 .chars()
@@ -53,28 +50,20 @@ impl<'r> TransactionsProcessor<'r> {
                 transaction.push('/');
             }
 
-            // Returns true if the source of the transaction matches provided source.
-            let source_match = |source: &TransactionSource| {
-                info.as_ref()
-                    .and_then(|i| i.source.value().map(|s| s == source))
-                    .unwrap_or_default()
-            };
-
             let rule = self.tx_name_rules.iter().find(|rule| {
-                source_match(&rule.scope.source)
-                    && rule.expiry > now
-                    // Adding `/` at the end of the name, ensures that rules like /<something>/*/**
-                    // will always match the string.
-                    && rule.pattern.is_match(transaction)
+                info.as_ref()
+                    .map(|trans_info| rule.matches(transaction, trans_info))
+                    .unwrap_or_default()
             });
             let result = rule.map(|r| (r.pattern.pattern(), r.apply(transaction)));
 
-            if let Some((rule, Some(mut result))) = result {
-                if !slash_is_present {
-                    transaction.pop();
-                    result.pop();
-                }
+            if let Some((rule, mut result)) = result {
                 if &result != transaction {
+                    if !slash_is_present {
+                        transaction.pop();
+                        result.pop();
+                    }
+
                     meta.set_original_value(Some(transaction.clone()));
                     // add also the rule which was applied to the transaction name
                     meta.add_remark(Remark::new(RemarkType::Substituted, rule));

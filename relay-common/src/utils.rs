@@ -8,7 +8,7 @@ use crate::macros::impl_str_serde;
 
 /// Glob options represent the underlying regex emulating the globs.
 #[derive(Debug)]
-struct GlobPatternOpts<'g> {
+struct GlobPatternGroups<'g> {
     star: &'g str,
     double_star: &'g str,
     question_mark: &'g str,
@@ -19,24 +19,27 @@ struct GlobPatternOpts<'g> {
 #[derive(Debug)]
 pub struct GlobBuilder<'g> {
     value: &'g str,
-    opts: GlobPatternOpts<'g>,
+    groups: GlobPatternGroups<'g>,
 }
 
 impl<'g> GlobBuilder<'g> {
     /// Create a new builder with all the captures enabled by default.
     pub fn new(value: &'g str) -> Self {
-        let opts = GlobPatternOpts {
+        let opts = GlobPatternGroups {
             star: "([^/]*?)",
             double_star: "(.*?)",
             question_mark: "(.)",
         };
-        Self { value, opts }
+        Self {
+            value,
+            groups: opts,
+        }
     }
 
     /// Enable capture groups for `*` in the pattern.
     pub fn capture_star(mut self, enable: bool) -> Self {
         if !enable {
-            self.opts.star = "(?:[^/]*?)";
+            self.groups.star = "(?:[^/]*?)";
         }
         self
     }
@@ -44,7 +47,7 @@ impl<'g> GlobBuilder<'g> {
     /// Enable capture groups for `**` in the pattern.
     pub fn capture_double_star(mut self, enable: bool) -> Self {
         if !enable {
-            self.opts.double_star = "(?:.*?)";
+            self.groups.double_star = "(?:.*?)";
         }
         self
     }
@@ -52,7 +55,7 @@ impl<'g> GlobBuilder<'g> {
     /// Enable capture groups for `?` in the pattern.
     pub fn capture_question_mark(mut self, enable: bool) -> Self {
         if !enable {
-            self.opts.question_mark = "(?:.)";
+            self.groups.question_mark = "(?:.)";
         }
         self
     }
@@ -70,9 +73,9 @@ impl<'g> GlobBuilder<'g> {
         for m in regex.find_iter(self.value) {
             pattern.push_str(&regex::escape(&self.value[last..m.start()]));
             match m.as_str() {
-                "?" => pattern.push_str(self.opts.question_mark),
-                "**" => pattern.push_str(self.opts.double_star),
-                "*" => pattern.push_str(self.opts.star),
+                "?" => pattern.push_str(self.groups.question_mark),
+                "**" => pattern.push_str(self.groups.double_star),
+                "*" => pattern.push_str(self.groups.star),
                 _ => {}
             }
             last = m.end();
