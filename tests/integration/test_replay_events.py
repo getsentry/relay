@@ -77,8 +77,10 @@ def test_replay_event_with_processing(
     assert parsed_replay["sdk"]["version"] == replay["sdk"]["version"]
     assert parsed_replay["user"]["id"] == replay["user"]["id"]
     assert parsed_replay["user"]["username"] == replay["user"]["username"]
-    assert parsed_replay["user"]["email"] == replay["user"]["email"]
-    assert parsed_replay["user"]["ip_address"] == replay["user"]["ip_address"]
+
+    # Assert PII scrubbing.
+    assert parsed_replay["user"]["email"] == "[email]"
+    assert parsed_replay["user"]["ip_address"] == "[ip]"
 
     # Round to account for float imprecision. Not a big deal. Decimals
     # are dropped in Clickhouse.
@@ -97,7 +99,7 @@ def test_replay_event_with_processing(
     assert parsed_replay["contexts"] == {
         "browser": {"name": "Safari", "version": "15.5", "type": "browser"},
         "device": {"brand": "Apple", "family": "Mac", "model": "Mac", "type": "device"},
-        "client_os": {"name": "Mac OS X", "version": "10.15.7", "type": "os"},
+        "os": {"name": "Mac OS X", "version": "10.15.7", "type": "os"},
         "trace": {
             "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
             "span_id": "fa90fdead5f74052",
