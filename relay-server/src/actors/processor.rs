@@ -636,7 +636,13 @@ impl EnvelopeProcessorService {
 
         // Extract metrics if they haven't been extracted by a prior Relay
         if metrics_config.is_enabled() && !item.metrics_extracted() {
-            extract_session_metrics(&session.attributes, &session, client, extracted_metrics);
+            extract_session_metrics(
+                &session.attributes,
+                &session,
+                client,
+                extracted_metrics,
+                metrics_config.should_extract_abnormal_mechanism(),
+            );
             item.set_metrics_extracted(true);
         }
 
@@ -711,7 +717,13 @@ impl EnvelopeProcessorService {
         // Extract metrics if they haven't been extracted by a prior Relay
         if metrics_config.is_enabled() && !item.metrics_extracted() {
             for aggregate in &session.aggregates {
-                extract_session_metrics(&session.attributes, aggregate, client, extracted_metrics);
+                extract_session_metrics(
+                    &session.attributes,
+                    aggregate,
+                    client,
+                    extracted_metrics,
+                    metrics_config.should_extract_abnormal_mechanism(),
+                );
                 item.set_metrics_extracted(true);
             }
         }
@@ -955,12 +967,25 @@ impl EnvelopeProcessorService {
             return;
         }
 
-        let context = &state.envelope_context;
-        let mut new_profiles = Vec::new();
-
-        while let Some(item) = envelope.take_item_by(|item| item.ty() == &ItemType::Profile) {
-            match relay_profiling::expand_profile(&item.payload()[..]) {
-                Ok(payloads) => new_profiles.extend(payloads),
+        envelope.retain_items(|item| match item.ty() {
+            ItemType::Profile => match relay_profiling::expand_profile(&item.payload()) {
+                Ok(payload) => {
+                    if payload.len() <= self.config.max_profile_size() {
+                        item.set_payload(ContentType::Json, payload);
+                        true
+                    } else {
+                        state.envelope_context.track_outcome(
+                            Outcome::Invalid(DiscardReason::Profiling(
+                                relay_profiling::discard_reason(
+                                    relay_profiling::ProfileError::ExceedSizeLimit,
+                                ),
+                            )),
+                            DataCategory::Profile,
+                            1,
+                        );
+                        false
+                    }
+                }
                 Err(err) => {
                     match err {
                         relay_profiling::ProfileError::InvalidJson(_) => {
@@ -968,22 +993,19 @@ impl EnvelopeProcessorService {
                         }
                         _ => relay_log::debug!("invalid profile: {}", err),
                     };
-                    context.track_outcome(
+
+                    state.envelope_context.track_outcome(
                         Outcome::Invalid(DiscardReason::Profiling(
                             relay_profiling::discard_reason(err),
                         )),
                         DataCategory::Profile,
                         1,
                     );
+                    false
                 }
-            }
-        }
-
-        for payload in new_profiles {
-            let mut item = Item::new(ItemType::Profile);
-            item.set_payload(ContentType::Json, &payload[..]);
-            envelope.add_item(item);
-        }
+            },
+            _ => true,
+        });
     }
 
     /// Remove replays if the feature flag is not enabled
@@ -1058,11 +1080,11 @@ impl EnvelopeProcessorService {
                 // XXX: Temporarily, only the Sentry org will be allowed to parse replays while
                 // we measure the impact of this change.
                 if replays_enabled && state.project_state.organization_id == Some(1) {
-                    // Limit expansion of recordings to the envelope size. The payload is
+                    // Limit expansion of recordings to the max replay size. The payload is
                     // decompressed temporarily and then immediately re-compressed. However, to
-                    // limit memory pressure, we use the envelope limit as a good overall limit for
+                    // limit memory pressure, we use the replay limit as a good overall limit for
                     // allocations.
-                    let limit = self.config.max_envelope_size();
+                    let limit = self.config.max_replay_size();
                     let parsed_recording =
                         relay_replays::recording::process_recording(&item.payload(), limit);
 

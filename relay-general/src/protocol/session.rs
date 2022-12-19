@@ -69,6 +69,42 @@ derive_fromstr_and_display!(SessionStatus, ParseSessionStatusError, {
     SessionStatus::Errored => "errored",
 });
 
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AbnormalMechanism {
+    AnrForeground,
+    AnrBackground,
+    #[serde(other)]
+    None,
+}
+
+#[derive(Debug)]
+pub struct ParseAbnormalMechanismError;
+
+impl fmt::Display for ParseAbnormalMechanismError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "invalid abnormal mechanism")
+    }
+}
+
+derive_fromstr_and_display!(AbnormalMechanism, ParseAbnormalMechanismError, {
+    AbnormalMechanism::AnrForeground => "anr_foreground",
+    AbnormalMechanism::AnrBackground => "anr_background",
+    AbnormalMechanism::None => "none",
+});
+
+impl Default for AbnormalMechanism {
+    fn default() -> Self {
+        AbnormalMechanism::None
+    }
+}
+
+impl AbnormalMechanism {
+    fn is_none(&self) -> bool {
+        *self == Self::None
+    }
+}
+
 /// Additional attributes for Sessions.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SessionAttributes {
@@ -118,6 +154,7 @@ pub trait SessionLike {
     fn crashed_count(&self) -> u32;
     fn all_errors(&self) -> Option<SessionErrored>;
     fn final_duration(&self) -> Option<(f64, SessionStatus)>;
+    fn abnormal_mechanism(&self) -> AbnormalMechanism;
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -151,6 +188,9 @@ pub struct SessionUpdate {
     /// The session event attributes.
     #[serde(rename = "attrs")]
     pub attributes: SessionAttributes,
+    /// The abnormal mechanism.
+    #[serde(default, skip_serializing_if = "AbnormalMechanism::is_none")]
+    pub abnormal_mechanism: AbnormalMechanism,
 }
 
 impl SessionUpdate {
@@ -207,6 +247,10 @@ impl SessionLike for SessionUpdate {
         } else {
             None
         }
+    }
+
+    fn abnormal_mechanism(&self) -> AbnormalMechanism {
+        self.abnormal_mechanism
     }
 }
 
@@ -271,6 +315,9 @@ impl SessionLike for SessionAggregateItem {
             None
         }
     }
+    fn abnormal_mechanism(&self) -> AbnormalMechanism {
+        AbnormalMechanism::None
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -334,6 +381,7 @@ mod tests {
             duration: None,
             init: false,
             status: SessionStatus::Ok,
+            abnormal_mechanism: AbnormalMechanism::None,
             errors: 0,
             attributes: SessionAttributes {
                 release: "sentry-test@1.0.0".to_owned(),
@@ -394,6 +442,7 @@ mod tests {
             started: "2020-02-07T14:16:00Z".parse().unwrap(),
             duration: Some(1947.49),
             status: SessionStatus::Exited,
+            abnormal_mechanism: AbnormalMechanism::None,
             errors: 0,
             init: true,
             attributes: SessionAttributes {
@@ -420,5 +469,38 @@ mod tests {
 
         let update = SessionUpdate::parse(json.as_bytes()).unwrap();
         assert_eq!(update.attributes.ip_address, Some(IpAddr::auto()));
+    }
+    #[test]
+    fn test_session_abnormal_mechanism() {
+        let json = r#"{
+    "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+    "started": "2020-02-07T14:16:00Z",
+    "status": "abnormal",
+    "abnormal_mechanism": "anr_background",
+    "attrs": {
+    "release": "sentry-test@1.0.0",
+    "environment": "production"
+    }
+    }"#;
+
+        let update = SessionUpdate::parse(json.as_bytes()).unwrap();
+        assert_eq!(update.abnormal_mechanism, AbnormalMechanism::AnrBackground);
+    }
+
+    #[test]
+    fn test_session_invalid_abnormal_mechanism() {
+        let json = r#"{
+  "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+  "started": "2020-02-07T14:16:00Z",
+  "status": "abnormal",
+  "abnormal_mechanism": "invalid_mechanism",
+  "attrs": {
+    "release": "sentry-test@1.0.0",
+    "environment": "production"
+  }
+}"#;
+
+        let update = SessionUpdate::parse(json.as_bytes()).unwrap();
+        assert_eq!(update.abnormal_mechanism, AbnormalMechanism::None);
     }
 }
