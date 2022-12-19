@@ -383,10 +383,16 @@ jobs:
           done
           echo "relay-test-image-name=$RELAY_TEST_IMAGE" >> "$GITHUB_OUTPUT"
       - name: Get short SHA for docker tag
-        id: sha_short
+        id: short_sha
         shell: bash
-        run: echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-      
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          if [[ -z "$SHORT_SHA" ]]; then
+            echo "Short SHA empty? Re-running rev-parse."
+            git rev-parse --short HEAD
+          else
+            echo "sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+          fi
       - name: Run Sentry self-hosted e2e CI
         uses: getsentry/action-self-hosted-e2e-tests@ethanhs/test-dockerhub-push
         with:
@@ -395,4 +401,4 @@ jobs:
           docker_repo: docker.io/getsentry/relay
           docker_password: ${{ secrets.DOCKER_HUB_RW_TOKEN }}
           full_sha: ${GITHUB_SHA}
-          short_sha: ${{ steps.sha_short.outputs.sha }}
+          short_sha: ${{ steps.short_sha.outputs.sha }}
