@@ -56,8 +56,7 @@ impl<'r> TransactionsProcessor<'r> {
             // Returns true if the source of the transaction matches provided source.
             let source_match = |source: &TransactionSource| {
                 info.as_ref()
-                    .map(|i| i.source.value().map(|s| s == source))
-                    .flatten()
+                    .and_then(|i| i.source.value().map(|s| s == source))
                     .unwrap_or_default()
             };
 
