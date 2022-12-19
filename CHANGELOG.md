@@ -18,6 +18,7 @@
 - Add invalid replay recording outcome. ([#1684](https://github.com/getsentry/relay/pull/1684))
 - Stop rejecting spans without a timestamp, instead giving them their respective event timestamp and setting their status to DeadlineExceeded. ([#1690](https://github.com/getsentry/relay/pull/1690))
 - Add max replay size configuration parameter. ([#1694](https://github.com/getsentry/relay/pull/1694))
+- Add nonchunked replay recording message type. ([#1653](https://github.com/getsentry/relay/pull/1653))
 - Add `abnormal_mechanism` field to SessionUpdate protocol. ([#1665](https://github.com/getsentry/relay/pull/1665))
 
 **Bug Fixes**:
