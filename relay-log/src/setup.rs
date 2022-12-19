@@ -267,7 +267,7 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
         std::mem::forget(guard);
     }
 
-    // Initialize native crash reports after the Rust SDk, so that `capture_native_envelope` has
+    // Initialize native crash reporting after the Rust SDK, so that `capture_native_envelope` has
     // access to an initialized Hub to capture crashes from the previous run.
     #[cfg(feature = "relay-crash")]
     {
