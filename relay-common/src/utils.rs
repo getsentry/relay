@@ -271,21 +271,50 @@ mod tests {
 
     #[test]
     fn test_glob_replace() {
-        let g = Glob::builder("/foo/*/bar/**")
-            .capture_star(true)
-            .capture_double_star(false)
-            .capture_question_mark(false)
-            .build();
+        for (transaction, pattern, result, star, double_star, question_mark) in [
+            (
+                "/foo/some/bar/here/store",
+                "/foo/*/bar/**",
+                "/foo/*/bar/here/store",
+                true,
+                false,
+                false,
+            ),
+            (
+                "/foo/some/bar/here/store",
+                "/foo/*/bar/*/**",
+                "/foo/*/bar/*/store",
+                true,
+                false,
+                false,
+            ),
+            (
+                "/foo/some/bar/here/store/1234",
+                "/foo/*/bar/*/**",
+                "/foo/*/bar/*/*",
+                true,
+                true,
+                false,
+            ),
+            ("/foo/1/", "/foo/?/**", "/foo/*/", false, false, true),
+            ("/foo/1/end", "/foo/*/**", "/foo/*/end", true, false, true),
+            (
+                "/foo/1/this/and/that/end",
+                "/foo/**/end",
+                "/foo/*/end",
+                false,
+                true,
+                false,
+            ),
+        ] {
+            let g = Glob::builder(pattern)
+                .capture_star(star)
+                .capture_double_star(double_star)
+                .capture_question_mark(question_mark)
+                .build();
 
-        assert_eq!(
-            g.replace_captures("/foo/some/bar/here/store", "*"),
-            "/foo/*/bar/here/store"
-        );
-        assert_eq!(g.replace_captures("/foo/testing/bar/", "*"), "/foo/*/bar/");
-        assert_eq!(
-            g.replace_captures("/foo/testing/1/", "*"),
-            "/foo/testing/1/"
-        );
+            assert_eq!(g.replace_captures(transaction, "*"), result);
+        }
     }
 
     #[test]
