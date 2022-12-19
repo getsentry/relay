@@ -172,4 +172,24 @@ mod tests {
 
         assert!(result.is_none());
     }
+
+    #[test]
+    fn test_rule_format_roundtrip() {
+        let json = r###"{
+  "pattern": "/auth/login/*/**",
+  "expiry": "2022-11-30T00:00:00Z",
+  "scope": {
+    "source": "url"
+  },
+  "redaction": {
+    "method": "replace",
+    "substitution": ":id"
+  }
+}"###;
+
+        let rule: TransactionNameRule = serde_json::from_str(json).unwrap();
+        let rule_json = serde_json::to_string_pretty(&rule).unwrap();
+        // Make sure that we can  serialize into the same format we receive from the wire.
+        assert_eq!(json, rule_json);
+    }
 }
