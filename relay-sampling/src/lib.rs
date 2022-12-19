@@ -365,87 +365,20 @@ impl TimeRange {
     }
 }
 
-/// A context encapsulating all the required information for a decay function's execution.
+/// A struct representing the execution context of a decaying function.
 #[derive(Clone, Copy, Debug)]
-struct DecayingFunctionContext {
-    base_sample_rate: f64,
-    time_range: TimeRange,
-    now: DateTime<Utc>,
+struct DecayingFunctionExecutor {
+    decaying_fn: DecayingFunction,
+    external_params: DecayingFunctionExternalParams,
 }
 
-impl DecayingFunctionContext {
-    /// Validates whether the context parameters follow the constraints set by decaying functions.
-    fn validate(&self, from_sample_rate: f64) -> Option<DecayingFunctionParams> {
-        if let Some((start, end)) = self.time_range.extract_interval_tuple() {
-            // This condition verifies three very important rules that need to be valid in order
-            // for any decaying function to successfully work:
-            // * from sample rate is > base sample rate because we need to decay from it.
-            // * end > start because we want to decay within a time interval.
-            // * now >= start because we cannot decay if we are not within the time interval.
-            //
-            // We don't check for now < end because once we go out of the boundaries we will just
-            // keep the base sample rate.
-            if from_sample_rate <= self.base_sample_rate || end <= start || self.now < start {
-                return None;
+impl DecayingFunctionExecutor {
+    fn execute(&self) -> f64 {
+        match self.decaying_fn {
+            DecayingFunction::Linear { from_sample_rate } => {
+                self.execute_linear_decay(from_sample_rate)
             }
-
-            Some(DecayingFunctionParams {
-                base_sample_rate: self.base_sample_rate,
-                start,
-                end,
-                now: self.now,
-            })
-        } else {
-            None
-        }
-    }
-}
-
-/// A struct containing the set of validated params required by a decaying function.
-#[derive(Clone, Copy, Debug)]
-struct DecayingFunctionParams {
-    base_sample_rate: f64,
-    start: DateTime<Utc>,
-    end: DateTime<Utc>,
-    now: DateTime<Utc>,
-}
-
-/// An enum representing the types of decaying functions supported by Relay.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum DecayingFunctionType {
-    // For now only a linear decay is supported.
-    LinearDecay,
-    None,
-}
-
-impl Default for DecayingFunctionType {
-    fn default() -> Self {
-        Self::None
-    }
-}
-
-/// A decaying function definition.
-///
-/// A decaying function is responsible of decaying the sample rate from a value to another following
-/// a given curve.
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DecayingFunction {
-    pub function: DecayingFunctionType,
-    pub from_sample_rate: f64,
-}
-
-impl DecayingFunction {
-    /// Gets the decaying sample rate at a specific point in time after validating its context.
-    fn get_decaying_sample_rate(&self, context: DecayingFunctionContext) -> Option<f64> {
-        // We first validate the context and if it is valid we want to call the decaying function.
-        let params = context.validate(self.from_sample_rate);
-        match self.function {
-            DecayingFunctionType::LinearDecay if params.is_some() => {
-                Some(self.call_linear_decay(params.unwrap()))
-            }
-            _ => None,
+            DecayingFunction::Constant => self.external_params.base_sample_rate,
         }
     }
 
@@ -462,18 +395,93 @@ impl DecayingFunction {
     /// want to inversely reduce the sample rate in the interval (from - base_sample_rate).
     /// Thus, in the 70% case, we would take only 30% of the (from - base_sample_rate) which
     /// is equal to 0.06.
-    fn call_linear_decay(&self, params: DecayingFunctionParams) -> f64 {
-        let now_timestamp = params.now.timestamp() as f64;
-        let start_timestamp = params.start.timestamp() as f64;
-        let end_timestamp = params.end.timestamp() as f64;
+    fn execute_linear_decay(&self, from_sample_rate: f64) -> f64 {
+        let now_timestamp = self.external_params.now.timestamp() as f64;
+        let start_timestamp = self.external_params.start.timestamp() as f64;
+        let end_timestamp = self.external_params.end.timestamp() as f64;
 
         // We round to 2 digits in order to avoid high-precision sample rates that are more difficult
         // to work with. Rounding is performed following the nearest integer.
         let sample_rate_difference =
-            f64::round((self.from_sample_rate - params.base_sample_rate) * 100.0) / 100.0;
+            f64::round((from_sample_rate - self.external_params.base_sample_rate) * 100.0) / 100.0;
         let progress = (now_timestamp - start_timestamp) / (end_timestamp - start_timestamp);
         let inverse_progress = (1.0 - progress).clamp(0.0, 1.0);
-        params.base_sample_rate + (sample_rate_difference * inverse_progress)
+        self.external_params.base_sample_rate + (sample_rate_difference * inverse_progress)
+    }
+}
+
+/// A struct containing the set of external params required by a decaying function.
+#[derive(Clone, Copy, Debug)]
+struct DecayingFunctionExternalParams {
+    base_sample_rate: f64,
+    start: DateTime<Utc>,
+    end: DateTime<Utc>,
+    now: DateTime<Utc>,
+}
+
+/// A decaying function definition.
+///
+/// A decaying function is responsible of decaying the sample rate from a value to another following
+/// a given curve.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(tag = "type")]
+pub enum DecayingFunction {
+    #[serde(rename_all = "camelCase")]
+    Linear {
+        from_sample_rate: f64,
+    },
+    Constant,
+}
+
+impl DecayingFunction {
+    fn validate_external_params(
+        &self,
+        base_sample_rate: f64,
+        time_range: TimeRange,
+        now: DateTime<Utc>,
+    ) -> Option<DecayingFunctionExecutor> {
+        let params = if let Some((start, end)) = time_range.extract_interval_tuple() {
+            if !self.validate_function_specific_params(base_sample_rate, time_range, now)
+                || end <= start
+                || now < start
+            {
+                return None;
+            }
+
+            DecayingFunctionExternalParams {
+                base_sample_rate,
+                start,
+                end,
+                now,
+            }
+        } else {
+            return None;
+        };
+
+        Some(DecayingFunctionExecutor {
+            decaying_fn: *self,
+            external_params: params,
+        })
+    }
+
+    /// Validates the external params specifically to each decaying function.
+    fn validate_function_specific_params(
+        &self,
+        base_sample_rate: f64,
+        _time_range: TimeRange,
+        _now: DateTime<Utc>,
+    ) -> bool {
+        match self {
+            DecayingFunction::Linear { from_sample_rate } => *from_sample_rate > base_sample_rate,
+            DecayingFunction::Constant => true,
+        }
+    }
+}
+
+impl Default for DecayingFunction {
+    fn default() -> Self {
+        Self::Constant
     }
 }
 
@@ -493,7 +501,7 @@ pub struct SamplingRule {
     #[serde(default, skip_serializing_if = "TimeRange::is_empty")]
     pub time_range: TimeRange,
     #[serde(default)]
-    pub decaying_function: DecayingFunction,
+    pub decaying_fn: DecayingFunction,
 }
 
 impl SamplingRule {
@@ -515,13 +523,13 @@ impl SamplingRule {
     /// In case of any problems that render the decaying function impossible to compute, we are
     /// going to fallback to the base sample rate.
     pub fn get_sample_rate(&self, now: DateTime<Utc>) -> f64 {
-        self.decaying_function
-            .get_decaying_sample_rate(DecayingFunctionContext {
-                base_sample_rate: self.sample_rate,
-                time_range: self.time_range,
-                now,
-            })
-            .unwrap_or(self.sample_rate)
+        match self
+            .decaying_fn
+            .validate_external_params(self.sample_rate, self.time_range, now)
+        {
+            Some(executor) => executor.execute(),
+            None => self.sample_rate,
+        }
     }
 }
 
@@ -2047,15 +2055,14 @@ mod tests {
         let rule: Result<SamplingRule, _> = serde_json::from_str(serialized_rule);
         let rule = rule.unwrap();
         let time_range = rule.time_range;
-        let decaying_function = rule.decaying_function;
+        let decaying_function = rule.decaying_fn;
 
         assert_eq!(
             time_range.start,
             Some(Utc.ymd(2022, 10, 10).and_hms(0, 0, 0))
         );
         assert_eq!(time_range.end, Some(Utc.ymd(2022, 10, 20).and_hms(0, 0, 0)));
-        assert_eq!(decaying_function.function, DecayingFunctionType::None);
-        assert_eq!(decaying_function.from_sample_rate, 0.0);
+        assert_eq!(decaying_function, DecayingFunction::Constant);
     }
 
     #[test]
@@ -2074,20 +2081,21 @@ mod tests {
                 "start": "2022-10-10T00:00:00.000000Z",
                 "end": "2022-10-20T00:00:00.000000Z"
             },
-            "decayingFunction": {
-                "function": "linearDecay",
+            "decayingFn": {
+                "type": "linear",
                 "fromSampleRate": 0.9
             }
         }"#;
         let rule: Result<SamplingRule, _> = serde_json::from_str(serialized_rule);
         let rule = rule.unwrap();
-        let decaying_function = rule.decaying_function;
+        let decaying_function = rule.decaying_fn;
 
         assert_eq!(
-            decaying_function.function,
-            DecayingFunctionType::LinearDecay
+            decaying_function,
+            DecayingFunction::Linear {
+                from_sample_rate: 0.9
+            }
         );
-        assert_eq!(decaying_function.from_sample_rate, 0.9)
     }
 
     #[test]
@@ -2219,7 +2227,7 @@ mod tests {
                     ty: RuleType::Trace,
                     id: RuleId(1),
                     time_range: Default::default(),
-                    decaying_function: Default::default(),
+                    decaying_fn: Default::default(),
                 },
                 // no user segments
                 SamplingRule {
@@ -2231,7 +2239,7 @@ mod tests {
                     ty: RuleType::Trace,
                     id: RuleId(2),
                     time_range: Default::default(),
-                    decaying_function: Default::default(),
+                    decaying_fn: Default::default(),
                 },
                 // no releases
                 SamplingRule {
@@ -2243,7 +2251,7 @@ mod tests {
                     ty: RuleType::Trace,
                     id: RuleId(3),
                     time_range: Default::default(),
-                    decaying_function: Default::default(),
+                    decaying_fn: Default::default(),
                 },
                 // no environments
                 SamplingRule {
@@ -2255,7 +2263,7 @@ mod tests {
                     ty: RuleType::Trace,
                     id: RuleId(4),
                     time_range: Default::default(),
-                    decaying_function: Default::default(),
+                    decaying_fn: Default::default(),
                 },
                 // no user segments releases or environments
                 SamplingRule {
@@ -2264,7 +2272,7 @@ mod tests {
                     ty: RuleType::Trace,
                     id: RuleId(5),
                     time_range: Default::default(),
-                    decaying_function: Default::default(),
+                    decaying_fn: Default::default(),
                 },
             ],
             mode: SamplingMode::Received,
@@ -2444,8 +2452,7 @@ mod tests {
                         start: Some(Utc.ymd(1970, 10, 10).and_hms(0, 0, 0)),
                         end: Some(Utc.ymd(1970, 10, 30).and_hms(0, 0, 0)),
                     },
-                    decaying_function: DecayingFunction {
-                        function: DecayingFunctionType::LinearDecay,
+                    decaying_fn: DecayingFunction::Linear {
                         from_sample_rate: 0.7,
                     },
                 },
@@ -2459,8 +2466,7 @@ mod tests {
                         start: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
                         end: Some(Utc.ymd(3000, 10, 15).and_hms(0, 0, 0)),
                     },
-                    decaying_function: DecayingFunction {
-                        function: DecayingFunctionType::LinearDecay,
+                    decaying_fn: DecayingFunction::Linear {
                         from_sample_rate: 0.7,
                     },
                 },
@@ -2474,8 +2480,7 @@ mod tests {
                         start: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
                         end: Some(Utc.ymd(1970, 10, 30).and_hms(0, 0, 0)),
                     },
-                    decaying_function: DecayingFunction {
-                        function: DecayingFunctionType::LinearDecay,
+                    decaying_fn: DecayingFunction::Linear {
                         from_sample_rate: 0.7,
                     },
                 },
@@ -2489,8 +2494,7 @@ mod tests {
                         start: Some(Utc.ymd(1970, 10, 30).and_hms(0, 0, 0)),
                         end: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
                     },
-                    decaying_function: DecayingFunction {
-                        function: DecayingFunctionType::LinearDecay,
+                    decaying_fn: DecayingFunction::Linear {
                         from_sample_rate: 0.7,
                     },
                 },
@@ -2502,7 +2506,7 @@ mod tests {
                     ty: *rule_type,
                     id: RuleId(5),
                     time_range: Default::default(),
-                    decaying_function: Default::default(),
+                    decaying_fn: Default::default(),
                 },
             ],
             mode: SamplingMode::Received,
@@ -2577,7 +2581,7 @@ mod tests {
                     ty: RuleType::Trace,
                     id: RuleId(1),
                     time_range: range,
-                    decaying_function: Default::default(),
+                    decaying_fn: Default::default(),
                 }],
                 mode: SamplingMode::Received,
                 next_id: None,
@@ -2598,7 +2602,7 @@ mod tests {
                     ty: RuleType::Transaction,
                     id: RuleId(1),
                     time_range: range,
-                    decaying_function: Default::default(),
+                    decaying_fn: Default::default(),
                 }],
                 mode: SamplingMode::Received,
                 next_id: None,

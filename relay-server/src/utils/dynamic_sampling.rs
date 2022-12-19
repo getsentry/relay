@@ -191,8 +191,7 @@ mod tests {
     use relay_general::protocol::EventId;
     use relay_general::types::Annotated;
     use relay_sampling::{
-        DecayingFunction, DecayingFunctionType, RuleCondition, RuleId, RuleType, SamplingConfig,
-        SamplingRule, TimeRange,
+        DecayingFunction, RuleCondition, RuleId, RuleType, SamplingConfig, SamplingRule, TimeRange,
     };
 
     use crate::envelope::Item;
@@ -214,8 +213,7 @@ mod tests {
             sample_rate,
             rule_type,
             mode,
-            DecayingFunctionType::None,
-            None,
+            DecayingFunction::Constant,
             None,
             None,
         )
@@ -225,10 +223,9 @@ mod tests {
         sample_rate: Option<f64>,
         rule_type: RuleType,
         mode: SamplingMode,
-        function: DecayingFunctionType,
+        decaying_fn: DecayingFunction,
         start: Option<DateTime<Utc>>,
         end: Option<DateTime<Utc>>,
-        from: Option<f64>,
     ) -> ProjectState {
         let rules = match sample_rate {
             Some(sample_rate) => vec![SamplingRule {
@@ -237,10 +234,7 @@ mod tests {
                 ty: rule_type,
                 id: RuleId(1),
                 time_range: TimeRange { start, end },
-                decaying_function: DecayingFunction {
-                    function,
-                    from_sample_rate: from.unwrap_or(1.0),
-                },
+                decaying_fn,
             }],
             None => Vec::new(),
         };
@@ -587,10 +581,11 @@ mod tests {
             Some(0.2),
             RuleType::Transaction,
             SamplingMode::Total,
-            DecayingFunctionType::LinearDecay,
+            DecayingFunction::Linear {
+                from_sample_rate: 0.7,
+            },
             None,
             None,
-            Some(0.7),
         );
 
         assert_eq!(
@@ -607,10 +602,11 @@ mod tests {
             Some(0.2),
             RuleType::Transaction,
             SamplingMode::Total,
-            DecayingFunctionType::LinearDecay,
+            DecayingFunction::Linear {
+                from_sample_rate: 0.7,
+            },
             Some(now - DateDuration::days(1)),
             None,
-            Some(0.7),
         );
 
         assert_eq!(
@@ -623,10 +619,11 @@ mod tests {
             Some(0.2),
             RuleType::Transaction,
             SamplingMode::Total,
-            DecayingFunctionType::LinearDecay,
+            DecayingFunction::Linear {
+                from_sample_rate: 0.7,
+            },
             None,
             Some(now + DateDuration::days(1)),
-            Some(0.7),
         );
 
         assert_eq!(
@@ -643,10 +640,11 @@ mod tests {
             Some(0.2),
             RuleType::Transaction,
             SamplingMode::Total,
-            DecayingFunctionType::LinearDecay,
+            DecayingFunction::Linear {
+                from_sample_rate: 0.7,
+            },
             Some(now),
             Some(now + DateDuration::days(1)),
-            Some(0.7),
         );
 
         assert_eq!(
@@ -663,10 +661,11 @@ mod tests {
             Some(0.2),
             RuleType::Transaction,
             SamplingMode::Total,
-            DecayingFunctionType::LinearDecay,
+            DecayingFunction::Linear {
+                from_sample_rate: 0.7,
+            },
             Some(now - DateDuration::days(1)),
             Some(now + DateDuration::days(1)),
-            Some(0.7),
         );
 
         assert_eq!(
@@ -683,10 +682,11 @@ mod tests {
             Some(0.5),
             RuleType::Transaction,
             SamplingMode::Total,
-            DecayingFunctionType::LinearDecay,
+            DecayingFunction::Linear {
+                from_sample_rate: 0.3,
+            },
             Some(now - DateDuration::days(1)),
             Some(now + DateDuration::days(1)),
-            Some(0.3),
         );
 
         assert_eq!(
@@ -697,16 +697,15 @@ mod tests {
     }
 
     #[test]
-    fn test_event_decaying_rule_with_none_decay_function() {
+    fn test_event_decaying_rule_with_constant_decay_function() {
         let now = Utc::now();
         let project_state = state_with_decaying_rule(
             Some(0.6),
             RuleType::Transaction,
             SamplingMode::Total,
-            DecayingFunctionType::None,
+            DecayingFunction::Constant,
             Some(now - DateDuration::days(1)),
             Some(now + DateDuration::days(1)),
-            Some(0.3),
         );
 
         assert_eq!(
