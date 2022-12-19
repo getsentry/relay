@@ -980,6 +980,71 @@
 <span id="979">979</span>
 <span id="980">980</span>
 <span id="981">981</span>
+<span id="982">982</span>
+<span id="983">983</span>
+<span id="984">984</span>
+<span id="985">985</span>
+<span id="986">986</span>
+<span id="987">987</span>
+<span id="988">988</span>
+<span id="989">989</span>
+<span id="990">990</span>
+<span id="991">991</span>
+<span id="992">992</span>
+<span id="993">993</span>
+<span id="994">994</span>
+<span id="995">995</span>
+<span id="996">996</span>
+<span id="997">997</span>
+<span id="998">998</span>
+<span id="999">999</span>
+<span id="1000">1000</span>
+<span id="1001">1001</span>
+<span id="1002">1002</span>
+<span id="1003">1003</span>
+<span id="1004">1004</span>
+<span id="1005">1005</span>
+<span id="1006">1006</span>
+<span id="1007">1007</span>
+<span id="1008">1008</span>
+<span id="1009">1009</span>
+<span id="1010">1010</span>
+<span id="1011">1011</span>
+<span id="1012">1012</span>
+<span id="1013">1013</span>
+<span id="1014">1014</span>
+<span id="1015">1015</span>
+<span id="1016">1016</span>
+<span id="1017">1017</span>
+<span id="1018">1018</span>
+<span id="1019">1019</span>
+<span id="1020">1020</span>
+<span id="1021">1021</span>
+<span id="1022">1022</span>
+<span id="1023">1023</span>
+<span id="1024">1024</span>
+<span id="1025">1025</span>
+<span id="1026">1026</span>
+<span id="1027">1027</span>
+<span id="1028">1028</span>
+<span id="1029">1029</span>
+<span id="1030">1030</span>
+<span id="1031">1031</span>
+<span id="1032">1032</span>
+<span id="1033">1033</span>
+<span id="1034">1034</span>
+<span id="1035">1035</span>
+<span id="1036">1036</span>
+<span id="1037">1037</span>
+<span id="1038">1038</span>
+<span id="1039">1039</span>
+<span id="1040">1040</span>
+<span id="1041">1041</span>
+<span id="1042">1042</span>
+<span id="1043">1043</span>
+<span id="1044">1044</span>
+<span id="1045">1045</span>
+<span id="1046">1046</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -1164,34 +1229,8 @@
                     item,
                 )<span class="question-mark">?</span>,
                 ItemType::ReplayRecording =&gt; {
-                    <span class="kw">let </span>replay_recording = <span class="self">self</span>.produce_replay_recording_chunks(
-                        event_id.ok_or(StoreError::NoEventId)<span class="question-mark">?</span>,
-                        scoping.organization_id,
-                        scoping.project_id,
-                        item,
-                    )<span class="question-mark">?</span>;
-                    <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Sending individual replay_recordings of envelope to kafka&quot;</span>);
-                    <span class="kw">let </span>replay_recording_message =
-                        KafkaMessage::ReplayRecording(ReplayRecordingKafkaMessage {
-                            replay_id: event_id.ok_or(StoreError::NoEventId)<span class="question-mark">?</span>,
-                            project_id: scoping.project_id,
-                            key_id: scoping.key_id,
-                            org_id: scoping.organization_id,
-                            received: UnixTimestamp::from_instant(start_time).as_secs(),
-                            retention_days: retention,
-                            replay_recording,
-                        });
-
-                    <span class="self">self</span>.produce(
-                        KafkaTopic::ReplayRecordings,
-                        scoping.organization_id,
-                        replay_recording_message,
-                    )<span class="question-mark">?</span>;
-                    <span class="macro">metric!</span>(
-                        counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
-                        event_type = <span class="string">&quot;replay_recording&quot;
-                    </span>);
-                }
+                    <span class="self">self</span>.produce_replay_recording(event_id, scoping, item, start_time, retention)<span class="question-mark">?
+                </span>}
                 ItemType::ReplayEvent =&gt; <span class="self">self</span>.produce_replay_event(
                     event_id.ok_or(StoreError::NoEventId)<span class="question-mark">?</span>,
                     scoping.organization_id,
@@ -1601,13 +1640,90 @@
         <span class="prelude-val">Ok</span>(())
     }
 
+    <span class="kw">fn </span>produce_replay_recording(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        event_id: <span class="prelude-ty">Option</span>&lt;EventId&gt;,
+        scoping: Scoping,
+        item: <span class="kw-2">&amp;</span>Item,
+        start_time: Instant,
+        retention: u16,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
+        <span class="comment">// Payloads must be chunked if they exceed a certain threshold. We do not chunk every
+        // message because we can achieve better parallelism when dealing with a single
+        // message.
+
+        // Max message size is 1MB.
+        </span><span class="kw">let </span>max_message_size = <span class="number">1000 </span>* <span class="number">1000</span>;
+
+        <span class="comment">// 2000 bytes are reserved for the message metadata.
+        </span><span class="kw">let </span>max_message_metadata_size = <span class="number">2000</span>;
+
+        <span class="comment">// Remaining bytes can be filled by the payload.
+        </span><span class="kw">let </span>max_payload_size = max_message_size - max_message_metadata_size;
+
+        <span class="kw">if </span>item.payload().len() &lt; max_payload_size {
+            <span class="kw">let </span>message =
+                KafkaMessage::ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage {
+                    replay_id: event_id.ok_or(StoreError::NoEventId)<span class="question-mark">?</span>,
+                    project_id: scoping.project_id,
+                    key_id: scoping.key_id,
+                    org_id: scoping.organization_id,
+                    received: UnixTimestamp::from_instant(start_time).as_secs(),
+                    retention_days: retention,
+                    payload: item.payload(),
+                });
+
+            <span class="self">self</span>.produce(
+                KafkaTopic::ReplayRecordings,
+                scoping.organization_id,
+                message,
+            )<span class="question-mark">?</span>;
+
+            <span class="macro">metric!</span>(
+                counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
+                event_type = <span class="string">&quot;replay_recording_not_chunked&quot;
+            </span>);
+        } <span class="kw">else </span>{
+            <span class="comment">// Produce chunks to the topic first. Ordering matters.
+            </span><span class="kw">let </span>replay_recording = <span class="self">self</span>.produce_replay_recording_chunks(
+                event_id.ok_or(StoreError::NoEventId)<span class="question-mark">?</span>,
+                scoping.organization_id,
+                scoping.project_id,
+                item,
+            )<span class="question-mark">?</span>;
+
+            <span class="kw">let </span>message = KafkaMessage::ReplayRecording(ReplayRecordingKafkaMessage {
+                replay_id: event_id.ok_or(StoreError::NoEventId)<span class="question-mark">?</span>,
+                project_id: scoping.project_id,
+                key_id: scoping.key_id,
+                org_id: scoping.organization_id,
+                received: UnixTimestamp::from_instant(start_time).as_secs(),
+                retention_days: retention,
+                replay_recording,
+            });
+
+            <span class="self">self</span>.produce(
+                KafkaTopic::ReplayRecordings,
+                scoping.organization_id,
+                message,
+            )<span class="question-mark">?</span>;
+
+            <span class="macro">metric!</span>(
+                counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
+                event_type = <span class="string">&quot;replay_recording&quot;
+            </span>);
+        };
+
+        <span class="prelude-val">Ok</span>(())
+    }
+
     <span class="kw">fn </span>produce_replay_recording_chunks(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         replay_id: EventId,
         organization_id: u64,
         project_id: ProjectId,
         item: <span class="kw-2">&amp;</span>Item,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;ChunkedReplayRecording, StoreError&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;ReplayRecordingChunkMeta, StoreError&gt; {
         <span class="kw">let </span>id = Uuid::new_v4().to_string();
 
         <span class="kw">let </span><span class="kw-2">mut </span>chunk_index = <span class="number">0</span>;
@@ -1618,10 +1734,9 @@
         <span class="comment">// This skips chunks for empty replay recordings. The consumer does not require chunks for
         // empty replay recordings. `chunks` will be `0` in this case.
         </span><span class="kw">while </span>offset &lt; size {
-            <span class="comment">// XXX: Max chunk size has 2000 bytes reserved for metadata. Typically we see the
-            // metadata consume 160 bytes but it does vary +/- a few bytes. The extra bytes
-            // serve as padding.
-            </span><span class="kw">let </span>max_chunk_size = <span class="self">self</span>.config.attachment_chunk_size() - <span class="number">2000</span>;
+            <span class="comment">// XXX: Max msesage size is 1MB.  We reserve 2000 bytes for metadata and the rest is
+            // consumed by the blob.
+            </span><span class="kw">let </span>max_chunk_size = <span class="number">1000 </span>* <span class="number">1000 </span>- <span class="number">2000</span>;
             <span class="kw">let </span>chunk_size = std::cmp::min(max_chunk_size, size - offset);
 
             <span class="kw">let </span>replay_recording_chunk_message =
@@ -1632,11 +1747,13 @@
                     id: id.clone(),
                     chunk_index,
                 });
+
             <span class="self">self</span>.produce(
                 KafkaTopic::ReplayRecordings,
                 organization_id,
                 replay_recording_chunk_message,
             )<span class="question-mark">?</span>;
+
             offset += chunk_size;
             chunk_index += <span class="number">1</span>;
         }
@@ -1644,7 +1761,7 @@
         <span class="comment">// The chunk_index is incremented after every loop iteration. After we exit the loop, it
         // is one larger than the last chunk, so it is equal to the number of chunks.
 
-        </span><span class="prelude-val">Ok</span>(ChunkedReplayRecording {
+        </span><span class="prelude-val">Ok</span>(ReplayRecordingChunkMeta {
             id,
             chunks: chunk_index,
             size: <span class="prelude-val">Some</span>(size),
@@ -1701,22 +1818,6 @@
     /// not be persisted after processing.
     </span><span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span>rate_limited: <span class="prelude-ty">Option</span>&lt;bool&gt;,
-}
-
-<span class="doccomment">/// attributes for Replay Recordings
-</span><span class="attribute">#[derive(Debug, Serialize)]
-</span><span class="kw">struct </span>ChunkedReplayRecording {
-    <span class="doccomment">/// The attachment ID within the event.
-    ///
-    /// The triple `(project_id, event_id, id)` identifies an attachment uniquely.
-    </span>id: String,
-
-    <span class="doccomment">/// Number of chunks. Must be greater than zero.
-    </span>chunks: usize,
-
-    <span class="doccomment">/// The size of the attachment in bytes.
-    </span><span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
-    </span>size: <span class="prelude-ty">Option</span>&lt;usize&gt;,
 }
 
 <span class="doccomment">/// A hack to make rmp-serde behave more like serde-json when serializing enums.
@@ -1812,20 +1913,46 @@
 }
 
 <span class="attribute">#[derive(Debug, Serialize)]
+</span><span class="kw">struct </span>ReplayRecordingChunkMeta {
+    <span class="doccomment">/// The attachment ID within the event.
+    ///
+    /// The triple `(project_id, event_id, id)` identifies an attachment uniquely.
+    </span>id: String,
+
+    <span class="doccomment">/// Number of chunks. Must be greater than zero.
+    </span>chunks: usize,
+
+    <span class="doccomment">/// The size of the attachment in bytes.
+    </span><span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>size: <span class="prelude-ty">Option</span>&lt;usize&gt;,
+}
+
+<span class="attribute">#[derive(Debug, Serialize)]
 </span><span class="kw">struct </span>ReplayRecordingKafkaMessage {
-    <span class="doccomment">/// The replay id.
-    </span>replay_id: EventId,
-    <span class="doccomment">/// The project id for the current recording.
-    </span>project_id: ProjectId,
+    replay_id: EventId,
     <span class="doccomment">/// The key_id for the current recording.
     </span>key_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
     <span class="doccomment">/// The org id for the current recording.
     </span>org_id: u64,
+    <span class="doccomment">/// The project id for the current recording.
+    </span>project_id: ProjectId,
     <span class="doccomment">/// The timestamp of when the recording was Received by relay
     </span>received: u64,
+    <span class="comment">// Number of days to retain.
+    </span>retention_days: u16,
     <span class="doccomment">/// The recording attachment.
-    </span>replay_recording: ChunkedReplayRecording,
+    </span>replay_recording: ReplayRecordingChunkMeta,
+}
+
+<span class="attribute">#[derive(Debug, Serialize)]
+</span><span class="kw">struct </span>ReplayRecordingNotChunkedKafkaMessage {
+    replay_id: EventId,
+    key_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+    org_id: u64,
+    project_id: ProjectId,
+    received: u64,
     retention_days: u16,
+    payload: Bytes,
 }
 
 <span class="doccomment">/// User report for an event wrapped up in a message ready for consumption in Kafka.
@@ -1896,6 +2023,7 @@
     Metric(MetricKafkaMessage),
     Profile(ProfileKafkaMessage),
     ReplayEvent(ReplayEventKafkaMessage),
+    ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage),
     ReplayRecording(ReplayRecordingKafkaMessage),
     ReplayRecordingChunk(ReplayRecordingChunkKafkaMessage),
 }
@@ -1913,6 +2041,7 @@
             KafkaMessage::ReplayEvent(<span class="kw">_</span>) =&gt; <span class="string">&quot;replay_event&quot;</span>,
             KafkaMessage::ReplayRecording(<span class="kw">_</span>) =&gt; <span class="string">&quot;replay_recording&quot;</span>,
             KafkaMessage::ReplayRecordingChunk(<span class="kw">_</span>) =&gt; <span class="string">&quot;replay_recording_chunk&quot;</span>,
+            KafkaMessage::ReplayRecordingNotChunked(<span class="kw">_</span>) =&gt; <span class="string">&quot;replay_recording_not_chunked&quot;</span>,
         }
     }
 
@@ -1929,7 +2058,8 @@
             <span class="self">Self</span>::ReplayEvent(message) =&gt; message.replay_id.<span class="number">0</span>,
             <span class="self">Self</span>::ReplayRecording(message) =&gt; message.replay_id.<span class="number">0</span>,
             <span class="self">Self</span>::ReplayRecordingChunk(message) =&gt; message.replay_id.<span class="number">0</span>,
-        };
+            <span class="self">Self</span>::ReplayRecordingNotChunked(_message) =&gt; Uuid::nil(), <span class="comment">// Ensure random partitioning.
+        </span>};
 
         <span class="kw">if </span>uuid.is_nil() {
             uuid = Uuid::new_v4();
