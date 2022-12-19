@@ -386,6 +386,7 @@ jobs:
       - name: Run Sentry self-hosted e2e CI
         uses: getsentry/action-self-hosted-e2e-tests@fa5b8240848f0e645ac2918c530e60ec8f50e4b8
         with:
+          docker_password: ${{ secrets.DOCKER_HUB_RW_TOKEN }}
           project_name: relay
           local_image: ${{ steps.image_pull.outputs.relay-test-image-name }}
           docker_repo: docker.io/getsentry/relay
