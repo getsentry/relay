@@ -384,7 +384,7 @@ jobs:
           echo "relay-test-image-name=$RELAY_TEST_IMAGE" >> "$GITHUB_OUTPUT"
       # TODO: push the image here
       - name: Run Sentry self-hosted e2e CI
-        uses: getsentry/action-self-hosted-e2e-tests@05814e09c6cc1d9d1ac1c03a22216b7fbed1756a
+        uses: getsentry/action-self-hosted-e2e-tests@467ae729def94f92a65b9c7bdcfa884a79761296
         with:
           project_name: relay
           local_image: ${{ steps.image_pull.outputs.relay-test-image-name }}
