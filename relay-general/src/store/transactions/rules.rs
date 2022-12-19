@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::{DateTime, Utc};
 use relay_common::Glob;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -74,6 +76,32 @@ pub struct TransactionNameRule {
 }
 
 impl TransactionNameRule {
+    /// Checks is the current rule matches and tries to apply it.
+    pub fn match_and_apply(
+        &self,
+        mut transaction: Cow<String>,
+        transaction_info: &TransactionInfo,
+    ) -> Option<String> {
+        let slash_is_present = transaction
+            .chars()
+            .last()
+            .map(|c| c == '/')
+            .unwrap_or_default();
+        if !slash_is_present {
+            transaction.to_mut().push('/');
+        }
+        let is_matched = self.matches(&transaction, transaction_info);
+
+        if is_matched {
+            let mut result = self.apply(&transaction);
+            if !slash_is_present {
+                result.pop();
+            }
+            Some(result)
+        } else {
+            None
+        }
+    }
     /// Applies the rule to the provided value.
     ///
     /// Note: currently only `url` source for rules supported.

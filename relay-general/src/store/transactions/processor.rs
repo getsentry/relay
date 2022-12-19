@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use relay_common::SpanStatus;
 
 use crate::processor::{ProcessValue, ProcessingState, Processor};
@@ -38,47 +40,29 @@ impl<'r> TransactionsProcessor<'r> {
         transaction: &mut Annotated<String>,
         info: &mut std::option::Option<TransactionInfo>,
     ) -> ProcessingResult {
-        transaction.apply(|transaction, meta| {
-            let slash_is_present = transaction
-                .chars()
-                .last()
-                .map(|c| c == '/')
-                .unwrap_or_default();
+        if let Some(info) = info.as_mut() {
+            transaction.apply(|transaction, meta| {
+                let result = self.tx_name_rules.iter().find_map(|rule| {
+                    rule.match_and_apply(Cow::Borrowed(transaction), info)
+                        .map(|applied_result| (rule.pattern.pattern(), applied_result))
+                });
 
-            // Add new `/` at the end of the transaction if there isn't one.
-            if !slash_is_present {
-                transaction.push('/');
-            }
-
-            let rule = self.tx_name_rules.iter().find(|rule| {
-                info.as_ref()
-                    .map(|trans_info| rule.matches(transaction, trans_info))
-                    .unwrap_or_default()
-            });
-            let result = rule.map(|r| (r.pattern.pattern(), r.apply(transaction)));
-
-            if let Some((rule, mut result)) = result {
-                if &result != transaction {
-                    if !slash_is_present {
-                        transaction.pop();
-                        result.pop();
-                    }
-
-                    meta.set_original_value(Some(transaction.clone()));
-                    // add also the rule which was applied to the transaction name
-                    meta.add_remark(Remark::new(RemarkType::Substituted, rule));
-                    *transaction = result;
-                    if let Some(info) = info {
+                if let Some((rule, result)) = result {
+                    if *transaction != result {
+                        meta.set_original_value(Some(transaction.clone()));
+                        // add also the rule which was applied to the transaction name
+                        meta.add_remark(Remark::new(RemarkType::Substituted, rule));
+                        *transaction = result;
                         info.source
                             .value_mut()
                             .replace(TransactionSource::Sanitized);
                     }
                 }
-            } else if !slash_is_present {
-                transaction.pop();
-            }
-            Ok(())
-        })
+
+                Ok(())
+            })?;
+        }
+        Ok(())
     }
 }
 
