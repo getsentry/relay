@@ -82,11 +82,7 @@ impl TransactionNameRule {
         mut transaction: Cow<String>,
         transaction_info: &TransactionInfo,
     ) -> Option<String> {
-        let slash_is_present = transaction
-            .chars()
-            .last()
-            .map(|c| c == '/')
-            .unwrap_or_default();
+        let slash_is_present = transaction.ends_with('/');
         if !slash_is_present {
             transaction.to_mut().push('/');
         }
@@ -102,6 +98,7 @@ impl TransactionNameRule {
             None
         }
     }
+
     /// Applies the rule to the provided value.
     ///
     /// Note: currently only `url` source for rules supported.
