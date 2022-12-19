@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use chrono::{DateTime, Utc};
 use log::{Level, LevelFilter};
 use sentry::types::Dsn;
+use sentry::{Envelope, Hub};
 use serde::{Deserialize, Serialize};
 
 /// The full release name including the Relay version and SHA.
@@ -99,6 +100,16 @@ impl Default for SentryConfig {
                 .ok(),
             enabled: false,
             _crash_db: None,
+        }
+    }
+}
+
+/// Captures an envelope from the native crash reporter using the main Sentry SDK.
+#[cfg(feature = "relay-crash")]
+fn capture_native_envelope(data: &[u8]) {
+    if let Some(client) = Hub::main().client() {
+        if let Ok(envelope) = Envelope::from_slice(data) {
+            client.send_envelope(envelope);
         }
     }
 }
@@ -235,7 +246,8 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
     {
         if let Some(dsn) = sentry.enabled_dsn().map(|d| d.to_string()) {
             if let Some(db) = sentry._crash_db.as_deref() {
-                relay_crash::CrashHandler::new(dsn.as_ref(), db)
+                relay_crash::CrashHandler::new(dsn.as_str(), db)
+                    .transport(capture_native_envelope)
                     .release(Some(RELEASE))
                     .install();
             }

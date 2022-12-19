@@ -2,6 +2,7 @@
 //!
 //! Use [`CrashHandler`] to configure and install a crash handler.
 
+use std::fmt;
 use std::path::Path;
 
 #[cfg(unix)]
@@ -13,17 +14,61 @@ mod native {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
 
+/// A transport function used to send envelopes to Sentry.
+pub type Transport = fn(envelope: &[u8]);
+
+/// Serializes a sentry_native envelope and passes the buffer to the [`Transport`] function.
+unsafe extern "C" fn transport_proxy(
+    envelope: *const native::sentry_envelope_s,
+    tx_pointer: *mut std::ffi::c_void,
+) {
+    if envelope.is_null() || tx_pointer.is_null() {
+        return;
+    }
+
+    let mut len = 0;
+    let buf = native::sentry_envelope_serialize(envelope, &mut len);
+
+    if !buf.is_null() && len > 0 {
+        let transport: Transport = std::mem::transmute(tx_pointer);
+        transport(std::slice::from_raw_parts(buf as *const u8, len as usize));
+    }
+
+    native::sentry_free(buf as _);
+}
+
 /// Captures process crashes and reports them to Sentry.
 ///
-/// Internally, this uses the Breakpad client to capture crash signals and send minidumps to Sentry.
-/// If no DSN is configured, the crash handler is not initialized.
-#[derive(Debug, Default)]
+/// Internally, this uses the Breakpad client to capture crash signals and create minidumps. If no
+/// DSN is configured, the crash handler is not initialized.
+///
+/// To send crashes to Sentry, configure a [`transport` function](Self::transport). Otherwise, the
+/// crash reporter writes crashes to a local database folder, where they can be handled manually.
+#[derive(Default)]
 #[cfg_attr(not(unix), allow(dead_code))]
 pub struct CrashHandler<'a> {
     dsn: &'a str,
     database: &'a str,
+    transport: Option<Transport>,
     release: Option<&'a str>,
     environment: Option<&'a str>,
+}
+
+impl<'a> fmt::Debug for CrashHandler<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let transport = match self.transport {
+            Some(_) => "Some(fn)",
+            None => "None",
+        };
+
+        f.debug_struct("CrashHandler")
+            .field("dsn", &self.dsn)
+            .field("database", &self.database)
+            .field("transport", &format_args!("{}", transport))
+            .field("release", &self.release)
+            .field("environment", &self.environment)
+            .finish()
+    }
 }
 
 impl<'a> CrashHandler<'a> {
@@ -34,9 +79,20 @@ impl<'a> CrashHandler<'a> {
         Self {
             dsn,
             database: database.to_str().unwrap(),
+            transport: None,
             release: None,
             environment: None,
         }
+    }
+
+    /// Set a transport function that sends data to Sentry.
+    ///
+    /// Instead of using the disabled built-in transport, the crash reporter uses this function to
+    /// send envelopes to Sentry. Without this function, envelopes will not be sent and remain in
+    /// the crash database folder for manual retrieval.
+    pub fn transport(&mut self, transport: Transport) -> &mut Self {
+        self.transport = Some(transport);
+        self
     }
 
     /// Set the crash handler's Sentry release.
@@ -77,6 +133,11 @@ impl<'a> CrashHandler<'a> {
             if let Some(environment) = self.environment {
                 let env_cstr = CString::new(environment).unwrap();
                 native::sentry_options_set_environment(options, env_cstr.as_ptr());
+            }
+
+            if let Some(f) = self.transport {
+                let tx = native::sentry_new_function_transport(Some(transport_proxy), f as _);
+                native::sentry_options_set_transport(options, tx);
             }
 
             native::sentry_init(options);
