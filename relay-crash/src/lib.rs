@@ -18,6 +18,7 @@ mod native {
 pub type Transport = fn(envelope: &[u8]);
 
 /// Serializes a sentry_native envelope and passes the buffer to the [`Transport`] function.
+#[cfg(unix)]
 unsafe extern "C" fn transport_proxy(
     envelope: *const native::sentry_envelope_s,
     tx_pointer: *mut std::ffi::c_void,
