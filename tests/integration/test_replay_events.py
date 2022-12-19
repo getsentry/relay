@@ -77,10 +77,10 @@ def test_replay_event_with_processing(
     assert parsed_replay["sdk"]["version"] == replay["sdk"]["version"]
     assert parsed_replay["user"]["id"] == replay["user"]["id"]
     assert parsed_replay["user"]["username"] == replay["user"]["username"]
+    assert parsed_replay["user"]["ip_address"] == replay["user"]["ip_address"]
 
     # Assert PII scrubbing.
     assert parsed_replay["user"]["email"] == "[email]"
-    assert parsed_replay["user"]["ip_address"] == "[ip]"
 
     # Round to account for float imprecision. Not a big deal. Decimals
     # are dropped in Clickhouse.
