@@ -97,7 +97,7 @@ def test_replay_event_with_processing(
     assert parsed_replay["contexts"] == {
         "browser": {"name": "Safari", "version": "15.5", "type": "browser"},
         "device": {"brand": "Apple", "family": "Mac", "model": "Mac", "type": "device"},
-        "os": {"name": "Mac OS X", "version": "10.15.7", "type": "os"},
+        "client_os": {"name": "Mac OS X", "version": "10.15.7", "type": "os"},
         "trace": {
             "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
             "span_id": "fa90fdead5f74052",
