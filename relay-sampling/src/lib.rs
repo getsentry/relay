@@ -435,13 +435,14 @@ pub enum DecayingFunction {
 }
 
 impl DecayingFunction {
+    /// Validate the external parameters needed by the decaying function(s).
     fn validate_external_params(
         &self,
         base_sample_rate: f64,
         time_range: TimeRange,
         now: DateTime<Utc>,
     ) -> Option<DecayingFunctionExecutor> {
-        let params = if let Some((start, end)) = time_range.extract_interval_tuple() {
+        if let Some((start, end)) = time_range.extract_interval_tuple() {
             if !self.validate_function_specific_params(base_sample_rate, time_range, now)
                 || end <= start
                 || now < start
@@ -449,20 +450,18 @@ impl DecayingFunction {
                 return None;
             }
 
-            DecayingFunctionExternalParams {
-                base_sample_rate,
-                start,
-                end,
-                now,
-            }
+            Some(DecayingFunctionExecutor {
+                decaying_fn: *self,
+                external_params: DecayingFunctionExternalParams {
+                    base_sample_rate,
+                    start,
+                    end,
+                    now,
+                },
+            })
         } else {
-            return None;
-        };
-
-        Some(DecayingFunctionExecutor {
-            decaying_fn: *self,
-            external_params: params,
-        })
+            None
+        }
     }
 
     /// Validates the external params specifically to each decaying function.
