@@ -39,7 +39,6 @@ impl<'r> TransactionsProcessor<'r> {
         &self,
         transaction: &mut Annotated<String>,
         info: &mut std::option::Option<TransactionInfo>,
-        source: &TransactionSource,
     ) -> ProcessingResult {
         let now = Utc::now();
         transaction.apply(|transaction, meta| {
@@ -54,8 +53,16 @@ impl<'r> TransactionsProcessor<'r> {
                 transaction.push('/');
             }
 
+            // Returns true if the source of the transaction matches provided source.
+            let source_match = |source: &TransactionSource| {
+                info.as_ref()
+                    .map(|i| i.source.value().map(|s| s == source))
+                    .flatten()
+                    .unwrap_or_default()
+            };
+
             let rule = self.tx_name_rules.iter().find(|rule| {
-                &rule.scope.source == source
+                source_match(&rule.scope.source)
                     && rule.expiry > now
                     // Adding `/` at the end of the name, ensures that rules like /<something>/*/**
                     // will always match the string.
@@ -334,16 +341,14 @@ impl Processor for TransactionsProcessor<'_> {
                 .set_value(Some("<unlabeled transaction>".to_owned()))
         }
 
-        let transaction_source = event.get_transaction_source().to_owned();
         // Apply the rule if any found
         self.apply_transaction_rename_rule(
             &mut event.transaction,
             event.transaction_info.value_mut(),
-            &transaction_source,
         )?;
 
         // Normalize transaction names for URLs transaction sources only.
-        if transaction_source == TransactionSource::Url && self.normalize_names {
+        if event.get_transaction_source() == &TransactionSource::Url && self.normalize_names {
             normalize_transaction_name(&mut event.transaction)?;
         }
 
