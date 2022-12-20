@@ -335,6 +335,7 @@ pub fn start(config: Config) -> Result<Recipient<server::StopServer>> {
     server = server
         .workers(config.cpu_concurrency())
         .shutdown_timeout(config.shutdown_timeout().as_secs() as u16)
+        .keep_alive(config.keepalive_timeout().as_secs() as usize)
         .maxconn(config.max_connections())
         .maxconnrate(config.max_connection_rate())
         .backlog(config.max_pending_connections())
