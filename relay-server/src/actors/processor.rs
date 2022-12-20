@@ -5,7 +5,6 @@ use std::net;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use actix::SystemService;
 use brotli2::write::BrotliEncoder;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use flate2::write::{GzEncoder, ZlibEncoder};
@@ -2272,7 +2271,7 @@ impl EnvelopeProcessorService {
             }
             Ok(envelope_body) => {
                 request.envelope_body = envelope_body;
-                UpstreamRelay::from_registry().do_send(SendRequest(request));
+                UpstreamRelay::from_registry().send(SendRequest(request));
             }
         }
     }

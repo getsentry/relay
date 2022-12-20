@@ -13,8 +13,6 @@ use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use actix::prelude::SystemService;
-use actix_web::http::Method;
 #[cfg(feature = "processing")]
 use anyhow::Context;
 use chrono::{DateTime, SecondsFormat, Utc};
@@ -32,10 +30,10 @@ use relay_log::LogError;
 use relay_quotas::{ReasonCode, Scoping};
 use relay_sampling::RuleId;
 use relay_statsd::metric;
-use relay_system::{compat, Addr, FromMessage, Service};
+use relay_system::{Addr, FromMessage, Service};
 
 use crate::actors::envelopes::{EnvelopeManager, SendClientReports};
-use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
+use crate::actors::upstream::{Method, SendQuery, UpstreamQuery, UpstreamRelay};
 #[cfg(feature = "processing")]
 use crate::service::ServerError;
 use crate::service::REGISTRY;
@@ -553,7 +551,10 @@ impl HttpOutcomeProducer {
         };
 
         tokio::spawn(async move {
-            match compat::send(UpstreamRelay::from_registry(), SendQuery(request)).await {
+            match UpstreamRelay::from_registry()
+                .send(SendQuery(request))
+                .await
+            {
                 Ok(_) => relay_log::trace!("outcome batch sent."),
                 Err(error) => {
                     relay_log::error!("outcome batch sending failed with: {}", error)

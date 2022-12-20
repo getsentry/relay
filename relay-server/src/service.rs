@@ -1,7 +1,7 @@
 use std::fmt;
 use std::sync::Arc;
 
-use actix::prelude::*;
+use actix::Recipient;
 use actix_web::{server, App};
 use anyhow::{Context, Result};
 use listenfd::ListenFd;
@@ -23,7 +23,7 @@ use crate::actors::relays::{RelayCache, RelayCacheService};
 #[cfg(feature = "processing")]
 use crate::actors::store::StoreService;
 use crate::actors::test_store::{TestStore, TestStoreService};
-use crate::actors::upstream::UpstreamRelay;
+use crate::actors::upstream::{UpstreamRelay, UpstreamRelayService};
 use crate::middlewares::{
     AddCommonHeaders, ErrorHandlers, Metrics, ReadRequestMiddleware, SentryMiddleware,
 };
@@ -78,6 +78,7 @@ pub struct Registry {
     pub test_store: Addr<TestStore>,
     pub relay_cache: Addr<RelayCache>,
     pub project_cache: Addr<ProjectCache>,
+    pub upstream_relay: Addr<UpstreamRelay>,
 }
 
 impl Registry {
@@ -111,23 +112,23 @@ pub struct ServiceState {
     _outcome_runtime: Arc<tokio::runtime::Runtime>,
     _main_runtime: Arc<tokio::runtime::Runtime>,
     _project_runtime: Arc<tokio::runtime::Runtime>,
+    _upstream_runtime: Arc<tokio::runtime::Runtime>,
     _store_runtime: Option<Arc<tokio::runtime::Runtime>>,
 }
 
 impl ServiceState {
     /// Starts all services and returns addresses to all of them.
     pub fn start(config: Arc<Config>) -> Result<Self> {
-        let system = System::current();
-        let registry = system.registry();
-
         let main_runtime = utils::create_runtime("main-rt", config.cpu_concurrency());
+        let upstream_runtime = utils::create_runtime("upstream-rt", 1);
         let project_runtime = utils::create_runtime("project-rt", 1);
         let aggregator_runtime = utils::create_runtime("aggregator-rt", 1);
         let outcome_runtime = utils::create_runtime("outcome-rt", 1);
         let mut _store_runtime = None;
 
-        let upstream_relay = UpstreamRelay::new(config.clone());
-        registry.set(Arbiter::start(|_| upstream_relay));
+        let guard = upstream_runtime.enter();
+        let upstream_relay = UpstreamRelayService::new(config.clone()).start();
+        drop(guard);
 
         let guard = outcome_runtime.enter();
         let outcome_producer = OutcomeProducerService::create(config.clone())?.start();
@@ -192,6 +193,7 @@ impl ServiceState {
                 test_store,
                 relay_cache,
                 project_cache,
+                upstream_relay,
             }))
             .unwrap();
 
@@ -202,6 +204,7 @@ impl ServiceState {
             _outcome_runtime: Arc::new(outcome_runtime),
             _main_runtime: Arc::new(main_runtime),
             _project_runtime: Arc::new(project_runtime),
+            _upstream_runtime: Arc::new(upstream_runtime),
             _store_runtime: _store_runtime.map(Arc::new),
         })
     }

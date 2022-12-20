@@ -41,6 +41,7 @@ pub mod relays;
 pub mod server;
 pub mod test_store;
 pub mod upstream;
+pub mod upstream_old;
 
 #[cfg(feature = "processing")]
 pub mod project_redis;

@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use actix::fut;
 use actix::prelude::*;
-use actix_web::http::Method;
+use futures::TryFutureExt;
 use futures01::{future, future::Shared, sync::oneshot, Future};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -17,7 +17,7 @@ use relay_statsd::metric;
 
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::{FetchProjectState, ProjectError};
-use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
+use crate::actors::upstream::{Method, RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{self, ErrorBoundary};
 
@@ -220,6 +220,7 @@ impl UpstreamProjectSource {
 
                 UpstreamRelay::from_registry()
                     .send(SendQuery(query))
+                    .compat()
                     .map_err(|_| ProjectError::ScheduleFailed)
                     .map(move |response| (channels_batch, response))
             })

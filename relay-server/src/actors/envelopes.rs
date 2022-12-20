@@ -1,8 +1,7 @@
 use std::borrow::Cow;
 use std::sync::Arc;
 
-use actix::{ResponseFuture, SystemService};
-use actix_web::http::Method;
+use actix::ResponseFuture;
 use chrono::Utc;
 use futures::compat::Future01CompatExt;
 use futures01::{future, sync::oneshot, Future as _};
@@ -20,7 +19,9 @@ use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::processor::{EncodeEnvelope, EnvelopeProcessor};
 use crate::actors::project_cache::{ProjectCache, UpdateRateLimits};
 use crate::actors::test_store::{Capture, TestStore};
-use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError};
+use crate::actors::upstream::{
+    Method, SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
+};
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, Request, RequestBuilder, Response};
@@ -96,41 +97,42 @@ impl UpstreamRequest for SendEnvelope {
         builder.body(envelope_body)
     }
 
-    fn respond(
-        &mut self,
-        result: Result<Response, UpstreamRequestError>,
-    ) -> ResponseFuture<(), ()> {
-        let sender = self.response_sender.take();
+    // TODO(ja):
+    // fn respond(
+    //     &mut self,
+    //     result: Result<Response, UpstreamRequestError>,
+    // ) -> ResponseFuture<(), ()> {
+    //     let sender = self.response_sender.take();
 
-        match result {
-            Ok(response) => {
-                let future = response
-                    .consume()
-                    .map_err(UpstreamRequestError::Http)
-                    .map(|_| ())
-                    .then(move |body_result| {
-                        sender.map(|sender| sender.send(body_result.map_err(Into::into)).ok());
-                        Ok(())
-                    });
+    //     match result {
+    //         Ok(response) => {
+    //             let future = response
+    //                 .consume()
+    //                 .map_err(UpstreamRequestError::Http)
+    //                 .map(|_| ())
+    //                 .then(move |body_result| {
+    //                     sender.map(|sender| sender.send(body_result.map_err(Into::into)).ok());
+    //                     Ok(())
+    //                 });
 
-                Box::new(future)
-            }
-            Err(error) => {
-                if let UpstreamRequestError::RateLimited(ref upstream_limits) = error {
-                    ProjectCache::from_registry().send(UpdateRateLimits::new(
-                        self.project_key,
-                        upstream_limits.clone().scope(&self.scoping),
-                    ));
-                }
+    //             Box::new(future)
+    //         }
+    //         Err(error) => {
+    //             if let UpstreamRequestError::RateLimited(ref upstream_limits) = error {
+    //                 ProjectCache::from_registry().send(UpdateRateLimits::new(
+    //                     self.project_key,
+    //                     upstream_limits.clone().scope(&self.scoping),
+    //                 ));
+    //             }
 
-                if let Some(sender) = sender {
-                    sender.send(Err(error.into())).ok();
-                }
+    //             if let Some(sender) = sender {
+    //                 sender.send(Err(error.into())).ok();
+    //             }
 
-                Box::new(future::err(()))
-            }
-        }
-    }
+    //             Box::new(future::err(()))
+    //         }
+    //     }
+    // }
 }
 
 /// Sends an envelope to the upstream or Kafka.
@@ -284,7 +286,7 @@ impl EnvelopeManagerService {
         };
 
         if let HttpEncoding::Identity = request.http_encoding {
-            UpstreamRelay::from_registry().do_send(SendRequest(request));
+            UpstreamRelay::from_registry().send(SendRequest(request));
         } else {
             EnvelopeProcessor::from_registry().send(EncodeEnvelope::new(request));
         }
