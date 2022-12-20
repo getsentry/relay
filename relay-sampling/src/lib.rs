@@ -368,14 +368,13 @@ struct DecayingFunctionParams {
 ///
 /// A decaying function is responsible of decaying the sample rate from a value to another following
 /// a given curve.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(tag = "type")]
 pub enum DecayingFunction {
     #[serde(rename_all = "camelCase")]
-    Linear {
-        decayed_sample_rate: f64,
-    },
+    Linear { decayed_sample_rate: f64 },
+    #[default]
     Constant,
 }
 
@@ -390,12 +389,6 @@ impl DecayingFunction {
             }
             DecayingFunction::Constant => params.sample_rate,
         }
-    }
-}
-
-impl Default for DecayingFunction {
-    fn default() -> Self {
-        Self::Constant
     }
 }
 
@@ -2401,9 +2394,7 @@ mod tests {
                         start: Some(Utc.ymd(1970, 10, 10).and_hms(0, 0, 0)),
                         end: Some(Utc.ymd(1970, 10, 30).and_hms(0, 0, 0)),
                     },
-                    decaying_fn: DecayingFunction::Linear {
-                        decayed_sample_rate: 0.7,
-                    },
+                    decaying_fn: DecayingFunction::Constant,
                 },
                 // Idle
                 SamplingRule {
@@ -2415,9 +2406,7 @@ mod tests {
                         start: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
                         end: Some(Utc.ymd(3000, 10, 15).and_hms(0, 0, 0)),
                     },
-                    decaying_fn: DecayingFunction::Linear {
-                        decayed_sample_rate: 0.7,
-                    },
+                    decaying_fn: DecayingFunction::Constant,
                 },
                 // Start after finishing
                 SamplingRule {
@@ -2429,9 +2418,7 @@ mod tests {
                         start: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
                         end: Some(Utc.ymd(1970, 10, 30).and_hms(0, 0, 0)),
                     },
-                    decaying_fn: DecayingFunction::Linear {
-                        decayed_sample_rate: 0.7,
-                    },
+                    decaying_fn: DecayingFunction::Constant,
                 },
                 // Rule is ok
                 SamplingRule {
@@ -2443,9 +2430,7 @@ mod tests {
                         start: Some(Utc.ymd(1970, 10, 30).and_hms(0, 0, 0)),
                         end: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
                     },
-                    decaying_fn: DecayingFunction::Linear {
-                        decayed_sample_rate: 0.7,
-                    },
+                    decaying_fn: DecayingFunction::Constant,
                 },
                 // Fallback to non-decaying rule
                 SamplingRule {

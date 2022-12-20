@@ -204,7 +204,7 @@ mod tests {
         state
     }
 
-    fn state_with_non_decaying_rule(
+    fn state_with_rule(
         sample_rate: Option<f64>,
         rule_type: RuleType,
         mode: SamplingMode,
@@ -329,21 +329,18 @@ mod tests {
             ..Event::default()
         };
 
-        let proj_state =
-            state_with_non_decaying_rule(Some(0.0), RuleType::Error, SamplingMode::default());
+        let proj_state = state_with_rule(Some(0.0), RuleType::Error, SamplingMode::default());
 
         assert_eq!(
             SamplingResult::Drop(RuleId(1)),
             should_keep_event(None, Some(&event), None, &proj_state, None, true)
         );
-        let proj_state =
-            state_with_non_decaying_rule(Some(1.0), RuleType::Error, SamplingMode::default());
+        let proj_state = state_with_rule(Some(1.0), RuleType::Error, SamplingMode::default());
         assert_eq!(
             SamplingResult::Keep,
             should_keep_event(None, Some(&event), None, &proj_state, None, true)
         );
-        let proj_state =
-            state_with_non_decaying_rule(None, RuleType::Error, SamplingMode::default());
+        let proj_state = state_with_rule(None, RuleType::Error, SamplingMode::default());
         assert_eq!(
             SamplingResult::Keep,
             should_keep_event(None, Some(&event), None, &proj_state, None, true)
@@ -354,10 +351,8 @@ mod tests {
     fn test_unsampled_envelope_with_sample_rate() {
         //create an envelope with a event and a transaction
         let envelope = new_envelope(true);
-        let state =
-            state_with_non_decaying_rule(Some(1.0), RuleType::Trace, SamplingMode::default());
-        let sampling_state =
-            state_with_non_decaying_rule(Some(0.0), RuleType::Trace, SamplingMode::default());
+        let state = state_with_rule(Some(1.0), RuleType::Trace, SamplingMode::default());
+        let sampling_state = state_with_rule(Some(0.0), RuleType::Trace, SamplingMode::default());
         let result = should_keep_event(
             envelope.dsc(),
             None,
@@ -374,10 +369,8 @@ mod tests {
     fn test_should_keep_transaction_no_trace() {
         //create an envelope with a event and a transaction
         let envelope = new_envelope(false);
-        let state =
-            state_with_non_decaying_rule(Some(1.0), RuleType::Trace, SamplingMode::default());
-        let sampling_state =
-            state_with_non_decaying_rule(Some(0.0), RuleType::Trace, SamplingMode::default());
+        let state = state_with_rule(Some(1.0), RuleType::Trace, SamplingMode::default());
+        let sampling_state = state_with_rule(Some(0.0), RuleType::Trace, SamplingMode::default());
 
         let result = should_keep_event(
             envelope.dsc(),
@@ -398,10 +391,8 @@ mod tests {
     fn test_should_signal_when_envelope_becomes_empty() {
         //create an envelope with a event and a transaction
         let envelope = new_envelope(true);
-        let state =
-            state_with_non_decaying_rule(Some(1.0), RuleType::Trace, SamplingMode::default());
-        let sampling_state =
-            state_with_non_decaying_rule(Some(0.0), RuleType::Trace, SamplingMode::default());
+        let state = state_with_rule(Some(1.0), RuleType::Trace, SamplingMode::default());
+        let sampling_state = state_with_rule(Some(0.0), RuleType::Trace, SamplingMode::default());
 
         let result = should_keep_event(
             envelope.dsc(),
@@ -482,8 +473,7 @@ mod tests {
 
     #[test]
     fn test_trace_rule_received() {
-        let project_state =
-            state_with_non_decaying_rule(Some(0.1), RuleType::Trace, SamplingMode::Received);
+        let project_state = state_with_rule(Some(0.1), RuleType::Trace, SamplingMode::Received);
         let sampling_context = create_sampling_context(Some(0.5));
         let spec = get_trace_sampling_rule(
             true, // irrelevant, just skips unsupported rules
@@ -498,8 +488,7 @@ mod tests {
 
     #[test]
     fn test_trace_rule_adjusted() {
-        let project_state =
-            state_with_non_decaying_rule(Some(0.1), RuleType::Trace, SamplingMode::Total);
+        let project_state = state_with_rule(Some(0.1), RuleType::Trace, SamplingMode::Total);
         let sampling_context = create_sampling_context(Some(0.5));
         let spec = get_trace_sampling_rule(
             true, // irrelevant, just skips unsupported rules
@@ -514,8 +503,7 @@ mod tests {
 
     #[test]
     fn test_trace_rule_unsupported() {
-        let project_state =
-            state_with_non_decaying_rule(Some(0.1), RuleType::Trace, SamplingMode::Unsupported);
+        let project_state = state_with_rule(Some(0.1), RuleType::Trace, SamplingMode::Unsupported);
         let sampling_context = create_sampling_context(Some(0.5));
         let spec = get_trace_sampling_rule(
             true,
@@ -531,7 +519,7 @@ mod tests {
     #[test]
     fn test_event_rule_received() {
         let project_state =
-            state_with_non_decaying_rule(Some(0.1), RuleType::Transaction, SamplingMode::Received);
+            state_with_rule(Some(0.1), RuleType::Transaction, SamplingMode::Received);
         let sampling_context = create_sampling_context(Some(0.5));
         let event = Event {
             id: Annotated::new(EventId::new()),
@@ -553,8 +541,7 @@ mod tests {
 
     #[test]
     fn test_event_rule_adjusted() {
-        let project_state =
-            state_with_non_decaying_rule(Some(0.1), RuleType::Transaction, SamplingMode::Total);
+        let project_state = state_with_rule(Some(0.1), RuleType::Transaction, SamplingMode::Total);
         let sampling_context = create_sampling_context(Some(0.5));
         let event = Event {
             id: Annotated::new(EventId::new()),
