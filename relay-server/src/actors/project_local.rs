@@ -18,7 +18,7 @@ use crate::actors::project_cache::FetchOptionalProjectState;
 /// Service interface of the local project source.
 #[derive(Debug)]
 pub enum LocalProjectSource {
-    /// TODO: docs
+    /// Fetches the project state for a given project key. Returns `None` if the project state is not available locally.
     FetchOptionalProjectState(FetchOptionalProjectState, Sender<Option<Arc<ProjectState>>>),
 }
 
@@ -34,7 +34,7 @@ impl FromMessage<FetchOptionalProjectState> for LocalProjectSource {
     }
 }
 
-/// TODO: docs
+/// A service which periodically loads project states from disk.
 #[derive(Debug)]
 pub struct LocalProjectSourceService {
     config: Arc<Config>,
