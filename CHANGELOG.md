@@ -5,6 +5,7 @@
 **Internal**:
 
 - Remove concurrent profiling. ([#1697](https://github.com/getsentry/relay/pull/1697))
+- Add support for `keepalive_timeout` configuration. ([#1645](https://github.com/getsentry/relay/pull/1645))
 
 ## 22.12.0
 
@@ -15,7 +16,6 @@
 - Add OpenTelemetry Context. ([#1617](https://github.com/getsentry/relay/pull/1617))
 - Add `app.in_foreground` and `thread.main` flag to protocol. ([#1578](https://github.com/getsentry/relay/pull/1578))
 - Add support for View Hierarchy attachment_type. ([#1642](https://github.com/getsentry/relay/pull/1642))
-- Add support for `keepalive_timeout` configuration. ([#1645](https://github.com/getsentry/relay/pull/1645))
 - Add invalid replay recording outcome. ([#1684](https://github.com/getsentry/relay/pull/1684))
 - Stop rejecting spans without a timestamp, instead giving them their respective event timestamp and setting their status to DeadlineExceeded. ([#1690](https://github.com/getsentry/relay/pull/1690))
 - Add max replay size configuration parameter. ([#1694](https://github.com/getsentry/relay/pull/1694))
