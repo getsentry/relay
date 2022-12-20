@@ -2,11 +2,15 @@
 
 ## Unreleased
 
+**Features:**
+
+- Add support for `limits.keepalive_timeout` configuration. ([#1645](https://github.com/getsentry/relay/pull/1645))
+
 **Internal**:
 
 - Remove concurrent profiling. ([#1697](https://github.com/getsentry/relay/pull/1697))
+- Use the main Sentry SDK to submit crash reports instead of a custom curl-based backend. This removes a dependency on `libcurl` and ensures compliance with latest TLS standards for crash uploads. Note that this only affects Relay if the hidden `_crash_db` option is used. ([#1707](https://github.com/getsentry/relay/pull/1707))
 - Support transaction naming rules. ([#1695](https://github.com/getsentry/relay/pull/1695))
-- Add support for `keepalive_timeout` configuration. ([#1645](https://github.com/getsentry/relay/pull/1645))
 - Convert project local actor to tokio. ([#1710](https://github.com/getsentry/relay/pull/1710))
 
 ## 22.12.0
