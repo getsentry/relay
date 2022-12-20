@@ -1,20 +1,14 @@
 use std::collections::HashMap;
 use std::ffi::OsStr;
-use std::fs;
 use std::path::Path;
 use std::sync::Arc;
-use std::thread;
-
-use futures01::{sync::oneshot, Future};
 
 use relay_common::{ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_log::LogError;
-use relay_system::Addr;
 use relay_system::AsyncResponse;
 use relay_system::FromMessage;
 use relay_system::Interface;
-use relay_system::NoResponse;
 use relay_system::Sender;
 use relay_system::Service;
 
@@ -72,7 +66,7 @@ impl LocalProjectSourceService {
         }
     }
 
-    async fn refresh(&mut self) {
+    async fn poll_local_states(&mut self) {
         let path = self.config.project_configs_path();
         let states = load_local_states(&path).await;
         match states {
@@ -93,17 +87,16 @@ impl Service for LocalProjectSourceService {
             relay_log::info!("project local cache started");
             let mut ticker = tokio::time::interval(self.config.local_cache_interval());
 
-            // FIXME: block message handling until the first project is read
+            // Poll local states once before handling any message, such that the projects are
+            // populated.
+            self.poll_local_states().await;
 
             loop {
                 tokio::select! {
                     biased;
 
-                    // TODO(jjbayer): Is it OK to await within tokio::select!
-                    // ProjectCache also does it.
-                    _ = ticker.tick() => self.refresh().await,
+                    _ = ticker.tick() => self.poll_local_states().await,
                     Some(message) = rx.recv() => self.handle_message(message),
-                    // TODO: do we need a shutdown handler here?
 
                     else => break,
                 }
@@ -112,26 +105,6 @@ impl Service for LocalProjectSourceService {
         });
     }
 }
-
-// impl Actor for LocalProjectSource {
-//     type Context = Context<Self>;
-
-//     fn started(&mut self, context: &mut Self::Context) {
-//         relay_log::info!("project local cache started");
-
-//         // Start the background thread that reads the local states from disk.
-//         // `poll_local_states` returns a future that resolves as soon as the first read is done.
-//         poll_local_states(context.address(), self.config.clone())
-//             .into_actor(self)
-//             // Block entire actor on first local state read, such that we don't e.g. drop events on
-//             // startup
-//             .wait(context);
-//     }
-
-//     fn stopped(&mut self, _ctx: &mut Self::Context) {
-//         relay_log::info!("project local cache stopped");
-//     }
-// }
 
 fn get_project_id(path: &Path) -> Option<ProjectId> {
     path.file_stem()
@@ -200,32 +173,3 @@ async fn load_local_states(
 
     Ok(states)
 }
-
-// fn poll_local_states(
-//     manager: Addr<LocalProjectSource>,
-//     config: Arc<Config>,
-// ) -> impl Future<Item = (), Error = ()> {
-//     let (sender, receiver) = oneshot::channel();
-
-//     let _ = thread::spawn(move || {
-//         let path = config.project_configs_path();
-//         let mut sender = Some(sender);
-
-//         loop {
-//             match load_local_states(&path) {
-//                 Ok(states) => {
-//                     manager.send(UpdateLocalStates { states }); // TODO: test this
-//                     sender.take().map(|sender| sender.send(()).ok());
-//                 }
-//                 Err(error) => relay_log::error!(
-//                     "failed to load static project configs: {}",
-//                     LogError(&error)
-//                 ),
-//             }
-
-//             thread::sleep(config.local_cache_interval());
-//         }
-//     });
-
-//     receiver.map_err(|_| ())
-// }
