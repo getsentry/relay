@@ -5,6 +5,7 @@
 **Internal**:
 
 - Remove concurrent profiling. ([#1697](https://github.com/getsentry/relay/pull/1697))
+- Support transaction naming rules. ([#1695](https://github.com/getsentry/relay/pull/1695))
 - Add support for `keepalive_timeout` configuration. ([#1645](https://github.com/getsentry/relay/pull/1645))
 
 ## 22.12.0
