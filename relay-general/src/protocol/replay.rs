@@ -25,7 +25,7 @@
 //! }
 //! ```
 use crate::protocol::{
-    ClientSdkInfo, Contexts, IpAddr, LenientString, Request, Tags, Timestamp, User,
+    ClientSdkInfo, Contexts, EventId, IpAddr, LenientString, Request, Tags, Timestamp, User,
 };
 use crate::store::is_valid_platform;
 use crate::store::user_agent::normalize_user_agent_generic;
@@ -37,8 +37,8 @@ use std::net::IpAddr as RealIPAddr;
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_replay", value_type = "Replay")]
 pub struct Replay {
-    pub event_id: Annotated<String>,
-    pub replay_id: Annotated<String>,
+    pub event_id: Annotated<EventId>,
+    pub replay_id: Annotated<EventId>,
     pub replay_type: Annotated<String>,
     pub segment_id: Annotated<u64>,
     pub timestamp: Annotated<Timestamp>,
