@@ -1,10 +1,10 @@
 use std::borrow::Cow;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
-use actix::ResponseFuture;
 use chrono::Utc;
-use futures::compat::Future01CompatExt;
-use futures01::{future, sync::oneshot, Future as _};
+use tokio::sync::oneshot;
 
 use relay_common::ProjectKey;
 use relay_config::{Config, HttpEncoding};
@@ -97,42 +97,30 @@ impl UpstreamRequest for SendEnvelope {
         builder.body(envelope_body)
     }
 
-    // TODO(ja):
-    // fn respond(
-    //     &mut self,
-    //     result: Result<Response, UpstreamRequestError>,
-    // ) -> ResponseFuture<(), ()> {
-    //     let sender = self.response_sender.take();
+    fn respond<'a>(
+        &'a mut self,
+        result: Result<Response, UpstreamRequestError>,
+    ) -> Pin<Box<dyn Future<Output = ()> + 'a>> {
+        Box::pin(async move {
+            let result = match result {
+                Ok(mut response) => response.consume().await.map_err(UpstreamRequestError::Http),
+                Err(error) => {
+                    if let UpstreamRequestError::RateLimited(ref upstream_limits) = error {
+                        ProjectCache::from_registry().send(UpdateRateLimits::new(
+                            self.project_key,
+                            upstream_limits.clone().scope(&self.scoping),
+                        ));
+                    }
 
-    //     match result {
-    //         Ok(response) => {
-    //             let future = response
-    //                 .consume()
-    //                 .map_err(UpstreamRequestError::Http)
-    //                 .map(|_| ())
-    //                 .then(move |body_result| {
-    //                     sender.map(|sender| sender.send(body_result.map_err(Into::into)).ok());
-    //                     Ok(())
-    //                 });
+                    Err(error)
+                }
+            };
 
-    //             Box::new(future)
-    //         }
-    //         Err(error) => {
-    //             if let UpstreamRequestError::RateLimited(ref upstream_limits) = error {
-    //                 ProjectCache::from_registry().send(UpdateRateLimits::new(
-    //                     self.project_key,
-    //                     upstream_limits.clone().scope(&self.scoping),
-    //                 ));
-    //             }
-
-    //             if let Some(sender) = sender {
-    //                 sender.send(Err(error.into())).ok();
-    //             }
-
-    //             Box::new(future::err(()))
-    //         }
-    //     }
-    // }
+            if let Some(sender) = self.response_sender.take() {
+                sender.send(result.map_err(SendEnvelopeError::from)).ok();
+            }
+        })
+    }
 }
 
 /// Sends an envelope to the upstream or Kafka.
@@ -291,7 +279,7 @@ impl EnvelopeManagerService {
             EnvelopeProcessor::from_registry().send(EncodeEnvelope::new(request));
         }
 
-        match rx.compat().await {
+        match rx.await {
             Ok(Ok(())) => Ok(()),
             Ok(Err(err)) => Err(err),
             Err(_canceled) => Err(UpstreamRequestError::ChannelClosed.into()),

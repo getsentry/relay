@@ -1,16 +1,18 @@
 use std::borrow::Cow;
 use std::fmt;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
-use relay_config::Config;
 use serde::{de::DeserializeOwned, Serialize};
 
+use relay_config::Config;
 use relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, RetryAfter, Scoping,
 };
 use relay_system::{Addr, AsyncResponse, FromMessage, Interface, NoResponse, Sender, Service};
 
-use crate::http::{HttpError, Request, RequestBuilder, StatusCode};
+use crate::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
 use crate::utils::{self, ApiErrorResponse, RelayErrorAction};
 
 pub use reqwest::Method;
@@ -226,10 +228,12 @@ pub trait UpstreamRequest: Send {
     // /// Called whenever the request will be send over HTTP (possible multiple times)
     fn build(&mut self, builder: RequestBuilder) -> Result<Request, HttpError>;
 
-    // /// Called when the HTTP request completes, either with success or an error that will not
-    // /// be retried.
-    // fn respond(&mut self, result: Result<Response, UpstreamRequestError>)
-    //     -> ResponseFuture<(), ()>;
+    /// Called when the HTTP request completes, either with success or an error that will not
+    /// be retried.
+    fn respond<'a>(
+        &'a mut self,
+        result: Result<Response, UpstreamRequestError>,
+    ) -> Pin<Box<dyn Future<Output = ()> + 'a>>;
 }
 
 /// TODO(ja): Doc

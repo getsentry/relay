@@ -5,6 +5,8 @@
 
 use std::borrow::Cow;
 use std::fmt;
+use std::future::Future;
+use std::pin::Pin;
 
 use ::actix::prelude::*;
 use actix_web::error::{ParseError, ResponseError};
@@ -12,7 +14,7 @@ use actix_web::http::header::{self, HeaderName, HeaderValue};
 use actix_web::http::{uri::PathAndQuery, HeaderMap, StatusCode};
 use actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse};
 use bytes::Bytes;
-use futures01::{future, prelude::*, sync::oneshot};
+use futures01::{future, sync::oneshot, Future as _};
 use once_cell::sync::Lazy;
 
 use relay_common::GlobMatcher;
@@ -183,38 +185,29 @@ impl UpstreamRequest for ForwardRequest {
         builder.body(&self.data)
     }
 
-    // fn respond(
-    //     &mut self,
-    //     result: Result<Response, UpstreamRequestError>,
-    // ) -> ResponseFuture<(), ()> {
-    //     let sender = self.sender.take();
+    fn respond<'a>(
+        &'a mut self,
+        result: Result<Response, UpstreamRequestError>,
+    ) -> Pin<Box<dyn Future<Output = ()> + 'a>> {
+        Box::pin(async move {
+            let result = match result {
+                Ok(response) => {
+                    let status = StatusCode::from_u16(response.status().as_u16()).unwrap();
+                    let headers = response.clone_headers();
 
-    //     match result {
-    //         Ok(response) => {
-    //             let status = StatusCode::from_u16(response.status().as_u16()).unwrap();
-    //             let headers = response.clone_headers();
+                    match response.bytes(self.max_response_size).await {
+                        Ok(body) => Ok((status, headers, body)),
+                        Err(error) => Err(UpstreamRequestError::Http(error)),
+                    }
+                }
+                Err(error) => Err(error),
+            };
 
-    //             let future = response
-    //                 .bytes(self.max_response_size)
-    //                 .and_then(move |body| Ok((status, headers, body)))
-    //                 .map_err(UpstreamRequestError::Http)
-    //                 .then(|result| {
-    //                     if let Some(sender) = sender {
-    //                         sender.send(result).ok();
-    //                     }
-    //                     Ok(())
-    //                 });
-
-    //             Box::new(future)
-    //         }
-    //         Err(e) => {
-    //             if let Some(sender) = sender {
-    //                 sender.send(Err(e)).ok();
-    //             }
-    //             Box::new(future::err(()))
-    //         }
-    //     }
-    // }
+            if let Some(sender) = self.sender.take() {
+                sender.send(result).ok();
+            }
+        })
+    }
 }
 
 /// Implementation of the forward endpoint.
