@@ -16,7 +16,7 @@ use relay_system::{compat, Addr, FromMessage, Interface, Sender, Service};
 use crate::actors::outcome::DiscardReason;
 use crate::actors::processor::ProcessEnvelope;
 use crate::actors::project::{Project, ProjectSender, ProjectState};
-use crate::actors::project_local::LocalProjectSource;
+use crate::actors::project_local::{LocalProjectSource, LocalProjectSourceService};
 use crate::actors::project_upstream::UpstreamProjectSource;
 use crate::envelope::Envelope;
 use crate::service::REGISTRY;
@@ -323,7 +323,7 @@ impl FromMessage<FlushBuckets> for ProjectCache {
 #[derive(Clone, Debug)]
 struct ProjectSource {
     config: Arc<Config>,
-    local_source: actix::Addr<LocalProjectSource>,
+    local_source: Addr<LocalProjectSource>,
     upstream_source: actix::Addr<UpstreamProjectSource>,
     #[cfg(feature = "processing")]
     redis_source: Option<actix::Addr<RedisProjectSource>>,
@@ -331,7 +331,7 @@ struct ProjectSource {
 
 impl ProjectSource {
     pub fn new(config: Arc<Config>, _redis: Option<RedisPool>) -> Self {
-        let local_source = LocalProjectSource::new(config.clone()).start();
+        let local_source = LocalProjectSourceService::new(config.clone()).start();
         let upstream_source = UpstreamProjectSource::new(config.clone()).start();
 
         #[cfg(feature = "processing")]
@@ -355,7 +355,9 @@ impl ProjectSource {
     }
 
     async fn fetch(self, project_key: ProjectKey, no_cache: bool) -> Result<Arc<ProjectState>, ()> {
-        let state_opt = compat::send(self.local_source, FetchOptionalProjectState { project_key })
+        let state_opt = self
+            .local_source
+            .send(FetchOptionalProjectState { project_key })
             .await
             .map_err(|_| ())?;
 

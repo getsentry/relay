@@ -6,78 +6,128 @@ use std::path::Path;
 use std::sync::Arc;
 use std::thread;
 
-use actix::prelude::*;
 use futures01::{sync::oneshot, Future};
 
 use relay_common::{ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_log::LogError;
+use relay_system::Addr;
+use relay_system::AsyncResponse;
+use relay_system::FromMessage;
+use relay_system::Interface;
+use relay_system::NoResponse;
+use relay_system::Sender;
+use relay_system::Service;
 
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::FetchOptionalProjectState;
 
+/// TODO: docs
 #[derive(Debug)]
-pub struct LocalProjectSource {
+pub struct UpdateLocalStates {
+    states: HashMap<ProjectKey, Arc<ProjectState>>,
+}
+
+/// Service interface of the local project source.
+#[derive(Debug)]
+pub enum LocalProjectSource {
+    /// TODO: docs
+    FetchOptionalProjectState(FetchOptionalProjectState, Sender<Option<Arc<ProjectState>>>),
+    /// TODO: docs
+    UpdateLocalStates(UpdateLocalStates),
+}
+
+impl Interface for LocalProjectSource {}
+
+impl FromMessage<FetchOptionalProjectState> for LocalProjectSource {
+    type Response = AsyncResponse<Option<Arc<ProjectState>>>;
+    fn from_message(
+        message: FetchOptionalProjectState,
+        sender: Sender<Option<Arc<ProjectState>>>,
+    ) -> Self {
+        Self::FetchOptionalProjectState(message, sender)
+    }
+}
+
+impl FromMessage<UpdateLocalStates> for LocalProjectSource {
+    type Response = NoResponse;
+    fn from_message(message: UpdateLocalStates, _sender: ()) -> Self {
+        Self::UpdateLocalStates(message)
+    }
+}
+
+/// TODO: docs
+#[derive(Debug)]
+pub struct LocalProjectSourceService {
     config: Arc<Config>,
     local_states: HashMap<ProjectKey, Arc<ProjectState>>,
 }
 
-impl LocalProjectSource {
+impl LocalProjectSourceService {
     pub fn new(config: Arc<Config>) -> Self {
-        LocalProjectSource {
+        Self {
             config,
             local_states: HashMap::new(),
         }
     }
-}
 
-impl Actor for LocalProjectSource {
-    type Context = Context<Self>;
-
-    fn started(&mut self, context: &mut Self::Context) {
-        relay_log::info!("project local cache started");
-
-        // Start the background thread that reads the local states from disk.
-        // `poll_local_states` returns a future that resolves as soon as the first read is done.
-        poll_local_states(context.address(), self.config.clone())
-            .into_actor(self)
-            // Block entire actor on first local state read, such that we don't e.g. drop events on
-            // startup
-            .wait(context);
-    }
-
-    fn stopped(&mut self, _ctx: &mut Self::Context) {
-        relay_log::info!("project local cache stopped");
-    }
-}
-
-impl Handler<FetchOptionalProjectState> for LocalProjectSource {
-    type Result = Option<Arc<ProjectState>>;
-
-    fn handle(
-        &mut self,
+    fn handle_fetch_optional_project_state(
+        &self,
         message: FetchOptionalProjectState,
-        _context: &mut Self::Context,
-    ) -> Self::Result {
-        self.local_states.get(&message.project_key()).cloned()
+        sender: Sender<Option<Arc<ProjectState>>>,
+    ) {
+        let states = self.local_states.get(&message.project_key()).cloned();
+        sender.send(states);
     }
-}
 
-struct UpdateLocalStates {
-    states: HashMap<ProjectKey, Arc<ProjectState>>,
-}
-
-impl Message for UpdateLocalStates {
-    type Result = ();
-}
-
-impl Handler<UpdateLocalStates> for LocalProjectSource {
-    type Result = ();
-
-    fn handle(&mut self, message: UpdateLocalStates, _context: &mut Context<Self>) -> Self::Result {
+    fn handle_update_local_states(&mut self, message: UpdateLocalStates) {
         self.local_states = message.states;
     }
+
+    async fn handle_message(&mut self, message: LocalProjectSource) {
+        match message {
+            LocalProjectSource::FetchOptionalProjectState(message, sender) => {
+                self.handle_fetch_optional_project_state(message, sender)
+            }
+            LocalProjectSource::UpdateLocalStates(message) => {
+                self.handle_update_local_states(message)
+            }
+        }
+    }
 }
+
+impl Service for LocalProjectSourceService {
+    type Interface = LocalProjectSource;
+
+    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+        tokio::spawn(async move {
+            while let Some(message) = rx.recv().await {
+                self.handle_message(message).await;
+                // TODO: do we need a shutdown handler here?
+            }
+        });
+    }
+}
+
+// impl Actor for LocalProjectSource {
+//     type Context = Context<Self>;
+
+//     fn started(&mut self, context: &mut Self::Context) {
+//         relay_log::info!("project local cache started");
+
+//         // Start the background thread that reads the local states from disk.
+//         // `poll_local_states` returns a future that resolves as soon as the first read is done.
+//         poll_local_states(context.address(), self.config.clone())
+//             .into_actor(self)
+//             // Block entire actor on first local state read, such that we don't e.g. drop events on
+//             // startup
+//             .wait(context);
+//     }
+
+//     fn stopped(&mut self, _ctx: &mut Self::Context) {
+//         relay_log::info!("project local cache stopped");
+//     }
+// }
 
 fn get_project_id(path: &Path) -> Option<ProjectId> {
     path.file_stem()
@@ -149,7 +199,7 @@ fn poll_local_states(
         loop {
             match load_local_states(&path) {
                 Ok(states) => {
-                    manager.do_send(UpdateLocalStates { states });
+                    manager.send(UpdateLocalStates { states }); // TODO: test this
                     sender.take().map(|sender| sender.send(()).ok());
                 }
                 Err(error) => relay_log::error!(
