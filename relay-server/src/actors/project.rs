@@ -14,7 +14,7 @@ use relay_common::{ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
-use relay_general::store::{BreakdownsConfig, MeasurementsConfig};
+use relay_general::store::{BreakdownsConfig, MeasurementsConfig, TransactionNameRule};
 use relay_general::types::SpanAttribute;
 use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric, MetricsContainer};
 use relay_quotas::{Quota, RateLimits, Scoping};
@@ -137,9 +137,12 @@ pub struct ProjectConfig {
     pub span_attributes: BTreeSet<SpanAttribute>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub metric_conditional_tagging: Vec<TaggingRule>,
-    /// Exposable features enabled for this project
+    /// Exposable features enabled for this project.
     #[serde(skip_serializing_if = "BTreeSet::is_empty")]
     pub features: BTreeSet<Feature>,
+    /// Transaction renaming rules.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub tx_name_rules: Vec<TransactionNameRule>,
 }
 
 impl Default for ProjectConfig {
@@ -161,6 +164,7 @@ impl Default for ProjectConfig {
             span_attributes: BTreeSet::new(),
             metric_conditional_tagging: Vec::new(),
             features: BTreeSet::new(),
+            tx_name_rules: Vec::new(),
         }
     }
 }
@@ -194,6 +198,8 @@ pub struct LimitedProjectConfig {
     pub breakdowns_v2: Option<BreakdownsConfig>,
     #[serde(skip_serializing_if = "BTreeSet::is_empty")]
     pub features: BTreeSet<Feature>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub tx_name_rules: Vec<TransactionNameRule>,
 }
 
 /// The project state is a cached server state of a project.
