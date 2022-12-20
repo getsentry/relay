@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fs;
-use std::io;
 use std::path::Path;
 use std::sync::Arc;
 use std::thread;
@@ -84,7 +83,7 @@ impl LocalProjectSourceService {
         self.local_states = message.states;
     }
 
-    async fn handle_message(&mut self, message: LocalProjectSource) {
+    fn handle_message(&mut self, message: LocalProjectSource) {
         match message {
             LocalProjectSource::FetchOptionalProjectState(message, sender) => {
                 self.handle_fetch_optional_project_state(message, sender)
@@ -94,6 +93,12 @@ impl LocalProjectSourceService {
             }
         }
     }
+
+    async fn refresh(&mut self) {
+        let path = self.config.project_configs_path();
+        let states = load_local_states(&path);
+        self.send(UpdateLocalStates { states });
+    }
 }
 
 impl Service for LocalProjectSourceService {
@@ -101,10 +106,28 @@ impl Service for LocalProjectSourceService {
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
-            while let Some(message) = rx.recv().await {
-                self.handle_message(message).await;
-                // TODO: do we need a shutdown handler here?
+            relay_log::info!("project local cache started");
+            let mut ticker = tokio::time::interval(self.config.local_cache_interval());
+
+            // FIXME: block message handling until the first project is read
+
+            // while let Some(message) = rx.recv().await {
+            //     self.handle_message(message).await;
+            //     // TODO: do we need a shutdown handler here?
+            // }
+
+            loop {
+                tokio::select! {
+                    biased;
+
+                    _ = ticker.tick() => self.refresh(),
+                    Some(message) = rx.recv() => self.handle_message(message),
+                    // TODO: do we need a shutdown handler here?
+
+                    else => break,
+                }
             }
+            relay_log::info!("project local cache stopped");
         });
     }
 }
@@ -135,14 +158,17 @@ fn get_project_id(path: &Path) -> Option<ProjectId> {
         .and_then(|stem| stem.parse().ok())
 }
 
-fn load_local_states(projects_path: &Path) -> io::Result<HashMap<ProjectKey, Arc<ProjectState>>> {
+async fn load_local_states(
+    projects_path: &Path,
+) -> tokio::io::Result<HashMap<ProjectKey, Arc<ProjectState>>> {
     let mut states = HashMap::new();
 
-    let directory = match fs::read_dir(projects_path) {
+    let directory = match tokio::fs::read_dir(projects_path).await {
         Ok(directory) => directory,
         Err(error) => {
             return match error.kind() {
-                io::ErrorKind::NotFound => Ok(states),
+                tokio::io::ErrorKind::NotFound => Ok(states),
+                tokio::io::ErrorKind::NotFound => Ok(states),
                 _ => Err(error),
             };
         }
@@ -151,11 +177,10 @@ fn load_local_states(projects_path: &Path) -> io::Result<HashMap<ProjectKey, Arc
     // only printed when directory even exists.
     relay_log::debug!("Loading local states from directory {:?}", projects_path);
 
-    for entry in directory {
-        let entry = entry?;
+    while let Some(entry) = directory.next_entry().await? {
         let path = entry.path();
 
-        if !entry.metadata()?.is_file() {
+        if !entry.metadata().await?.is_file() {
             relay_log::warn!("skipping {:?}, not a file", path);
             continue;
         }
@@ -165,7 +190,9 @@ fn load_local_states(projects_path: &Path) -> io::Result<HashMap<ProjectKey, Arc
             continue;
         }
 
-        let state = serde_json::from_reader(io::BufReader::new(fs::File::open(&path)?))?;
+        let file = tokio::fs::File::open(&path).await?;
+        let reader = tokio::io::BufReader::new(file);
+        let state = serde_json::from_reader(reader)?;
         let mut sanitized = ProjectState::sanitize(state);
 
         if sanitized.project_id.is_none() {
