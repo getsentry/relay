@@ -2900,6 +2900,7 @@
 <span id="2899">2899</span>
 <span id="2900">2900</span>
 <span id="2901">2901</span>
+<span id="2902">2902</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::io::Write;
@@ -4870,6 +4871,7 @@
             normalize_transaction_name: state
                 .project_state
                 .has_feature(Feature::TransactionNameNormalize),
+            tx_name_rules: <span class="kw-2">&amp;</span>state.project_state.config.tx_name_rules,
 
             is_renormalize: <span class="bool-val">false</span>,
         };

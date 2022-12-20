@@ -2028,6 +2028,10 @@
 <span id="2027">2027</span>
 <span id="2028">2028</span>
 <span id="2029">2029</span>
+<span id="2030">2030</span>
+<span id="2031">2031</span>
+<span id="2032">2032</span>
+<span id="2033">2033</span>
 </pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::conditional_tagging::run_conditional_tagging;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::utils;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::TaggingRule;
@@ -2261,6 +2265,10 @@
         | TransactionSource::View
         | TransactionSource::Component
         | TransactionSource::Task =&gt; <span class="bool-val">true</span>,
+
+        <span class="comment">// We know now that the rules to remove high cardinality were applied, so we assume
+        // low-cardinality now.
+        </span>TransactionSource::Sanitized =&gt; <span class="bool-val">true</span>,
 
         <span class="comment">// &quot;unknown&quot; is the value for old SDKs that do not send a transaction source yet.
         // Caller decides how to treat this.

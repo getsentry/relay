@@ -192,6 +192,154 @@
 <span id="191">191</span>
 <span id="192">192</span>
 <span id="193">193</span>
+<span id="194">194</span>
+<span id="195">195</span>
+<span id="196">196</span>
+<span id="197">197</span>
+<span id="198">198</span>
+<span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
+<span id="212">212</span>
+<span id="213">213</span>
+<span id="214">214</span>
+<span id="215">215</span>
+<span id="216">216</span>
+<span id="217">217</span>
+<span id="218">218</span>
+<span id="219">219</span>
+<span id="220">220</span>
+<span id="221">221</span>
+<span id="222">222</span>
+<span id="223">223</span>
+<span id="224">224</span>
+<span id="225">225</span>
+<span id="226">226</span>
+<span id="227">227</span>
+<span id="228">228</span>
+<span id="229">229</span>
+<span id="230">230</span>
+<span id="231">231</span>
+<span id="232">232</span>
+<span id="233">233</span>
+<span id="234">234</span>
+<span id="235">235</span>
+<span id="236">236</span>
+<span id="237">237</span>
+<span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
+<span id="241">241</span>
+<span id="242">242</span>
+<span id="243">243</span>
+<span id="244">244</span>
+<span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
+<span id="248">248</span>
+<span id="249">249</span>
+<span id="250">250</span>
+<span id="251">251</span>
+<span id="252">252</span>
+<span id="253">253</span>
+<span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
+<span id="257">257</span>
+<span id="258">258</span>
+<span id="259">259</span>
+<span id="260">260</span>
+<span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
+<span id="284">284</span>
+<span id="285">285</span>
+<span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
+<span id="301">301</span>
+<span id="302">302</span>
+<span id="303">303</span>
+<span id="304">304</span>
+<span id="305">305</span>
+<span id="306">306</span>
+<span id="307">307</span>
+<span id="308">308</span>
+<span id="309">309</span>
+<span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
+<span id="314">314</span>
+<span id="315">315</span>
+<span id="316">316</span>
+<span id="317">317</span>
+<span id="318">318</span>
+<span id="319">319</span>
+<span id="320">320</span>
+<span id="321">321</span>
+<span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
+<span id="329">329</span>
+<span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
+<span id="333">333</span>
+<span id="334">334</span>
+<span id="335">335</span>
+<span id="336">336</span>
+<span id="337">337</span>
+<span id="338">338</span>
+<span id="339">339</span>
+<span id="340">340</span>
+<span id="341">341</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str;
 
@@ -199,6 +347,90 @@
 <span class="kw">use </span>regex::Regex;
 
 <span class="kw">use </span><span class="kw">crate</span>::macros::impl_str_serde;
+
+<span class="doccomment">/// Glob options represent the underlying regex emulating the globs.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">struct </span>GlobPatternGroups&lt;<span class="lifetime">&#39;g</span>&gt; {
+    star: <span class="kw-2">&amp;</span><span class="lifetime">&#39;g </span>str,
+    double_star: <span class="kw-2">&amp;</span><span class="lifetime">&#39;g </span>str,
+    question_mark: <span class="kw-2">&amp;</span><span class="lifetime">&#39;g </span>str,
+}
+
+<span class="doccomment">/// `GlobBuilder` provides the posibility to fine tune the final [`Glob`], mainly what capture
+/// groups will be enabled in the underlying regex.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>GlobBuilder&lt;<span class="lifetime">&#39;g</span>&gt; {
+    value: <span class="kw-2">&amp;</span><span class="lifetime">&#39;g </span>str,
+    groups: GlobPatternGroups&lt;<span class="lifetime">&#39;g</span>&gt;,
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;g</span>&gt; GlobBuilder&lt;<span class="lifetime">&#39;g</span>&gt; {
+    <span class="doccomment">/// Create a new builder with all the captures enabled by default.
+    </span><span class="kw">pub fn </span>new(value: <span class="kw-2">&amp;</span><span class="lifetime">&#39;g </span>str) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>opts = GlobPatternGroups {
+            star: <span class="string">&quot;([^/]*?)&quot;</span>,
+            double_star: <span class="string">&quot;(.*?)&quot;</span>,
+            question_mark: <span class="string">&quot;(.)&quot;</span>,
+        };
+        <span class="self">Self </span>{
+            value,
+            groups: opts,
+        }
+    }
+
+    <span class="doccomment">/// Enable capture groups for `*` in the pattern.
+    </span><span class="kw">pub fn </span>capture_star(<span class="kw-2">mut </span><span class="self">self</span>, enable: bool) -&gt; <span class="self">Self </span>{
+        <span class="kw">if </span>!enable {
+            <span class="self">self</span>.groups.star = <span class="string">&quot;(?:[^/]*?)&quot;</span>;
+        }
+        <span class="self">self
+    </span>}
+
+    <span class="doccomment">/// Enable capture groups for `**` in the pattern.
+    </span><span class="kw">pub fn </span>capture_double_star(<span class="kw-2">mut </span><span class="self">self</span>, enable: bool) -&gt; <span class="self">Self </span>{
+        <span class="kw">if </span>!enable {
+            <span class="self">self</span>.groups.double_star = <span class="string">&quot;(?:.*?)&quot;</span>;
+        }
+        <span class="self">self
+    </span>}
+
+    <span class="doccomment">/// Enable capture groups for `?` in the pattern.
+    </span><span class="kw">pub fn </span>capture_question_mark(<span class="kw-2">mut </span><span class="self">self</span>, enable: bool) -&gt; <span class="self">Self </span>{
+        <span class="kw">if </span>!enable {
+            <span class="self">self</span>.groups.question_mark = <span class="string">&quot;(?:.)&quot;</span>;
+        }
+        <span class="self">self
+    </span>}
+
+    <span class="doccomment">/// Create a new [`Glob`] from this builder.
+    </span><span class="kw">pub fn </span>build(<span class="self">self</span>) -&gt; Glob {
+        <span class="kw">let </span><span class="kw-2">mut </span>pattern = String::with_capacity(<span class="kw-2">&amp;</span><span class="self">self</span>.value.len() + <span class="number">100</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>last = <span class="number">0</span>;
+
+        pattern.push(<span class="string">&#39;^&#39;</span>);
+
+        <span class="kw">static </span>GLOB_RE: OnceCell&lt;Regex&gt; = OnceCell::new();
+        <span class="kw">let </span>regex = GLOB_RE.get_or_init(|| Regex::new(<span class="string">r#&quot;\?|\*\*|\*&quot;#</span>).unwrap());
+
+        <span class="kw">for </span>m <span class="kw">in </span>regex.find_iter(<span class="self">self</span>.value) {
+            pattern.push_str(<span class="kw-2">&amp;</span>regex::escape(<span class="kw-2">&amp;</span><span class="self">self</span>.value[last..m.start()]));
+            <span class="kw">match </span>m.as_str() {
+                <span class="string">&quot;?&quot; </span>=&gt; pattern.push_str(<span class="self">self</span>.groups.question_mark),
+                <span class="string">&quot;**&quot; </span>=&gt; pattern.push_str(<span class="self">self</span>.groups.double_star),
+                <span class="string">&quot;*&quot; </span>=&gt; pattern.push_str(<span class="self">self</span>.groups.star),
+                <span class="kw">_ </span>=&gt; {}
+            }
+            last = m.end();
+        }
+        pattern.push_str(<span class="kw-2">&amp;</span>regex::escape(<span class="kw-2">&amp;</span><span class="self">self</span>.value[last..]));
+        pattern.push(<span class="string">&#39;$&#39;</span>);
+
+        Glob {
+            value: <span class="self">self</span>.value.to_owned(),
+            pattern: Regex::new(<span class="kw-2">&amp;</span>pattern).unwrap(),
+        }
+    }
+}
 
 <span class="doccomment">/// A simple glob matcher.
 ///
@@ -211,33 +443,17 @@
 }
 
 <span class="kw">impl </span>Glob {
+    <span class="doccomment">/// Creates the [`GlobBuilder`], which can be fine-tunned using helper methods.
+    </span><span class="kw">pub fn </span>builder(glob: <span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span>str) -&gt; GlobBuilder {
+        GlobBuilder::new(glob)
+    }
+
     <span class="doccomment">/// Creates a new glob from a string.
+    ///
+    /// All the glob patterns (wildcards) are enabled in the captures, and can be returned by
+    /// `matches` function.
     </span><span class="kw">pub fn </span>new(glob: <span class="kw-2">&amp;</span>str) -&gt; Glob {
-        <span class="kw">let </span><span class="kw-2">mut </span>pattern = String::with_capacity(glob.len() + <span class="number">100</span>);
-        <span class="kw">let </span><span class="kw-2">mut </span>last = <span class="number">0</span>;
-
-        pattern.push(<span class="string">&#39;^&#39;</span>);
-
-        <span class="kw">static </span>GLOB_RE: OnceCell&lt;Regex&gt; = OnceCell::new();
-        <span class="kw">let </span>regex = GLOB_RE.get_or_init(|| Regex::new(<span class="string">r#&quot;\?|\*\*|\*&quot;#</span>).unwrap());
-
-        <span class="kw">for </span>m <span class="kw">in </span>regex.find_iter(glob) {
-            pattern.push_str(<span class="kw-2">&amp;</span>regex::escape(<span class="kw-2">&amp;</span>glob[last..m.start()]));
-            <span class="kw">match </span>m.as_str() {
-                <span class="string">&quot;?&quot; </span>=&gt; pattern.push_str(<span class="string">&quot;(.)&quot;</span>),
-                <span class="string">&quot;**&quot; </span>=&gt; pattern.push_str(<span class="string">&quot;(.*?)&quot;</span>),
-                <span class="string">&quot;*&quot; </span>=&gt; pattern.push_str(<span class="string">&quot;([^/]*?)&quot;</span>),
-                <span class="kw">_ </span>=&gt; {}
-            }
-            last = m.end();
-        }
-        pattern.push_str(<span class="kw-2">&amp;</span>regex::escape(<span class="kw-2">&amp;</span>glob[last..]));
-        pattern.push(<span class="string">&#39;$&#39;</span>);
-
-        Glob {
-            value: glob.to_string(),
-            pattern: Regex::new(<span class="kw-2">&amp;</span>pattern).unwrap(),
-        }
+        GlobBuilder::new(glob).build()
     }
 
     <span class="doccomment">/// Returns the pattern as str.
@@ -250,6 +466,26 @@
         <span class="self">self</span>.pattern.is_match(value)
     }
 
+    <span class="doccomment">/// Currently support replacing only all `*` in the input string with provided replacement.
+    /// If no match is found, then a copy of the string is returned unchanged.
+    </span><span class="kw">pub fn </span>replace_captures(<span class="kw-2">&amp;</span><span class="self">self</span>, input: <span class="kw-2">&amp;</span>str, replacement: <span class="kw-2">&amp;</span>str) -&gt; String {
+        <span class="kw">let </span><span class="kw-2">mut </span>output = String::new();
+        <span class="kw">let </span><span class="kw-2">mut </span>current = <span class="number">0</span>;
+
+        <span class="kw">for </span>caps <span class="kw">in </span><span class="self">self</span>.pattern.captures_iter(input) {
+            <span class="comment">// Create the iter on subcaptures and ignore the first capture, since this is always
+            // the entire string.
+            </span><span class="kw">for </span>cap <span class="kw">in </span>caps.iter().flatten().skip(<span class="number">1</span>) {
+                output.push_str(<span class="kw-2">&amp;</span>input[current..cap.start()]);
+                output.push_str(replacement);
+                current = cap.end();
+            }
+        }
+
+        output.push_str(<span class="kw-2">&amp;</span>input[current..]);
+        output
+    }
+
     <span class="doccomment">/// Checks if the value matches and returns the wildcard matches.
     </span><span class="kw">pub fn </span>matches&lt;<span class="lifetime">&#39;t</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, value: <span class="kw-2">&amp;</span><span class="lifetime">&#39;t </span>str) -&gt; <span class="prelude-ty">Option</span>&lt;Vec&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;t </span>str&gt;&gt; {
         <span class="self">self</span>.pattern.captures(value).map(|caps| {
@@ -260,6 +496,14 @@
         })
     }
 }
+
+<span class="kw">impl </span>PartialEq <span class="kw">for </span>Glob {
+    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
+        <span class="self">self</span>.value == other.value
+    }
+}
+
+<span class="kw">impl </span>Eq <span class="kw">for </span>Glob {}
 
 <span class="kw">impl </span>str::FromStr <span class="kw">for </span>Glob {
     <span class="kw">type </span><span class="prelude-val">Err </span>= ();
@@ -361,6 +605,58 @@
         <span class="kw">let </span>g = Glob::new(<span class="string">&quot;api/**/store/&quot;</span>);
         <span class="macro">assert!</span>(g.is_match(<span class="string">&quot;api/some/stuff/here/store/&quot;</span>));
         <span class="macro">assert!</span>(g.is_match(<span class="string">&quot;api/some/store/&quot;</span>));
+
+        <span class="kw">let </span>g = Glob::new(<span class="string">&quot;/api/*/stuff/**&quot;</span>);
+        <span class="macro">assert!</span>(g.is_match(<span class="string">&quot;/api/some/stuff/here/store/&quot;</span>));
+        <span class="macro">assert!</span>(!g.is_match(<span class="string">&quot;/api/some/store/&quot;</span>));
+    }
+
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_glob_replace() {
+        <span class="kw">for </span>(transaction, pattern, result, star, double_star, question_mark) <span class="kw">in </span>[
+            (
+                <span class="string">&quot;/foo/some/bar/here/store&quot;</span>,
+                <span class="string">&quot;/foo/*/bar/**&quot;</span>,
+                <span class="string">&quot;/foo/*/bar/here/store&quot;</span>,
+                <span class="bool-val">true</span>,
+                <span class="bool-val">false</span>,
+                <span class="bool-val">false</span>,
+            ),
+            (
+                <span class="string">&quot;/foo/some/bar/here/store&quot;</span>,
+                <span class="string">&quot;/foo/*/bar/*/**&quot;</span>,
+                <span class="string">&quot;/foo/*/bar/*/store&quot;</span>,
+                <span class="bool-val">true</span>,
+                <span class="bool-val">false</span>,
+                <span class="bool-val">false</span>,
+            ),
+            (
+                <span class="string">&quot;/foo/some/bar/here/store/1234&quot;</span>,
+                <span class="string">&quot;/foo/*/bar/*/**&quot;</span>,
+                <span class="string">&quot;/foo/*/bar/*/*&quot;</span>,
+                <span class="bool-val">true</span>,
+                <span class="bool-val">true</span>,
+                <span class="bool-val">false</span>,
+            ),
+            (<span class="string">&quot;/foo/1/&quot;</span>, <span class="string">&quot;/foo/?/**&quot;</span>, <span class="string">&quot;/foo/*/&quot;</span>, <span class="bool-val">false</span>, <span class="bool-val">false</span>, <span class="bool-val">true</span>),
+            (<span class="string">&quot;/foo/1/end&quot;</span>, <span class="string">&quot;/foo/*/**&quot;</span>, <span class="string">&quot;/foo/*/end&quot;</span>, <span class="bool-val">true</span>, <span class="bool-val">false</span>, <span class="bool-val">true</span>),
+            (
+                <span class="string">&quot;/foo/1/this/and/that/end&quot;</span>,
+                <span class="string">&quot;/foo/**/end&quot;</span>,
+                <span class="string">&quot;/foo/*/end&quot;</span>,
+                <span class="bool-val">false</span>,
+                <span class="bool-val">true</span>,
+                <span class="bool-val">false</span>,
+            ),
+        ] {
+            <span class="kw">let </span>g = Glob::builder(pattern)
+                .capture_star(star)
+                .capture_double_star(double_star)
+                .capture_question_mark(question_mark)
+                .build();
+
+            <span class="macro">assert_eq!</span>(g.replace_captures(transaction, <span class="string">&quot;*&quot;</span>), result);
+        }
     }
 
     <span class="attribute">#[test]

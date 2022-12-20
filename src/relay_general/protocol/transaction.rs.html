@@ -203,15 +203,25 @@
 <span id="202">202</span>
 <span id="203">203</span>
 <span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
+
+<span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
 <span class="kw">use </span><span class="kw">crate</span>::protocol::Timestamp;
 <span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Empty, ErrorKind, FromValue, IntoValue, SkipSerialization, Value};
 
 <span class="doccomment">/// Describes how the name of the transaction was determined.
-</span><span class="attribute">#[derive(Clone, Debug, Eq, PartialEq)]
+</span><span class="attribute">#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = <span class="string">&quot;kebab-case&quot;</span>)]
 #[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(schemars::JsonSchema))]
 #[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, schemars(rename_all = <span class="string">&quot;kebab-case&quot;</span>))]
 </span><span class="kw">pub enum </span>TransactionSource {
@@ -225,6 +235,8 @@
     </span>View,
     <span class="doccomment">/// Named after a software component, such as a function or class name.
     </span>Component,
+    <span class="doccomment">/// The transaction name was updated to reduce the name cardinality.
+    </span>Sanitized,
     <span class="doccomment">/// Name of a background task (e.g. a Celery task).
     </span>Task,
     <span class="doccomment">/// This is the default value set by Relay for legacy SDKs.
@@ -242,6 +254,7 @@
             <span class="self">Self</span>::Route =&gt; <span class="string">&quot;route&quot;</span>,
             <span class="self">Self</span>::View =&gt; <span class="string">&quot;view&quot;</span>,
             <span class="self">Self</span>::Component =&gt; <span class="string">&quot;component&quot;</span>,
+            <span class="self">Self</span>::Sanitized =&gt; <span class="string">&quot;sanitized&quot;</span>,
             <span class="self">Self</span>::Task =&gt; <span class="string">&quot;task&quot;</span>,
             <span class="self">Self</span>::Unknown =&gt; <span class="string">&quot;unknown&quot;</span>,
             <span class="self">Self</span>::Other(<span class="kw-2">ref </span>s) =&gt; s,
@@ -259,6 +272,7 @@
             <span class="string">&quot;route&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Route),
             <span class="string">&quot;view&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::View),
             <span class="string">&quot;component&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Component),
+            <span class="string">&quot;sanitized&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Sanitized),
             <span class="string">&quot;task&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Task),
             <span class="string">&quot;unknown&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Unknown),
             s =&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Other(s.to_owned())),
