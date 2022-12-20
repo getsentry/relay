@@ -2,18 +2,32 @@
 
 ## Unreleased
 
+**Internal**:
+
+- Remove concurrent profiling. ([#1697](https://github.com/getsentry/relay/pull/1697))
+
+## 22.12.0
+
 **Features**:
 
+- The level of events created from Unreal Crash Reports now depends on whether it was an actual crash or an assert. ([#1677](https://github.com/getsentry/relay/pull/1677))
 - Dynamic sampling is now based on the volume received by Relay by default and does not include the original volume dropped by client-side sampling in SDKs. This is required for the final dynamic sampling feature in the latest Sentry plans. ([#1591](https://github.com/getsentry/relay/pull/1591))
-- Add OpenTelemetry Context ([#1617](https://github.com/getsentry/relay/pull/1617))
+- Add OpenTelemetry Context. ([#1617](https://github.com/getsentry/relay/pull/1617))
 - Add `app.in_foreground` and `thread.main` flag to protocol. ([#1578](https://github.com/getsentry/relay/pull/1578))
 - Add support for View Hierarchy attachment_type. ([#1642](https://github.com/getsentry/relay/pull/1642))
+- Add invalid replay recording outcome. ([#1684](https://github.com/getsentry/relay/pull/1684))
+- Stop rejecting spans without a timestamp, instead giving them their respective event timestamp and setting their status to DeadlineExceeded. ([#1690](https://github.com/getsentry/relay/pull/1690))
+- Add max replay size configuration parameter. ([#1694](https://github.com/getsentry/relay/pull/1694))
+- Add nonchunked replay recording message type. ([#1653](https://github.com/getsentry/relay/pull/1653))
+- Add `abnormal_mechanism` field to SessionUpdate protocol. ([#1665](https://github.com/getsentry/relay/pull/1665))
 
 **Bug Fixes**:
 
 - Make `attachment_type` on envelope items forward compatible by adding fallback variant. ([#1638](https://github.com/getsentry/relay/pull/1638))
 - Relay no longer accepts transaction events older than 5 days. Previously the event was accepted and stored, but since metrics for such old transactions are not supported it did not show up in parts of Sentry such as the Performance landing page. ([#1663](https://github.com/getsentry/relay/pull/1663))
 - Apply dynamic sampling to transactions from older SDKs and even in case Relay cannot load project information. This avoids accidentally storing 100% of transactions. ([#1667](https://github.com/getsentry/relay/pull/1667))
+- Replay recording parser now uses the entire body rather than a subset. ([#1682](https://github.com/getsentry/relay/pull/1682))
+- Fix a potential OOM in the Replay recording parser. ([#1691](https://github.com/getsentry/relay/pull/1691))
 
 **Internal**:
 
@@ -21,7 +35,7 @@
 - Track metrics for OpenTelemetry events. ([#1618](https://github.com/getsentry/relay/pull/1618))
 - Normalize transaction name for URLs transaction source, by replacing UUIDs, SHAs and numerical IDs in transaction names by placeholders. ([#1621](https://github.com/getsentry/relay/pull/1621))
 - Parse string as number to handle a release bug. ([#1637](https://github.com/getsentry/relay/pull/1637))
-- Expand Profiling's discard reasons. ([#1661](https://github.com/getsentry/relay/pull/1661))
+- Expand Profiling's discard reasons. ([#1661](https://github.com/getsentry/relay/pull/1661), [#1685](https://github.com/getsentry/relay/pull/1685))
 - Allow to rate limit profiles on top of transactions. ([#1681](https://github.com/getsentry/relay/pull/1681))
 
 ## 22.11.0
@@ -351,7 +365,7 @@
 **Features**:
 
 - Add sampling based on transaction name. ([#1058](https://github.com/getsentry/relay/pull/1058))
-- Support running Relay without config directory. The most important configuration, including Relay mode and credentials, can now be provided through commandline arguments or environment variables alone. ([#1055](https://github.com/getsentry/relay/pull/1055)
+- Support running Relay without config directory. The most important configuration, including Relay mode and credentials, can now be provided through commandline arguments or environment variables alone. ([#1055](https://github.com/getsentry/relay/pull/1055))
 - Protocol support for client reports. ([#1081](https://github.com/getsentry/relay/pull/1081))
 - Extract session metrics in non processing relays. ([#1073](https://github.com/getsentry/relay/pull/1073))
 

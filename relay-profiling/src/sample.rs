@@ -158,6 +158,8 @@ struct SampleProfile {
 
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     transactions: Vec<TransactionMetadata>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    transaction: Option<TransactionMetadata>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     measurements: Option<HashMap<String, Measurement>>,
@@ -223,11 +225,31 @@ impl SampleProfile {
     }
 }
 
-pub fn expand_sample_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileError> {
-    let profile = parse_profile(payload)?;
+fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
+    let mut profile: SampleProfile =
+        serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)?;
 
     if !profile.valid() {
         return Err(ProfileError::MissingProfileMetadata);
+    }
+
+    let Some(transaction) = profile.transactions.get(0).cloned() else {
+        return Err(ProfileError::NoTransactionAssociated);
+    };
+
+    if !transaction.valid() {
+        return Err(ProfileError::InvalidTransactionMetadata);
+    }
+
+    // Clean samples before running the checks.
+    profile.remove_single_samples_per_thread();
+    profile.profile.samples.retain_mut(|sample| {
+        (transaction.relative_start_ns..transaction.relative_end_ns)
+            .contains(&sample.elapsed_since_start_ns)
+    });
+
+    if profile.profile.samples.is_empty() {
+        return Err(ProfileError::NotEnoughSamples);
     }
 
     if !profile.check_samples() {
@@ -238,65 +260,17 @@ pub fn expand_sample_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileErro
         return Err(ProfileError::MalformedStacks);
     }
 
-    let mut items: Vec<Vec<u8>> = Vec::new();
-
-    // As we're getting one profile for multiple transactions and our backend doesn't support this,
-    // we need to duplicate the profile to have one profile for one transaction, filter the samples
-    // to match the transaction bounds and generate a new profile ID.
-    for transaction in &profile.transactions {
-        let mut new_profile = profile.clone();
-
-        new_profile.event_id = EventId::new();
-        new_profile.transactions.clear();
-        new_profile.transactions.push(transaction.clone());
-
-        new_profile.profile.samples.retain_mut(|sample| {
-            if transaction.relative_start_ns <= sample.elapsed_since_start_ns
-                && sample.elapsed_since_start_ns <= transaction.relative_end_ns
-            {
-                sample.elapsed_since_start_ns -= transaction.relative_start_ns;
-                true
-            } else {
-                false
-            }
-        });
-
-        if new_profile.profile.samples.is_empty() {
-            continue;
-        }
-
-        match serde_json::to_vec(&new_profile) {
-            Ok(payload) => items.push(payload),
-            Err(_) => {
-                return Err(ProfileError::CannotSerializePayload);
-            }
-        };
-    }
-
-    Ok(items)
-}
-
-fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
-    let mut profile: SampleProfile =
-        serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)?;
-
-    profile
-        .transactions
-        .retain(|transaction| transaction.valid());
-
-    if profile.transactions.is_empty() {
-        return Err(ProfileError::NoTransactionAssociated);
-    }
-
-    profile.remove_single_samples_per_thread();
-
-    if profile.profile.samples.is_empty() {
-        return Err(ProfileError::NotEnoughSamples);
-    }
-
+    // truncate to one transaction for compatibility reasons
+    profile.transactions.truncate(1);
+    profile.transaction = Some(transaction);
     profile.strip_pointer_authentication_code();
 
     Ok(profile)
+}
+
+pub fn parse_sample_profile(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
+    let profile = parse_profile(payload)?;
+    serde_json::to_vec(&profile).map_err(|_| ProfileError::CannotSerializePayload)
 }
 
 #[cfg(test)]
@@ -315,7 +289,7 @@ mod tests {
     #[test]
     fn test_expand() {
         let payload = include_bytes!("../tests/fixtures/profiles/sample/roundtrip.json");
-        let profile = expand_sample_profile(payload);
+        let profile = parse_sample_profile(payload);
         assert!(profile.is_ok());
     }
 
@@ -323,14 +297,14 @@ mod tests {
     fn test_parse_multiple_transactions() {
         let payload =
             include_bytes!("../tests/fixtures/profiles/sample/multiple_transactions.json");
-        let data = parse_profile(payload);
+        let data = parse_sample_profile(payload);
         assert!(data.is_ok());
     }
 
     #[test]
     fn test_no_transaction() {
         let payload = include_bytes!("../tests/fixtures/profiles/sample/no_transaction.json");
-        let data = parse_profile(payload);
+        let data = parse_sample_profile(payload);
         assert!(data.is_err());
     }
 
@@ -362,6 +336,7 @@ mod tests {
                 frames: Vec::new(),
                 thread_metadata: Some(HashMap::new()),
             },
+            transaction: Option::None,
             transactions: Vec::new(),
             release: "1.0 (9999)".to_string(),
             measurements: None,
@@ -442,7 +417,7 @@ mod tests {
     }
 
     #[test]
-    fn test_expand_with_samples_outside_transaction() {
+    fn test_expand_with_all_samples_outside_transaction() {
         let mut profile = generate_profile();
 
         profile.profile.frames.push(Frame {
@@ -494,33 +469,19 @@ mod tests {
         ]);
 
         let payload = serde_json::to_vec(&profile).unwrap();
-        let data = expand_sample_profile(&payload[..]);
+        let data = parse_sample_profile(&payload[..]);
 
-        assert!(data.is_ok());
-        assert!(data.unwrap().is_empty());
+        assert!(data.is_err());
     }
 
     #[test]
-    fn test_expand_multiple_transactions() {
+    fn test_filter_samples_for_transaction() {
         let payload =
             include_bytes!("../tests/fixtures/profiles/sample/multiple_transactions.json");
-
-        let data = expand_sample_profile(payload);
-        assert!(data.is_ok());
-        assert_eq!(data.as_ref().unwrap().len(), 2);
-
-        let original_profile = match parse_profile(payload) {
+        let expanded_profile = match parse_profile(payload) {
             Err(err) => panic!("cannot parse profile: {:?}", err),
             Ok(profile) => profile,
         };
-        let expanded_profile = match parse_profile(&data.as_ref().unwrap()[0][..]) {
-            Err(err) => panic!("cannot parse profile: {:?}", err),
-            Ok(profile) => profile,
-        };
-        assert_eq!(
-            original_profile.transactions[0],
-            expanded_profile.transactions[0]
-        );
         assert_eq!(expanded_profile.profile.samples.len(), 4);
 
         for sample in &expanded_profile.profile.samples {

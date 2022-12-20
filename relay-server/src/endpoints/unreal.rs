@@ -13,7 +13,7 @@ use crate::service::{ServiceApp, ServiceState};
 fn extract_envelope(
     request: &HttpRequest<ServiceState>,
     meta: RequestMeta,
-) -> ResponseFuture<Envelope, BadStoreRequest> {
+) -> ResponseFuture<Box<Envelope>, BadStoreRequest> {
     let user_id = request.query().get("UserID").cloned();
     let max_payload_size = request.state().config().max_attachments_size();
 

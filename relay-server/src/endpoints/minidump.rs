@@ -92,7 +92,7 @@ fn get_embedded_minidump(
 fn extract_envelope(
     request: &HttpRequest<ServiceState>,
     meta: RequestMeta,
-) -> ResponseFuture<Envelope, BadStoreRequest> {
+) -> ResponseFuture<Box<Envelope>, BadStoreRequest> {
     let max_single_size = request.state().config().max_attachment_size();
     let max_multipart_size = request.state().config().max_attachments_size();
 
