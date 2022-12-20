@@ -284,8 +284,7 @@ mod tests {
         })
     }
 
-    ///
-    ///
+    /// checks if
     #[test]
     fn test_trace_rules_applied_after_event_rules() {
         // a transaction rule that drops everything
