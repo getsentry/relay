@@ -4,8 +4,6 @@ import json
 import pytest
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 import queue
-from .fixtures.mini_sentry import Sentry
-from .fixtures.relay import Relay
 
 
 def _create_transaction_item(trace_id=None, event_id=None, transaction=None):
