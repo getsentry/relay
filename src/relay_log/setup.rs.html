@@ -266,6 +266,22 @@
 <span id="265">265</span>
 <span id="266">266</span>
 <span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::env;
 <span class="kw">use </span>std::io::{<span class="self">self</span>, Write};
 <span class="kw">use </span>std::path::PathBuf;
@@ -368,6 +384,19 @@
             enabled: <span class="bool-val">false</span>,
             _crash_db: <span class="prelude-val">None</span>,
         }
+    }
+}
+
+<span class="doccomment">/// Captures an envelope from the native crash reporter using the main Sentry SDK.
+</span><span class="attribute">#[cfg(feature = <span class="string">&quot;relay-crash&quot;</span>)]
+</span><span class="kw">fn </span>capture_native_envelope(data: <span class="kw-2">&amp;</span>[u8]) {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(client) = sentry::Hub::main().client() {
+        <span class="kw">match </span>sentry::Envelope::from_slice(data) {
+            <span class="prelude-val">Ok</span>(envelope) =&gt; client.send_envelope(envelope),
+            <span class="prelude-val">Err</span>(error) =&gt; <span class="macro">crate::error!</span>(<span class="string">&quot;failed to capture crash: {}&quot;</span>, <span class="kw">crate</span>::LogError(<span class="kw-2">&amp;</span>error)),
+        }
+    } <span class="kw">else </span>{
+        <span class="macro">crate::error!</span>(<span class="string">&quot;failed to capture crash: no sentry client registered&quot;</span>);
     }
 }
 
@@ -499,17 +528,6 @@
     <span class="kw">let </span>log = sentry::integrations::log::SentryLogger::with_dest(dest_log);
     log::set_boxed_logger(Box::new(log)).ok();
 
-    <span class="attribute">#[cfg(feature = <span class="string">&quot;relay-crash&quot;</span>)]
-    </span>{
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(dsn) = sentry.enabled_dsn().map(|d| d.to_string()) {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(db) = sentry._crash_db.as_deref() {
-                relay_crash::CrashHandler::new(dsn.as_ref(), db)
-                    .release(<span class="prelude-val">Some</span>(RELEASE))
-                    .install();
-            }
-        }
-    }
-
     <span class="kw">if let </span><span class="prelude-val">Some</span>(dsn) = sentry.enabled_dsn() {
         <span class="kw">let </span>guard = sentry::init(sentry::ClientOptions {
             dsn: <span class="prelude-val">Some</span>(dsn).cloned(),
@@ -531,6 +549,20 @@
 
         <span class="comment">// Keep the client initialized. The client is flushed manually in `main`.
         </span>std::mem::forget(guard);
+    }
+
+    <span class="comment">// Initialize native crash reporting after the Rust SDK, so that `capture_native_envelope` has
+    // access to an initialized Hub to capture crashes from the previous run.
+    </span><span class="attribute">#[cfg(feature = <span class="string">&quot;relay-crash&quot;</span>)]
+    </span>{
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(dsn) = sentry.enabled_dsn().map(|d| d.to_string()) {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(db) = sentry._crash_db.as_deref() {
+                relay_crash::CrashHandler::new(dsn.as_str(), db)
+                    .transport(capture_native_envelope)
+                    .release(<span class="prelude-val">Some</span>(RELEASE))
+                    .install();
+            }
+        }
     }
 }
 </code></pre></div>

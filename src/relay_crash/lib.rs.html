@@ -88,11 +88,74 @@
 <span id="88">88</span>
 <span id="89">89</span>
 <span id="90">90</span>
+<span id="91">91</span>
+<span id="92">92</span>
+<span id="93">93</span>
+<span id="94">94</span>
+<span id="95">95</span>
+<span id="96">96</span>
+<span id="97">97</span>
+<span id="98">98</span>
+<span id="99">99</span>
+<span id="100">100</span>
+<span id="101">101</span>
+<span id="102">102</span>
+<span id="103">103</span>
+<span id="104">104</span>
+<span id="105">105</span>
+<span id="106">106</span>
+<span id="107">107</span>
+<span id="108">108</span>
+<span id="109">109</span>
+<span id="110">110</span>
+<span id="111">111</span>
+<span id="112">112</span>
+<span id="113">113</span>
+<span id="114">114</span>
+<span id="115">115</span>
+<span id="116">116</span>
+<span id="117">117</span>
+<span id="118">118</span>
+<span id="119">119</span>
+<span id="120">120</span>
+<span id="121">121</span>
+<span id="122">122</span>
+<span id="123">123</span>
+<span id="124">124</span>
+<span id="125">125</span>
+<span id="126">126</span>
+<span id="127">127</span>
+<span id="128">128</span>
+<span id="129">129</span>
+<span id="130">130</span>
+<span id="131">131</span>
+<span id="132">132</span>
+<span id="133">133</span>
+<span id="134">134</span>
+<span id="135">135</span>
+<span id="136">136</span>
+<span id="137">137</span>
+<span id="138">138</span>
+<span id="139">139</span>
+<span id="140">140</span>
+<span id="141">141</span>
+<span id="142">142</span>
+<span id="143">143</span>
+<span id="144">144</span>
+<span id="145">145</span>
+<span id="146">146</span>
+<span id="147">147</span>
+<span id="148">148</span>
+<span id="149">149</span>
+<span id="150">150</span>
+<span id="151">151</span>
+<span id="152">152</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Native crash reporting for Relay.
 //!
 //! Use [`CrashHandler`] to configure and install a crash handler.
 
-</span><span class="kw">use </span>std::path::Path;
+</span><span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::path::Path;
 
 <span class="attribute">#[cfg(unix)]
 </span><span class="kw">mod </span>native {
@@ -103,17 +166,62 @@
     </span><span class="macro">include!</span>(<span class="macro">concat!</span>(<span class="macro">env!</span>(<span class="string">&quot;OUT_DIR&quot;</span>), <span class="string">&quot;/bindings.rs&quot;</span>));
 }
 
+<span class="doccomment">/// A transport function used to send envelopes to Sentry.
+</span><span class="kw">pub type </span>Transport = <span class="kw">fn</span>(envelope: <span class="kw-2">&amp;</span>[u8]);
+
+<span class="doccomment">/// Serializes a sentry_native envelope and passes the buffer to the [`Transport`] function.
+</span><span class="attribute">#[cfg(unix)]
+</span><span class="kw">unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>transport_proxy(
+    envelope: <span class="kw-2">*const </span>native::sentry_envelope_s,
+    tx_pointer: <span class="kw-2">*mut </span>std::ffi::c_void,
+) {
+    <span class="kw">if </span>envelope.is_null() || tx_pointer.is_null() {
+        <span class="kw">return</span>;
+    }
+
+    <span class="kw">let </span><span class="kw-2">mut </span>len = <span class="number">0</span>;
+    <span class="kw">let </span>buf = native::sentry_envelope_serialize(envelope, <span class="kw-2">&amp;mut </span>len);
+
+    <span class="kw">if </span>!buf.is_null() &amp;&amp; len &gt; <span class="number">0 </span>{
+        <span class="kw">let </span>transport: Transport = std::mem::transmute(tx_pointer);
+        transport(std::slice::from_raw_parts(buf <span class="kw">as </span><span class="kw-2">*const </span>u8, len <span class="kw">as </span>usize));
+    }
+
+    native::sentry_free(buf <span class="kw">as _</span>);
+}
+
 <span class="doccomment">/// Captures process crashes and reports them to Sentry.
 ///
-/// Internally, this uses the Breakpad client to capture crash signals and send minidumps to Sentry.
-/// If no DSN is configured, the crash handler is not initialized.
-</span><span class="attribute">#[derive(Debug, Default)]
+/// Internally, this uses the Breakpad client to capture crash signals and create minidumps. If no
+/// DSN is configured, the crash handler is not initialized.
+///
+/// To send crashes to Sentry, configure a [`transport` function](Self::transport). Otherwise, the
+/// crash reporter writes crashes to a local database folder, where they can be handled manually.
+</span><span class="attribute">#[derive(Default)]
 #[cfg_attr(not(unix), allow(dead_code))]
 </span><span class="kw">pub struct </span>CrashHandler&lt;<span class="lifetime">&#39;a</span>&gt; {
     dsn: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str,
     database: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str,
+    transport: <span class="prelude-ty">Option</span>&lt;Transport&gt;,
     release: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;,
     environment: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;,
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; fmt::Debug <span class="kw">for </span>CrashHandler&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">let </span>transport = <span class="kw">match </span><span class="self">self</span>.transport {
+            <span class="prelude-val">Some</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;Some(fn)&quot;</span>,
+            <span class="prelude-val">None </span>=&gt; <span class="string">&quot;None&quot;</span>,
+        };
+
+        f.debug_struct(<span class="string">&quot;CrashHandler&quot;</span>)
+            .field(<span class="string">&quot;dsn&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.dsn)
+            .field(<span class="string">&quot;database&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.database)
+            .field(<span class="string">&quot;transport&quot;</span>, <span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">&quot;{}&quot;</span>, transport))
+            .field(<span class="string">&quot;release&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.release)
+            .field(<span class="string">&quot;environment&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.environment)
+            .finish()
+    }
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; CrashHandler&lt;<span class="lifetime">&#39;a</span>&gt; {
@@ -124,10 +232,21 @@
         <span class="self">Self </span>{
             dsn,
             database: database.to_str().unwrap(),
+            transport: <span class="prelude-val">None</span>,
             release: <span class="prelude-val">None</span>,
             environment: <span class="prelude-val">None</span>,
         }
     }
+
+    <span class="doccomment">/// Set a transport function that sends data to Sentry.
+    ///
+    /// Instead of using the disabled built-in transport, the crash reporter uses this function to
+    /// send envelopes to Sentry. Without this function, envelopes will not be sent and remain in
+    /// the crash database folder for manual retrieval.
+    </span><span class="kw">pub fn </span>transport(<span class="kw-2">&amp;mut </span><span class="self">self</span>, transport: Transport) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
+        <span class="self">self</span>.transport = <span class="prelude-val">Some</span>(transport);
+        <span class="self">self
+    </span>}
 
     <span class="doccomment">/// Set the crash handler&#39;s Sentry release.
     ///
@@ -167,6 +286,11 @@
             <span class="kw">if let </span><span class="prelude-val">Some</span>(environment) = <span class="self">self</span>.environment {
                 <span class="kw">let </span>env_cstr = CString::new(environment).unwrap();
                 native::sentry_options_set_environment(options, env_cstr.as_ptr());
+            }
+
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(f) = <span class="self">self</span>.transport {
+                <span class="kw">let </span>tx = native::sentry_new_function_transport(<span class="prelude-val">Some</span>(transport_proxy), f <span class="kw">as _</span>);
+                native::sentry_options_set_transport(options, tx);
             }
 
             native::sentry_init(options);
