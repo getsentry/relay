@@ -1,10 +1,15 @@
 use std::borrow::Cow;
 use std::fmt;
 use std::future::Future;
+use std::ops::ControlFlow;
 use std::pin::Pin;
 use std::sync::Arc;
 
+use itertools::Itertools;
+use reqwest::header;
 use serde::{de::DeserializeOwned, Serialize};
+use tokio::sync::{mpsc, Semaphore};
+use tokio::time::Instant;
 
 use relay_config::Config;
 use relay_quotas::{
@@ -13,6 +18,7 @@ use relay_quotas::{
 use relay_system::{Addr, AsyncResponse, FromMessage, Interface, NoResponse, Sender, Service};
 
 use crate::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
+use crate::statsd::{RelayHistograms, RelayTimers};
 use crate::utils::{self, ApiErrorResponse, RelayErrorAction};
 
 pub use reqwest::Method;
@@ -86,7 +92,7 @@ pub enum UpstreamRequestError {
 
     /// As opposed to HTTP variant this contains all network errors.
     #[error("could not send request to upstream")]
-    SendFailed(#[source] reqwest::Error),
+    SendFailed(#[from] reqwest::Error),
 
     /// Likely a bad HTTP status code or unparseable response.
     #[error("could not send request")]
@@ -194,7 +200,7 @@ impl fmt::Display for RequestPriority {
 }
 
 /// Represents an HTTP request to be sent to the upstream.
-pub trait UpstreamRequest: Send {
+pub trait UpstreamRequest: Send + Sync + fmt::Debug {
     /// The HTTP method of the request.
     fn method(&self) -> Method;
 
@@ -226,14 +232,14 @@ pub trait UpstreamRequest: Send {
     }
 
     // /// Called whenever the request will be send over HTTP (possible multiple times)
-    fn build(&mut self, builder: RequestBuilder) -> Result<Request, HttpError>;
+    fn build(&self, builder: RequestBuilder) -> Result<Request, HttpError>;
 
     /// Called when the HTTP request completes, either with success or an error that will not
     /// be retried.
     fn respond<'a>(
         &'a mut self,
         result: Result<Response, UpstreamRequestError>,
-    ) -> Pin<Box<dyn Future<Output = ()> + 'a>>;
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + Sync + 'a>>;
 }
 
 /// TODO(ja): Doc
@@ -268,7 +274,7 @@ pub struct SendQuery<T: UpstreamQuery>(pub T);
 pub enum UpstreamRelay {
     IsAuthenticated(IsAuthenticated, Sender<bool>),
     IsNetworkOutage(IsNetworkOutage, Sender<bool>),
-    SendRequest(),
+    SendRequest(Box<dyn UpstreamRequest>),
     SendQuery(),
 }
 
@@ -296,11 +302,15 @@ impl FromMessage<IsNetworkOutage> for UpstreamRelay {
     }
 }
 
-impl<T: UpstreamRequest> FromMessage<SendRequest<T>> for UpstreamRelay {
+impl<T> FromMessage<SendRequest<T>> for UpstreamRelay
+where
+    T: UpstreamRequest + 'static,
+{
     type Response = NoResponse;
 
     fn from_message(message: SendRequest<T>, _: ()) -> Self {
-        todo!()
+        let SendRequest(request) = message;
+        Self::SendRequest(Box::new(request))
     }
 }
 
@@ -316,31 +326,363 @@ impl<T: UpstreamQuery> FromMessage<SendQuery<T>> for UpstreamRelay {
 }
 
 /// TODO(ja): Doc
-pub struct UpstreamRelayService {}
+/// TODO(ja): Name
+#[derive(Debug)]
+struct Dispatch {
+    tx_high: mpsc::UnboundedSender<Box<dyn UpstreamRequest>>,
+    tx_low: mpsc::UnboundedSender<Box<dyn UpstreamRequest>>,
+}
 
-impl UpstreamRelayService {
-    /// Creates a new `UpstreamRelay` instance.
-    pub fn new(config: Arc<Config>) -> Self {
-        Self {}
+impl Dispatch {
+    fn enqueue_request(&mut self, request: Box<dyn UpstreamRequest>) {
+        let priority = request.priority();
+
+        match priority {
+            RequestPriority::Immediate => todo!(),
+            RequestPriority::High => self.tx_high.send(request).ok(),
+            RequestPriority::Low => self.tx_low.send(request).ok(),
+        };
+
+        // TODO(ja): Make this a gauge
+        // TODO(ja): Measure queue saturation
+        relay_statsd::metric!(
+            histogram(RelayHistograms::UpstreamMessageQueueSize) = 0u64,
+            priority = priority.name(),
+        );
     }
 
     fn handle_message(&mut self, message: UpstreamRelay) {
         match message {
             UpstreamRelay::IsAuthenticated(_, sender) => sender.send(todo!()),
             UpstreamRelay::IsNetworkOutage(_, sender) => sender.send(todo!()),
-            UpstreamRelay::SendRequest() => todo!(),
+            UpstreamRelay::SendRequest(request) => self.enqueue_request(request),
             UpstreamRelay::SendQuery() => todo!(),
         }
+    }
+}
+
+/// Adds a metric for the upstream request.
+fn emit_response_metrics(
+    send_start: Instant,
+    request: &dyn UpstreamRequest,
+    send_result: &Result<Response, UpstreamRequestError>,
+    attempt: usize,
+) {
+    let sc;
+    let sc2;
+
+    let (status_code, result) = match send_result {
+        Ok(ref client_response) => {
+            sc = client_response.status();
+            (sc.as_str(), "success")
+        }
+        Err(UpstreamRequestError::ResponseError(status_code, _)) => {
+            (status_code.as_str(), "response_error")
+        }
+        Err(UpstreamRequestError::Http(HttpError::Io(_))) => ("-", "payload_failed"),
+        Err(UpstreamRequestError::Http(HttpError::Json(_))) => ("-", "invalid_json"),
+        Err(UpstreamRequestError::Http(HttpError::Reqwest(error))) => {
+            sc2 = error.status();
+            (
+                sc2.as_ref().map(|x| x.as_str()).unwrap_or("-"),
+                "reqwest_error",
+            )
+        }
+
+        Err(UpstreamRequestError::SendFailed(_)) => ("-", "send_failed"),
+        Err(UpstreamRequestError::RateLimited(_)) => ("-", "rate_limited"),
+        Err(UpstreamRequestError::NoCredentials)
+        | Err(UpstreamRequestError::ChannelClosed)
+        | Err(UpstreamRequestError::Http(HttpError::Overflow)) => {
+            // these are not errors caused when sending to upstream so we don't need to log anything
+            relay_log::error!("meter_result called for unsupported error");
+            return;
+        }
+    };
+
+    // TODO(ja): Move this to the trait
+    let path = request.path();
+    let route_name = if path.contains("/outcomes/") {
+        "outcomes"
+    } else if path.contains("/envelope/") {
+        "envelope"
+    } else if path.contains("/projectids/") {
+        "project_ids"
+    } else if path.contains("/projectconfigs/") {
+        "project_configs"
+    } else if path.contains("/publickeys/") {
+        "public_keys"
+    } else if path.contains("/challenge/") {
+        "challenge"
+    } else if path.contains("/response/") {
+        "response"
+    } else if path.contains("/live/") {
+        "check_live"
+    } else {
+        "unknown"
+    };
+
+    relay_statsd::metric!(
+        timer(RelayTimers::UpstreamRequestsDuration) = send_start.elapsed(),
+        result = result,
+        status_code = status_code,
+        route = route_name,
+        retries = match attempt {
+            0 => "0",
+            1 => "1",
+            2 => "2",
+            3..=10 => "few",
+            _ => "many",
+        },
+    );
+
+    relay_statsd::metric!(
+        histogram(RelayHistograms::UpstreamRetries) = attempt as u64,
+        result = result,
+        status_code = status_code,
+        route = route_name,
+    );
+}
+
+#[derive(Clone, Debug)]
+struct SharedClient {
+    config: Arc<Config>,
+    reqwest: reqwest::Client,
+}
+
+impl SharedClient {
+    fn build(config: Arc<Config>) -> Self {
+        let reqwest = reqwest::ClientBuilder::new()
+            .connect_timeout(config.http_connection_timeout())
+            .timeout(config.http_timeout())
+            // In actix-web client this option could be set on a per-request basis.  In reqwest
+            // this option can only be set per-client. For non-forwarded upstream requests that is
+            // desirable, so we have it enabled.
+            //
+            // In the forward endpoint, this means that content negotiation is done twice, and the
+            // response body is first decompressed by reqwest, then re-compressed by actix-web.
+            .gzip(true)
+            .trust_dns(true)
+            .build()
+            .unwrap();
+
+        Self { config, reqwest }
+    }
+
+    /// TODO(ja): Doc
+    fn build_request(
+        &self,
+        request: &dyn UpstreamRequest,
+    ) -> Result<reqwest::Request, UpstreamRequestError> {
+        let url = self
+            .config
+            .upstream_descriptor()
+            .get_url(request.path().as_ref());
+
+        let host_header = self
+            .config
+            .http_host_header()
+            .unwrap_or_else(|| self.config.upstream_descriptor().host());
+
+        let method = request.method();
+
+        let mut builder = RequestBuilder::reqwest(self.reqwest.request(method, url));
+        builder.header("Host", host_header.as_bytes());
+
+        if request.set_relay_id() {
+            if let Some(credentials) = self.config.credentials() {
+                builder.header("X-Sentry-Relay-Id", credentials.id.to_string());
+            }
+        }
+
+        match request.build(builder) {
+            Ok(Request(client_request)) => Ok(client_request),
+            Err(e) => Err(UpstreamRequestError::Http(e)),
+        }
+    }
+
+    /// Handles a response returned from the upstream.
+    ///
+    /// If the response indicates success via 2XX status codes, `Ok(response)` is returned. Otherwise,
+    /// the response is consumed and an error is returned. If intercept_status_errors is set to true,
+    /// depending on the status code and details provided in the payload, one
+    /// of the following errors is returned:
+    ///
+    ///  1. `RateLimited` for a `429` status code.
+    ///  2. `ResponseError` in all other cases.
+    async fn transform_response(
+        &self,
+        request: &dyn UpstreamRequest,
+        response: Response,
+    ) -> Result<Response, UpstreamRequestError> {
+        let status = response.status();
+
+        if !request.intercept_status_errors() || status.is_success() {
+            return Ok(response);
+        }
+
+        let upstream_limits = if status == StatusCode::TOO_MANY_REQUESTS {
+            let retry_after = response
+                .get_header(header::RETRY_AFTER)
+                .and_then(|v| std::str::from_utf8(v).ok());
+
+            let rate_limits = response
+                .get_all_headers(utils::RATE_LIMITS_HEADER)
+                .iter()
+                .filter_map(|v| std::str::from_utf8(v).ok())
+                .join(", "); // TODO(ja): Avoid this stringify roundtrip
+
+            let upstream_limits = UpstreamRateLimits::new()
+                .retry_after(retry_after)
+                .rate_limits(rate_limits);
+
+            Some(upstream_limits)
+        } else {
+            None // TODO(ja): Check if we still need to consume responses
+        };
+
+        // At this point, we consume the Response. This means we need to consume the response
+        // payload stream, regardless of the status code. Parsing the JSON body may fail, which is a
+        // non-fatal failure as the upstream is not expected to always include a valid JSON
+        // response.
+        let json_result = response.json(self.config.max_api_payload_size()).await;
+
+        if let Some(upstream_limits) = upstream_limits {
+            Err(UpstreamRequestError::RateLimited(upstream_limits))
+        } else {
+            // Coerce the result into an empty `ApiErrorResponse` if parsing JSON did not succeed.
+            let api_response = json_result.unwrap_or_default();
+            Err(UpstreamRequestError::ResponseError(status, api_response))
+        }
+    }
+
+    /// TODO(ja): Doc
+    async fn send(&self, request: &dyn UpstreamRequest) -> Result<Response, UpstreamRequestError> {
+        let client_request = self.build_request(request)?;
+        let response = self.reqwest.execute(client_request).await?;
+        self.transform_response(request, Response(response)).await
+    }
+
+    /// Checks the result of an upstream request and takes appropriate action.
+    ///
+    /// 1. If the request was sent, notify the response sender.
+    /// 2. If the error is non-recoverable, notify the response sender.
+    /// 3. If the request can be retried, schedule a retry.
+    /// 4. Otherwise, ensure an authentication request is scheduled.
+    fn handle_http_response(
+        &self,
+        request: &dyn UpstreamRequest,
+        result: Result<Response, UpstreamRequestError>,
+    ) -> ControlFlow<Result<Response, UpstreamRequestError>> {
+        if matches!(result, Err(ref err) if err.is_network_error()) {
+            // self.handle_network_error();
+
+            if request.retry() {
+                return ControlFlow::Continue(());
+            }
+        } else {
+            // we managed a request without a network error, reset the first time we got a network
+            // error and resume sending events.
+            // self.reset_network_error();
+        }
+
+        ControlFlow::Break(result)
+    }
+
+    async fn send_with_retries(&self, mut request: Box<dyn UpstreamRequest>) {
+        let mut attempt = 0;
+        let request = request.as_mut();
+
+        loop {
+            let send_start = Instant::now();
+            let result = self.send(request).await;
+            emit_response_metrics(send_start, request, &result, attempt);
+
+            match self.handle_http_response(request, result) {
+                ControlFlow::Continue(_) => {
+                    attempt += 1;
+                    continue; // TODO(ja): Introduce a backoff here?
+                }
+                ControlFlow::Break(result) => {
+                    request.respond(result).await;
+                    break;
+                }
+            }
+        }
+    }
+}
+
+/// TODO(ja): Doc
+/// TODO(ja): Name
+#[derive(Debug)]
+struct Broker {
+    rx_high: mpsc::UnboundedReceiver<Box<dyn UpstreamRequest>>,
+    rx_low: mpsc::UnboundedReceiver<Box<dyn UpstreamRequest>>,
+    semaphore: Arc<Semaphore>,
+    client: SharedClient,
+}
+
+impl Broker {
+    async fn tick(&mut self) {
+        let permit = self.semaphore.clone().acquire_owned();
+
+        let request = tokio::select! {
+            biased;
+
+            Some(request) = self.rx_high.recv() => request,
+            Some(request) = self.rx_low.recv() => request,
+        };
+
+        let client = self.client.clone();
+        tokio::spawn(async move {
+            client.send_with_retries(request).await;
+            drop(permit);
+        });
+    }
+}
+
+/// TODO(ja): Doc
+pub struct UpstreamRelayService {
+    dispatch: Dispatch,
+    broker: Broker,
+}
+
+impl UpstreamRelayService {
+    /// Creates a new `UpstreamRelay` instance.
+    pub fn new(config: Arc<Config>) -> Self {
+        let (tx_high, rx_high) = mpsc::unbounded_channel();
+        let (tx_low, rx_low) = mpsc::unbounded_channel();
+
+        let dispatch = Dispatch { tx_high, tx_low };
+        let broker = Broker {
+            rx_high,
+            rx_low,
+            semaphore: Arc::new(Semaphore::new(config.max_concurrent_requests())),
+            client: SharedClient::build(config),
+        };
+
+        Self { dispatch, broker }
     }
 }
 
 impl Service for UpstreamRelayService {
     type Interface = UpstreamRelay;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+        let Self {
+            mut dispatch,
+            mut broker,
+        } = self;
+
+        tokio::spawn(async move {
+            loop {
+                broker.tick().await;
+            }
+        });
+
         tokio::spawn(async move {
             while let Some(message) = rx.recv().await {
-                self.handle_message(message);
+                dispatch.handle_message(message);
             }
         });
     }

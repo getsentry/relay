@@ -78,7 +78,7 @@ impl UpstreamRequest for SendEnvelope {
         format!("/api/{}/envelope/", self.scoping.project_id).into()
     }
 
-    fn build(&mut self, mut builder: RequestBuilder) -> Result<Request, HttpError> {
+    fn build(&self, mut builder: RequestBuilder) -> Result<Request, HttpError> {
         let meta = &self.envelope_meta;
         builder
             .content_encoding(self.http_encoding)
@@ -100,7 +100,7 @@ impl UpstreamRequest for SendEnvelope {
     fn respond<'a>(
         &'a mut self,
         result: Result<Response, UpstreamRequestError>,
-    ) -> Pin<Box<dyn Future<Output = ()> + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + Sync + 'a>> {
         Box::pin(async move {
             let result = match result {
                 Ok(mut response) => response.consume().await.map_err(UpstreamRequestError::Http),
