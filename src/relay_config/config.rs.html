@@ -1901,6 +1901,18 @@
 <span id="1900">1900</span>
 <span id="1901">1901</span>
 <span id="1902">1902</span>
+<span id="1903">1903</span>
+<span id="1904">1904</span>
+<span id="1905">1905</span>
+<span id="1906">1906</span>
+<span id="1907">1907</span>
+<span id="1908">1908</span>
+<span id="1909">1909</span>
+<span id="1910">1910</span>
+<span id="1911">1911</span>
+<span id="1912">1912</span>
+<span id="1913">1913</span>
+<span id="1914">1914</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::convert::TryInto;
 <span class="kw">use </span>std::env;
@@ -2459,6 +2471,10 @@
     <span class="doccomment">/// The maximum number of seconds to wait for pending envelopes after receiving a shutdown
     /// signal.
     </span>shutdown_timeout: u64,
+    <span class="doccomment">/// server keep-alive timeout in seconds.
+    ///
+    /// By default keep-alive is set to a 5 seconds.
+    </span>keepalive_timeout: u64,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>Limits {
@@ -2483,6 +2499,7 @@
             max_pending_connections: <span class="number">2048</span>,
             max_connections: <span class="number">25_000</span>,
             shutdown_timeout: <span class="number">10</span>,
+            keepalive_timeout: <span class="number">5</span>,
         }
     }
 }
@@ -3659,6 +3676,13 @@
     /// signal.
     </span><span class="kw">pub fn </span>shutdown_timeout(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
         Duration::from_secs(<span class="self">self</span>.values.limits.shutdown_timeout)
+    }
+
+    <span class="doccomment">/// Returns the server keep-alive timeout in seconds.
+    ///
+    /// By default keep alive is set to a 5 seconds.
+    </span><span class="kw">pub fn </span>keepalive_timeout(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
+        Duration::from_secs(<span class="self">self</span>.values.limits.keepalive_timeout)
     }
 
     <span class="doccomment">/// Returns the number of cores to use for thread pools.

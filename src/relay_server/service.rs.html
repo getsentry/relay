@@ -347,6 +347,7 @@
 <span id="346">346</span>
 <span id="347">347</span>
 <span id="348">348</span>
+<span id="349">349</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -684,6 +685,7 @@
     server = server
         .workers(config.cpu_concurrency())
         .shutdown_timeout(config.shutdown_timeout().as_secs() <span class="kw">as </span>u16)
+        .keep_alive(config.keepalive_timeout().as_secs() <span class="kw">as </span>usize)
         .maxconn(config.max_connections())
         .maxconnrate(config.max_connection_rate())
         .backlog(config.max_pending_connections())
