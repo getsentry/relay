@@ -68,7 +68,7 @@ pub struct Replay {
     ///   "replay_id": "fc6d8c0c43fc4630ad850ee518f1b9d0"
     /// }
     /// ```
-    pub replay_id: Annotated<uuid::Uuid>,
+    pub replay_id: Annotated<EventId>,
 
     /// The type of sampling that captured the replay.
     ///
@@ -309,7 +309,8 @@ mod tests {
     use crate::processor::ProcessingState;
     use crate::processor::{process_value, SelectorSpec};
     use crate::protocol::{
-        BrowserContext, Context, ContextInner, DeviceContext, OsContext, Replay, TagEntry, Tags,
+        BrowserContext, Context, ContextInner, DeviceContext, EventId, OsContext, Replay, TagEntry,
+        Tags,
     };
     use crate::types::Annotated;
     use chrono::{TimeZone, Utc};
@@ -341,8 +342,12 @@ mod tests {
 }"#;
 
         let replay = Annotated::new(Replay {
-            event_id: Annotated::new("52df9022835246eeb317dbd739ccd059".to_string()),
-            replay_id: Annotated::new("52df9022835246eeb317dbd739ccd059".to_string()),
+            event_id: Annotated::new(EventId(
+                uuid::Uuid::parse_str("52df9022835246eeb317dbd739ccd059").unwrap(),
+            )),
+            replay_id: Annotated::new(EventId(
+                uuid::Uuid::parse_str("52df9022835246eeb317dbd739ccd059").unwrap(),
+            )),
             segment_id: Annotated::new(0),
             timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
             replay_start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
