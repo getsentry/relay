@@ -303,37 +303,37 @@ mod tests {
         // a trace rule that keeps everything
         let trace_state = state_with_rule(Some(1.0), RuleType::Trace, SamplingMode::Received);
 
-        let matching_envelope = new_envelope(true, "healthcheck");
-        let non_matching_envelope = new_envelope(true, "test1");
+        let healthcheck_envelope = new_envelope(true, "healthcheck");
+        let other_envelope = new_envelope(true, "test1");
 
-        let matching_event = Event {
+        let healthcheck_event = Event {
             id: Annotated::new(EventId::new()),
             ty: Annotated::new(EventType::Transaction),
             transaction: Annotated::new("healthcheck".to_owned()),
             ..Event::default()
         };
 
-        let non_matching_event = Event {
+        let other_event = Event {
             id: Annotated::new(EventId::new()),
             ty: Annotated::new(EventType::Transaction),
             transaction: Annotated::new("test1".to_owned()),
             ..Event::default()
         };
 
-        // if it matches, the transaction should be dropped
+        // if it matches the transaction rule, the transaction should be dropped
         let should_drop = should_keep_event(
-            matching_envelope.dsc(),
-            Some(&matching_event),
+            healthcheck_envelope.dsc(),
+            Some(&healthcheck_event),
             None,
             &event_state,
             Some(&trace_state),
             false,
         );
 
-        // if it doesn't match, the transaction should be kept
+        // if it doesn't match the transaction rule, the transaction shouldn't be dropped
         let should_keep = should_keep_event(
-            non_matching_envelope.dsc(),
-            Some(&non_matching_event),
+            other_envelope.dsc(),
+            Some(&other_event),
             None,
             &event_state,
             Some(&trace_state),
@@ -344,8 +344,8 @@ mod tests {
         assert!(get_event_sampling_rule(
             false,
             &event_state,
-            matching_envelope.dsc(),
-            Some(&matching_event),
+            healthcheck_envelope.dsc(),
+            Some(&healthcheck_event),
             None,
         )
         .unwrap()
@@ -355,8 +355,8 @@ mod tests {
         assert!(get_event_sampling_rule(
             false,
             &event_state,
-            non_matching_envelope.dsc(),
-            Some(&non_matching_event),
+            other_envelope.dsc(),
+            Some(&other_event),
             None,
         )
         .unwrap()
