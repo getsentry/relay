@@ -367,6 +367,8 @@ jobs:
     continue-on-error: true
     timeout-minutes: 30
     steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
       - name: Pull the test image
         id: image_pull
         env:
@@ -386,10 +388,10 @@ jobs:
         id: short_sha
         shell: bash
         run: |
-          SHORT_SHA=$(git rev-parse --short HEAD)
+          SHORT_SHA=$(git rev-parse --short "$GITHUB_SHA")
           if [[ -z "$SHORT_SHA" ]]; then
             echo "Short SHA empty? Re-running rev-parse."
-            git rev-parse --short HEAD
+            git rev-parse --short "$GITHUB_SHA"
           else
             echo "sha=$SHORT_SHA" >> $GITHUB_OUTPUT
           fi
