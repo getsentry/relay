@@ -2263,11 +2263,10 @@ impl EnvelopeProcessorService {
         let mut request = message.request;
         match Self::encode_envelope_body(request.envelope_body, request.http_encoding) {
             Err(e) => {
-                request.response_sender.map(|sender| {
-                    sender
-                        .send(Err(SendEnvelopeError::BodyEncodingFailed(e)))
-                        .ok()
-                });
+                request
+                    .response_sender
+                    .send(Err(SendEnvelopeError::BodyEncodingFailed(e)))
+                    .ok();
             }
             Ok(envelope_body) => {
                 request.envelope_body = envelope_body;

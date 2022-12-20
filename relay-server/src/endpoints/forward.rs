@@ -134,7 +134,7 @@ struct ForwardRequest {
     forwarded_for: ForwardedFor,
     data: Bytes,
     max_response_size: usize,
-    sender: Option<oneshot::Sender<Result<ForwardResponse, UpstreamRequestError>>>,
+    sender: oneshot::Sender<Result<ForwardResponse, UpstreamRequestError>>,
 }
 
 impl fmt::Debug for ForwardRequest {
@@ -185,10 +185,10 @@ impl UpstreamRequest for ForwardRequest {
         builder.body(&self.data)
     }
 
-    fn respond<'a>(
-        &'a mut self,
+    fn respond(
+        self: Box<Self>,
         result: Result<Response, UpstreamRequestError>,
-    ) -> Pin<Box<dyn Future<Output = ()> + Send + Sync + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + Sync>> {
         Box::pin(async move {
             let result = match result {
                 Ok(response) => {
@@ -203,9 +203,7 @@ impl UpstreamRequest for ForwardRequest {
                 Err(error) => Err(error),
             };
 
-            if let Some(sender) = self.sender.take() {
-                sender.send(result).ok();
-            }
+            self.sender.send(result).ok();
         })
     }
 }
@@ -248,7 +246,7 @@ pub fn forward_upstream(
                 forwarded_for,
                 data,
                 max_response_size,
-                sender: Some(tx),
+                sender: tx,
             };
 
             UpstreamRelay::from_registry().send(SendRequest(forward_request));

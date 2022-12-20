@@ -64,7 +64,7 @@ pub struct SendEnvelope {
     pub envelope_meta: RequestMeta,
     pub scoping: Scoping,
     pub http_encoding: HttpEncoding,
-    pub response_sender: Option<oneshot::Sender<Result<(), SendEnvelopeError>>>,
+    pub response_sender: oneshot::Sender<Result<(), SendEnvelopeError>>,
     pub project_key: ProjectKey,
     partition_key: Option<String>,
 }
@@ -97,10 +97,10 @@ impl UpstreamRequest for SendEnvelope {
         builder.body(envelope_body)
     }
 
-    fn respond<'a>(
-        &'a mut self,
+    fn respond(
+        self: Box<Self>,
         result: Result<Response, UpstreamRequestError>,
-    ) -> Pin<Box<dyn Future<Output = ()> + Send + Sync + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + Sync>> {
         Box::pin(async move {
             let result = match result {
                 Ok(mut response) => response.consume().await.map_err(UpstreamRequestError::Http),
@@ -116,9 +116,9 @@ impl UpstreamRequest for SendEnvelope {
                 }
             };
 
-            if let Some(sender) = self.response_sender.take() {
-                sender.send(result.map_err(SendEnvelopeError::from)).ok();
-            }
+            self.response_sender
+                .send(result.map_err(SendEnvelopeError::from))
+                .ok();
         })
     }
 }
@@ -268,7 +268,7 @@ impl EnvelopeManagerService {
             envelope_meta: envelope.meta().clone(),
             scoping,
             http_encoding: self.config.http_encoding(),
-            response_sender: Some(tx),
+            response_sender: tx,
             project_key: scoping.project_key,
             partition_key,
         };
