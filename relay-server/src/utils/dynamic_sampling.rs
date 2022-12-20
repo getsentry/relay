@@ -578,11 +578,11 @@ mod tests {
     fn test_event_decaying_rule_with_no_time_range() {
         let now = Utc::now();
         let project_state = state_with_decaying_rule(
-            Some(0.2),
+            Some(0.7),
             RuleType::Transaction,
             SamplingMode::Total,
             DecayingFunction::Linear {
-                from_sample_rate: 0.7,
+                decayed_sample_rate: 0.2,
             },
             None,
             None,
@@ -591,7 +591,7 @@ mod tests {
         assert_eq!(
             prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
                 .sample_rate,
-            0.2
+            0.7
         );
     }
 
@@ -599,11 +599,11 @@ mod tests {
     fn test_event_decaying_rule_with_incomplete_time_range() {
         let now = Utc::now();
         let project_state = state_with_decaying_rule(
-            Some(0.2),
+            Some(0.7),
             RuleType::Transaction,
             SamplingMode::Total,
             DecayingFunction::Linear {
-                from_sample_rate: 0.7,
+                decayed_sample_rate: 0.2,
             },
             Some(now - DateDuration::days(1)),
             None,
@@ -612,15 +612,15 @@ mod tests {
         assert_eq!(
             prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
                 .sample_rate,
-            0.2
+            0.7
         );
 
         let project_state = state_with_decaying_rule(
-            Some(0.2),
+            Some(0.7),
             RuleType::Transaction,
             SamplingMode::Total,
             DecayingFunction::Linear {
-                from_sample_rate: 0.7,
+                decayed_sample_rate: 0.2,
             },
             None,
             Some(now + DateDuration::days(1)),
@@ -629,7 +629,7 @@ mod tests {
         assert_eq!(
             prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
                 .sample_rate,
-            0.2
+            0.7
         );
     }
 
@@ -637,11 +637,11 @@ mod tests {
     fn test_event_decaying_rule_with_now_equal_start() {
         let now = Utc::now();
         let project_state = state_with_decaying_rule(
-            Some(0.2),
+            Some(0.7),
             RuleType::Transaction,
             SamplingMode::Total,
             DecayingFunction::Linear {
-                from_sample_rate: 0.7,
+                decayed_sample_rate: 0.2,
             },
             Some(now),
             Some(now + DateDuration::days(1)),
@@ -658,11 +658,11 @@ mod tests {
     fn test_event_decaying_rule_with_now_in_the_middle() {
         let now = Utc::now();
         let project_state = state_with_decaying_rule(
-            Some(0.2),
+            Some(0.7),
             RuleType::Transaction,
             SamplingMode::Total,
             DecayingFunction::Linear {
-                from_sample_rate: 0.7,
+                decayed_sample_rate: 0.2,
             },
             Some(now - DateDuration::days(1)),
             Some(now + DateDuration::days(1)),
@@ -671,19 +671,19 @@ mod tests {
         assert_eq!(
             prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
                 .sample_rate,
-            0.45
+            0.44999999999999996
         );
     }
 
     #[test]
-    fn test_event_decaying_rule_with_from_rate_less_than_base_rate() {
+    fn test_event_decaying_rule_with_base_less_then_decayed() {
         let now = Utc::now();
         let project_state = state_with_decaying_rule(
-            Some(0.5),
+            Some(0.3),
             RuleType::Transaction,
             SamplingMode::Total,
             DecayingFunction::Linear {
-                from_sample_rate: 0.3,
+                decayed_sample_rate: 0.7,
             },
             Some(now - DateDuration::days(1)),
             Some(now + DateDuration::days(1)),
@@ -692,7 +692,7 @@ mod tests {
         assert_eq!(
             prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
                 .sample_rate,
-            0.5
+            0.3
         );
     }
 

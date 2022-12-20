@@ -344,14 +344,6 @@ impl TimeRange {
         self.start.is_none() && self.end.is_none()
     }
 
-    pub fn extract_interval_tuple(&self) -> Option<(DateTime<Utc>, DateTime<Utc>)> {
-        if let (Some(start), Some(end)) = (self.start, self.end) {
-            Some((start, end))
-        } else {
-            None
-        }
-    }
-
     /// Returns whether the provided time matches the time range.
     ///
     /// For a time to match a time range, the following conditions must match:
@@ -365,58 +357,11 @@ impl TimeRange {
     }
 }
 
-/// A struct representing the execution context of a decaying function.
-#[derive(Clone, Copy, Debug)]
-struct DecayingFunctionExecutor {
-    decaying_fn: DecayingFunction,
-    external_params: DecayingFunctionExternalParams,
-}
-
-impl DecayingFunctionExecutor {
-    fn execute(&self) -> f64 {
-        match self.decaying_fn {
-            DecayingFunction::Linear { from_sample_rate } => {
-                self.execute_linear_decay(from_sample_rate)
-            }
-            DecayingFunction::Constant => self.external_params.base_sample_rate,
-        }
-    }
-
-    /// Computes the linear decay function at a specific point in time.
-    ///
-    /// The linear decay works in the following way:
-    /// start = 100
-    /// end = 200
-    /// from = 0.7 (70% sample rate)
-    /// base_sample_rate = 0.5 (50% sample rate)
-    /// (from - base_sample_rate) = 0.2 (20% sample rate)
-    ///
-    /// If we have now = 170 it means we are at the 70% progress of the timerange, which means we
-    /// want to inversely reduce the sample rate in the interval (from - base_sample_rate).
-    /// Thus, in the 70% case, we would take only 30% of the (from - base_sample_rate) which
-    /// is equal to 0.06.
-    fn execute_linear_decay(&self, from_sample_rate: f64) -> f64 {
-        let now_timestamp = self.external_params.now.timestamp() as f64;
-        let start_timestamp = self.external_params.start.timestamp() as f64;
-        let end_timestamp = self.external_params.end.timestamp() as f64;
-
-        // We round to 2 digits in order to avoid high-precision sample rates that are more difficult
-        // to work with. Rounding is performed following the nearest integer.
-        let sample_rate_difference =
-            f64::round((from_sample_rate - self.external_params.base_sample_rate) * 100.0) / 100.0;
-        let progress = (now_timestamp - start_timestamp) / (end_timestamp - start_timestamp);
-        let inverse_progress = (1.0 - progress).clamp(0.0, 1.0);
-        self.external_params.base_sample_rate + (sample_rate_difference * inverse_progress)
-    }
-}
-
 /// A struct containing the set of external params required by a decaying function.
 #[derive(Clone, Copy, Debug)]
-struct DecayingFunctionExternalParams {
-    base_sample_rate: f64,
-    start: DateTime<Utc>,
-    end: DateTime<Utc>,
-    now: DateTime<Utc>,
+struct DecayingFunctionParams {
+    sample_rate: f64,
+    progress_ratio: f64,
 }
 
 /// A decaying function definition.
@@ -429,51 +374,21 @@ struct DecayingFunctionExternalParams {
 pub enum DecayingFunction {
     #[serde(rename_all = "camelCase")]
     Linear {
-        from_sample_rate: f64,
+        decayed_sample_rate: f64,
     },
     Constant,
 }
 
 impl DecayingFunction {
-    /// Validate the external parameters needed by the decaying function(s).
-    fn validate_external_params(
-        &self,
-        base_sample_rate: f64,
-        time_range: TimeRange,
-        now: DateTime<Utc>,
-    ) -> Option<DecayingFunctionExecutor> {
-        if let Some((start, end)) = time_range.extract_interval_tuple() {
-            if !self.validate_function_specific_params(base_sample_rate, time_range, now)
-                || end <= start
-                || now < start
-            {
-                return None;
-            }
-
-            Some(DecayingFunctionExecutor {
-                decaying_fn: *self,
-                external_params: DecayingFunctionExternalParams {
-                    base_sample_rate,
-                    start,
-                    end,
-                    now,
-                },
-            })
-        } else {
-            None
-        }
-    }
-
-    /// Validates the external params specifically to each decaying function.
-    fn validate_function_specific_params(
-        &self,
-        base_sample_rate: f64,
-        _time_range: TimeRange,
-        _now: DateTime<Utc>,
-    ) -> bool {
+    fn call(&self, params: DecayingFunctionParams) -> f64 {
         match self {
-            DecayingFunction::Linear { from_sample_rate } => *from_sample_rate > base_sample_rate,
-            DecayingFunction::Constant => true,
+            DecayingFunction::Linear {
+                decayed_sample_rate,
+            } => {
+                let interval = decayed_sample_rate - params.sample_rate;
+                params.sample_rate + (interval * params.progress_ratio)
+            }
+            DecayingFunction::Constant => params.sample_rate,
         }
     }
 }
@@ -522,12 +437,47 @@ impl SamplingRule {
     /// In case of any problems that render the decaying function impossible to compute, we are
     /// going to fallback to the base sample rate.
     pub fn get_sample_rate(&self, now: DateTime<Utc>) -> f64 {
-        match self
-            .decaying_fn
-            .validate_external_params(self.sample_rate, self.time_range, now)
+        if let Some(params) = self.get_decaying_function_params(now) {
+            self.decaying_fn.call(params)
+        } else {
+            self.sample_rate
+        }
+    }
+
+    /// Validates and gets the decaying function params.
+    fn get_decaying_function_params(&self, now: DateTime<Utc>) -> Option<DecayingFunctionParams> {
+        if let TimeRange {
+            start: Some(start),
+            end: Some(end),
+        } = self.time_range
         {
-            Some(executor) => executor.execute(),
-            None => self.sample_rate,
+            if !self.validate_function_specific_params() || end <= start || now < start {
+                return None;
+            }
+
+            let now_timestamp = now.timestamp() as f64;
+            let start_timestamp = start.timestamp() as f64;
+            let end_timestamp = end.timestamp() as f64;
+            let progress_ratio = ((now_timestamp - start_timestamp)
+                / (end_timestamp - start_timestamp))
+                .clamp(0.0, 1.0);
+
+            Some(DecayingFunctionParams {
+                sample_rate: self.sample_rate,
+                progress_ratio,
+            })
+        } else {
+            None
+        }
+    }
+
+    /// Validates the external params specifically to each decaying function.
+    fn validate_function_specific_params(&self) -> bool {
+        match self.decaying_fn {
+            DecayingFunction::Linear {
+                decayed_sample_rate,
+            } => self.sample_rate > decayed_sample_rate,
+            DecayingFunction::Constant => true,
         }
     }
 }
@@ -2082,7 +2032,7 @@ mod tests {
             },
             "decayingFn": {
                 "type": "linear",
-                "fromSampleRate": 0.9
+                "decayedSampleRate": 0.9
             }
         }"#;
         let rule: Result<SamplingRule, _> = serde_json::from_str(serialized_rule);
@@ -2092,7 +2042,7 @@ mod tests {
         assert_eq!(
             decaying_function,
             DecayingFunction::Linear {
-                from_sample_rate: 0.9
+                decayed_sample_rate: 0.9
             }
         );
     }
@@ -2452,7 +2402,7 @@ mod tests {
                         end: Some(Utc.ymd(1970, 10, 30).and_hms(0, 0, 0)),
                     },
                     decaying_fn: DecayingFunction::Linear {
-                        from_sample_rate: 0.7,
+                        decayed_sample_rate: 0.7,
                     },
                 },
                 // Idle
@@ -2466,7 +2416,7 @@ mod tests {
                         end: Some(Utc.ymd(3000, 10, 15).and_hms(0, 0, 0)),
                     },
                     decaying_fn: DecayingFunction::Linear {
-                        from_sample_rate: 0.7,
+                        decayed_sample_rate: 0.7,
                     },
                 },
                 // Start after finishing
@@ -2480,7 +2430,7 @@ mod tests {
                         end: Some(Utc.ymd(1970, 10, 30).and_hms(0, 0, 0)),
                     },
                     decaying_fn: DecayingFunction::Linear {
-                        from_sample_rate: 0.7,
+                        decayed_sample_rate: 0.7,
                     },
                 },
                 // Rule is ok
@@ -2494,7 +2444,7 @@ mod tests {
                         end: Some(Utc.ymd(3000, 10, 10).and_hms(0, 0, 0)),
                     },
                     decaying_fn: DecayingFunction::Linear {
-                        from_sample_rate: 0.7,
+                        decayed_sample_rate: 0.7,
                     },
                 },
                 // Fallback to non-decaying rule
