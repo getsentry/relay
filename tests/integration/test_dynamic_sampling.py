@@ -677,5 +677,3 @@ def test_relay_chain(
         envelope.get_event()
     else:
         envelope.get_transaction_event()
-
-
