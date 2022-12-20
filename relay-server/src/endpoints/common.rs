@@ -352,7 +352,7 @@ where
 
     metric!(
         counter(RelayCounters::EventProtocol) += 1,
-        version = &format!("{}", version)
+        version = &format!("{version}")
     );
 
     let buffer_guard = request.state().buffer_guard();
@@ -453,12 +453,7 @@ pub fn normpath(route: &str) -> String {
     let mut pattern = String::new();
     for (i, segment) in route.trim_matches('/').split('/').enumerate() {
         // Apparently the leading slash needs to be explicit and cannot be part of a pattern
-        let _ = write!(
-            pattern,
-            "/{{multislash{i}:/*}}{segment}",
-            i = i,
-            segment = segment
-        );
+        let _ = write!(pattern, "/{{multislash{i}:/*}}{segment}");
     }
 
     if route.ends_with('/') {

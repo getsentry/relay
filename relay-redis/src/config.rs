@@ -74,7 +74,7 @@ max_connections: 42
                 assert_eq!(options.max_connections, 42);
                 assert_eq!(server, "redis://127.0.0.1:6379");
             }
-            e => panic!("Expected RedisConfig::SingleWithOpts but got {:?}", e),
+            e => panic!("Expected RedisConfig::SingleWithOpts but got {e:?}"),
         }
     }
 
@@ -92,7 +92,7 @@ server: "redis://127.0.0.1:6379"
                 // check if all the defaults are correctly set
                 assert_eq!(options.max_connections, 24);
             }
-            e => panic!("Expected RedisConfig::SingleWithOpts but got {:?}", e),
+            e => panic!("Expected RedisConfig::SingleWithOpts but got {e:?}"),
         }
     }
 
@@ -111,7 +111,7 @@ server: "redis://127.0.0.1:6379"
             RedisConfig::Single(server) => {
                 assert_eq!(server, "redis://127.0.0.1:6379");
             }
-            e => panic!("Expected RedisConfig::Single but got {:?}", e),
+            e => panic!("Expected RedisConfig::Single but got {e:?}"),
         }
     }
 }

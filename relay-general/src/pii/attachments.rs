@@ -780,7 +780,7 @@ mod tests {
 
             AttachmentBytesTestCase::Regex {
                 selector: "$binary",
-                regex: &bytes.iter().map(|x| format!("\\x{:02x}", x)).join(""),
+                regex: &bytes.iter().map(|x| format!("\\x{x:02x}")).join(""),
                 filename: "foo.txt",
                 value_type: ValueType::Binary,
                 input: bytes,

@@ -362,7 +362,7 @@ impl<'a> fmt::Display for PathItem<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             PathItem::StaticKey(s) => f.pad(s),
-            PathItem::Index(val) => write!(f, "{}", val),
+            PathItem::Index(val) => write!(f, "{val}"),
         }
     }
 }
@@ -670,7 +670,7 @@ impl<'a> fmt::Display for Path<'a> {
             if idx > 0 {
                 write!(f, ".")?;
             }
-            write!(f, "{}", item)?;
+            write!(f, "{item}")?;
         }
         Ok(())
     }

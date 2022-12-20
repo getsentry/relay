@@ -29,7 +29,7 @@ fn load_lua_script() -> Script {
 }
 
 fn get_refunded_quota_key(counter_key: &str) -> String {
-    format!("r:{}", counter_key)
+    format!("r:{counter_key}")
 }
 
 /// A transparent wrapper around an Option that only displays `Some`.
@@ -41,7 +41,7 @@ where
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.0 {
-            Some(ref value) => write!(f, "{}", value),
+            Some(ref value) => write!(f, "{value}"),
             None => Ok(()),
         }
     }
@@ -668,13 +668,13 @@ mod tests {
         let mut conn = client.connection();
 
         // define a few keys with random seed such that they do not collide with repeated test runs
-        let foo = format!("foo___{}", now);
-        let r_foo = format!("r:foo___{}", now);
-        let bar = format!("bar___{}", now);
-        let r_bar = format!("r:bar___{}", now);
-        let apple = format!("apple___{}", now);
-        let orange = format!("orange___{}", now);
-        let baz = format!("baz___{}", now);
+        let foo = format!("foo___{now}");
+        let r_foo = format!("r:foo___{now}");
+        let bar = format!("bar___{now}");
+        let r_bar = format!("r:bar___{now}");
+        let apple = format!("apple___{now}");
+        let orange = format!("orange___{now}");
+        let baz = format!("baz___{now}");
 
         let script = load_lua_script();
 
