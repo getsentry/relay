@@ -21,19 +21,11 @@ use relay_system::Service;
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::FetchOptionalProjectState;
 
-/// TODO: docs
-#[derive(Debug)]
-pub struct UpdateLocalStates {
-    states: HashMap<ProjectKey, Arc<ProjectState>>,
-}
-
 /// Service interface of the local project source.
 #[derive(Debug)]
 pub enum LocalProjectSource {
     /// TODO: docs
     FetchOptionalProjectState(FetchOptionalProjectState, Sender<Option<Arc<ProjectState>>>),
-    /// TODO: docs
-    UpdateLocalStates(UpdateLocalStates),
 }
 
 impl Interface for LocalProjectSource {}
@@ -45,13 +37,6 @@ impl FromMessage<FetchOptionalProjectState> for LocalProjectSource {
         sender: Sender<Option<Arc<ProjectState>>>,
     ) -> Self {
         Self::FetchOptionalProjectState(message, sender)
-    }
-}
-
-impl FromMessage<UpdateLocalStates> for LocalProjectSource {
-    type Response = NoResponse;
-    fn from_message(message: UpdateLocalStates, _sender: ()) -> Self {
-        Self::UpdateLocalStates(message)
     }
 }
 
@@ -79,25 +64,24 @@ impl LocalProjectSourceService {
         sender.send(states);
     }
 
-    fn handle_update_local_states(&mut self, message: UpdateLocalStates) {
-        self.local_states = message.states;
-    }
-
     fn handle_message(&mut self, message: LocalProjectSource) {
         match message {
             LocalProjectSource::FetchOptionalProjectState(message, sender) => {
                 self.handle_fetch_optional_project_state(message, sender)
-            }
-            LocalProjectSource::UpdateLocalStates(message) => {
-                self.handle_update_local_states(message)
             }
         }
     }
 
     async fn refresh(&mut self) {
         let path = self.config.project_configs_path();
-        let states = load_local_states(&path);
-        self.send(UpdateLocalStates { states });
+        let states = load_local_states(&path).await;
+        match states {
+            Ok(states) => self.local_states = states,
+            Err(error) => relay_log::error!(
+                "failed to load static project configs: {}",
+                LogError(&error)
+            ),
+        };
     }
 }
 
@@ -111,16 +95,13 @@ impl Service for LocalProjectSourceService {
 
             // FIXME: block message handling until the first project is read
 
-            // while let Some(message) = rx.recv().await {
-            //     self.handle_message(message).await;
-            //     // TODO: do we need a shutdown handler here?
-            // }
-
             loop {
                 tokio::select! {
                     biased;
 
-                    _ = ticker.tick() => self.refresh(),
+                    // TODO(jjbayer): Is it OK to await within tokio::select!
+                    // ProjectCache also does it.
+                    _ = ticker.tick() => self.refresh().await,
                     Some(message) = rx.recv() => self.handle_message(message),
                     // TODO: do we need a shutdown handler here?
 
@@ -163,11 +144,10 @@ async fn load_local_states(
 ) -> tokio::io::Result<HashMap<ProjectKey, Arc<ProjectState>>> {
     let mut states = HashMap::new();
 
-    let directory = match tokio::fs::read_dir(projects_path).await {
+    let mut directory = match tokio::fs::read_dir(projects_path).await {
         Ok(directory) => directory,
         Err(error) => {
             return match error.kind() {
-                tokio::io::ErrorKind::NotFound => Ok(states),
                 tokio::io::ErrorKind::NotFound => Ok(states),
                 _ => Err(error),
             };
@@ -190,11 +170,19 @@ async fn load_local_states(
             continue;
         }
 
-        let file = tokio::fs::File::open(&path).await?;
-        let reader = tokio::io::BufReader::new(file);
-        let state = serde_json::from_reader(reader)?;
-        let mut sanitized = ProjectState::sanitize(state);
+        fn parse_file(
+            path: std::path::PathBuf,
+        ) -> tokio::io::Result<(std::path::PathBuf, ProjectState)> {
+            let file = std::fs::File::open(&path)?;
+            let reader = std::io::BufReader::new(file);
+            Ok((path, serde_json::from_reader(reader)?))
+        }
 
+        // serde_json is not async, so spawn a blocking task here:
+        let handle = tokio::task::spawn_blocking(move || parse_file(path));
+        let (path, state) = handle.await??;
+
+        let mut sanitized = ProjectState::sanitize(state);
         if sanitized.project_id.is_none() {
             if let Some(project_id) = get_project_id(&path) {
                 sanitized.project_id = Some(project_id);
@@ -213,31 +201,31 @@ async fn load_local_states(
     Ok(states)
 }
 
-fn poll_local_states(
-    manager: Addr<LocalProjectSource>,
-    config: Arc<Config>,
-) -> impl Future<Item = (), Error = ()> {
-    let (sender, receiver) = oneshot::channel();
+// fn poll_local_states(
+//     manager: Addr<LocalProjectSource>,
+//     config: Arc<Config>,
+// ) -> impl Future<Item = (), Error = ()> {
+//     let (sender, receiver) = oneshot::channel();
 
-    let _ = thread::spawn(move || {
-        let path = config.project_configs_path();
-        let mut sender = Some(sender);
+//     let _ = thread::spawn(move || {
+//         let path = config.project_configs_path();
+//         let mut sender = Some(sender);
 
-        loop {
-            match load_local_states(&path) {
-                Ok(states) => {
-                    manager.send(UpdateLocalStates { states }); // TODO: test this
-                    sender.take().map(|sender| sender.send(()).ok());
-                }
-                Err(error) => relay_log::error!(
-                    "failed to load static project configs: {}",
-                    LogError(&error)
-                ),
-            }
+//         loop {
+//             match load_local_states(&path) {
+//                 Ok(states) => {
+//                     manager.send(UpdateLocalStates { states }); // TODO: test this
+//                     sender.take().map(|sender| sender.send(()).ok());
+//                 }
+//                 Err(error) => relay_log::error!(
+//                     "failed to load static project configs: {}",
+//                     LogError(&error)
+//                 ),
+//             }
 
-            thread::sleep(config.local_cache_interval());
-        }
-    });
+//             thread::sleep(config.local_cache_interval());
+//         }
+//     });
 
-    receiver.map_err(|_| ())
-}
+//     receiver.map_err(|_| ())
+// }
