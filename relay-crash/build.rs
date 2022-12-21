@@ -9,8 +9,6 @@ fn main() {
         _ => return, // allow building with --all-features, fail during runtime
     }
 
-    println!("cargo:rustc-link-lib=curl");
-
     if !Path::new("sentry-native/.git").exists() {
         let _ = Command::new("git")
             .args(["submodule", "update", "--init", "--recursive"])
@@ -22,6 +20,8 @@ fn main() {
         .profile("RelWithDebInfo")
         // always build breakpad regardless of platform defaults
         .define("SENTRY_BACKEND", "breakpad")
+        // inject a custom transport instead of curl
+        .define("SENTRY_TRANSPORT", "none")
         // build a static library
         .define("BUILD_SHARED_LIBS", "OFF")
         // disable additional targets

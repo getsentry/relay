@@ -1,12 +1,15 @@
 use std::fmt;
 use std::str::FromStr;
 
+use serde::{Deserialize, Serialize};
+
 use crate::processor::ProcessValue;
 use crate::protocol::Timestamp;
 use crate::types::{Annotated, Empty, ErrorKind, FromValue, IntoValue, SkipSerialization, Value};
 
 /// Describes how the name of the transaction was determined.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 #[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "jsonschema", schemars(rename_all = "kebab-case"))]
 pub enum TransactionSource {
@@ -20,6 +23,8 @@ pub enum TransactionSource {
     View,
     /// Named after a software component, such as a function or class name.
     Component,
+    /// The transaction name was updated to reduce the name cardinality.
+    Sanitized,
     /// Name of a background task (e.g. a Celery task).
     Task,
     /// This is the default value set by Relay for legacy SDKs.
@@ -37,6 +42,7 @@ impl TransactionSource {
             Self::Route => "route",
             Self::View => "view",
             Self::Component => "component",
+            Self::Sanitized => "sanitized",
             Self::Task => "task",
             Self::Unknown => "unknown",
             Self::Other(ref s) => s,
@@ -54,6 +60,7 @@ impl FromStr for TransactionSource {
             "route" => Ok(Self::Route),
             "view" => Ok(Self::View),
             "component" => Ok(Self::Component),
+            "sanitized" => Ok(Self::Sanitized),
             "task" => Ok(Self::Task),
             "unknown" => Ok(Self::Unknown),
             s => Ok(Self::Other(s.to_owned())),

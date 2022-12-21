@@ -22,7 +22,6 @@ use std::collections::VecDeque;
 use std::fmt;
 use std::str;
 use std::sync::Arc;
-use std::time::Instant;
 
 use ::actix::fut;
 use ::actix::prelude::*;
@@ -31,6 +30,7 @@ use futures01::{future, prelude::*, sync::oneshot};
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
+use tokio::time::Instant;
 
 use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
 use relay_common::{tryf, RetryBackoff};
