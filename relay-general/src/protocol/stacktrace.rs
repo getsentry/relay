@@ -1,7 +1,14 @@
+use std::fmt;
 use std::ops::{Deref, DerefMut};
+use std::str::FromStr;
 
+use serde::{Deserialize, Serialize};
+
+use crate::processor::ProcessValue;
 use crate::protocol::{Addr, NativeImagePath, RegVal};
-use crate::types::{Annotated, Array, FromValue, Object, Value};
+use crate::types::{
+    Annotated, Array, Empty, ErrorKind, FromValue, IntoValue, Object, SkipSerialization, Value,
+};
 
 /// Holds information about a single stacktrace frame.
 ///
@@ -330,6 +337,11 @@ pub struct RawStacktrace {
     /// values of the thread, thus mapping to the last frame in the list.
     pub registers: Annotated<Object<RegVal>>,
 
+    /// Optional. A flat that indicates if, and how, `instruction_addr` values need to be adjusted
+    /// before they are symbolicated.
+    #[metastructure(skip_serialization = "null")]
+    pub instruction_addr_adjustment: Annotated<InstructionAddrAdjustment>,
+
     /// The language of the stacktrace.
     #[metastructure(max_chars = "enumlike")]
     pub lang: Annotated<String>,
@@ -349,6 +361,123 @@ pub struct RawStacktrace {
     #[metastructure(additional_properties)]
     pub other: Object<Value>,
 }
+
+/// Controls the mechanism by which the `instruction_addr` of a [`Stacktrace`] [`Frame`] is adjusted.
+///
+/// The adjustment tries to transform *return addresses* to *call addresses* for symbolication.
+/// Typically, this adjustment needs to be done for all frames but the first, as the first frame is
+/// usually taken directly from the cpu context of a hardware exception or a suspended thread and
+/// the stack trace is created from that.
+///
+/// When the stack walking implementation truncates frames from the top, `"all"` frames should be
+/// adjusted. In case the stack walking implementation already does the adjustment when producing
+/// stack frames, `"none"` should be used here.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "jsonschema", schemars(rename_all = "snake_case"))]
+pub enum InstructionAddrAdjustment {
+    /// The default. Applies a heuristic based on other event / exception attributes.
+    Auto,
+
+    /// All but the first frame needs to be adjusted. The first frame is not a *return address*,
+    /// but points directly to the faulty instruction.
+    AllButFirst,
+
+    /// All frames should be adjusted, for example because the stack walking implementation truncated
+    /// frames from the top of the stack, and all remaining frames are *return addresses*.
+    All,
+
+    /// The stack walking implementation already provides correct addresses and no adjustment should
+    /// be performed when symbolicating.
+    None,
+}
+
+/// An error used when parsing `Level`.
+#[derive(Debug)]
+pub struct ParseAdjustmentError;
+
+impl fmt::Display for ParseAdjustmentError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "invalid instruction_addr_adjustment")
+    }
+}
+
+impl std::error::Error for ParseAdjustmentError {}
+
+impl FromStr for InstructionAddrAdjustment {
+    type Err = ParseAdjustmentError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "auto" => Ok(Self::Auto),
+            "all_but_first" => Ok(Self::AllButFirst),
+            "all" => Ok(Self::All),
+            "none" => Ok(Self::None),
+            _ => return Err(ParseAdjustmentError),
+        }
+    }
+}
+
+impl fmt::Display for InstructionAddrAdjustment {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            InstructionAddrAdjustment::Auto => "auto",
+            InstructionAddrAdjustment::AllButFirst => "all_but_first",
+            InstructionAddrAdjustment::All => "all",
+            InstructionAddrAdjustment::None => "none",
+        };
+        f.write_str(s)
+    }
+}
+
+impl Default for InstructionAddrAdjustment {
+    fn default() -> Self {
+        Self::Auto
+    }
+}
+
+impl Empty for InstructionAddrAdjustment {
+    #[inline]
+    fn is_empty(&self) -> bool {
+        matches!(self, Self::Auto)
+    }
+}
+
+impl FromValue for InstructionAddrAdjustment {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+        match String::from_value(value) {
+            Annotated(Some(value), mut meta) => match value.parse() {
+                Ok(adjustment) => Annotated(Some(adjustment), meta),
+                Err(_) => {
+                    meta.add_error(ErrorKind::InvalidData);
+                    meta.set_original_value(Some(value));
+                    Annotated(None, meta)
+                }
+            },
+            Annotated(None, meta) => Annotated(None, meta),
+        }
+    }
+}
+
+impl IntoValue for InstructionAddrAdjustment {
+    fn into_value(self) -> Value
+    where
+        Self: Sized,
+    {
+        Value::String(self.to_string())
+    }
+
+    fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
+    where
+        Self: Sized,
+        S: serde::Serializer,
+    {
+        serde::Serialize::serialize(&self.to_string(), s)
+    }
+}
+
+impl ProcessValue for InstructionAddrAdjustment {}
 
 // NOTE: This is not a doc comment because otherwise it will show up in public docs.
 // Newtype to distinguish `raw_stacktrace` attributes from the rest.
@@ -497,6 +626,7 @@ mod tests {
     "pc": "0x18a310ea4",
     "sp": "0x16fd75060"
   },
+  "instruction_addr_adjustment": "all_but_first",
   "lang": "rust",
   "snapshot": false,
   "other": "value"
@@ -514,6 +644,7 @@ mod tests {
                 registers.insert("sp".to_string(), Annotated::new(RegVal(0x1_6fd7_5060)));
                 Annotated::new(registers)
             },
+            instruction_addr_adjustment: Annotated::new(InstructionAddrAdjustment::AllButFirst),
             lang: Annotated::new("rust".into()),
             snapshot: Annotated::new(false),
             other: {
