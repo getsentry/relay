@@ -332,6 +332,7 @@ impl<T: UpstreamQuery> FromMessage<SendQuery<T>> for UpstreamRelay {
 struct Dispatch {
     tx_high: mpsc::UnboundedSender<Box<dyn UpstreamRequest>>,
     tx_low: mpsc::UnboundedSender<Box<dyn UpstreamRequest>>,
+    outage: OutageHandle,
 }
 
 impl Dispatch {
@@ -355,7 +356,7 @@ impl Dispatch {
     fn handle_message(&mut self, message: UpstreamRelay) {
         match message {
             UpstreamRelay::IsAuthenticated(_, sender) => sender.send(todo!()),
-            UpstreamRelay::IsNetworkOutage(_, sender) => sender.send(todo!()),
+            UpstreamRelay::IsNetworkOutage(_, sender) => sender.send(self.outage.is_active()),
             UpstreamRelay::SendRequest(request) => self.enqueue_request(request),
             UpstreamRelay::SendQuery() => todo!(),
         }
@@ -463,7 +464,7 @@ impl UpstreamRequest for GetHealthCheck {
     }
 
     fn priority(&self) -> RequestPriority {
-        RequestPriority::Immediate
+        RequestPriority::Immediate // TODO(ja): This is ugly since we never use this.
     }
 
     fn set_relay_id(&self) -> bool {
@@ -486,6 +487,7 @@ impl UpstreamRequest for GetHealthCheck {
     }
 }
 
+/// TODO(ja): Doc
 #[derive(Clone, Debug)]
 struct OutageHandle {
     rx: watch::Receiver<bool>,
@@ -493,9 +495,22 @@ struct OutageHandle {
 }
 
 impl OutageHandle {
+    /// Returns `true` if the upstream is in an outage situation.
+    pub fn is_active(&self) -> bool {
+        *self.rx.borrow()
+    }
+
     /// Waits until the outage is resolved.
-    pub async fn wait(&mut self) {
-        while *self.rx.borrow() {
+    ///
+    /// If there is no outage, this resolves immediately. Otherwise, if an outage has been
+    /// [notified](Self::notify), this will block until the outage monitor has reestablished
+    /// connection.
+    ///
+    /// # Cancel safety
+    ///
+    /// This method is cancel safe.
+    pub async fn resolved(&mut self) {
+        while self.is_active() {
             if self.rx.changed().await.is_err() {
                 return; // Return if the channel has closed to prevent suspending indefinitely
                         // TODO(ja): Surface `Result` in public signature?
@@ -504,6 +519,10 @@ impl OutageHandle {
     }
 
     /// Notify the outage monitor of a network outage.
+    ///
+    /// This will set the upstream into outage state. Subsequent calls to `is_active` will return
+    /// `true`, and the outage monitor will start to reestablish a connection with the upstream.
+    /// Calls to `resolved` will now block until the connection is established.
     pub fn notify(&self) {
         // Do not use `notify_one` here, since that would store a permit for the next call to
         // `notify()` in the monitor. However, we need to ensure that the monitor only starts
@@ -512,6 +531,7 @@ impl OutageHandle {
     }
 }
 
+/// TODO(ja): Doc
 struct OutageMonitor {
     backoff: RetryBackoff,
     status: watch::Sender<bool>,
@@ -545,10 +565,10 @@ impl OutageMonitor {
             // will capture `notify_waiting`. After this, signal waiting receivers to continue with
             // new requests by setting the outage status to `false`.
             let notify = self.notify.notified();
-            self.status.send(false);
+            self.status.send(false).ok(); // TODO(ja): Bail on error, since nobody is listening anymore
 
             notify.await;
-            self.status.send(true);
+            self.status.send(true).ok();
 
             self.connect().await;
             relay_log::info!("Recovering from network outage.")
@@ -621,15 +641,15 @@ impl SharedClient {
         }
     }
 
-    /// Handles a response returned from the upstream.
+    /// Handles an HTTP response returned from the upstream.
     ///
-    /// If the response indicates success via 2XX status codes, `Ok(response)` is returned. Otherwise,
-    /// the response is consumed and an error is returned. If intercept_status_errors is set to true,
-    /// depending on the status code and details provided in the payload, one
-    /// of the following errors is returned:
+    /// If the response indicates success via 2XX status codes, `Ok(response)` is returned.
+    /// Otherwise, the response is consumed and an error is returned. If `intercept_status_errors`
+    /// is set to `true` on the request, depending on the status code and details provided in the
+    /// payload, one of the following errors is returned:
     ///
     ///  1. `RateLimited` for a `429` status code.
-    ///  2. `ResponseError` in all other cases.
+    ///  2. `ResponseError`  in all other cases, containing the status and details.
     async fn transform_response(
         &self,
         request: &dyn UpstreamRequest,
@@ -687,39 +707,13 @@ impl SharedClient {
         self.transform_response(request, Response(response)).await
     }
 
-    // /// Checks the result of an upstream request and takes appropriate action.
-    // ///
-    // /// 1. If the request was sent, notify the response sender.
-    // /// 2. If the error is non-recoverable, notify the response sender.
-    // /// 3. If the request can be retried, schedule a retry.
-    // /// 4. Otherwise, ensure an authentication request is scheduled.
-    // fn handle_http_response(
-    //     &self,
-    //     request: &dyn UpstreamRequest,
-    //     result: Result<Response, UpstreamRequestError>,
-    // ) -> ControlFlow<Result<Response, UpstreamRequestError>> {
-    //     if matches!(result, Err(ref err) if err.is_network_error()) {
-    //         // self.handle_network_error();
-
-    //         if request.retry() {
-    //             return ControlFlow::Continue(());
-    //         }
-    //     } else {
-    //         // we managed a request without a network error, reset the first time we got a network
-    //         // error and resume sending events.
-    //         // self.reset_network_error();
-    //     }
-
-    //     ControlFlow::Break(result)
-    // }
-
     /// Records an occurrence of a network error.
     ///
     /// If the network errors persist throughout the http outage grace period, an outage is
     /// triggered, which results in halting all network requests and starting a reconnect loop.
     fn handle_network_error(&self) {
-        let now = Instant::now();
         // TODO(ja): Debounce this
+        // let now = Instant::now();
         // let first_error = *self.first_error.get_or_insert(now);
 
         // // Only take action if we exceeded the grace period.
@@ -754,8 +748,8 @@ impl SharedClient {
                     continue; // TODO(ja): This shouldn't loop if we're in outage state
                 }
             } else {
-                // we managed a request without a network error, reset the first time we got a network
-                // error and resume sending events.
+                // we managed a request without a network error, reset the first time we got a
+                // network error and resume sending events.
                 self.reset_network_error();
             }
 
@@ -772,13 +766,21 @@ struct Broker {
     rx_low: mpsc::UnboundedReceiver<Box<dyn UpstreamRequest>>,
     semaphore: Arc<Semaphore>,
     client: Arc<SharedClient>,
-    outage_handle: OutageHandle,
+    outage: OutageHandle,
 }
 
 impl Broker {
     async fn run(mut self) {
         loop {
             let permit = self.semaphore.clone().acquire_owned();
+
+            // TODO(ja): Consider placement of this:
+            //  - if we check it here, we might have a new outage by the time a new request comes
+            //    in. That's unlikely though.
+            //  - if we check it below, that means we spawn more tasks that will just be waiting
+            //    instead of leaving requests in the queue.
+            //  - the outage should be checked somewhere in the request loop too.
+            self.outage.resolved().await;
 
             let request = tokio::select! {
                 biased;
@@ -826,13 +828,18 @@ impl UpstreamRelayService {
         let (tx_high, rx_high) = mpsc::unbounded_channel();
         let (tx_low, rx_low) = mpsc::unbounded_channel();
 
-        let dispatch = Dispatch { tx_high, tx_low };
+        let dispatch = Dispatch {
+            tx_high,
+            tx_low,
+            outage: outage_handle.clone(),
+        };
+
         let broker = Broker {
             rx_high,
             rx_low,
             semaphore: Arc::new(Semaphore::new(config.max_concurrent_requests())),
             client,
-            outage_handle,
+            outage: outage_handle,
         };
 
         Self {
