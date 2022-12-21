@@ -7,7 +7,6 @@ use tokio::time::Instant;
 
 use relay_common::ProjectKey;
 use relay_config::{Config, RelayMode};
-use relay_log::LogError;
 use relay_metrics::{self, FlushBuckets, InsertMetrics, MergeBuckets};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
@@ -373,7 +372,10 @@ impl ProjectSource {
             let state_opt = match state_fetch_result {
                 Ok(x) => x.map(ProjectState::sanitize).map(Arc::new),
                 Err(e) => {
-                    relay_log::error!("Failed to fetch project from Redis: {}", LogError(&e));
+                    relay_log::error!(
+                        "Failed to fetch project from Redis: {}",
+                        relay_log::LogError(&e)
+                    );
                     None
                 }
             };
