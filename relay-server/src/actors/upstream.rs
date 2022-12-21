@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 use std::fmt;
 use std::future::Future;
-use std::ops::ControlFlow;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -248,8 +247,8 @@ pub trait UpstreamRequest: Send + Sync + fmt::Debug {
 pub struct SendRequest<T: UpstreamRequest>(pub T);
 
 /// TODO(ja): Doc
-pub trait UpstreamQuery: Serialize + Send + 'static {
-    type Response: DeserializeOwned + 'static + Send;
+pub trait UpstreamQuery: Serialize + Send + Sync + fmt::Debug {
+    type Response: DeserializeOwned + Send;
 
     /// The HTTP method of the request.
     fn method(&self) -> Method;
@@ -267,6 +266,106 @@ pub trait UpstreamQuery: Serialize + Send + 'static {
 }
 
 /// TODO(ja): Doc
+type QuerySender<T> = Sender<Result<<T as UpstreamQuery>::Response, UpstreamRequestError>>;
+
+/// TODO(ja): Doc
+#[derive(Debug)]
+struct UpstreamQueryRequest<T: UpstreamQuery> {
+    query: T,
+    body: Vec<u8>,
+    signature: String,
+    max_response_size: usize,
+    sender: QuerySender<T>,
+}
+
+impl<T> UpstreamRequest for UpstreamQueryRequest<T>
+where
+    T: UpstreamQuery + 'static,
+{
+    fn retry(&self) -> bool {
+        T::retry()
+    }
+
+    fn priority(&self) -> RequestPriority {
+        T::priority()
+    }
+
+    fn intercept_status_errors(&self) -> bool {
+        true
+    }
+
+    fn set_relay_id(&self) -> bool {
+        true
+    }
+
+    fn method(&self) -> Method {
+        self.query.method()
+    }
+
+    fn path(&self) -> Cow<'_, str> {
+        self.query.path()
+    }
+
+    fn build(&self, mut builder: RequestBuilder) -> Result<Request, HttpError> {
+        relay_statsd::metric!(
+            histogram(RelayHistograms::UpstreamQueryBodySize) = self.body.len() as u64
+        );
+
+        builder.header("X-Sentry-Relay-Signature", self.signature.as_bytes());
+        builder.header(header::CONTENT_TYPE, b"application/json");
+        builder.body(&self.body)
+    }
+
+    fn respond(
+        self: Box<Self>,
+        result: Result<Response, UpstreamRequestError>,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + Sync>> {
+        Box::pin(async move {
+            let result = match result {
+                Ok(response) => response
+                    .json(self.max_response_size)
+                    .await
+                    .map_err(UpstreamRequestError::Http),
+                Err(error) => Err(error),
+            };
+
+            self.sender.send(result)
+        })
+    }
+}
+
+/// TODO(ja): Doc
+pub trait ConfigureRequest: Send + Sync + fmt::Debug {
+    /// TODO(ja): Doc
+    fn configure(self: Box<Self>, config: &Config) -> Option<Box<dyn UpstreamRequest>>;
+}
+
+impl<T> ConfigureRequest for (T, QuerySender<T>)
+where
+    T: UpstreamQuery + 'static,
+{
+    fn configure(self: Box<Self>, config: &Config) -> Option<Box<dyn UpstreamRequest>> {
+        let (query, sender) = *self;
+
+        let Some(credentials) = config.credentials() else {
+            sender.send(Err(UpstreamRequestError::NoCredentials));
+            return None;
+        };
+
+        let (body, signature) = credentials.secret_key.pack(&query);
+        let max_response_size = config.max_api_payload_size();
+
+        Some(Box::new(UpstreamQueryRequest {
+            query,
+            body,
+            signature,
+            max_response_size,
+            sender,
+        }))
+    }
+}
+
+/// TODO(ja): Doc
 #[derive(Debug)]
 pub struct SendQuery<T: UpstreamQuery>(pub T);
 
@@ -276,7 +375,7 @@ pub enum UpstreamRelay {
     IsAuthenticated(IsAuthenticated, Sender<bool>),
     IsNetworkOutage(IsNetworkOutage, Sender<bool>),
     SendRequest(Box<dyn UpstreamRequest>),
-    SendQuery(),
+    SendQuery(Box<dyn ConfigureRequest>),
 }
 
 impl UpstreamRelay {
@@ -315,14 +414,15 @@ where
     }
 }
 
-impl<T: UpstreamQuery> FromMessage<SendQuery<T>> for UpstreamRelay {
+impl<T> FromMessage<SendQuery<T>> for UpstreamRelay
+where
+    T: UpstreamQuery + 'static,
+{
     type Response = AsyncResponse<Result<T::Response, UpstreamRequestError>>;
 
-    fn from_message(
-        message: SendQuery<T>,
-        _: Sender<Result<T::Response, UpstreamRequestError>>,
-    ) -> Self {
-        todo!()
+    fn from_message(message: SendQuery<T>, sender: QuerySender<T>) -> Self {
+        let SendQuery(query) = message;
+        Self::SendQuery(Box::new((query, sender)))
     }
 }
 
@@ -330,6 +430,7 @@ impl<T: UpstreamQuery> FromMessage<SendQuery<T>> for UpstreamRelay {
 /// TODO(ja): Name
 #[derive(Debug)]
 struct Dispatch {
+    config: Arc<Config>,
     tx_high: mpsc::UnboundedSender<Box<dyn UpstreamRequest>>,
     tx_low: mpsc::UnboundedSender<Box<dyn UpstreamRequest>>,
     outage: OutageHandle,
@@ -353,12 +454,21 @@ impl Dispatch {
         );
     }
 
+    fn handle_query(&mut self, query: Box<dyn ConfigureRequest>) {
+        // TODO(ja): configure can be expensive. This should be bounded + run in spawn_blocking
+        // Ideally we defer this to request execution and make it lazy. This is only here because
+        // `request::build()` cannot return an UpstreamRequestError if credentials are missing.
+        if let Some(request) = query.configure(&self.config) {
+            self.enqueue_request(request);
+        }
+    }
+
     fn handle_message(&mut self, message: UpstreamRelay) {
         match message {
             UpstreamRelay::IsAuthenticated(_, sender) => sender.send(todo!()),
             UpstreamRelay::IsNetworkOutage(_, sender) => sender.send(self.outage.is_active()),
             UpstreamRelay::SendRequest(request) => self.enqueue_request(request),
-            UpstreamRelay::SendQuery() => todo!(),
+            UpstreamRelay::SendQuery(query) => self.handle_query(query),
         }
     }
 }
@@ -483,7 +593,11 @@ impl UpstreamRequest for GetHealthCheck {
         self: Box<Self>,
         result: Result<Response, UpstreamRequestError>,
     ) -> Pin<Box<dyn Future<Output = ()> + Send + Sync>> {
-        Box::pin(async {})
+        Box::pin(async {
+            if let Ok(mut response) = result {
+                response.consume().await.ok();
+            }
+        })
     }
 }
 
@@ -613,6 +727,8 @@ impl SharedClient {
         &self,
         request: &dyn UpstreamRequest,
     ) -> Result<reqwest::Request, UpstreamRequestError> {
+        // TODO(ja): This entire function, esp request.build() can be slow -> move to spawn_blocking?
+
         let url = self
             .config
             .upstream_descriptor()
@@ -829,6 +945,7 @@ impl UpstreamRelayService {
         let (tx_low, rx_low) = mpsc::unbounded_channel();
 
         let dispatch = Dispatch {
+            config: config.clone(),
             tx_high,
             tx_low,
             outage: outage_handle.clone(),
