@@ -414,7 +414,7 @@ impl FromStr for InstructionAddrAdjustment {
             "all_but_first" => Ok(Self::AllButFirst),
             "all" => Ok(Self::All),
             "none" => Ok(Self::None),
-            _ => return Err(ParseAdjustmentError),
+            _ => Err(ParseAdjustmentError),
         }
     }
 }
