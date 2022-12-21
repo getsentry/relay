@@ -5,6 +5,7 @@
 **Internal**:
 
 - Remove concurrent profiling. ([#1697](https://github.com/getsentry/relay/pull/1697))
+- Add support for decaying functions in sampling rules. ([#1692](https://github.com/getsentry/relay/pull/1692))
 
 ## 22.12.0
 
