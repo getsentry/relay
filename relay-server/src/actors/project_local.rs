@@ -12,13 +12,12 @@ use relay_system::Interface;
 use relay_system::Sender;
 use relay_system::Service;
 use tokio::sync::mpsc;
+use tokio::time::Instant;
 
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::FetchOptionalProjectState;
 
 /// Service interface of the local project source.
-/// Fetches the project state for a given project key. Returns `None` if the project state is not available locally.
-
 #[derive(Debug)]
 pub struct LocalProjectSource(FetchOptionalProjectState, Sender<Option<Arc<ProjectState>>>);
 
@@ -74,7 +73,14 @@ impl Service for LocalProjectSourceService {
         let project_path = self.config.project_configs_path();
         let (mut state_tx, mut state_rx) = mpsc::channel(1);
 
-        let mut ticker = tokio::time::interval(self.config.local_cache_interval());
+        let project_path_copy = project_path.clone();
+        let mut state_tx_copy = state_tx.clone();
+
+        let interval = self.config.local_cache_interval();
+        // The first `poll_local_states` is called by the 2nd loop, so we can delay execution
+        // until the next tick:
+        let start_at = Instant::now() + interval;
+        let mut ticker = tokio::time::interval_at(start_at, interval);
         tokio::spawn(async move {
             loop {
                 ticker.tick().await;
@@ -85,8 +91,7 @@ impl Service for LocalProjectSourceService {
         tokio::spawn(async move {
             // Poll local states once before handling any message, such that the projects are
             // populated.
-            // FIXME restore this
-            // self.poll_local_states().await;
+            poll_local_states(&project_path_copy, &mut state_tx_copy).await;
 
             relay_log::info!("project local cache started");
             loop {
