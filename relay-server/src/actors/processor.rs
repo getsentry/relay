@@ -1,7 +1,9 @@
+use bytes::Bytes;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::io::Write;
 use std::net;
+use std::net::IpAddr as NetIPAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -23,7 +25,7 @@ use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     self, Breadcrumb, ClientReport, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
-    LenientString, Metrics, RelayInfo, Replay, SecurityReportType, SessionAggregates,
+    LenientString, Metrics, RelayInfo, Replay, ReplayError, SecurityReportType, SessionAggregates,
     SessionAttributes, SessionUpdate, Timestamp, UserReport, Values,
 };
 use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig};
@@ -1022,56 +1024,53 @@ impl EnvelopeProcessorService {
                     return false;
                 }
 
-                let result = Annotated::<Replay>::from_json_bytes(&item.payload())
-                    .map_err(ProcessingError::InvalidJson);
+                let result = self.process_replay_event(
+                    &item.payload(),
+                    &state.project_state.config,
+                    client_addr,
+                    user_agent,
+                );
 
                 match result {
-                    Ok(mut replay) => {
-                        if let Some(replay_value) = replay.value_mut() {
-                            // Create the contexts object and specify a user ip-address if one
-                            // was not provided.
-                            replay_value.normalize(client_addr, user_agent);
-
-                            // Scrub PII from configuration, possibly including the ip-address
-                            // we just added above.
-                            let scrub_result =
-                                self.scrub_replay(&mut replay, &state.project_state.config);
-
-                            match scrub_result {
-                                Ok(_) => {
-                                    item.set_payload(
-                                        ContentType::Json,
-                                        replay.to_json().unwrap().as_bytes(),
-                                    );
-                                    true
-                                }
-                                Err(e) => {
-                                    relay_log::warn!("Replay-event PII scrub failure: {}", e);
-                                    context.track_outcome(
-                                        Outcome::Invalid(DiscardReason::InvalidReplayEventPii),
-                                        DataCategory::Replay,
-                                        1,
-                                    );
-                                    false
-                                }
-                            }
-                        } else {
-                            relay_log::warn!("Replay-event was deserialized but no data found.");
-                            context.track_outcome(
-                                Outcome::Invalid(DiscardReason::InvalidReplayEventNoPayload),
-                                DataCategory::Replay,
-                                1,
-                            );
-                            false
-                        }
+                    Ok(replay) => {
+                        item.set_payload(ContentType::Json, replay.to_json().unwrap().as_bytes());
+                        true
                     }
                     Err(e) => {
-                        relay_log::warn!("Replay-event could not be deserialized {}", e);
-                        context.track_outcome(
-                            Outcome::Invalid(DiscardReason::InvalidReplayEvent),
-                            DataCategory::Replay,
-                            1,
-                        );
+                        match e {
+                            ReplayError::NoContent => {
+                                relay_log::warn!("replay-event: no data found");
+                                context.track_outcome(
+                                    Outcome::Invalid(DiscardReason::InvalidReplayEventNoPayload),
+                                    DataCategory::Replay,
+                                    1,
+                                );
+                            }
+                            ReplayError::CouldNotScrub(e) => {
+                                relay_log::warn!("replay-event: PII scrub failure {}", e);
+                                context.track_outcome(
+                                    Outcome::Invalid(DiscardReason::InvalidReplayEventPii),
+                                    DataCategory::Replay,
+                                    1,
+                                );
+                            }
+                            ReplayError::CouldNotParse(e) => {
+                                relay_log::warn!("replay-event: {}", e.to_string());
+                                context.track_outcome(
+                                    Outcome::Invalid(DiscardReason::InvalidReplayEvent),
+                                    DataCategory::Replay,
+                                    1,
+                                );
+                            }
+                            ReplayError::InvalidPayload(e) => {
+                                relay_log::warn!("replay-event: {}", e);
+                                context.track_outcome(
+                                    Outcome::Invalid(DiscardReason::InvalidReplayEvent),
+                                    DataCategory::Replay,
+                                    1,
+                                );
+                            }
+                        }
                         false
                     }
                 }
@@ -1111,6 +1110,43 @@ impl EnvelopeProcessorService {
         });
 
         Ok(())
+    }
+
+    /// Validates, normalizes, and scrubs PII from a replay event.
+    fn process_replay_event(
+        &self,
+        payload: &Bytes,
+        config: &ProjectConfig,
+        client_ip: Option<NetIPAddr>,
+        user_agent: Option<&str>,
+    ) -> Result<Annotated<Replay>, ReplayError> {
+        let mut replay =
+            Annotated::<Replay>::from_json_bytes(payload).map_err(ReplayError::CouldNotParse)?;
+
+        if let Some(replay_value) = replay.value_mut() {
+            replay_value.validate()?;
+            replay_value.normalize(client_ip, user_agent);
+        } else {
+            return Err(ReplayError::NoContent);
+        }
+
+        if let Some(ref config) = config.pii_config {
+            let mut processor = PiiProcessor::new(config.compiled());
+            process_value(&mut replay, &mut processor, ProcessingState::root())
+                .map_err(|e| ReplayError::CouldNotScrub(e.to_string()))?;
+        }
+
+        let pii_config = config
+            .datascrubbing_settings
+            .pii_config()
+            .map_err(|e| ReplayError::CouldNotScrub(e.to_string()))?;
+        if let Some(config) = pii_config {
+            let mut processor = PiiProcessor::new(config.compiled());
+            process_value(&mut replay, &mut processor, ProcessingState::root())
+                .map_err(|e| ReplayError::CouldNotScrub(e.to_string()))?;
+        }
+
+        Ok(replay)
     }
 
     /// Creates and initializes the processing state.
@@ -1887,32 +1923,6 @@ impl EnvelopeProcessorService {
                 process_value(event, &mut processor, ProcessingState::root())?;
             }
         });
-
-        Ok(())
-    }
-
-    /// Apply data privacy rules to the replay payload.
-    ///
-    /// This uses both the general `datascrubbing_settings`, as well as the the PII rules.
-    fn scrub_replay(
-        &self,
-        replay: &mut Annotated<Replay>,
-        config: &ProjectConfig,
-    ) -> Result<(), ProcessingError> {
-        if let Some(ref config) = config.pii_config {
-            let mut processor = PiiProcessor::new(config.compiled());
-            process_value(replay, &mut processor, ProcessingState::root())
-                .map_err(ProcessingError::ProcessingFailed)?;
-        }
-        let pii_config = config
-            .datascrubbing_settings
-            .pii_config()
-            .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
-        if let Some(config) = pii_config {
-            let mut processor = PiiProcessor::new(config.compiled());
-            process_value(replay, &mut processor, ProcessingState::root())
-                .map_err(ProcessingError::ProcessingFailed)?;
-        }
 
         Ok(())
     }

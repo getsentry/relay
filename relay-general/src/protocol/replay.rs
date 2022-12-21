@@ -31,7 +31,33 @@ use crate::store::is_valid_platform;
 use crate::store::user_agent::normalize_user_agent_generic;
 use crate::types::{Annotated, Array};
 use crate::user_agent;
+use std::fmt::Display;
 use std::net::IpAddr as RealIPAddr;
+
+#[derive(Debug)]
+pub enum ReplayError {
+    CouldNotParse(serde_json::Error),
+    NoContent,
+    InvalidPayload(String),
+    CouldNotScrub(String),
+}
+
+impl Display for ReplayError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ReplayError::CouldNotParse(e) => write!(f, "{}", e),
+            ReplayError::NoContent => write!(f, "No data found.",),
+            ReplayError::InvalidPayload(e) => write!(f, "{}", e),
+            ReplayError::CouldNotScrub(e) => write!(f, "{}", e),
+        }
+    }
+}
+
+impl From<serde_json::Error> for ReplayError {
+    fn from(err: serde_json::Error) -> Self {
+        ReplayError::CouldNotParse(err)
+    }
+}
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
@@ -212,6 +238,13 @@ pub struct Replay {
 }
 
 impl Replay {
+    pub fn validate(&mut self) -> Result<(), ReplayError> {
+        self.replay_id
+            .value()
+            .ok_or_else(|| ReplayError::InvalidPayload("missing replay_id".to_string()))?;
+        Ok(())
+    }
+
     pub fn normalize(&mut self, client_ip: Option<RealIPAddr>, user_agent: Option<&str>) {
         self.normalize_platform();
         self.normalize_ip_address(client_ip);
