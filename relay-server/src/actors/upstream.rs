@@ -8,7 +8,7 @@ use itertools::Itertools;
 use relay_log::LogError;
 use reqwest::header;
 use serde::{de::DeserializeOwned, Serialize};
-use tokio::sync::{mpsc, watch, Notify, Semaphore};
+use tokio::sync::{mpsc, watch, Notify, OwnedSemaphorePermit, Semaphore};
 use tokio::time::Instant;
 
 use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
@@ -26,6 +26,13 @@ use crate::statsd::{RelayHistograms, RelayTimers};
 use crate::utils::{self, ApiErrorResponse, RelayErrorAction};
 
 pub use reqwest::Method;
+
+/// TODO(ja): Internal error
+#[derive(Clone, Copy, Debug)]
+enum ServiceError {
+    ChannelClosed,
+    AuthDenied,
+}
 
 /// Rate limits returned by the upstream.
 ///
@@ -154,6 +161,15 @@ impl UpstreamRequestError {
             Self::NoCredentials | Self::SendFailed(_) | Self::ChannelClosed | Self::AuthDenied => {
                 false
             }
+        }
+    }
+}
+
+impl From<ServiceError> for UpstreamRequestError {
+    fn from(value: ServiceError) -> Self {
+        match value {
+            ServiceError::ChannelClosed => Self::ChannelClosed,
+            ServiceError::AuthDenied => Self::AuthDenied,
         }
     }
 }
@@ -461,6 +477,9 @@ impl Dispatch {
     fn enqueue_request(&mut self, request: Box<dyn UpstreamRequest>) {
         let priority = request.priority();
 
+        // We can ignore send errors here. Once the channel closes, we drop all incoming requests
+        // here. The receiving end of the request will be notified of the drop if they are waiting
+        // for it.
         match priority {
             RequestPriority::Immediate => todo!(),
             RequestPriority::High => self.tx_high.send(request).ok(),
@@ -645,10 +664,10 @@ impl OutageHandle {
     /// # Cancel safety
     ///
     /// This method is cancel safe.
-    pub async fn resolved(&mut self) -> Result<(), UpstreamRequestError> {
+    pub async fn resolved(&mut self) -> Result<(), ServiceError> {
         while self.is_active() {
             if self.rx.changed().await.is_err() {
-                return Err(UpstreamRequestError::ChannelClosed);
+                return Err(ServiceError::ChannelClosed);
             }
         }
 
@@ -810,18 +829,18 @@ impl AuthHandle {
     /// # Cancel safety
     ///
     /// This method is cancel safe.
-    pub async fn authenticated(&mut self) -> Result<(), UpstreamRequestError> {
+    pub async fn authenticated(&mut self) -> Result<(), ServiceError> {
         match self {
             AuthHandle::NotNeeded => Ok(()),
             AuthHandle::Required(ref mut rx) => loop {
-                if rx.changed().await.is_err() {
-                    return Err(UpstreamRequestError::ChannelClosed);
+                match *rx.borrow() {
+                    AuthState::Unknown | AuthState::Registering => (),
+                    AuthState::Registered | AuthState::Renewing => return Ok(()),
+                    AuthState::Denied => return Err(ServiceError::AuthDenied),
                 }
 
-                match *rx.borrow() {
-                    AuthState::Unknown | AuthState::Registering => continue,
-                    AuthState::Registered | AuthState::Renewing => return Ok(()),
-                    AuthState::Denied => return Err(UpstreamRequestError::AuthDenied),
+                if rx.changed().await.is_err() {
+                    return Err(ServiceError::ChannelClosed);
                 }
             },
         }
@@ -1144,34 +1163,48 @@ struct Broker {
 }
 
 impl Broker {
-    async fn run(mut self) -> Result<(), UpstreamRequestError> {
+    /// TODO(ja): Doc
+    async fn ready(&mut self) -> Result<OwnedSemaphorePermit, ServiceError> {
+        let permit = self.semaphore.clone().acquire_owned().await;
+
+        // TODO(ja): Explain error propagation
+        self.auth.authenticated().await?;
+
+        // TODO(ja): Consider placement of this:
+        //  - if we check it here, we might have a new outage by the time a new request comes
+        //    in. That's unlikely though.
+        //  - if we check it below, that means we spawn more tasks that will just be waiting
+        //    instead of leaving requests in the queue.
+        //  - the outage should be checked somewhere in the request loop too.
+        self.outage.resolved().await?;
+
+        permit.map_err(|_| ServiceError::ChannelClosed)
+    }
+
+    /// TODO(ja): Doc
+    async fn run(mut self) {
         loop {
-            let permit = self.semaphore.clone().acquire_owned();
-
-            // TODO(ja): Explain error propagation
-            self.auth.authenticated().await?;
-
-            // TODO(ja): Consider placement of this:
-            //  - if we check it here, we might have a new outage by the time a new request comes
-            //    in. That's unlikely though.
-            //  - if we check it below, that means we spawn more tasks that will just be waiting
-            //    instead of leaving requests in the queue.
-            //  - the outage should be checked somewhere in the request loop too.
-            self.outage.resolved().await?;
+            let ready_result = self.ready().await;
 
             let request = tokio::select! {
                 biased;
 
                 Some(request) = self.rx_high.recv() => request,
                 Some(request) = self.rx_low.recv() => request,
+                else => return,
             };
 
-            let client = self.client.clone();
-            tokio::spawn(async move {
-                let result = client.send(request.as_ref()).await;
-                request.respond(result).await;
-                drop(permit);
-            });
+            match ready_result {
+                Ok(permit) => {
+                    let client = self.client.clone();
+                    tokio::spawn(async move {
+                        let result = client.send(request.as_ref()).await;
+                        request.respond(result).await;
+                        drop(permit);
+                    });
+                }
+                Err(error) => request.respond(Err(error.into())).await,
+            };
         }
     }
 }
