@@ -1,5 +1,6 @@
 ---
 source: relay-general/tests/test_fixtures.rs
+assertion_line: 109
 expression: "relay_general::protocol::event_json_schema()"
 ---
 {
@@ -1917,6 +1918,16 @@ expression: "relay_general::protocol::event_json_schema()"
         }
       ]
     },
+    "InstructionAddrAdjustment": {
+      "description": "Controls the mechanism by which the `instruction_addr` of a [`Stacktrace`] [`Frame`] is adjusted.\n\nThe adjustment tries to transform *return addresses* to *call addresses* for symbolication. Typically, this adjustment needs to be done for all frames but the first, as the first frame is usually taken directly from the cpu context of a hardware exception or a suspended thread and the stack trace is created from that.\n\nWhen the stack walking implementation truncates frames from the top, `\"all\"` frames should be adjusted. In case the stack walking implementation already does the adjustment when producing stack frames, `\"none\"` should be used here.",
+      "type": "string",
+      "enum": [
+        "auto",
+        "all_but_first",
+        "all",
+        "none"
+      ]
+    },
     "JsonLenientString": {
       "description": " A \"into-string\" type of value. All non-string values are serialized as JSON.",
       "anyOf": [
@@ -2499,6 +2510,18 @@ expression: "relay_general::protocol::event_json_schema()"
                   }
                 ]
               }
+            },
+            "instruction_addr_adjustment": {
+              "description": " Optional. A flat that indicates if, and how, `instruction_addr` values need to be adjusted\n before they are symbolicated.",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/InstructionAddrAdjustment"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "lang": {
               "description": " The language of the stacktrace.",
