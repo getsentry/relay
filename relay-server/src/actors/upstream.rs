@@ -5,17 +5,21 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use itertools::Itertools;
-use relay_common::RetryBackoff;
+use relay_log::LogError;
 use reqwest::header;
 use serde::{de::DeserializeOwned, Serialize};
 use tokio::sync::{mpsc, watch, Notify, Semaphore};
 use tokio::time::Instant;
 
-use relay_config::Config;
+use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
+use relay_common::RetryBackoff;
+use relay_config::{Config, Credentials, RelayMode};
 use relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, RetryAfter, Scoping,
 };
-use relay_system::{Addr, AsyncResponse, FromMessage, Interface, NoResponse, Sender, Service};
+use relay_system::{
+    Addr, AsyncResponse, FromMessage, Interface, MessageResponse, NoResponse, Sender, Service,
+};
 
 use crate::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
 use crate::statsd::{RelayHistograms, RelayTimers};
@@ -106,6 +110,9 @@ pub enum UpstreamRequestError {
 
     #[error("channel closed")]
     ChannelClosed,
+
+    #[error("upstream permanently denied authentication")]
+    AuthDenied,
 }
 
 impl UpstreamRequestError {
@@ -144,7 +151,9 @@ impl UpstreamRequestError {
             // Everything except network errors indicates the upstream has handled this request.
             Self::ResponseError(_, _) | Self::Http(_) => !self.is_network_error(),
             // Remaining kinds indicate a failure to send the request.
-            Self::NoCredentials | Self::SendFailed(_) | Self::ChannelClosed => false,
+            Self::NoCredentials | Self::SendFailed(_) | Self::ChannelClosed | Self::AuthDenied => {
+                false
+            }
         }
     }
 }
@@ -334,6 +343,26 @@ where
     }
 }
 
+fn sign_query<T>(
+    query: T,
+    credentials: &Credentials,
+    config: &Config,
+    sender: QuerySender<T>,
+) -> Option<Box<dyn UpstreamRequest>>
+where
+    T: UpstreamQuery + 'static,
+{
+    let (body, signature) = credentials.secret_key.pack(&query);
+    let max_response_size = config.max_api_payload_size();
+    Some(Box::new(UpstreamQueryRequest {
+        query,
+        body,
+        signature,
+        max_response_size,
+        sender,
+    }))
+}
+
 /// TODO(ja): Doc
 pub trait ConfigureRequest: Send + Sync + fmt::Debug {
     /// TODO(ja): Doc
@@ -352,16 +381,7 @@ where
             return None;
         };
 
-        let (body, signature) = credentials.secret_key.pack(&query);
-        let max_response_size = config.max_api_payload_size();
-
-        Some(Box::new(UpstreamQueryRequest {
-            query,
-            body,
-            signature,
-            max_response_size,
-            sender,
-        }))
+        sign_query(query, credentials, config, sender)
     }
 }
 
@@ -434,6 +454,7 @@ struct Dispatch {
     tx_high: mpsc::UnboundedSender<Box<dyn UpstreamRequest>>,
     tx_low: mpsc::UnboundedSender<Box<dyn UpstreamRequest>>,
     outage: OutageHandle,
+    auth: AuthHandle,
 }
 
 impl Dispatch {
@@ -465,7 +486,7 @@ impl Dispatch {
 
     fn handle_message(&mut self, message: UpstreamRelay) {
         match message {
-            UpstreamRelay::IsAuthenticated(_, sender) => sender.send(todo!()),
+            UpstreamRelay::IsAuthenticated(_, sender) => sender.send(self.auth.is_authenticated()),
             UpstreamRelay::IsNetworkOutage(_, sender) => sender.send(self.outage.is_active()),
             UpstreamRelay::SendRequest(request) => self.enqueue_request(request),
             UpstreamRelay::SendQuery(query) => self.handle_query(query),
@@ -505,6 +526,7 @@ fn emit_response_metrics(
         Err(UpstreamRequestError::RateLimited(_)) => ("-", "rate_limited"),
         Err(UpstreamRequestError::NoCredentials)
         | Err(UpstreamRequestError::ChannelClosed)
+        | Err(UpstreamRequestError::AuthDenied)
         | Err(UpstreamRequestError::Http(HttpError::Overflow)) => {
             // these are not errors caused when sending to upstream so we don't need to log anything
             relay_log::error!("meter_result called for unsupported error");
@@ -623,13 +645,14 @@ impl OutageHandle {
     /// # Cancel safety
     ///
     /// This method is cancel safe.
-    pub async fn resolved(&mut self) {
+    pub async fn resolved(&mut self) -> Result<(), UpstreamRequestError> {
         while self.is_active() {
             if self.rx.changed().await.is_err() {
-                return; // Return if the channel has closed to prevent suspending indefinitely
-                        // TODO(ja): Surface `Result` in public signature?
+                return Err(UpstreamRequestError::ChannelClosed);
             }
         }
+
+        Ok(())
     }
 
     /// Notify the outage monitor of a network outage.
@@ -686,6 +709,218 @@ impl OutageMonitor {
 
             self.connect().await;
             relay_log::info!("Recovering from network outage.")
+        }
+    }
+}
+
+/// Represents the current auth state.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+enum AuthState {
+    /// Relay is not authenticated and authentication has not started.
+    Unknown,
+
+    /// Relay is not authenticated and authentication is in progress.
+    Registering,
+
+    /// The connection is healthy and authenticated in managed mode.
+    Registered,
+
+    /// Relay is authenticated and renewing the registration lease. During this process, Relay
+    /// remains authenticated, unless an error occurs.
+    Renewing,
+
+    /// Authentication has been permanently denied by the Upstream. Do not attempt to retry.
+    Denied,
+}
+
+impl UpstreamQuery for RegisterRequest {
+    type Response = RegisterChallenge;
+
+    fn method(&self) -> Method {
+        Method::POST
+    }
+
+    fn path(&self) -> Cow<'static, str> {
+        Cow::Borrowed("/api/0/relays/register/challenge/")
+    }
+
+    fn priority() -> RequestPriority {
+        RequestPriority::Immediate
+    }
+
+    fn retry() -> bool {
+        false
+    }
+}
+
+impl UpstreamQuery for RegisterResponse {
+    type Response = Registration;
+
+    fn method(&self) -> Method {
+        Method::POST
+    }
+
+    fn path(&self) -> Cow<'static, str> {
+        Cow::Borrowed("/api/0/relays/register/response/")
+    }
+
+    fn priority() -> RequestPriority {
+        RequestPriority::Immediate
+    }
+
+    fn retry() -> bool {
+        false
+    }
+}
+
+impl AuthState {
+    /// Returns true if the state is considered authenticated.
+    pub fn is_authenticated(self) -> bool {
+        matches!(self, AuthState::Registered | AuthState::Renewing)
+    }
+}
+
+/// TODO(ja): Doc
+#[derive(Clone, Debug)]
+enum AuthHandle {
+    /// TODO(ja): Doc
+    /// TODO(ja): Name
+    NotNeeded,
+    /// TODO(ja): Doc
+    Required(watch::Receiver<AuthState>),
+}
+
+impl AuthHandle {
+    /// TODO(ja): Doc
+    pub fn is_authenticated(&self) -> bool {
+        match self {
+            // Non-managed mode Relays do not authenticate and are ready immediately
+            AuthHandle::NotNeeded => true,
+            AuthHandle::Required(rx) => match *rx.borrow() {
+                // Relays that have auth errors cannot send messages
+                AuthState::Unknown | AuthState::Registering | AuthState::Denied => false,
+                // All good in managed mode
+                AuthState::Registered | AuthState::Renewing => true,
+            },
+        }
+    }
+
+    /// TODO(ja): Doc
+    ///
+    /// # Cancel safety
+    ///
+    /// This method is cancel safe.
+    pub async fn authenticated(&mut self) -> Result<(), UpstreamRequestError> {
+        match self {
+            AuthHandle::NotNeeded => Ok(()),
+            AuthHandle::Required(ref mut rx) => loop {
+                if rx.changed().await.is_err() {
+                    return Err(UpstreamRequestError::ChannelClosed);
+                }
+
+                match *rx.borrow() {
+                    AuthState::Unknown | AuthState::Registering => continue,
+                    AuthState::Registered | AuthState::Renewing => return Ok(()),
+                    AuthState::Denied => return Err(UpstreamRequestError::AuthDenied),
+                }
+            },
+        }
+    }
+}
+
+/// TODO(ja): Doc
+#[derive(Debug)]
+struct AuthMonitor {
+    config: Arc<Config>,
+    backoff: RetryBackoff,
+    state: watch::Sender<AuthState>,
+    client: Arc<SharedClient>,
+}
+
+impl AuthMonitor {
+    /// Returns the interval at which this Relay should renew authentication.
+    fn renew_auth_interval(&self) -> Option<std::time::Duration> {
+        if self.config.processing_enabled() {
+            // processing relays do NOT re-authenticate
+            None
+        } else {
+            // only relays the have a configured auth-interval reauthenticate
+            self.config.http_auth_interval()
+        }
+    }
+
+    async fn authenticate(&self, credentials: &Credentials) -> Result<(), UpstreamRequestError> {
+        relay_log::info!(
+            "registering with upstream ({})",
+            self.config.upstream_descriptor()
+        );
+
+        let state = if self.state.borrow().is_authenticated() {
+            AuthState::Renewing
+        } else {
+            AuthState::Registering
+        };
+
+        // TODO(ja): Error handling -> probably bail
+        self.state.send(state).ok();
+
+        let request = RegisterRequest::new(&credentials.id, &credentials.public_key);
+        let challenge = self.client.send_query(request).await?;
+        relay_log::debug!("got register challenge (token = {})", challenge.token());
+
+        let response = challenge.into_response();
+        relay_log::debug!("sending register challenge response");
+        self.client.send_query(response).await?;
+
+        relay_log::info!("relay successfully registered with upstream");
+        Ok(())
+    }
+
+    /// TODO(ja): Doc
+    /// Should only run if mode == Managed
+    pub async fn run(mut self) {
+        let Some(credentials) = self.config.credentials() else {
+            // This is checked during setup by `check_config` and should never happen.
+            relay_log::error!("authentication called without credentials");
+            return;
+        };
+
+        loop {
+            match self.authenticate(credentials).await {
+                Ok(_) => {
+                    self.state.send(AuthState::Registered).ok();
+                    self.backoff.reset();
+
+                    match self.renew_auth_interval() {
+                        Some(interval) => tokio::time::sleep(interval).await,
+                        None => return,
+                    }
+                }
+                Err(err) => {
+                    relay_log::error!("authentication encountered error: {}", LogError(&err));
+
+                    if err.is_permanent_rejection() {
+                        self.state.send(AuthState::Denied).ok();
+                        return;
+                    }
+
+                    // If the authentication request fails due to any reason other than a network
+                    // error, go back to `Registering` which indicates that this Relay is not
+                    // authenticated. Note that network errors are handled separately by the generic
+                    // response handler.
+                    if !err.is_network_error() {
+                        self.state.send(AuthState::Registering).ok();
+                    }
+
+                    // Even on network errors, retry authentication independently.
+                    let backoff = self.backoff.next_backoff();
+                    relay_log::debug!(
+                        "scheduling authentication retry in {} seconds",
+                        backoff.as_secs()
+                    );
+                    tokio::time::sleep(backoff).await;
+                }
+            };
         }
     }
 }
@@ -872,6 +1107,28 @@ impl SharedClient {
             return result;
         }
     }
+
+    /// TODO(ja): Doc
+    pub async fn send_query<T>(&self, query: T) -> Result<T::Response, UpstreamRequestError>
+    where
+        T: UpstreamQuery + 'static,
+    {
+        let credentials = self
+            .config
+            .credentials()
+            .ok_or(UpstreamRequestError::NoCredentials)?;
+
+        let (sender, receiver) = AsyncResponse::channel();
+
+        if let Some(request) = sign_query(query, credentials, &self.config, sender) {
+            let result = self.send(request.as_ref()).await;
+            request.respond(result).await;
+        }
+
+        receiver
+            .await
+            .unwrap_or(Err(UpstreamRequestError::ChannelClosed))
+    }
 }
 
 /// TODO(ja): Doc
@@ -883,12 +1140,16 @@ struct Broker {
     semaphore: Arc<Semaphore>,
     client: Arc<SharedClient>,
     outage: OutageHandle,
+    auth: AuthHandle,
 }
 
 impl Broker {
-    async fn run(mut self) {
+    async fn run(mut self) -> Result<(), UpstreamRequestError> {
         loop {
             let permit = self.semaphore.clone().acquire_owned();
+
+            // TODO(ja): Explain error propagation
+            self.auth.authenticated().await?;
 
             // TODO(ja): Consider placement of this:
             //  - if we check it here, we might have a new outage by the time a new request comes
@@ -896,7 +1157,7 @@ impl Broker {
             //  - if we check it below, that means we spawn more tasks that will just be waiting
             //    instead of leaving requests in the queue.
             //  - the outage should be checked somewhere in the request loop too.
-            self.outage.resolved().await;
+            self.outage.resolved().await?;
 
             let request = tokio::select! {
                 biased;
@@ -920,6 +1181,7 @@ pub struct UpstreamRelayService {
     dispatch: Dispatch,
     broker: Broker,
     outage_monitor: OutageMonitor,
+    auth_monitor: Option<AuthMonitor>,
 }
 
 impl UpstreamRelayService {
@@ -941,6 +1203,22 @@ impl UpstreamRelayService {
             client: client.clone(),
         };
 
+        // only managed mode relays perform authentication
+        let (auth_handle, auth_monitor) = if config.relay_mode() == RelayMode::Managed {
+            let (auth_tx, auth_rx) = watch::channel(AuthState::Unknown);
+
+            let monitor = AuthMonitor {
+                config: config.clone(),
+                backoff: RetryBackoff::new(config.http_max_retry_interval()),
+                state: auth_tx,
+                client: client.clone(),
+            };
+
+            (AuthHandle::Required(auth_rx), Some(monitor))
+        } else {
+            (AuthHandle::NotNeeded, None)
+        };
+
         let (tx_high, rx_high) = mpsc::unbounded_channel();
         let (tx_low, rx_low) = mpsc::unbounded_channel();
 
@@ -949,6 +1227,7 @@ impl UpstreamRelayService {
             tx_high,
             tx_low,
             outage: outage_handle.clone(),
+            auth: auth_handle.clone(),
         };
 
         let broker = Broker {
@@ -957,12 +1236,14 @@ impl UpstreamRelayService {
             semaphore: Arc::new(Semaphore::new(config.max_concurrent_requests())),
             client,
             outage: outage_handle,
+            auth: auth_handle,
         };
 
         Self {
             dispatch,
             broker,
             outage_monitor,
+            auth_monitor,
         }
     }
 }
@@ -975,9 +1256,13 @@ impl Service for UpstreamRelayService {
             mut dispatch,
             broker,
             outage_monitor,
+            auth_monitor,
         } = self;
 
         tokio::spawn(async move { outage_monitor.run().await });
+        if let Some(auth_monitor) = auth_monitor {
+            tokio::spawn(async move { auth_monitor.run().await });
+        }
         tokio::spawn(async move { broker.run().await });
 
         tokio::spawn(async move {
