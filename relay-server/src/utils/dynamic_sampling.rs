@@ -675,7 +675,7 @@ mod tests {
     }
 
     #[test]
-    fn test_event_decaying_rule_with_no_time_range_and_linear_function() {
+    fn test_event_decaying_rule_with_linear_function() {
         let now = Utc::now();
         let project_state = state_with_decaying_rule(
             Some(0.7),
@@ -684,27 +684,8 @@ mod tests {
             DecayingFunction::Linear {
                 decayed_sample_rate: 0.2,
             },
-            None,
-            None,
-        );
-
-        assert!(
-            prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
-                .unwrap()
-                .is_none()
-        );
-    }
-
-    #[test]
-    fn test_event_decaying_rule_with_no_time_range_and_constant_function() {
-        let now = Utc::now();
-        let project_state = state_with_decaying_rule(
-            Some(0.7),
-            RuleType::Transaction,
-            SamplingMode::Total,
-            DecayingFunction::Constant,
-            None,
-            None,
+            Some(now - DateDuration::days(1)),
+            Some(now + DateDuration::days(1)),
         );
 
         assert_eq!(
@@ -712,7 +693,7 @@ mod tests {
                 .unwrap()
                 .unwrap()
                 .sample_rate,
-            0.7
+            0.44999999999999996
         );
     }
 
@@ -755,45 +736,28 @@ mod tests {
     }
 
     #[test]
-    fn test_event_decaying_rule_with_open_time_range_and_constant_function() {
+    fn test_event_decaying_rule_with_no_time_range_and_linear_function() {
         let now = Utc::now();
         let project_state = state_with_decaying_rule(
             Some(0.7),
             RuleType::Transaction,
             SamplingMode::Total,
-            DecayingFunction::Constant,
-            Some(now - DateDuration::days(1)),
+            DecayingFunction::Linear {
+                decayed_sample_rate: 0.2,
+            },
+            None,
             None,
         );
 
-        assert_eq!(
+        assert!(
             prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
                 .unwrap()
-                .unwrap()
-                .sample_rate,
-            0.7
-        );
-
-        let project_state = state_with_decaying_rule(
-            Some(0.7),
-            RuleType::Transaction,
-            SamplingMode::Total,
-            DecayingFunction::Constant,
-            None,
-            Some(now + DateDuration::days(1)),
-        );
-
-        assert_eq!(
-            prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
-                .unwrap()
-                .unwrap()
-                .sample_rate,
-            0.7
+                .is_none()
         );
     }
 
     #[test]
-    fn test_event_decaying_rule_with_now_equal_start() {
+    fn test_event_decaying_rule_with_now_equal_start_and_linear_function() {
         let now = Utc::now();
         let project_state = state_with_decaying_rule(
             Some(0.7),
@@ -816,7 +780,7 @@ mod tests {
     }
 
     #[test]
-    fn test_event_decaying_rule_with_linear_function() {
+    fn test_event_decaying_rule_with_now_equal_end_and_linear_function() {
         let now = Utc::now();
         let project_state = state_with_decaying_rule(
             Some(0.7),
@@ -826,20 +790,18 @@ mod tests {
                 decayed_sample_rate: 0.2,
             },
             Some(now - DateDuration::days(1)),
-            Some(now + DateDuration::days(1)),
+            Some(now),
         );
 
-        assert_eq!(
+        assert!(
             prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
                 .unwrap()
-                .unwrap()
-                .sample_rate,
-            0.44999999999999996
+                .is_none()
         );
     }
 
     #[test]
-    fn test_event_decaying_rule_with_linear_function_and_base_less_then_decayed() {
+    fn test_event_decaying_rule_with_base_less_then_decayed_and_linear_function() {
         let now = Utc::now();
         let project_state = state_with_decaying_rule(
             Some(0.3),
@@ -881,7 +843,66 @@ mod tests {
     }
 
     #[test]
-    fn test_event_decaying_rule_with_constant_function_and_inverse_time_range() {
+    fn test_event_decaying_rule_with_open_time_range_and_constant_function() {
+        let now = Utc::now();
+        let project_state = state_with_decaying_rule(
+            Some(0.7),
+            RuleType::Transaction,
+            SamplingMode::Total,
+            DecayingFunction::Constant,
+            Some(now - DateDuration::days(1)),
+            None,
+        );
+
+        assert_eq!(
+            prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
+                .unwrap()
+                .unwrap()
+                .sample_rate,
+            0.7
+        );
+
+        let project_state = state_with_decaying_rule(
+            Some(0.7),
+            RuleType::Transaction,
+            SamplingMode::Total,
+            DecayingFunction::Constant,
+            None,
+            Some(now + DateDuration::days(1)),
+        );
+
+        assert_eq!(
+            prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
+                .unwrap()
+                .unwrap()
+                .sample_rate,
+            0.7
+        );
+    }
+
+    #[test]
+    fn test_event_decaying_rule_with_no_time_range_and_constant_function() {
+        let now = Utc::now();
+        let project_state = state_with_decaying_rule(
+            Some(0.7),
+            RuleType::Transaction,
+            SamplingMode::Total,
+            DecayingFunction::Constant,
+            None,
+            None,
+        );
+
+        assert_eq!(
+            prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
+                .unwrap()
+                .unwrap()
+                .sample_rate,
+            0.7
+        );
+    }
+
+    #[test]
+    fn test_event_decaying_rule_with_inverse_time_range_and_constant_function() {
         let now = Utc::now();
         let project_state = state_with_decaying_rule(
             Some(0.6),

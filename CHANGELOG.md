@@ -5,7 +5,7 @@
 **Features**:
 
 - Add support for `limits.keepalive_timeout` configuration. ([#1645](https://github.com/getsentry/relay/pull/1645))
-- Add support for decaying functions in sampling rules. ([#1692](https://github.com/getsentry/relay/pull/1692))
+- Add support for decaying functions in dynamic sampling rules. ([#1692](https://github.com/getsentry/relay/pull/1692))
 
 **Internal**:
 

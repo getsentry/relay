@@ -399,7 +399,7 @@ impl SamplingRule {
     ///
     /// Non-decaying rules are always active. Decaying rules are active if they are
     /// neither idle nor expired.
-    fn is_active(&self, now: DateTime<Utc>) -> Option<MatchingRule> {
+    fn is_active(&self, now: DateTime<Utc>) -> Option<ActiveRule> {
         match self.decaying_fn {
             DecayingFunction::Linear {
                 decayed_sample_rate,
@@ -409,8 +409,8 @@ impl SamplingRule {
                     end: Some(end),
                 } = self.time_range
                 {
-                    if self.sample_rate > decayed_sample_rate && start < end && now >= start {
-                        return Some(MatchingRule {
+                    if self.sample_rate > decayed_sample_rate && start <= now && now < end {
+                        return Some(ActiveRule {
                             id: self.id,
                             evaluator: SampleRateEvaluator::Linear {
                                 start,
@@ -424,7 +424,7 @@ impl SamplingRule {
             }
             DecayingFunction::Constant => {
                 if self.time_range.contains(now) {
-                    return Some(MatchingRule {
+                    return Some(ActiveRule {
                         id: self.id,
                         evaluator: SampleRateEvaluator::Constant {
                             sample_rate: self.sample_rate,
@@ -435,21 +435,6 @@ impl SamplingRule {
         }
 
         None
-    }
-}
-
-/// A sampling rule that has been successfully matched and that contains all the required data
-/// to return the sample rate.
-#[derive(Debug, Clone, Copy)]
-pub struct MatchingRule {
-    pub id: RuleId,
-    evaluator: SampleRateEvaluator,
-}
-
-impl MatchingRule {
-    /// Gets the sample rate for the specific rule.
-    pub fn get_sample_rate(&self, now: DateTime<Utc>) -> f64 {
-        self.evaluator.evaluate(now)
     }
 }
 
@@ -489,6 +474,21 @@ impl SampleRateEvaluator {
             }
             SampleRateEvaluator::Constant { sample_rate } => *sample_rate,
         }
+    }
+}
+
+/// A sampling rule that has been successfully matched and that contains all the required data
+/// to return the sample rate.
+#[derive(Debug, Clone, Copy)]
+pub struct ActiveRule {
+    pub id: RuleId,
+    evaluator: SampleRateEvaluator,
+}
+
+impl ActiveRule {
+    /// Gets the sample rate for the specific rule.
+    pub fn get_sample_rate(&self, now: DateTime<Utc>) -> f64 {
+        self.evaluator.evaluate(now)
     }
 }
 
@@ -840,7 +840,7 @@ impl SamplingConfig {
         sampling_context: &DynamicSamplingContext,
         ip_addr: Option<IpAddr>,
         now: DateTime<Utc>,
-    ) -> Option<MatchingRule> {
+    ) -> Option<ActiveRule> {
         self.rules.iter().find_map(|rule| {
             if rule.ty != RuleType::Trace {
                 return None;
@@ -863,7 +863,7 @@ impl SamplingConfig {
         event: &Event,
         ip_addr: Option<IpAddr>,
         now: DateTime<Utc>,
-    ) -> Option<MatchingRule> {
+    ) -> Option<ActiveRule> {
         let ty = if let Some(EventType::Transaction) = &event.ty.0 {
             RuleType::Transaction
         } else {
