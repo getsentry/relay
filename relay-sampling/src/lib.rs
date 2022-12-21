@@ -438,17 +438,23 @@ impl SamplingRule {
     }
 }
 
+/// A sampling rule that has been successfully matched and that contains all the required data
+/// to return the sample rate.
+#[derive(Debug, Clone, Copy)]
 pub struct MatchingRule {
     pub id: RuleId,
     evaluator: SampleRateEvaluator,
 }
 
 impl MatchingRule {
+    /// Gets the sample rate for the specific rule.
     pub fn get_sample_rate(&self, now: DateTime<Utc>) -> f64 {
         self.evaluator.evaluate(now)
     }
 }
 
+/// A struct representing the evaluation context of a sample rate.
+#[derive(Debug, Clone, Copy)]
 enum SampleRateEvaluator {
     Linear {
         start: DateTime<Utc>,
@@ -462,6 +468,7 @@ enum SampleRateEvaluator {
 }
 
 impl SampleRateEvaluator {
+    /// Evaluates the sample rate given the decaying function and the current time.
     fn evaluate(&self, now: DateTime<Utc>) -> f64 {
         match self {
             SampleRateEvaluator::Linear {
