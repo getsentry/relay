@@ -11,6 +11,7 @@ use relay_system::FromMessage;
 use relay_system::Interface;
 use relay_system::Sender;
 use relay_system::Service;
+use tokio::sync::mpsc;
 
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::FetchOptionalProjectState;
@@ -65,38 +66,37 @@ impl LocalProjectSourceService {
             }
         }
     }
-
-    async fn poll_local_states(&mut self) {
-        let path = self.config.project_configs_path();
-        let states = load_local_states(&path).await;
-        match states {
-            Ok(states) => self.local_states = states,
-            Err(error) => relay_log::error!(
-                "failed to load static project configs: {}",
-                LogError(&error)
-            ),
-        };
-    }
 }
 
 impl Service for LocalProjectSourceService {
     type Interface = LocalProjectSource;
 
+    /// Spawns two loops:
+    /// 1. one for periodically polling local states, and
+    /// 2. one to handle both external messages _and_ updates to the local cache.
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        tokio::spawn(async move {
-            relay_log::info!("project local cache started");
-            let mut ticker = tokio::time::interval(self.config.local_cache_interval());
+        let project_path = self.config.project_configs_path();
+        let (mut state_tx, mut state_rx) = mpsc::channel(1);
 
+        let mut ticker = tokio::time::interval(self.config.local_cache_interval());
+        tokio::spawn(async move {
+            loop {
+                ticker.tick().await;
+                poll_local_states(&project_path, &mut state_tx).await;
+            }
+        });
+
+        tokio::spawn(async move {
             // Poll local states once before handling any message, such that the projects are
             // populated.
-            self.poll_local_states().await;
+            // FIXME restore this
+            // self.poll_local_states().await;
 
+            relay_log::info!("project local cache started");
             loop {
                 tokio::select! {
-                    biased;
-
-                    _ = ticker.tick() => self.poll_local_states().await,
                     Some(message) = rx.recv() => self.handle_message(message),
+                    Some(states) = state_rx.recv() => self.local_states = states,
 
                     else => break,
                 }
@@ -172,4 +172,20 @@ async fn load_local_states(
     }
 
     Ok(states)
+}
+
+async fn poll_local_states(
+    path: &Path,
+    tx: &mut mpsc::Sender<HashMap<ProjectKey, Arc<ProjectState>>>,
+) {
+    let states = load_local_states(path).await;
+    match states {
+        Ok(states) => {
+            let _ = tx.send(states).await;
+        }
+        Err(error) => relay_log::error!(
+            "failed to load static project configs: {}",
+            LogError(&error)
+        ),
+    };
 }
