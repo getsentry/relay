@@ -17,11 +17,10 @@ use crate::actors::project::ProjectState;
 use crate::actors::project_cache::FetchOptionalProjectState;
 
 /// Service interface of the local project source.
+/// Fetches the project state for a given project key. Returns `None` if the project state is not available locally.
+
 #[derive(Debug)]
-pub enum LocalProjectSource {
-    /// Fetches the project state for a given project key. Returns `None` if the project state is not available locally.
-    FetchOptionalProjectState(FetchOptionalProjectState, Sender<Option<Arc<ProjectState>>>),
-}
+pub struct LocalProjectSource(FetchOptionalProjectState, Sender<Option<Arc<ProjectState>>>);
 
 impl Interface for LocalProjectSource {}
 
@@ -31,7 +30,7 @@ impl FromMessage<FetchOptionalProjectState> for LocalProjectSource {
         message: FetchOptionalProjectState,
         sender: Sender<Option<Arc<ProjectState>>>,
     ) -> Self {
-        Self::FetchOptionalProjectState(message, sender)
+        Self(message, sender)
     }
 }
 
@@ -60,11 +59,8 @@ impl LocalProjectSourceService {
     }
 
     fn handle_message(&mut self, message: LocalProjectSource) {
-        match message {
-            LocalProjectSource::FetchOptionalProjectState(message, sender) => {
-                self.handle_fetch_optional_project_state(message, sender)
-            }
-        }
+        let LocalProjectSource(message, sender) = message;
+        self.handle_fetch_optional_project_state(message, sender)
     }
 }
 
