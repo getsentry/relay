@@ -357,13 +357,6 @@ impl TimeRange {
     }
 }
 
-/// A struct containing the set of external params required by a decaying function.
-#[derive(Clone, Copy, Debug)]
-struct DecayingFunctionParams {
-    sample_rate: f64,
-    progress_ratio: f64,
-}
-
 /// A decaying function definition.
 ///
 /// A decaying function is responsible of decaying the sample rate from a value to another following
@@ -376,20 +369,6 @@ pub enum DecayingFunction {
     Linear { decayed_sample_rate: f64 },
     #[default]
     Constant,
-}
-
-impl DecayingFunction {
-    fn call(&self, params: DecayingFunctionParams) -> f64 {
-        match self {
-            DecayingFunction::Linear {
-                decayed_sample_rate,
-            } => {
-                let interval = decayed_sample_rate - params.sample_rate;
-                params.sample_rate + (interval * params.progress_ratio)
-            }
-            DecayingFunction::Constant => params.sample_rate,
-        }
-    }
 }
 
 /// A sampling rule as it is deserialized from the project configuration.
@@ -420,57 +399,88 @@ impl SamplingRule {
     ///
     /// Non-decaying rules are always active. Decaying rules are active if they are
     /// neither idle nor expired.
-    fn is_active(&self, now: DateTime<Utc>) -> bool {
-        self.time_range.contains(now)
-    }
-
-    /// Returns the sample rate of this specific sampling rule based on the existence of the
-    /// decaying function.
-    ///
-    /// In case of any problems that render the decaying function impossible to compute, we are
-    /// going to fallback to the base sample rate.
-    pub fn get_sample_rate(&self, now: DateTime<Utc>) -> f64 {
-        if let Some(params) = self.get_decaying_function_params(now) {
-            self.decaying_fn.call(params)
-        } else {
-            self.sample_rate
-        }
-    }
-
-    /// Validates and gets the decaying function params.
-    fn get_decaying_function_params(&self, now: DateTime<Utc>) -> Option<DecayingFunctionParams> {
-        if let TimeRange {
-            start: Some(start),
-            end: Some(end),
-        } = self.time_range
-        {
-            if !self.validate_function_specific_params() || end <= start || now < start {
-                return None;
-            }
-
-            let now_timestamp = now.timestamp() as f64;
-            let start_timestamp = start.timestamp() as f64;
-            let end_timestamp = end.timestamp() as f64;
-            let progress_ratio = ((now_timestamp - start_timestamp)
-                / (end_timestamp - start_timestamp))
-                .clamp(0.0, 1.0);
-
-            Some(DecayingFunctionParams {
-                sample_rate: self.sample_rate,
-                progress_ratio,
-            })
-        } else {
-            None
-        }
-    }
-
-    /// Validates the external params specifically to each decaying function.
-    fn validate_function_specific_params(&self) -> bool {
+    fn is_active(&self, now: DateTime<Utc>) -> Option<MatchingRule> {
         match self.decaying_fn {
             DecayingFunction::Linear {
                 decayed_sample_rate,
-            } => self.sample_rate > decayed_sample_rate,
-            DecayingFunction::Constant => true,
+            } => {
+                if let TimeRange {
+                    start: Some(start),
+                    end: Some(end),
+                } = self.time_range
+                {
+                    if self.sample_rate > decayed_sample_rate && start < end && now >= start {
+                        return Some(MatchingRule {
+                            id: self.id,
+                            evaluator: SampleRateEvaluator::Linear {
+                                start,
+                                end,
+                                sample_rate: self.sample_rate,
+                                decayed_sample_rate,
+                            },
+                        });
+                    }
+                }
+            }
+            DecayingFunction::Constant => {
+                if self.time_range.contains(now) {
+                    return Some(MatchingRule {
+                        id: self.id,
+                        evaluator: SampleRateEvaluator::Constant {
+                            sample_rate: self.sample_rate,
+                        },
+                    });
+                }
+            }
+        }
+
+        None
+    }
+}
+
+pub struct MatchingRule {
+    pub id: RuleId,
+    evaluator: SampleRateEvaluator,
+}
+
+impl MatchingRule {
+    pub fn get_sample_rate(&self, now: DateTime<Utc>) -> f64 {
+        self.evaluator.evaluate(now)
+    }
+}
+
+enum SampleRateEvaluator {
+    Linear {
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+        sample_rate: f64,
+        decayed_sample_rate: f64,
+    },
+    Constant {
+        sample_rate: f64,
+    },
+}
+
+impl SampleRateEvaluator {
+    fn evaluate(&self, now: DateTime<Utc>) -> f64 {
+        match self {
+            SampleRateEvaluator::Linear {
+                start,
+                end,
+                sample_rate,
+                decayed_sample_rate,
+            } => {
+                let now_timestamp = now.timestamp() as f64;
+                let start_timestamp = start.timestamp() as f64;
+                let end_timestamp = end.timestamp() as f64;
+                let progress_ratio = ((now_timestamp - start_timestamp)
+                    / (end_timestamp - start_timestamp))
+                    .clamp(0.0, 1.0);
+
+                let interval = decayed_sample_rate - sample_rate;
+                sample_rate + (interval * progress_ratio)
+            }
+            SampleRateEvaluator::Constant { sample_rate } => *sample_rate,
         }
     }
 }
@@ -818,20 +828,22 @@ impl SamplingConfig {
     /// This is a function separate from `get_matching_event_rule` because trace rules can
     /// (theoretically) be applied even if there's no event. Also we expect that trace rules are
     /// executed before event rules.
-    pub fn get_matching_trace_rule<'a>(
-        &'a self,
+    pub fn get_matching_trace_rule(
+        &self,
         sampling_context: &DynamicSamplingContext,
         ip_addr: Option<IpAddr>,
         now: DateTime<Utc>,
-    ) -> Option<&'a SamplingRule> {
-        self.rules.iter().find(|rule| {
+    ) -> Option<MatchingRule> {
+        self.rules.iter().find_map(|rule| {
             if rule.ty != RuleType::Trace {
-                return false;
+                return None;
             }
-            if !rule.is_active(now) {
-                return false;
+
+            if !rule.condition.matches(sampling_context, ip_addr) {
+                return None;
             }
-            rule.condition.matches(sampling_context, ip_addr)
+
+            rule.is_active(now)
         })
     }
 
@@ -839,26 +851,28 @@ impl SamplingConfig {
     /// match the given event.
     ///
     /// The rule type to filter by is inferred from the event's type.
-    pub fn get_matching_event_rule<'a>(
-        &'a self,
+    pub fn get_matching_event_rule(
+        &self,
         event: &Event,
         ip_addr: Option<IpAddr>,
         now: DateTime<Utc>,
-    ) -> Option<&'a SamplingRule> {
+    ) -> Option<MatchingRule> {
         let ty = if let Some(EventType::Transaction) = &event.ty.0 {
             RuleType::Transaction
         } else {
             RuleType::Error
         };
 
-        self.rules.iter().find(|rule| {
+        self.rules.iter().find_map(|rule| {
             if rule.ty != ty {
-                return false;
+                return None;
             }
-            if !rule.is_active(now) {
-                return false;
+
+            if !rule.condition.matches(event, ip_addr) {
+                return None;
             }
-            rule.condition.matches(event, ip_addr)
+
+            rule.is_active(now)
         })
     }
 }

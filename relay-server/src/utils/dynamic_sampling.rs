@@ -305,7 +305,7 @@ mod tests {
         event_type: EventType,
         project_state: &ProjectState,
         now: DateTime<Utc>,
-    ) -> SamplingSpec {
+    ) -> Result<Option<SamplingSpec>, SamplingResult> {
         let sampling_context = create_sampling_context(Some(client_sample_rate));
         let event = Event {
             id: Annotated::new(EventId::new()),
@@ -313,16 +313,14 @@ mod tests {
             ..Event::default()
         };
 
-        let spec = get_event_sampling_rule(
+        get_event_sampling_rule(
             true, // irrelevant, just skips unsupported rules
             project_state,
             Some(&sampling_context),
             Some(&event),
             None, // ip address not needed for uniform rule
             now,
-        );
-
-        spec.unwrap().unwrap()
+        )
     }
 
     fn state_with_rule_and_condition(
@@ -677,7 +675,7 @@ mod tests {
     }
 
     #[test]
-    fn test_event_decaying_rule_with_no_time_range() {
+    fn test_event_decaying_rule_with_no_time_range_and_linear_function() {
         let now = Utc::now();
         let project_state = state_with_decaying_rule(
             Some(0.7),
@@ -690,15 +688,36 @@ mod tests {
             None,
         );
 
+        assert!(
+            prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn test_event_decaying_rule_with_no_time_range_and_constant_function() {
+        let now = Utc::now();
+        let project_state = state_with_decaying_rule(
+            Some(0.7),
+            RuleType::Transaction,
+            SamplingMode::Total,
+            DecayingFunction::Constant,
+            None,
+            None,
+        );
+
         assert_eq!(
             prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
+                .unwrap()
+                .unwrap()
                 .sample_rate,
             0.7
         );
     }
 
     #[test]
-    fn test_event_decaying_rule_with_incomplete_time_range() {
+    fn test_event_decaying_rule_with_open_time_range_and_linear_function() {
         let now = Utc::now();
         let project_state = state_with_decaying_rule(
             Some(0.7),
@@ -711,10 +730,10 @@ mod tests {
             None,
         );
 
-        assert_eq!(
+        assert!(
             prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
-                .sample_rate,
-            0.7
+                .unwrap()
+                .is_none()
         );
 
         let project_state = state_with_decaying_rule(
@@ -728,8 +747,46 @@ mod tests {
             Some(now + DateDuration::days(1)),
         );
 
+        assert!(
+            prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn test_event_decaying_rule_with_open_time_range_and_constant_function() {
+        let now = Utc::now();
+        let project_state = state_with_decaying_rule(
+            Some(0.7),
+            RuleType::Transaction,
+            SamplingMode::Total,
+            DecayingFunction::Constant,
+            Some(now - DateDuration::days(1)),
+            None,
+        );
+
         assert_eq!(
             prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
+                .unwrap()
+                .unwrap()
+                .sample_rate,
+            0.7
+        );
+
+        let project_state = state_with_decaying_rule(
+            Some(0.7),
+            RuleType::Transaction,
+            SamplingMode::Total,
+            DecayingFunction::Constant,
+            None,
+            Some(now + DateDuration::days(1)),
+        );
+
+        assert_eq!(
+            prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
+                .unwrap()
+                .unwrap()
                 .sample_rate,
             0.7
         );
@@ -751,13 +808,15 @@ mod tests {
 
         assert_eq!(
             prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
+                .unwrap()
+                .unwrap()
                 .sample_rate,
             0.7
         );
     }
 
     #[test]
-    fn test_event_decaying_rule_with_now_in_the_middle() {
+    fn test_event_decaying_rule_with_linear_function() {
         let now = Utc::now();
         let project_state = state_with_decaying_rule(
             Some(0.7),
@@ -772,13 +831,15 @@ mod tests {
 
         assert_eq!(
             prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
+                .unwrap()
+                .unwrap()
                 .sample_rate,
             0.44999999999999996
         );
     }
 
     #[test]
-    fn test_event_decaying_rule_with_base_less_then_decayed() {
+    fn test_event_decaying_rule_with_linear_function_and_base_less_then_decayed() {
         let now = Utc::now();
         let project_state = state_with_decaying_rule(
             Some(0.3),
@@ -791,15 +852,15 @@ mod tests {
             Some(now + DateDuration::days(1)),
         );
 
-        assert_eq!(
+        assert!(
             prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
-                .sample_rate,
-            0.3
+                .unwrap()
+                .is_none()
         );
     }
 
     #[test]
-    fn test_event_decaying_rule_with_constant_decay_function() {
+    fn test_event_decaying_rule_with_constant_function() {
         let now = Utc::now();
         let project_state = state_with_decaying_rule(
             Some(0.6),
@@ -812,8 +873,29 @@ mod tests {
 
         assert_eq!(
             prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
+                .unwrap()
+                .unwrap()
                 .sample_rate,
             0.6
+        );
+    }
+
+    #[test]
+    fn test_event_decaying_rule_with_constant_function_and_inverse_time_range() {
+        let now = Utc::now();
+        let project_state = state_with_decaying_rule(
+            Some(0.6),
+            RuleType::Transaction,
+            SamplingMode::Total,
+            DecayingFunction::Constant,
+            Some(now + DateDuration::days(1)),
+            Some(now - DateDuration::days(1)),
+        );
+
+        assert!(
+            prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
+                .unwrap()
+                .is_none()
         );
     }
 }
