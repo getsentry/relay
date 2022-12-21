@@ -481,7 +481,9 @@ impl Dispatch {
         // here. The receiving end of the request will be notified of the drop if they are waiting
         // for it.
         match priority {
-            RequestPriority::Immediate => todo!(),
+            RequestPriority::Immediate => {
+                unreachable!("send immediate requests directly to client")
+            }
             RequestPriority::High => self.tx_high.send(request).ok(),
             RequestPriority::Low => self.tx_low.send(request).ok(),
         };
@@ -721,10 +723,14 @@ impl OutageMonitor {
             // will capture `notify_waiting`. After this, signal waiting receivers to continue with
             // new requests by setting the outage status to `false`.
             let notify = self.notify.notified();
-            self.status.send(false).ok(); // TODO(ja): Bail on error, since nobody is listening anymore
+            if self.status.send(false).is_err() {
+                return;
+            }
 
             notify.await;
-            self.status.send(true).ok();
+            if self.status.send(true).is_err() {
+                return;
+            }
 
             self.connect().await;
             relay_log::info!("Recovering from network outage.")
@@ -868,20 +874,25 @@ impl AuthMonitor {
         }
     }
 
+    // TODO(ja): Doc
+    fn set_state(&self, state: AuthState) -> Result<(), UpstreamRequestError> {
+        self.state
+            .send(state)
+            .map_err(|_| UpstreamRequestError::ChannelClosed)
+    }
+
+    // TODO(ja): Doc
     async fn authenticate(&self, credentials: &Credentials) -> Result<(), UpstreamRequestError> {
         relay_log::info!(
             "registering with upstream ({})",
             self.config.upstream_descriptor()
         );
 
-        let state = if self.state.borrow().is_authenticated() {
+        self.set_state(if self.state.borrow().is_authenticated() {
             AuthState::Renewing
         } else {
             AuthState::Registering
-        };
-
-        // TODO(ja): Error handling -> probably bail
-        self.state.send(state).ok();
+        })?;
 
         let request = RegisterRequest::new(&credentials.id, &credentials.public_key);
         let challenge = self.client.send_query(request).await?;
@@ -892,6 +903,8 @@ impl AuthMonitor {
         self.client.send_query(response).await?;
 
         relay_log::info!("relay successfully registered with upstream");
+        self.set_state(AuthState::Registered)?;
+
         Ok(())
     }
 
@@ -907,7 +920,6 @@ impl AuthMonitor {
         loop {
             match self.authenticate(credentials).await {
                 Ok(_) => {
-                    self.state.send(AuthState::Registered).ok();
                     self.backoff.reset();
 
                     match self.renew_auth_interval() {
@@ -918,8 +930,14 @@ impl AuthMonitor {
                 Err(err) => {
                     relay_log::error!("authentication encountered error: {}", LogError(&err));
 
+                    // ChannelClosed indicates that there are no more listeners, so we stop
+                    // authenticating.
+                    if let UpstreamRequestError::ChannelClosed = err {
+                        return;
+                    }
+
                     if err.is_permanent_rejection() {
-                        self.state.send(AuthState::Denied).ok();
+                        self.set_state(AuthState::Denied).ok();
                         return;
                     }
 
@@ -927,8 +945,8 @@ impl AuthMonitor {
                     // error, go back to `Registering` which indicates that this Relay is not
                     // authenticated. Note that network errors are handled separately by the generic
                     // response handler.
-                    if !err.is_network_error() {
-                        self.state.send(AuthState::Registering).ok();
+                    if !err.is_network_error() && self.set_state(AuthState::Registering).is_err() {
+                        return;
                     }
 
                     // Even on network errors, retry authentication independently.
