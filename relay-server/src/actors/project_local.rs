@@ -1,16 +1,12 @@
 use std::collections::HashMap;
 use std::ffi::OsStr;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use relay_common::{ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_log::LogError;
-use relay_system::AsyncResponse;
-use relay_system::FromMessage;
-use relay_system::Interface;
-use relay_system::Sender;
-use relay_system::Service;
+use relay_system::{AsyncResponse, FromMessage, Interface, Receiver, Sender, Service};
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
@@ -48,56 +44,37 @@ impl LocalProjectSourceService {
         }
     }
 
-    fn handle_fetch_optional_project_state(
-        &self,
-        message: FetchOptionalProjectState,
-        sender: Sender<Option<Arc<ProjectState>>>,
-    ) {
-        let states = self.local_states.get(&message.project_key()).cloned();
-        sender.send(states);
-    }
-
     fn handle_message(&mut self, message: LocalProjectSource) {
         let LocalProjectSource(message, sender) = message;
-        self.handle_fetch_optional_project_state(message, sender)
+        let states = self.local_states.get(&message.project_key()).cloned();
+        sender.send(states);
     }
 }
 
 impl Service for LocalProjectSourceService {
     type Interface = LocalProjectSource;
 
-    /// Spawns two loops:
-    /// 1. one for periodically polling local states, and
-    /// 2. one to handle both external messages _and_ updates to the local cache.
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(mut self, mut rx: Receiver<Self::Interface>) {
         let project_path = self.config.project_configs_path();
-        let (mut state_tx, mut state_rx) = mpsc::channel(1);
+        let (state_tx, mut state_rx) = mpsc::channel(1);
 
-        let project_path_copy = project_path.clone();
-        let mut state_tx_copy = state_tx.clone();
-
-        let interval = self.config.local_cache_interval();
-        // The first `poll_local_states` is called by the 2nd loop, so we can delay execution
-        // until the next tick:
-        let start_at = Instant::now() + interval;
-        let mut ticker = tokio::time::interval_at(start_at, interval);
-        tokio::spawn(async move {
-            loop {
-                ticker.tick().await;
-                poll_local_states(&project_path, &mut state_tx).await;
-            }
-        });
+        let period = self.config.local_cache_interval();
+        // To avoid running two load tasks simultaneously at startup, we delay the interval by one period:
+        let start_at = Instant::now() + period;
+        let mut ticker = tokio::time::interval_at(start_at, period);
 
         tokio::spawn(async move {
             // Poll local states once before handling any message, such that the projects are
             // populated.
-            poll_local_states(&project_path_copy, &mut state_tx_copy).await;
+            poll_local_states(&project_path, &state_tx).await;
 
             relay_log::info!("project local cache started");
             loop {
                 tokio::select! {
+                    biased;
                     Some(message) = rx.recv() => self.handle_message(message),
                     Some(states) = state_rx.recv() => self.local_states = states,
+                    _ = ticker.tick() => spawn_poll_local_states(&project_path, &state_tx),
 
                     else => break,
                 }
@@ -111,6 +88,12 @@ fn get_project_id(path: &Path) -> Option<ProjectId> {
     path.file_stem()
         .and_then(OsStr::to_str)
         .and_then(|stem| stem.parse().ok())
+}
+
+fn parse_file(path: std::path::PathBuf) -> tokio::io::Result<(std::path::PathBuf, ProjectState)> {
+    let file = std::fs::File::open(&path)?;
+    let reader = std::io::BufReader::new(file);
+    Ok((path, serde_json::from_reader(reader)?))
 }
 
 async fn load_local_states(
@@ -144,17 +127,8 @@ async fn load_local_states(
             continue;
         }
 
-        fn parse_file(
-            path: std::path::PathBuf,
-        ) -> tokio::io::Result<(std::path::PathBuf, ProjectState)> {
-            let file = std::fs::File::open(&path)?;
-            let reader = std::io::BufReader::new(file);
-            Ok((path, serde_json::from_reader(reader)?))
-        }
-
         // serde_json is not async, so spawn a blocking task here:
-        let handle = tokio::task::spawn_blocking(move || parse_file(path));
-        let (path, state) = handle.await??;
+        let (path, state) = tokio::task::spawn_blocking(move || parse_file(path)).await??;
 
         let mut sanitized = ProjectState::sanitize(state);
         if sanitized.project_id.is_none() {
@@ -176,17 +150,29 @@ async fn load_local_states(
 }
 
 async fn poll_local_states(
-    path: &Path,
-    tx: &mut mpsc::Sender<HashMap<ProjectKey, Arc<ProjectState>>>,
+    path: &PathBuf,
+    tx: &mpsc::Sender<HashMap<ProjectKey, Arc<ProjectState>>>,
 ) {
-    let states = load_local_states(path).await;
+    let states = load_local_states(&path).await;
     match states {
         Ok(states) => {
-            let _ = tx.send(states).await;
+            let res = tx.send(states).await;
+            if res.is_err() {
+                relay_log::error!("failed to store static project configs");
+            }
         }
         Err(error) => relay_log::error!(
             "failed to load static project configs: {}",
             LogError(&error)
         ),
     };
+}
+
+fn spawn_poll_local_states(
+    path: &PathBuf,
+    tx: &mpsc::Sender<HashMap<ProjectKey, Arc<ProjectState>>>,
+) {
+    let path = path.clone();
+    let tx = tx.clone();
+    tokio::spawn(async move { poll_local_states(&path, &tx).await });
 }
