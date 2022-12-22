@@ -654,6 +654,8 @@
 <span id="653">653</span>
 <span id="654">654</span>
 <span id="655">655</span>
+<span id="656">656</span>
+<span id="657">657</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>actix::{Actor, Message};
@@ -672,7 +674,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::DiscardReason;
 <span class="kw">use </span><span class="kw">crate</span>::actors::processor::ProcessEnvelope;
 <span class="kw">use </span><span class="kw">crate</span>::actors::project::{Project, ProjectSender, ProjectState};
-<span class="kw">use </span><span class="kw">crate</span>::actors::project_local::LocalProjectSource;
+<span class="kw">use </span><span class="kw">crate</span>::actors::project_local::{LocalProjectSource, LocalProjectSourceService};
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_upstream::UpstreamProjectSource;
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
 <span class="kw">use </span><span class="kw">crate</span>::service::REGISTRY;
@@ -979,7 +981,7 @@
 </span><span class="attribute">#[derive(Clone, Debug)]
 </span><span class="kw">struct </span>ProjectSource {
     config: Arc&lt;Config&gt;,
-    local_source: actix::Addr&lt;LocalProjectSource&gt;,
+    local_source: Addr&lt;LocalProjectSource&gt;,
     upstream_source: actix::Addr&lt;UpstreamProjectSource&gt;,
     <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
     </span>redis_source: <span class="prelude-ty">Option</span>&lt;RedisProjectSource&gt;,
@@ -987,7 +989,7 @@
 
 <span class="kw">impl </span>ProjectSource {
     <span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;, _redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>local_source = LocalProjectSource::new(config.clone()).start();
+        <span class="kw">let </span>local_source = LocalProjectSourceService::new(config.clone()).start();
         <span class="kw">let </span>upstream_source = UpstreamProjectSource::new(config.clone()).start();
 
         <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
@@ -1003,7 +1005,9 @@
     }
 
     <span class="kw">async fn </span>fetch(<span class="self">self</span>, project_key: ProjectKey, no_cache: bool) -&gt; <span class="prelude-ty">Result</span>&lt;Arc&lt;ProjectState&gt;, ()&gt; {
-        <span class="kw">let </span>state_opt = compat::send(<span class="self">self</span>.local_source, FetchOptionalProjectState { project_key })
+        <span class="kw">let </span>state_opt = <span class="self">self
+            </span>.local_source
+            .send(FetchOptionalProjectState { project_key })
             .<span class="kw">await
             </span>.map_err(|<span class="kw">_</span>| ())<span class="question-mark">?</span>;
 

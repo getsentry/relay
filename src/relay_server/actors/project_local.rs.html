@@ -165,84 +165,75 @@
 <span id="164">164</span>
 <span id="165">165</span>
 <span id="166">166</span>
+<span id="167">167</span>
+<span id="168">168</span>
+<span id="169">169</span>
+<span id="170">170</span>
+<span id="171">171</span>
+<span id="172">172</span>
+<span id="173">173</span>
+<span id="174">174</span>
+<span id="175">175</span>
+<span id="176">176</span>
+<span id="177">177</span>
+<span id="178">178</span>
+<span id="179">179</span>
+<span id="180">180</span>
+<span id="181">181</span>
+<span id="182">182</span>
+<span id="183">183</span>
+<span id="184">184</span>
+<span id="185">185</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::ffi::OsStr;
-<span class="kw">use </span>std::fs;
-<span class="kw">use </span>std::io;
 <span class="kw">use </span>std::path::Path;
 <span class="kw">use </span>std::sync::Arc;
-<span class="kw">use </span>std::thread;
-
-<span class="kw">use </span>actix::prelude::<span class="kw-2">*</span>;
-<span class="kw">use </span>futures01::{sync::oneshot, Future};
 
 <span class="kw">use </span>relay_common::{ProjectId, ProjectKey};
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_log::LogError;
+<span class="kw">use </span>relay_system::{AsyncResponse, FromMessage, Interface, Receiver, Sender, Service};
+<span class="kw">use </span>tokio::sync::mpsc;
+<span class="kw">use </span>tokio::time::Instant;
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::project::ProjectState;
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::FetchOptionalProjectState;
 
-<span class="attribute">#[derive(Debug)]
-</span><span class="kw">pub struct </span>LocalProjectSource {
+<span class="doccomment">/// Service interface of the local project source.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>LocalProjectSource(FetchOptionalProjectState, Sender&lt;<span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;&gt;);
+
+<span class="kw">impl </span>Interface <span class="kw">for </span>LocalProjectSource {}
+
+<span class="kw">impl </span>FromMessage&lt;FetchOptionalProjectState&gt; <span class="kw">for </span>LocalProjectSource {
+    <span class="kw">type </span>Response = AsyncResponse&lt;<span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;&gt;;
+    <span class="kw">fn </span>from_message(
+        message: FetchOptionalProjectState,
+        sender: Sender&lt;<span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;&gt;,
+    ) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>(message, sender)
+    }
+}
+
+<span class="doccomment">/// A service which periodically loads project states from disk.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>LocalProjectSourceService {
     config: Arc&lt;Config&gt;,
     local_states: HashMap&lt;ProjectKey, Arc&lt;ProjectState&gt;&gt;,
 }
 
-<span class="kw">impl </span>LocalProjectSource {
+<span class="kw">impl </span>LocalProjectSourceService {
     <span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;) -&gt; <span class="self">Self </span>{
-        LocalProjectSource {
+        <span class="self">Self </span>{
             config,
             local_states: HashMap::new(),
         }
     }
-}
 
-<span class="kw">impl </span>Actor <span class="kw">for </span>LocalProjectSource {
-    <span class="kw">type </span>Context = Context&lt;<span class="self">Self</span>&gt;;
-
-    <span class="kw">fn </span>started(<span class="kw-2">&amp;mut </span><span class="self">self</span>, context: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) {
-        <span class="macro">relay_log::info!</span>(<span class="string">&quot;project local cache started&quot;</span>);
-
-        <span class="comment">// Start the background thread that reads the local states from disk.
-        // `poll_local_states` returns a future that resolves as soon as the first read is done.
-        </span>poll_local_states(context.address(), <span class="self">self</span>.config.clone())
-            .into_actor(<span class="self">self</span>)
-            <span class="comment">// Block entire actor on first local state read, such that we don&#39;t e.g. drop events on
-            // startup
-            </span>.wait(context);
-    }
-
-    <span class="kw">fn </span>stopped(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _ctx: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) {
-        <span class="macro">relay_log::info!</span>(<span class="string">&quot;project local cache stopped&quot;</span>);
-    }
-}
-
-<span class="kw">impl </span>Handler&lt;FetchOptionalProjectState&gt; <span class="kw">for </span>LocalProjectSource {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;;
-
-    <span class="kw">fn </span>handle(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        message: FetchOptionalProjectState,
-        _context: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context,
-    ) -&gt; <span class="self">Self</span>::Result {
-        <span class="self">self</span>.local_states.get(<span class="kw-2">&amp;</span>message.project_key()).cloned()
-    }
-}
-
-<span class="kw">struct </span>UpdateLocalStates {
-    states: HashMap&lt;ProjectKey, Arc&lt;ProjectState&gt;&gt;,
-}
-
-<span class="kw">impl </span>Message <span class="kw">for </span>UpdateLocalStates {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= ();
-}
-
-<span class="kw">impl </span>Handler&lt;UpdateLocalStates&gt; <span class="kw">for </span>LocalProjectSource {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= ();
-
-    <span class="kw">fn </span>handle(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: UpdateLocalStates, _context: <span class="kw-2">&amp;mut </span>Context&lt;<span class="self">Self</span>&gt;) -&gt; <span class="self">Self</span>::Result {
-        <span class="self">self</span>.local_states = message.states;
+    <span class="kw">fn </span>handle_message(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: LocalProjectSource) {
+        <span class="kw">let </span>LocalProjectSource(message, sender) = message;
+        <span class="kw">let </span>states = <span class="self">self</span>.local_states.get(<span class="kw-2">&amp;</span>message.project_key()).cloned();
+        sender.send(states);
     }
 }
 
@@ -252,14 +243,22 @@
         .and_then(|stem| stem.parse().ok())
 }
 
-<span class="kw">fn </span>load_local_states(projects_path: <span class="kw-2">&amp;</span>Path) -&gt; io::Result&lt;HashMap&lt;ProjectKey, Arc&lt;ProjectState&gt;&gt;&gt; {
+<span class="kw">fn </span>parse_file(path: std::path::PathBuf) -&gt; tokio::io::Result&lt;(std::path::PathBuf, ProjectState)&gt; {
+    <span class="kw">let </span>file = std::fs::File::open(<span class="kw-2">&amp;</span>path)<span class="question-mark">?</span>;
+    <span class="kw">let </span>reader = std::io::BufReader::new(file);
+    <span class="prelude-val">Ok</span>((path, serde_json::from_reader(reader)<span class="question-mark">?</span>))
+}
+
+<span class="kw">async fn </span>load_local_states(
+    projects_path: <span class="kw-2">&amp;</span>Path,
+) -&gt; tokio::io::Result&lt;HashMap&lt;ProjectKey, Arc&lt;ProjectState&gt;&gt;&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>states = HashMap::new();
 
-    <span class="kw">let </span>directory = <span class="kw">match </span>fs::read_dir(projects_path) {
+    <span class="kw">let </span><span class="kw-2">mut </span>directory = <span class="kw">match </span>tokio::fs::read_dir(projects_path).<span class="kw">await </span>{
         <span class="prelude-val">Ok</span>(directory) =&gt; directory,
         <span class="prelude-val">Err</span>(error) =&gt; {
             <span class="kw">return match </span>error.kind() {
-                io::ErrorKind::NotFound =&gt; <span class="prelude-val">Ok</span>(states),
+                tokio::io::ErrorKind::NotFound =&gt; <span class="prelude-val">Ok</span>(states),
                 <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(error),
             };
         }
@@ -268,11 +267,10 @@
     <span class="comment">// only printed when directory even exists.
     </span><span class="macro">relay_log::debug!</span>(<span class="string">&quot;Loading local states from directory {:?}&quot;</span>, projects_path);
 
-    <span class="kw">for </span>entry <span class="kw">in </span>directory {
-        <span class="kw">let </span>entry = entry<span class="question-mark">?</span>;
+    <span class="kw">while let </span><span class="prelude-val">Some</span>(entry) = directory.next_entry().<span class="kw">await</span><span class="question-mark">? </span>{
         <span class="kw">let </span>path = entry.path();
 
-        <span class="kw">if </span>!entry.metadata()<span class="question-mark">?</span>.is_file() {
+        <span class="kw">if </span>!entry.metadata().<span class="kw">await</span><span class="question-mark">?</span>.is_file() {
             <span class="macro">relay_log::warn!</span>(<span class="string">&quot;skipping {:?}, not a file&quot;</span>, path);
             <span class="kw">continue</span>;
         }
@@ -282,9 +280,10 @@
             <span class="kw">continue</span>;
         }
 
-        <span class="kw">let </span>state = serde_json::from_reader(io::BufReader::new(fs::File::open(<span class="kw-2">&amp;</span>path)<span class="question-mark">?</span>))<span class="question-mark">?</span>;
-        <span class="kw">let </span><span class="kw-2">mut </span>sanitized = ProjectState::sanitize(state);
+        <span class="comment">// serde_json is not async, so spawn a blocking task here:
+        </span><span class="kw">let </span>(path, state) = tokio::task::spawn_blocking(<span class="kw">move </span>|| parse_file(path)).<span class="kw">await</span><span class="question-mark">??</span>;
 
+        <span class="kw">let </span><span class="kw-2">mut </span>sanitized = ProjectState::sanitize(state);
         <span class="kw">if </span>sanitized.project_id.is_none() {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(project_id) = get_project_id(<span class="kw-2">&amp;</span>path) {
                 sanitized.project_id = <span class="prelude-val">Some</span>(project_id);
@@ -303,33 +302,72 @@
     <span class="prelude-val">Ok</span>(states)
 }
 
-<span class="kw">fn </span>poll_local_states(
-    manager: Addr&lt;LocalProjectSource&gt;,
-    config: Arc&lt;Config&gt;,
-) -&gt; <span class="kw">impl </span>Future&lt;Item = (), Error = ()&gt; {
-    <span class="kw">let </span>(sender, receiver) = oneshot::channel();
+<span class="kw">async fn </span>poll_local_states(path: <span class="kw-2">&amp;</span>Path, tx: <span class="kw-2">&amp;</span>mpsc::Sender&lt;HashMap&lt;ProjectKey, Arc&lt;ProjectState&gt;&gt;&gt;) {
+    <span class="kw">let </span>states = load_local_states(path).<span class="kw">await</span>;
+    <span class="kw">match </span>states {
+        <span class="prelude-val">Ok</span>(states) =&gt; {
+            <span class="kw">let </span>res = tx.send(states).<span class="kw">await</span>;
+            <span class="kw">if </span>res.is_err() {
+                <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to store static project configs&quot;</span>);
+            }
+        }
+        <span class="prelude-val">Err</span>(error) =&gt; <span class="macro">relay_log::error!</span>(
+            <span class="string">&quot;failed to load static project configs: {}&quot;</span>,
+            LogError(<span class="kw-2">&amp;</span>error)
+        ),
+    };
+}
 
-    <span class="kw">let _ </span>= thread::spawn(<span class="kw">move </span>|| {
-        <span class="kw">let </span>path = config.project_configs_path();
-        <span class="kw">let </span><span class="kw-2">mut </span>sender = <span class="prelude-val">Some</span>(sender);
+<span class="kw">async fn </span>spawn_poll_local_states(
+    config: <span class="kw-2">&amp;</span>Config,
+    tx: mpsc::Sender&lt;HashMap&lt;ProjectKey, Arc&lt;ProjectState&gt;&gt;&gt;,
+) {
+    <span class="kw">let </span>project_path = config.project_configs_path();
+    <span class="kw">let </span>period = config.local_cache_interval();
+
+    <span class="comment">// Poll local states once before handling any message, such that the projects are
+    // populated.
+    </span>poll_local_states(<span class="kw-2">&amp;</span>project_path, <span class="kw-2">&amp;</span>tx).<span class="kw">await</span>;
+
+    <span class="comment">// Start a background loop that polls periodically:
+    </span>tokio::spawn(<span class="kw">async move </span>{
+        <span class="comment">// To avoid running two load tasks simultaneously at startup, we delay the interval by one period:
+        </span><span class="kw">let </span>start_at = Instant::now() + period;
+        <span class="kw">let </span><span class="kw-2">mut </span>ticker = tokio::time::interval_at(start_at, period);
 
         <span class="kw">loop </span>{
-            <span class="kw">match </span>load_local_states(<span class="kw-2">&amp;</span>path) {
-                <span class="prelude-val">Ok</span>(states) =&gt; {
-                    manager.do_send(UpdateLocalStates { states });
-                    sender.take().map(|sender| sender.send(()).ok());
-                }
-                <span class="prelude-val">Err</span>(error) =&gt; <span class="macro">relay_log::error!</span>(
-                    <span class="string">&quot;failed to load static project configs: {}&quot;</span>,
-                    LogError(<span class="kw-2">&amp;</span>error)
-                ),
-            }
-
-            thread::sleep(config.local_cache_interval());
+            ticker.tick().<span class="kw">await</span>;
+            poll_local_states(<span class="kw-2">&amp;</span>project_path, <span class="kw-2">&amp;</span>tx).<span class="kw">await</span>;
         }
     });
+}
 
-    receiver.map_err(|<span class="kw">_</span>| ())
+<span class="kw">impl </span>Service <span class="kw">for </span>LocalProjectSourceService {
+    <span class="kw">type </span>Interface = LocalProjectSource;
+
+    <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+        <span class="comment">// Use a channel with size 1. If the channel is full because the consumer does not
+        // collect the result, the producer will block, which is acceptable.
+        </span><span class="kw">let </span>(state_tx, <span class="kw-2">mut </span>state_rx) = mpsc::channel(<span class="number">1</span>);
+
+        tokio::spawn(<span class="kw">async move </span>{
+            <span class="macro">relay_log::info!</span>(<span class="string">&quot;project local cache started&quot;</span>);
+
+            <span class="comment">// Start the background task that periodically reloads projects from disk:
+            </span>spawn_poll_local_states(<span class="kw-2">&amp;</span><span class="self">self</span>.config, state_tx).<span class="kw">await</span>;
+
+            <span class="kw">loop </span>{
+                <span class="macro">tokio::select! </span>{
+                    biased;
+                    <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; <span class="self">self</span>.handle_message(message),
+                    <span class="prelude-val">Some</span>(states) = state_rx.recv() =&gt; <span class="self">self</span>.local_states = states,
+
+                    <span class="kw">else </span>=&gt; <span class="kw">break</span>,
+                }
+            }
+            <span class="macro">relay_log::info!</span>(<span class="string">&quot;project local cache stopped&quot;</span>);
+        });
+    }
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0 (69f9c33d7 2022-12-12)" ></div></body></html>
