@@ -29,6 +29,7 @@ mod transaction;
 mod types;
 mod user;
 mod user_report;
+mod utils;
 
 pub use sentry_release_parser::{validate_environment, validate_release};
 
