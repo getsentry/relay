@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::macros::derive_fromstr_and_display;
+use crate::protocol::utils::null_to_default;
 use crate::protocol::IpAddr;
 
 /// The type of session event we're dealing with.
@@ -189,7 +190,11 @@ pub struct SessionUpdate {
     #[serde(rename = "attrs")]
     pub attributes: SessionAttributes,
     /// The abnormal mechanism.
-    #[serde(default, skip_serializing_if = "AbnormalMechanism::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "null_to_default",
+        skip_serializing_if = "AbnormalMechanism::is_none"
+    )]
     pub abnormal_mechanism: AbnormalMechanism,
 }
 
@@ -494,6 +499,23 @@ mod tests {
   "started": "2020-02-07T14:16:00Z",
   "status": "abnormal",
   "abnormal_mechanism": "invalid_mechanism",
+  "attrs": {
+    "release": "sentry-test@1.0.0",
+    "environment": "production"
+  }
+}"#;
+
+        let update = SessionUpdate::parse(json.as_bytes()).unwrap();
+        assert_eq!(update.abnormal_mechanism, AbnormalMechanism::None);
+    }
+
+    #[test]
+    fn test_session_null_abnormal_mechanism() {
+        let json = r#"{
+  "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+  "started": "2020-02-07T14:16:00Z",
+  "status": "abnormal",
+  "abnormal_mechanism": null,
   "attrs": {
     "release": "sentry-test@1.0.0",
     "environment": "production"
