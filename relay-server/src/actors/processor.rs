@@ -2318,7 +2318,12 @@ impl Service for EnvelopeProcessorService {
 mod tests {
     use chrono::{DateTime, TimeZone, Utc};
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
+    use relay_general::protocol::EventId;
+    use relay_sampling::{RuleCondition, RuleType, SamplingMode};
 
+    use crate::service::ServiceState;
+    use crate::testutils::{new_envelope, state_with_rule_and_condition};
+    use crate::utils::Semaphore as MySemaphore;
     use crate::{actors::project::ProjectConfig, extractors::RequestMeta};
 
     use super::*;
@@ -2351,6 +2356,52 @@ mod tests {
             .values
             .value()
             .unwrap()
+    }
+
+    #[test]
+    fn test_it_keeps_or_drops_transactions() {
+        relay_test::setup();
+        let config = Config::from_path("./../.relay").unwrap();
+        let arconfig = Arc::new(Config::from_path("./../.relay").unwrap());
+        // shouldn't be necessary to start an entire service for a unit test
+        // it was ported from a python integration test
+        ServiceState::start(arconfig).unwrap();
+        let service = create_test_processor(config);
+        let envelope = new_envelope(false, "foo");
+
+        let event = Event {
+            id: Annotated::new(EventId::new()),
+            ty: Annotated::new(EventType::Transaction),
+            transaction: Annotated::new("testing".to_owned()),
+            ..Event::default()
+        };
+
+        for (sample_rate, shouldkeep) in [(0.0, false), (1.0, true)] {
+            let project_state = state_with_rule_and_condition(
+                Some(sample_rate),
+                RuleType::Transaction,
+                SamplingMode::Received,
+                RuleCondition::all(),
+            );
+
+            let mut state = ProcessEnvelopeState {
+                envelope: new_envelope(false, "foo"),
+                event: Annotated::from(event.clone()),
+                transaction_metrics_extracted: false,
+                metrics: Default::default(),
+                sample_rates: None,
+                extracted_metrics: vec![],
+                project_state: Arc::new(project_state),
+                sampling_project_state: None,
+                project_id: ProjectId::new(42),
+                envelope_context: EnvelopeContext::new(
+                    &envelope,
+                    MySemaphore::new(42).try_acquire().unwrap(),
+                ),
+            };
+            let result = service.sample_envelope(&mut state);
+            assert_eq!(result.is_ok(), shouldkeep);
+        }
     }
 
     #[test]
