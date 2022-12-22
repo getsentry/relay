@@ -7,7 +7,7 @@ use relay_common::{ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_log::LogError;
 use relay_system::{AsyncResponse, FromMessage, Interface, Receiver, Sender, Service};
-use tokio::sync::watch;
+use tokio::sync::mpsc;
 use tokio::time::Instant;
 
 use crate::actors::project::ProjectState;
@@ -55,9 +55,9 @@ impl Service for LocalProjectSourceService {
     type Interface = LocalProjectSource;
 
     fn spawn_handler(mut self, mut rx: Receiver<Self::Interface>) {
-        // Create a broadcast channel with capacity 1. This behaves like a `watch::channel`,
-        // in that it evicts old entries in favor of newer ones, but it allows to clone the sender.
-        let (state_tx, mut state_rx) = watch::channel(Default::default());
+        // Use a channel with size 1. If the channel is full because the consumer does not
+        // collect the result, the producer will block, which is acceptable.
+        let (state_tx, mut state_rx) = mpsc::channel(1);
 
         tokio::spawn(async move {
             relay_log::info!("project local cache started");
@@ -69,8 +69,7 @@ impl Service for LocalProjectSourceService {
                 tokio::select! {
                     biased;
                     Some(message) = rx.recv() => self.handle_message(message),
-                    // TODO: don't want to clone here, but `watch` is multi-consumer so we have to.
-                    Ok(()) = state_rx.changed() => self.local_states = state_rx.borrow().clone(),
+                    Some(states) = state_rx.recv() => self.local_states = states,
 
                     else => break,
                 }
@@ -145,14 +144,11 @@ async fn load_local_states(
     Ok(states)
 }
 
-async fn poll_local_states(
-    path: &Path,
-    tx: &watch::Sender<HashMap<ProjectKey, Arc<ProjectState>>>,
-) {
+async fn poll_local_states(path: &Path, tx: &mpsc::Sender<HashMap<ProjectKey, Arc<ProjectState>>>) {
     let states = load_local_states(path).await;
     match states {
         Ok(states) => {
-            let res = tx.send(states);
+            let res = tx.send(states).await;
             if res.is_err() {
                 relay_log::error!("failed to store static project configs");
             }
@@ -166,7 +162,7 @@ async fn poll_local_states(
 
 async fn spawn_poll_local_states(
     config: &Config,
-    tx: watch::Sender<HashMap<ProjectKey, Arc<ProjectState>>>,
+    tx: mpsc::Sender<HashMap<ProjectKey, Arc<ProjectState>>>,
 ) {
     let project_path = config.project_configs_path();
     let period = config.local_cache_interval();
