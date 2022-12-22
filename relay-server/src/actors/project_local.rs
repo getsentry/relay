@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 
 use relay_common::{ProjectId, ProjectKey};
@@ -149,11 +149,8 @@ async fn load_local_states(
     Ok(states)
 }
 
-async fn poll_local_states(
-    path: &PathBuf,
-    tx: &mpsc::Sender<HashMap<ProjectKey, Arc<ProjectState>>>,
-) {
-    let states = load_local_states(&path).await;
+async fn poll_local_states(path: &Path, tx: &mpsc::Sender<HashMap<ProjectKey, Arc<ProjectState>>>) {
+    let states = load_local_states(path).await;
     match states {
         Ok(states) => {
             let res = tx.send(states).await;
@@ -168,11 +165,8 @@ async fn poll_local_states(
     };
 }
 
-fn spawn_poll_local_states(
-    path: &PathBuf,
-    tx: &mpsc::Sender<HashMap<ProjectKey, Arc<ProjectState>>>,
-) {
-    let path = path.clone();
+fn spawn_poll_local_states(path: &Path, tx: &mpsc::Sender<HashMap<ProjectKey, Arc<ProjectState>>>) {
+    let path = path.to_path_buf();
     let tx = tx.clone();
     tokio::spawn(async move { poll_local_states(&path, &tx).await });
 }
