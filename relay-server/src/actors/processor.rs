@@ -2361,9 +2361,14 @@ mod tests {
     #[test]
     fn test_it_keeps_or_drops_transactions() {
         relay_test::setup();
-        let config = Config::from_path("./../.relay").unwrap();
-        let arconfig = Arc::new(Config::from_path("./../.relay").unwrap());
-        // shouldn't be necessary to start an entire service for a unit test
+
+        // an empty json still produces a valid config
+        let json_config = serde_json::json!({});
+
+        let config = Config::from_json_value(json_config.clone()).unwrap();
+        let arconfig = Arc::new(Config::from_json_value(json_config).unwrap());
+
+        // it really shouldn't be necessary to start an entire service for a unit test
         // it was ported from a python integration test
         ServiceState::start(arconfig).unwrap();
         let service = create_test_processor(config);
