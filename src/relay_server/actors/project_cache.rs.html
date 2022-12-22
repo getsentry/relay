@@ -650,6 +650,10 @@
 <span id="649">649</span>
 <span id="650">650</span>
 <span id="651">651</span>
+<span id="652">652</span>
+<span id="653">653</span>
+<span id="654">654</span>
+<span id="655">655</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>actix::{Actor, Message};
@@ -676,7 +680,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, EnvelopeContext, GarbageDisposal};
 
 <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-</span><span class="kw">use </span>{<span class="kw">crate</span>::actors::project_redis::RedisProjectSource, actix::SyncArbiter, relay_common::clone};
+</span><span class="kw">use </span><span class="kw">crate</span>::actors::project_redis::RedisProjectSource;
 
 <span class="attribute">#[derive(Clone, Debug, thiserror::Error)]
 </span><span class="kw">pub enum </span>ProjectError {
@@ -978,7 +982,7 @@
     local_source: actix::Addr&lt;LocalProjectSource&gt;,
     upstream_source: actix::Addr&lt;UpstreamProjectSource&gt;,
     <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-    </span>redis_source: <span class="prelude-ty">Option</span>&lt;actix::Addr&lt;RedisProjectSource&gt;&gt;,
+    </span>redis_source: <span class="prelude-ty">Option</span>&lt;RedisProjectSource&gt;,
 }
 
 <span class="kw">impl </span>ProjectSource {
@@ -987,15 +991,7 @@
         <span class="kw">let </span>upstream_source = UpstreamProjectSource::new(config.clone()).start();
 
         <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-        </span><span class="kw">let </span>redis_source = _redis.map(|pool| {
-            SyncArbiter::start(
-                config.cpu_concurrency(),
-                <span class="macro">clone!</span>(config, || RedisProjectSource::new(
-                    config.clone(),
-                    pool.clone()
-                )),
-            )
-        });
+        </span><span class="kw">let </span>redis_source = _redis.map(|pool| RedisProjectSource::new(config.clone(), pool));
 
         <span class="self">Self </span>{
             config,
@@ -1024,9 +1020,21 @@
 
         <span class="attribute">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(redis_source) = <span class="self">self</span>.redis_source {
-            <span class="kw">let </span>state_opt = compat::send(redis_source, FetchOptionalProjectState { project_key })
-                .<span class="kw">await
-                </span>.map_err(|<span class="kw">_</span>| ())<span class="question-mark">?</span>;
+            <span class="kw">let </span>state_fetch_result =
+                tokio::task::spawn_blocking(<span class="kw">move </span>|| redis_source.get_config(project_key))
+                    .<span class="kw">await
+                    </span>.map_err(|<span class="kw">_</span>| ())<span class="question-mark">?</span>;
+
+            <span class="kw">let </span>state_opt = <span class="kw">match </span>state_fetch_result {
+                <span class="prelude-val">Ok</span>(x) =&gt; x.map(ProjectState::sanitize).map(Arc::new),
+                <span class="prelude-val">Err</span>(e) =&gt; {
+                    <span class="macro">relay_log::error!</span>(
+                        <span class="string">&quot;Failed to fetch project from Redis: {}&quot;</span>,
+                        relay_log::LogError(<span class="kw-2">&amp;</span>e)
+                    );
+                    <span class="prelude-val">None
+                </span>}
+            };
 
             <span class="kw">if let </span><span class="prelude-val">Some</span>(state) = state_opt {
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(state);

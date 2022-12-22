@@ -99,60 +99,24 @@
 <span id="98">98</span>
 <span id="99">99</span>
 <span id="100">100</span>
-<span id="101">101</span>
-<span id="102">102</span>
-<span id="103">103</span>
-<span id="104">104</span>
-<span id="105">105</span>
-<span id="106">106</span>
-<span id="107">107</span>
-<span id="108">108</span>
-<span id="109">109</span>
-<span id="110">110</span>
-<span id="111">111</span>
-<span id="112">112</span>
-<span id="113">113</span>
-<span id="114">114</span>
-<span id="115">115</span>
-<span id="116">116</span>
-<span id="117">117</span>
-<span id="118">118</span>
-<span id="119">119</span>
-<span id="120">120</span>
-<span id="121">121</span>
-<span id="122">122</span>
-<span id="123">123</span>
-<span id="124">124</span>
-<span id="125">125</span>
-<span id="126">126</span>
-<span id="127">127</span>
-<span id="128">128</span>
-<span id="129">129</span>
-<span id="130">130</span>
-<span id="131">131</span>
-<span id="132">132</span>
-<span id="133">133</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 
-<span class="kw">use </span>actix::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>relay_common::ProjectKey;
 <span class="kw">use </span>relay_config::Config;
-<span class="kw">use </span>relay_log::LogError;
 <span class="kw">use </span>relay_redis::{RedisError, RedisPool};
 <span class="kw">use </span>relay_statsd::metric;
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::project::ProjectState;
-<span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::FetchOptionalProjectState;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 
-<span class="attribute">#[derive(Debug)]
+<span class="attribute">#[derive(Debug, Clone)]
 </span><span class="kw">pub struct </span>RedisProjectSource {
     config: Arc&lt;Config&gt;,
     redis: RedisPool,
 }
 
 <span class="attribute">#[derive(Debug, thiserror::Error)]
-</span><span class="kw">enum </span>RedisProjectError {
+</span><span class="kw">pub enum </span>RedisProjectError {
     <span class="attribute">#[error(<span class="string">&quot;failed to parse projectconfig from redis&quot;</span>)]
     </span>Parsing(<span class="attribute">#[from] </span>serde_json::Error),
 
@@ -189,7 +153,7 @@
         RedisProjectSource { config, redis }
     }
 
-    <span class="kw">fn </span>get_config(<span class="kw-2">&amp;</span><span class="self">self</span>, key: ProjectKey) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;ProjectState&gt;, RedisProjectError&gt; {
+    <span class="kw">pub fn </span>get_config(<span class="kw-2">&amp;</span><span class="self">self</span>, key: ProjectKey) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;ProjectState&gt;, RedisProjectError&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>command = relay_redis::redis::cmd(<span class="string">&quot;GET&quot;</span>);
 
         <span class="kw">let </span>prefix = <span class="self">self</span>.config.projectconfig_cache_prefix();
@@ -214,36 +178,6 @@
         };
 
         <span class="prelude-val">Ok</span>(response)
-    }
-}
-
-<span class="kw">impl </span>Actor <span class="kw">for </span>RedisProjectSource {
-    <span class="kw">type </span>Context = SyncContext&lt;<span class="self">Self</span>&gt;;
-
-    <span class="kw">fn </span>started(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _ctx: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) {
-        <span class="macro">relay_log::info!</span>(<span class="string">&quot;redis project cache started&quot;</span>);
-    }
-
-    <span class="kw">fn </span>stopped(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _ctx: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) {
-        <span class="macro">relay_log::info!</span>(<span class="string">&quot;redis project cache stopped&quot;</span>);
-    }
-}
-
-<span class="kw">impl </span>Handler&lt;FetchOptionalProjectState&gt; <span class="kw">for </span>RedisProjectSource {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;;
-
-    <span class="kw">fn </span>handle(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        message: FetchOptionalProjectState,
-        _ctx: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context,
-    ) -&gt; <span class="self">Self</span>::Result {
-        <span class="kw">match </span><span class="self">self</span>.get_config(message.project_key()) {
-            <span class="prelude-val">Ok</span>(x) =&gt; x.map(ProjectState::sanitize).map(Arc::new),
-            <span class="prelude-val">Err</span>(e) =&gt; {
-                <span class="macro">relay_log::error!</span>(<span class="string">&quot;Failed to fetch project from Redis: {}&quot;</span>, LogError(<span class="kw-2">&amp;</span>e));
-                <span class="prelude-val">None
-            </span>}
-        }
     }
 }
 
