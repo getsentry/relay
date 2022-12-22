@@ -7,7 +7,7 @@ use relay_common::{ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_log::LogError;
 use relay_system::{AsyncResponse, FromMessage, Interface, Receiver, Sender, Service};
-use tokio::sync::mpsc;
+use tokio::sync::{broadcast, mpsc, watch};
 use tokio::time::Instant;
 
 use crate::actors::project::ProjectState;
@@ -56,7 +56,9 @@ impl Service for LocalProjectSourceService {
 
     fn spawn_handler(mut self, mut rx: Receiver<Self::Interface>) {
         let project_path = self.config.project_configs_path();
-        let (state_tx, mut state_rx) = mpsc::channel(1);
+        // Create a broadcast channel with capacity 1. This behaves like a `watch::channel`,
+        // in that it evicts old entries in favor of newer ones, but it allows to clone the sender.
+        let (state_tx, mut state_rx) = broadcast::channel(1);
 
         let period = self.config.local_cache_interval();
         // To avoid running two load tasks simultaneously at startup, we delay the interval by one period:
@@ -73,7 +75,7 @@ impl Service for LocalProjectSourceService {
                 tokio::select! {
                     biased;
                     Some(message) = rx.recv() => self.handle_message(message),
-                    Some(states) = state_rx.recv() => self.local_states = states,
+                    Ok(states) = state_rx.recv() => self.local_states = states,
                     _ = ticker.tick() => spawn_poll_local_states(&project_path, &state_tx),
 
                     else => break,
@@ -149,11 +151,14 @@ async fn load_local_states(
     Ok(states)
 }
 
-async fn poll_local_states(path: &Path, tx: &mpsc::Sender<HashMap<ProjectKey, Arc<ProjectState>>>) {
+async fn poll_local_states(
+    path: &Path,
+    tx: &broadcast::Sender<HashMap<ProjectKey, Arc<ProjectState>>>,
+) {
     let states = load_local_states(path).await;
     match states {
         Ok(states) => {
-            let res = tx.send(states).await;
+            let res = tx.send(states);
             if res.is_err() {
                 relay_log::error!("failed to store static project configs");
             }
@@ -165,7 +170,10 @@ async fn poll_local_states(path: &Path, tx: &mpsc::Sender<HashMap<ProjectKey, Ar
     };
 }
 
-fn spawn_poll_local_states(path: &Path, tx: &mpsc::Sender<HashMap<ProjectKey, Arc<ProjectState>>>) {
+fn spawn_poll_local_states(
+    path: &Path,
+    tx: &broadcast::Sender<HashMap<ProjectKey, Arc<ProjectState>>>,
+) {
     let path = path.to_path_buf();
     let tx = tx.clone();
     tokio::spawn(async move { poll_local_states(&path, &tx).await });
