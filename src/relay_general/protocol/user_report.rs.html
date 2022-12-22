@@ -31,17 +31,10 @@
 <span id="30">30</span>
 <span id="31">31</span>
 <span id="32">32</span>
-<span id="33">33</span>
-<span id="34">34</span>
-<span id="35">35</span>
-<span id="36">36</span>
-<span id="37">37</span>
-<span id="38">38</span>
-<span id="39">39</span>
-<span id="40">40</span>
-</pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::protocol::EventId;
+</pre><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::protocol::utils::null_to_default;
+<span class="kw">use </span><span class="kw">crate</span>::protocol::EventId;
 
-<span class="kw">use </span>serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize};
+<span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="doccomment">/// User feedback for an event as sent by the client to the userfeedback/userreport endpoint.
 ///
@@ -69,15 +62,6 @@
     <span class="doccomment">/// Comments supplied by the user.
     </span><span class="attribute">#[serde(default, deserialize_with = <span class="string">&quot;null_to_default&quot;</span>)]
     </span><span class="kw">pub </span>comments: String,
-}
-
-<span class="kw">fn </span>null_to_default&lt;<span class="lifetime">&#39;de</span>, D, V&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;V, D::Error&gt;
-<span class="kw">where
-    </span>D: Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
-    V: Default + DeserializeOwned,
-{
-    <span class="kw">let </span>opt = Option::deserialize(deserializer)<span class="question-mark">?</span>;
-    <span class="prelude-val">Ok</span>(opt.unwrap_or_default())
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0 (69f9c33d7 2022-12-12)" ></div></body></html>
