@@ -7,7 +7,7 @@ use relay_common::{ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_log::LogError;
 use relay_system::{AsyncResponse, FromMessage, Interface, Receiver, Sender, Service};
-use tokio::sync::{broadcast, mpsc, watch};
+use tokio::sync::broadcast;
 use tokio::time::Instant;
 
 use crate::actors::project::ProjectState;
@@ -55,28 +55,21 @@ impl Service for LocalProjectSourceService {
     type Interface = LocalProjectSource;
 
     fn spawn_handler(mut self, mut rx: Receiver<Self::Interface>) {
-        let project_path = self.config.project_configs_path();
         // Create a broadcast channel with capacity 1. This behaves like a `watch::channel`,
         // in that it evicts old entries in favor of newer ones, but it allows to clone the sender.
         let (state_tx, mut state_rx) = broadcast::channel(1);
 
-        let period = self.config.local_cache_interval();
-        // To avoid running two load tasks simultaneously at startup, we delay the interval by one period:
-        let start_at = Instant::now() + period;
-        let mut ticker = tokio::time::interval_at(start_at, period);
-
         tokio::spawn(async move {
-            // Poll local states once before handling any message, such that the projects are
-            // populated.
-            poll_local_states(&project_path, &state_tx).await;
-
             relay_log::info!("project local cache started");
+
+            // Start the background task that periodically reloads projects from disk:
+            spawn_poll_local_states(&self.config, state_tx).await;
+
             loop {
                 tokio::select! {
                     biased;
                     Some(message) = rx.recv() => self.handle_message(message),
                     Ok(states) = state_rx.recv() => self.local_states = states,
-                    _ = ticker.tick() => spawn_poll_local_states(&project_path, &state_tx),
 
                     else => break,
                 }
@@ -170,11 +163,25 @@ async fn poll_local_states(
     };
 }
 
-fn spawn_poll_local_states(
-    path: &Path,
-    tx: &broadcast::Sender<HashMap<ProjectKey, Arc<ProjectState>>>,
+async fn spawn_poll_local_states(
+    config: &Config,
+    tx: broadcast::Sender<HashMap<ProjectKey, Arc<ProjectState>>>,
 ) {
-    let path = path.to_path_buf();
-    let tx = tx.clone();
-    tokio::spawn(async move { poll_local_states(&path, &tx).await });
+    let project_path = config.project_configs_path();
+    let period = config.local_cache_interval();
+
+    // Poll local states once before handling any message, such that the projects are
+    // populated.
+    poll_local_states(&project_path, &tx).await;
+
+    tokio::spawn(async move {
+        // To avoid running two load tasks simultaneously at startup, we delay the interval by one period:
+        let start_at = Instant::now() + period;
+        let mut ticker = tokio::time::interval_at(start_at, period);
+
+        loop {
+            ticker.tick().await;
+            poll_local_states(&project_path, &tx).await;
+        }
+    });
 }
