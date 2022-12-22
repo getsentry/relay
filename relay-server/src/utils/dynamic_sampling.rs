@@ -341,7 +341,7 @@ mod tests {
             time_range: Default::default(),
         });
 
-        // now that an unsupported rule has been pushed, it should keep the event if processing is enabled
+        // now that an unsupported rule has been pushed, it should keep the event if processing is disabled
         let res = samplingresult_from_rules_and_proccessing_flag(rules.clone(), false);
         assert!(matches!(res, SamplingResult::Keep));
 
