@@ -24,7 +24,7 @@ use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{self, EnvelopeContext, GarbageDisposal};
 
 #[cfg(feature = "processing")]
-use {crate::actors::project_redis::RedisProjectSource, actix::SyncArbiter, relay_common::clone};
+use crate::actors::project_redis::RedisProjectSource;
 
 #[derive(Clone, Debug, thiserror::Error)]
 pub enum ProjectError {
@@ -326,7 +326,7 @@ struct ProjectSource {
     local_source: Addr<LocalProjectSource>,
     upstream_source: actix::Addr<UpstreamProjectSource>,
     #[cfg(feature = "processing")]
-    redis_source: Option<actix::Addr<RedisProjectSource>>,
+    redis_source: Option<RedisProjectSource>,
 }
 
 impl ProjectSource {
@@ -335,15 +335,7 @@ impl ProjectSource {
         let upstream_source = UpstreamProjectSource::new(config.clone()).start();
 
         #[cfg(feature = "processing")]
-        let redis_source = _redis.map(|pool| {
-            SyncArbiter::start(
-                config.cpu_concurrency(),
-                clone!(config, || RedisProjectSource::new(
-                    config.clone(),
-                    pool.clone()
-                )),
-            )
-        });
+        let redis_source = _redis.map(|pool| RedisProjectSource::new(config.clone(), pool));
 
         Self {
             config,
@@ -374,9 +366,21 @@ impl ProjectSource {
 
         #[cfg(feature = "processing")]
         if let Some(redis_source) = self.redis_source {
-            let state_opt = compat::send(redis_source, FetchOptionalProjectState { project_key })
-                .await
-                .map_err(|_| ())?;
+            let state_fetch_result =
+                tokio::task::spawn_blocking(move || redis_source.get_config(project_key))
+                    .await
+                    .map_err(|_| ())?;
+
+            let state_opt = match state_fetch_result {
+                Ok(x) => x.map(ProjectState::sanitize).map(Arc::new),
+                Err(e) => {
+                    relay_log::error!(
+                        "Failed to fetch project from Redis: {}",
+                        relay_log::LogError(&e)
+                    );
+                    None
+                }
+            };
 
             if let Some(state) = state_opt {
                 return Ok(state);
