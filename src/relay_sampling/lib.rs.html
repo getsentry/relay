@@ -2646,6 +2646,18 @@
 <span id="2645">2645</span>
 <span id="2646">2646</span>
 <span id="2647">2647</span>
+<span id="2648">2648</span>
+<span id="2649">2649</span>
+<span id="2650">2650</span>
+<span id="2651">2651</span>
+<span id="2652">2652</span>
+<span id="2653">2653</span>
+<span id="2654">2654</span>
+<span id="2655">2655</span>
+<span id="2656">2656</span>
+<span id="2657">2657</span>
+<span id="2658">2658</span>
+<span id="2659">2659</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Functionality for calculating if a trace should be processed or dropped.
 </span><span class="attribute">#![doc(
     html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
@@ -3699,6 +3711,18 @@
         RuleCondition::Not(NotCondition {
             inner: Box::new(cond),
         })
+    }
+
+    <span class="attribute">#[test]
+    </span><span class="kw">fn </span>test_unmatching_json_rule_is_unsupported() {
+        <span class="kw">let </span>bad_json = <span class="string">r#&quot;{
+            &quot;op&quot;: &quot;BadOperator&quot;,
+            &quot;name&quot;: &quot;foo&quot;,
+            &quot;value&quot;: &quot;bar&quot;
+        }&quot;#</span>;
+
+        <span class="kw">let </span>rule: RuleCondition = serde_json::from_str(bad_json).unwrap();
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(rule, RuleCondition::Unsupported));
     }
 
     <span class="doccomment">/// test extraction of field values from event with everything
