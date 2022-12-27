@@ -1,0 +1,72 @@
+# More information on gocd-flavor YAML can be found here:
+# - https://github.com/tomzo/gocd-yaml-config-plugin#pipeline
+# - https://www.notion.so/sentry/GoCD-New-Service-Quickstart-6d8db7a6964049b3b0e78b8a4b52e25d
+format_version: 10
+pipelines:
+    deploy-relay-canary:
+        environment_variables:
+            GCP_PROJECT: internal-sentry
+            GKE_CLUSTER: zdpwkxst
+            GKE_REGION: us-central1
+            GKE_CLUSTER_ZONE: b
+            GKE_BASTION_ZONE: b
+        group: relay
+        lock_behavior: unlockWhenFinished
+        materials:
+            relay_repo:
+                git: git@github.com:getsentry/relay.git
+                shallow_clone: true
+                branch: master
+                destination: relay
+        stages:
+            - checks:
+                  approval:
+                      type: manual
+                  fetch_materials: true
+                  jobs:
+                      checks:
+                          timeout: 1800
+                          elastic_profile_id: relay
+                          tasks:
+                              - script: |
+                                    /devinfra/scripts/checks/githubactions/checkruns.py \
+                                    getsentry/relay \
+                                    ${GO_REVISION_RELAY_REPO} \
+                                    "Integration Tests" \
+                                    "Test (macos-latest)" \
+                                    "Test (windows-latest)" \
+                                    "Test All Features (ubuntu-latest)"
+                              - script: |
+                                    /devinfra/scripts/checks/googlecloud/checkcloudbuild.py \
+                                    ${GO_REVISION_RELAY_REPO} \
+                                    sentryio \
+                                    "us.gcr.io/sentryio/relay"
+            - deploy-canary:
+                  approval:
+                      type: manual
+                  fetch_materials: true
+                  jobs:
+                      deploy:
+                          timeout: 1800 # 30 mins
+                          elastic_profile_id: relay
+                          tasks:
+                              # TODO: create-sentry-release and self-service secrets
+                              - script: |
+                                    USE_GKE_GCLOUD_AUTH_PLUGIN=True \
+                                        gcloud --project "$GCP_PROJECT" \
+                                        container clusters get-credentials "$GKE_CLUSTER" \
+                                        --zone "${GKE_REGION}-${GKE_CLUSTER_ZONE}" \
+                                    && tmpdir=$(mktemp -d) \
+                                    && ssh-keygen -q -t ed25519 -N '' -f "${tmpdir}/google_compute_engine" \
+                                    && gcloud compute ssh "dicd-gkehop-${GKE_CLUSTER}" \
+                                      --ssh-key-file="${tmpdir}/google_compute_engine" \
+                                      --tunnel-through-iap \
+                                      "--project=${GCP_PROJECT}" \
+                                      "--zone=${GKE_REGION}-${GKE_BASTION_ZONE}" \
+                                      -- -4 -L8888:127.0.0.1:8888 -N -q -f
+                              - script: |
+                                    /devinfra/scripts/k8s/k8sdeploy.py \
+                                    --context="gke_${GCP_PROJECT}_${GKE_REGION}-${GKE_CLUSTER_ZONE}_${GKE_CLUSTER}" \
+                                    --label-selector="service=relay,deploy_if_canary=true" \
+                                    --image="us.gcr.io/sentryio/relay:${GO_REVISION_RELAY_REPO}" \
+                                    --container-name="relay"
