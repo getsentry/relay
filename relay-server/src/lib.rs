@@ -269,7 +269,7 @@ mod utils;
 use relay_config::Config;
 use relay_system::Controller;
 
-use crate::actors::server::Server;
+use crate::actors::server::ServerService;
 
 /// Runs a relay web server and spawns all internal worker threads.
 ///
@@ -280,5 +280,15 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     // Run the controller and block until a shutdown signal is sent to this process. This will
     // create an actix system, start a web server and run all relevant actors inside. See the
     // `actors` module documentation for more information on all actors.
-    Controller::run(|| Server::start(config))
+
+    let sys = actix::System::new("relay");
+    // We also need new tokio 1.x runtime.
+    let runtime = utils::create_runtime("http-server-handler", 1);
+    let shutdown_timeout = config.shutdown_timeout();
+
+    Controller::run(runtime.handle(), sys, || ServerService::start(config))?;
+
+    // Properly shutdown the new tokio runtime.
+    runtime.shutdown_timeout(shutdown_timeout);
+    Ok(())
 }
