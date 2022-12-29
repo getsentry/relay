@@ -5,7 +5,7 @@ expression: data
 {
   "request": {
     "env": {
-      "REMOTE_ADDR": null
+      "REMOTE_ADDR": "[ip]"
     }
   },
   "_meta": {
@@ -15,10 +15,13 @@ expression: data
           "": {
             "rem": [
               [
-                "@anything:remove",
-                "x"
+                "@ip:replace",
+                "s",
+                0,
+                4
               ]
-            ]
+            ],
+            "len": 9
           }
         }
       }

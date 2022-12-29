@@ -9,14 +9,6 @@ use crate::pii::{
 };
 use crate::processor::{SelectorPathItem, SelectorSpec, ValueType};
 
-// XXX: Move to @ip rule for better IP address scrubbing. Right now we just try to keep
-// compatibility with Python.
-static KNOWN_IP_FIELDS: Lazy<SelectorSpec> = Lazy::new(|| {
-    "($request.env.REMOTE_ADDR | $user.ip_address | $sdk.client_ip)"
-        .parse()
-        .unwrap()
-});
-
 /// Fields that the legacy data scrubber cannot strip.
 ///
 /// We define this list independently of `metastructure(pii = true/false)` because the new PII
@@ -39,7 +31,8 @@ pub fn to_pii_config(
     }
 
     if datascrubbing_config.scrub_ip_addresses {
-        applications.insert(KNOWN_IP_FIELDS.clone(), vec!["@anything:remove".to_owned()]);
+        let wildcard = SelectorSpec::Path(vec![SelectorPathItem::DeepWildcard]);
+        applications.insert(wildcard, vec!["@ip:replace".to_owned()]);
     }
 
     if datascrubbing_config.scrub_data {
@@ -219,8 +212,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "($string || $number || $array) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
               "@common:filter"
             ],
-            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
-              "@anything:remove"
+            "**": [
+              "@ip:replace"
             ]
           }
         }
@@ -244,8 +237,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "($string || $number || $array) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
               "@common:filter"
             ],
-            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
-              "@anything:remove"
+            "**": [
+              "@ip:replace"
             ]
           }
         }
@@ -279,8 +272,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@common:filter",
               "strip-fields"
             ],
-            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
-              "@anything:remove"
+            "**": [
+              "@ip:replace"
             ]
           }
         }
@@ -317,8 +310,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "($string || $number || $array) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value) && !foobar": [
               "@common:filter"
             ],
-            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
-              "@anything:remove"
+            "**": [
+              "@ip:replace"
             ]
           }
         }
@@ -341,8 +334,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "hashKey": null
           },
           "applications": {
-            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
-              "@anything:remove"
+            "**": [
+              "@ip:replace"
             ]
           }
         }
@@ -445,12 +438,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         assert_annotated_snapshot!(data);
     }
 
+    /// Checks that any fields containing an IP-address is scrubbed.
+    /// Even if it doesn't make sense for there to be an IP-address
+    /// such as in the username field.
     #[test]
     fn test_user_ip_stripped() {
         let mut data = Event::from_value(
             serde_json::json!({
                 "user": {
-                    "username": "secret",
+                    "username": "73.133.27.120",
                     "ip_address": "73.133.27.120",
                     "data": sensitive_vars()
                 }
@@ -1233,8 +1229,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@common:filter",
               "strip-fields"
             ],
-            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
-              "@anything:remove"
+            "**": [
+              "@ip:replace"
             ]
           }
         }

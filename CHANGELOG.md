@@ -26,6 +26,7 @@
 - Add max replay size configuration parameter. ([#1694](https://github.com/getsentry/relay/pull/1694))
 - Add nonchunked replay recording message type. ([#1653](https://github.com/getsentry/relay/pull/1653))
 - Add `abnormal_mechanism` field to SessionUpdate protocol. ([#1665](https://github.com/getsentry/relay/pull/1665))
+- Scrub all fields with IP addresses rather than only known IP address fields. (---)
 
 **Bug Fixes**:
 
