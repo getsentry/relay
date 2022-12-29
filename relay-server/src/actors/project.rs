@@ -10,7 +10,7 @@ use tokio::time::Instant;
 use url::Url;
 
 use relay_auth::PublicKey;
-use relay_common::{ProjectId, ProjectKey};
+use relay_common::{ProjectId, ProjectKey, RetryBackoff};
 use relay_config::Config;
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
@@ -531,6 +531,8 @@ enum GetOrFetch<'a> {
 /// This structure no longer uniquely identifies a project. Instead, it identifies a project key.
 /// Projects can define multiple keys, in which case this structure is duplicated for each instance.
 pub struct Project {
+    backoff: RetryBackoff,
+    next_fetch_attempt: Option<Instant>,
     last_updated_at: Instant,
     project_key: ProjectKey,
     config: Arc<Config>,
@@ -546,6 +548,8 @@ impl Project {
     /// Creates a new `Project`.
     pub fn new(key: ProjectKey, config: Arc<Config>) -> Self {
         Project {
+            backoff: RetryBackoff::new(config.http_max_retry_interval()),
+            next_fetch_attempt: None,
             last_updated_at: Instant::now(),
             project_key: key,
             config,
@@ -660,15 +664,24 @@ impl Project {
     /// If the state is already being updated in the background, this method checks if the request
     /// needs to be upgraded with the `no_cache` flag to ensure a more recent update.
     fn fetch_state(&mut self, no_cache: bool) -> &mut StateChannel {
-        // If there is a running request and we do not need to upgrade it to no_cache, skip
+        // If there is a running request and we do not need to upgrade it to no_cache, or if the
+        // backoff is started and the new attempt is still somewhere in the future, skip
         // scheduling a new fetch.
-        let should_fetch =
-            !matches!(self.state_channel, Some(ref channel) if channel.no_cache || !no_cache);
+        let should_fetch = !matches!(self.state_channel, Some(ref channel) if channel.no_cache || !no_cache)
+            && self
+                .next_fetch_attempt
+                .map(|next_attempt_at| next_attempt_at <= Instant::now())
+                .unwrap_or(false);
+
         let channel = self.state_channel.get_or_insert_with(StateChannel::new);
 
         if should_fetch {
             channel.no_cache(no_cache);
-            relay_log::debug!("project {} state requested", self.project_key);
+            let attempts = self.backoff.attempt() + 1;
+            relay_log::debug!(
+                "project {} state requested {attempts} times",
+                self.project_key
+            );
             ProjectCache::from_registry().send(RequestUpdate::new(self.project_key, no_cache));
         }
 
@@ -803,7 +816,7 @@ impl Project {
 
     /// Enqueues an envelope for validation.
     ///
-    /// If the project state is up to date, the message will be immediately to the next stage.
+    /// If the project state is up to date, the message will be immediately sent to the next stage.
     /// Otherwise, this queues the envelope and flushes it when the project has been updated.
     ///
     /// This method will trigger an update of the project state internally if the state is stale or
@@ -867,9 +880,18 @@ impl Project {
 
         match self.expiry_state() {
             // If the new state is invalid but the old one still usable, keep the old one.
-            ExpiryState::Updated(old) | ExpiryState::Stale(old) if state.invalid() => state = old,
+            //This also sets the next fetch attempt time.
+            ExpiryState::Updated(old) | ExpiryState::Stale(old) if state.invalid() => {
+                state = old;
+                self.next_fetch_attempt = Instant::now().checked_add(self.backoff.next_backoff());
+            }
             // If the new state is valid or the old one is expired, always use the new one.
-            _ => self.state = Some(state.clone()),
+            // And also reset the backoff at this point.
+            _ => {
+                self.state = Some(state.clone());
+                self.backoff.reset();
+                self.next_fetch_attempt = None;
+            }
         }
 
         // Flush all queued `ValidateEnvelope` messages
