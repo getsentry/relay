@@ -403,23 +403,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     }
 
     #[test]
-    fn test_sdk_client_ip_stripped() {
-        let mut data = Event::from_value(
-            serde_json::json!({
-                "sdk": {
-                    "client_ip": "127.0.0.1"
-                }
-            })
-            .into(),
-        );
-
-        let pii_config = simple_enabled_pii_config();
-        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
-        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
-        assert_annotated_snapshot!(data);
-    }
-
-    #[test]
     fn test_user() {
         let mut data = Event::from_value(
             serde_json::json!({
@@ -442,7 +425,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     /// Even if it doesn't make sense for there to be an IP-address
     /// such as in the username field.
     #[test]
-    fn test_user_ip_stripped() {
+    fn test_ip_stripped() {
         let mut data = Event::from_value(
             serde_json::json!({
                 "user": {
@@ -460,6 +443,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
                         "test_data": "73.133.27.120"
                     },
                 },
+                "sdk": {
+                    "client_ip": "127.0.0.1"
+                }
             })
             .into(),
         );

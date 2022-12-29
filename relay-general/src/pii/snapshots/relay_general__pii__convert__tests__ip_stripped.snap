@@ -1,0 +1,95 @@
+---
+source: relay-general/src/pii/convert.rs
+expression: data
+---
+{
+  "user": {
+    "ip_address": "[ip]",
+    "username": "[ip]",
+    "data": {
+      "a_password_here": "hello",
+      "apiKey": "secret_key",
+      "api_key": "secret_key",
+      "foo": "bar",
+      "password": "hello",
+      "the_secret": "hello"
+    }
+  },
+  "breadcrumbs": {
+    "values": [
+      {
+        "message": "[ip]"
+      }
+    ],
+    "data": {
+      "test_data": "73.133.27.120"
+    }
+  },
+  "sdk": {
+    "client_ip": "[ip]"
+  },
+  "_meta": {
+    "breadcrumbs": {
+      "values": {
+        "0": {
+          "message": {
+            "": {
+              "rem": [
+                [
+                  "@ip:replace",
+                  "s",
+                  0,
+                  4
+                ]
+              ],
+              "len": 13
+            }
+          }
+        }
+      }
+    },
+    "sdk": {
+      "client_ip": {
+        "": {
+          "rem": [
+            [
+              "@ip:replace",
+              "s",
+              0,
+              4
+            ]
+          ],
+          "len": 9
+        }
+      }
+    },
+    "user": {
+      "ip_address": {
+        "": {
+          "rem": [
+            [
+              "@ip:replace",
+              "s",
+              0,
+              4
+            ]
+          ],
+          "len": 13
+        }
+      },
+      "username": {
+        "": {
+          "rem": [
+            [
+              "@ip:replace",
+              "s",
+              0,
+              4
+            ]
+          ],
+          "len": 13
+        }
+      }
+    }
+  }
+}
