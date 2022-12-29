@@ -671,7 +671,7 @@ impl Project {
             && self
                 .next_fetch_attempt
                 .map(|next_attempt_at| next_attempt_at <= Instant::now())
-                .unwrap_or(false);
+                .unwrap_or(true);
 
         let channel = self.state_channel.get_or_insert_with(StateChannel::new);
 
