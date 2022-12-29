@@ -15,7 +15,36 @@ expression: data
       "the_secret": "hello"
     }
   },
+  "breadcrumbs": {
+    "values": [
+      {
+        "message": "[ip]"
+      }
+    ],
+    "data": {
+      "test_data": "73.133.27.120"
+    }
+  },
   "_meta": {
+    "breadcrumbs": {
+      "values": {
+        "0": {
+          "message": {
+            "": {
+              "rem": [
+                [
+                  "@ip:replace",
+                  "s",
+                  0,
+                  4
+                ]
+              ],
+              "len": 13
+            }
+          }
+        }
+      }
+    },
     "user": {
       "ip_address": {
         "": {

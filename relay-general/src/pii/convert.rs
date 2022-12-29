@@ -449,7 +449,17 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
                     "username": "73.133.27.120",
                     "ip_address": "73.133.27.120",
                     "data": sensitive_vars()
-                }
+                },
+                "breadcrumbs": {
+                    "values": [
+                        {
+                            "message": "73.133.27.120"
+                        }
+                    ],
+                    "data": {
+                        "test_data": "73.133.27.120"
+                    },
+                },
             })
             .into(),
         );
