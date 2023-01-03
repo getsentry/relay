@@ -27,7 +27,7 @@ rustup target add x86_64-unknown-linux-gnu
 
 # Install objcopy (used in `Makefile`)
 brew install binutils
-ln -s /opt/homebrew/Cellar/binutils/2.37/bin/gobjcopy /usr/local/bin/objcopy
+ln -s "$(brew --prefix binutils)/bin/gobjcopy" /usr/local/bin/objcopy
 
 # Build the relay binary
 export TARGET=x86_64-unknown-linux-gnu
