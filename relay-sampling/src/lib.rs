@@ -1053,6 +1053,18 @@ mod tests {
         })
     }
 
+    #[test]
+    fn test_unmatching_json_rule_is_unsupported() {
+        let bad_json = r#"{
+            "op": "BadOperator",
+            "name": "foo",
+            "value": "bar"
+        }"#;
+
+        let rule: RuleCondition = serde_json::from_str(bad_json).unwrap();
+        assert!(matches!(rule, RuleCondition::Unsupported));
+    }
+
     /// test extraction of field values from event with everything
     #[test]
     fn test_field_value_provider_event_filled() {

@@ -11,9 +11,10 @@ use tokio::runtime::Runtime;
 ///
 /// The calling thread must have the actix system enabled, panics if this is invoked in a thread
 /// where actix is not enabled.
-pub fn create_runtime(threads: usize) -> Runtime {
+pub fn create_runtime(name: &str, threads: usize) -> Runtime {
     let system = System::current();
     tokio::runtime::Builder::new_multi_thread()
+        .thread_name(name)
         .worker_threads(threads)
         .enable_all()
         .on_thread_start(move || System::set_current(system.clone()))

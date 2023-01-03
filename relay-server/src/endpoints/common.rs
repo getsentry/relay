@@ -275,7 +275,7 @@ pub fn cors(app: ServiceApp) -> CorsBuilder<ServiceState> {
 /// Queueing can fail if the queue exceeds `envelope_buffer_size`. In this case, `Err` is
 /// returned and the envelope is not queued.
 fn queue_envelope(
-    mut envelope: Envelope,
+    mut envelope: Box<Envelope>,
     mut envelope_context: EnvelopeContext,
     buffer_guard: &BufferGuard,
 ) -> Result<(), BadStoreRequest> {
@@ -340,7 +340,7 @@ pub fn handle_store_like_request<F, R, I>(
 ) -> ResponseFuture<HttpResponse, BadStoreRequest>
 where
     F: FnOnce(&HttpRequest<ServiceState>, RequestMeta) -> I + 'static,
-    I: IntoFuture<Item = Envelope, Error = BadStoreRequest> + 'static,
+    I: IntoFuture<Item = Box<Envelope>, Error = BadStoreRequest> + 'static,
     R: FnOnce(Option<EventId>) -> HttpResponse + Copy + 'static,
 {
     // For now, we only handle <= v8 and drop everything else

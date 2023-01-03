@@ -165,12 +165,15 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
 
 #[cfg(test)]
 mod tests {
+
     use bytes::Bytes;
 
     use relay_common::EventType;
     use relay_general::protocol::EventId;
     use relay_general::types::Annotated;
-    use relay_sampling::{RuleCondition, RuleId, RuleType, SamplingConfig, SamplingRule};
+    use relay_sampling::{
+        EqCondition, RuleCondition, RuleId, RuleType, SamplingConfig, SamplingRule,
+    };
 
     use crate::envelope::Item;
 
@@ -219,20 +222,23 @@ mod tests {
     }
 
     /// ugly hack to build an envelope with an optional trace context
-    fn new_envelope(with_trace_context: bool) -> Envelope {
+    fn new_envelope<T: Into<String>>(with_dsc: bool, transaction_name: T) -> Box<Envelope> {
+        let transaction_name = transaction_name.into();
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42";
         let event_id = EventId::new();
 
-        let raw_event = if with_trace_context {
+        let raw_event = if with_dsc {
             format!(
-                "{{\"event_id\":\"{}\",\"dsn\":\"{}\", \"trace\": {}}}\n",
+                "{{\"transaction\": \"{}\", \"event_id\":\"{}\",\"dsn\":\"{}\", \"trace\": {}}}\n",
+                transaction_name,
                 event_id.0.to_simple(),
                 dsn,
                 serde_json::to_string(&create_sampling_context(None)).unwrap(),
             )
         } else {
             format!(
-                "{{\"event_id\":\"{}\",\"dsn\":\"{}\"}}\n",
+                "{{\"transaction\": \"{}\", \"event_id\":\"{}\",\"dsn\":\"{}\"}}\n",
+                transaction_name,
                 event_id.0.to_simple(),
                 dsn,
             )
@@ -252,6 +258,175 @@ mod tests {
         envelope.add_item(item3);
 
         envelope
+    }
+
+    fn state_with_rule_and_condition(
+        sample_rate: Option<f64>,
+        rule_type: RuleType,
+        mode: SamplingMode,
+        condition: RuleCondition,
+    ) -> ProjectState {
+        let rules = match sample_rate {
+            Some(sample_rate) => vec![SamplingRule {
+                condition,
+                sample_rate,
+                ty: rule_type,
+                id: RuleId(1),
+                time_range: Default::default(),
+            }],
+            None => Vec::new(),
+        };
+
+        state_with_config(SamplingConfig {
+            rules,
+            mode,
+            next_id: None,
+        })
+    }
+
+    fn samplingresult_from_rules_and_proccessing_flag(
+        rules: Vec<SamplingRule>,
+        processing_enabled: bool,
+    ) -> SamplingResult {
+        let event_state = state_with_config(SamplingConfig {
+            rules,
+            mode: SamplingMode::Received,
+            next_id: None,
+        });
+
+        let some_event = Event {
+            id: Annotated::new(EventId::new()),
+            ty: Annotated::new(EventType::Transaction),
+            transaction: Annotated::new("testing".to_owned()),
+            ..Event::default()
+        };
+
+        let some_envelope = new_envelope(true, "testing");
+
+        should_keep_event(
+            some_envelope.dsc(),
+            Some(&some_event),
+            None,
+            &event_state,
+            None,
+            processing_enabled,
+        )
+    }
+
+    /// Checks that events aren't dropped if they contain an unsupported rule,
+    /// checks the cases with and without the process_enabled flag
+    #[test]
+    fn test_bad_dynamic_rules() {
+        // adds a rule which should always match (meaning the event will be dropped)
+        let mut rules = vec![SamplingRule {
+            condition: RuleCondition::all(),
+            sample_rate: 0.0,
+            ty: RuleType::Transaction,
+            id: RuleId(1),
+            time_range: Default::default(),
+        }];
+
+        // ensures the event is indeed dropped with and without processing enabled
+        let res = samplingresult_from_rules_and_proccessing_flag(rules.clone(), false);
+        assert!(matches!(res, SamplingResult::Drop(_)));
+
+        let res = samplingresult_from_rules_and_proccessing_flag(rules.clone(), true);
+        assert!(matches!(res, SamplingResult::Drop(_)));
+
+        rules.push(SamplingRule {
+            condition: RuleCondition::Unsupported,
+            sample_rate: 0.0,
+            ty: RuleType::Transaction,
+            id: RuleId(1),
+            time_range: Default::default(),
+        });
+
+        // now that an unsupported rule has been pushed, it should keep the event if processing is disabled
+        let res = samplingresult_from_rules_and_proccessing_flag(rules.clone(), false);
+        assert!(matches!(res, SamplingResult::Keep));
+
+        let res = samplingresult_from_rules_and_proccessing_flag(rules, true);
+        assert!(matches!(res, SamplingResult::Drop(_))); // should also log an error
+    }
+
+    #[test]
+    fn test_trace_rules_applied_after_event_rules() {
+        // a transaction rule that drops everything
+        let event_state = state_with_rule_and_condition(
+            Some(0.0),
+            RuleType::Transaction,
+            SamplingMode::Received,
+            RuleCondition::Eq(EqCondition {
+                name: "event.transaction".to_owned(),
+                value: "healthcheck".into(),
+                options: Default::default(),
+            }),
+        );
+
+        // a trace rule that keeps everything
+        let trace_state = state_with_rule(Some(1.0), RuleType::Trace, SamplingMode::Received);
+
+        let healthcheck_envelope = new_envelope(true, "healthcheck");
+        let other_envelope = new_envelope(true, "test1");
+
+        let healthcheck_event = Event {
+            id: Annotated::new(EventId::new()),
+            ty: Annotated::new(EventType::Transaction),
+            transaction: Annotated::new("healthcheck".to_owned()),
+            ..Event::default()
+        };
+
+        let other_event = Event {
+            id: Annotated::new(EventId::new()),
+            ty: Annotated::new(EventType::Transaction),
+            transaction: Annotated::new("test1".to_owned()),
+            ..Event::default()
+        };
+
+        // if it matches the transaction rule, the transaction should be dropped
+        let should_drop = should_keep_event(
+            healthcheck_envelope.dsc(),
+            Some(&healthcheck_event),
+            None,
+            &event_state,
+            Some(&trace_state),
+            false,
+        );
+
+        // if it doesn't match the transaction rule, the transaction shouldn't be dropped
+        let should_keep = should_keep_event(
+            other_envelope.dsc(),
+            Some(&other_event),
+            None,
+            &event_state,
+            Some(&trace_state),
+            false,
+        );
+
+        // matching event should return an event rule
+        assert!(get_event_sampling_rule(
+            false,
+            &event_state,
+            healthcheck_envelope.dsc(),
+            Some(&healthcheck_event),
+            None,
+        )
+        .unwrap()
+        .is_some());
+
+        // non-matching event should not return an event rule
+        assert!(get_event_sampling_rule(
+            false,
+            &event_state,
+            other_envelope.dsc(),
+            Some(&other_event),
+            None,
+        )
+        .unwrap()
+        .is_none());
+
+        assert!(matches!(should_keep, SamplingResult::Keep));
+        assert!(matches!(should_drop, SamplingResult::Drop(_)));
     }
 
     #[test]
@@ -284,7 +459,7 @@ mod tests {
     #[test]
     fn test_unsampled_envelope_with_sample_rate() {
         //create an envelope with a event and a transaction
-        let envelope = new_envelope(true);
+        let envelope = new_envelope(true, "");
         let state = state_with_rule(Some(1.0), RuleType::Trace, SamplingMode::default());
         let sampling_state = state_with_rule(Some(0.0), RuleType::Trace, SamplingMode::default());
         let result = should_keep_event(
@@ -302,7 +477,7 @@ mod tests {
     /// Should keep transaction when no trace context is present
     fn test_should_keep_transaction_no_trace() {
         //create an envelope with a event and a transaction
-        let envelope = new_envelope(false);
+        let envelope = new_envelope(false, "");
         let state = state_with_rule(Some(1.0), RuleType::Trace, SamplingMode::default());
         let sampling_state = state_with_rule(Some(0.0), RuleType::Trace, SamplingMode::default());
 
@@ -324,7 +499,7 @@ mod tests {
     /// transaction
     fn test_should_signal_when_envelope_becomes_empty() {
         //create an envelope with a event and a transaction
-        let envelope = new_envelope(true);
+        let envelope = new_envelope(true, "");
         let state = state_with_rule(Some(1.0), RuleType::Trace, SamplingMode::default());
         let sampling_state = state_with_rule(Some(0.0), RuleType::Trace, SamplingMode::default());
 
@@ -384,7 +559,7 @@ mod tests {
         let sampling_config = serde_json::from_value(sampling_config).unwrap();
         let project_state = state_with_config(sampling_config);
 
-        let envelope = new_envelope(true);
+        let envelope = new_envelope(true, "");
 
         let event = Event {
             id: Annotated::new(EventId::new()),

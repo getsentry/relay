@@ -536,6 +536,8 @@ struct Limits {
     max_api_chunk_upload_size: ByteSize,
     /// The maximum payload size for a profile
     max_profile_size: ByteSize,
+    /// The maximum payload size for a replay.
+    max_replay_size: ByteSize,
     /// The maximum number of threads to spawn for CPU and web work, each.
     ///
     /// The total number of threads spawned will roughly be `2 * max_thread_count + 1`. Defaults to
@@ -554,6 +556,10 @@ struct Limits {
     /// The maximum number of seconds to wait for pending envelopes after receiving a shutdown
     /// signal.
     shutdown_timeout: u64,
+    /// server keep-alive timeout in seconds.
+    ///
+    /// By default keep-alive is set to a 5 seconds.
+    keepalive_timeout: u64,
 }
 
 impl Default for Limits {
@@ -571,12 +577,14 @@ impl Default for Limits {
             max_api_file_upload_size: ByteSize::mebibytes(40),
             max_api_chunk_upload_size: ByteSize::mebibytes(100),
             max_profile_size: ByteSize::mebibytes(50),
+            max_replay_size: ByteSize::mebibytes(100),
             max_thread_count: num_cpus::get(),
             query_timeout: 30,
             max_connection_rate: 256,
             max_pending_connections: 2048,
             max_connections: 25_000,
             shutdown_timeout: 10,
+            keepalive_timeout: 5,
         }
     }
 }
@@ -1714,6 +1722,11 @@ impl Config {
         self.values.limits.max_profile_size.as_bytes()
     }
 
+    /// Returns the maximum payload size for a replay.
+    pub fn max_replay_size(&self) -> usize {
+        self.values.limits.max_replay_size.as_bytes()
+    }
+
     /// Returns the maximum number of active requests
     pub fn max_concurrent_requests(&self) -> usize {
         self.values.limits.max_concurrent_requests
@@ -1748,6 +1761,13 @@ impl Config {
     /// signal.
     pub fn shutdown_timeout(&self) -> Duration {
         Duration::from_secs(self.values.limits.shutdown_timeout)
+    }
+
+    /// Returns the server keep-alive timeout in seconds.
+    ///
+    /// By default keep alive is set to a 5 seconds.
+    pub fn keepalive_timeout(&self) -> Duration {
+        Duration::from_secs(self.values.limits.keepalive_timeout)
     }
 
     /// Returns the number of cores to use for thread pools.
