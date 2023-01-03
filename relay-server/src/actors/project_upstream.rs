@@ -103,12 +103,18 @@ impl ProjectStateChannel {
 
 /// Internal [`UpstreamProjectSourceService`] message protocol.
 enum UpstreamProjectSourceState {
-    /// Requests to reset the backoff.
-    ResetBackoff,
-    /// Requests the check for backoff status and makes sure to schedule the another fetch if
+    /// Checks for backoff status and makes sure to schedule the another fetch if
     /// possible.
     CheckAndSchedule,
-    /// Requests to schedule the new fetch for project states.
+    /// Checks if the channel already exists in the queue or add it otherwise.
+    HandleChannel {
+        sender: Sender<Arc<ProjectState>>,
+        project_key: ProjectKey,
+        no_cache: bool,
+    },
+    /// Resets the current backoff period.
+    ResetBackoff,
+    /// Schedules the new fetch for project states.
     ScheduleFetch(HashMap<ProjectKey, ProjectStateChannel>),
 }
 
@@ -363,26 +369,17 @@ impl UpstreamProjectSourceService {
             sender,
         ) = message;
 
-        let query_timeout = self.config.query_timeout();
-        let channel = self
-            .state_channels
-            .entry(project_key)
-            .or_insert_with(|| ProjectStateChannel::new(sender, query_timeout));
-
-        // Ensure upstream skips caches if one of the recipients requests an uncached response. This
-        // operation is additive across requests.
-        if no_cache {
-            channel.no_cache();
-        }
-
-        // Check is we can schedule the fetch right away.
         if self
             .state_tx
-            .send(UpstreamProjectSourceState::CheckAndSchedule)
+            .send(UpstreamProjectSourceState::HandleChannel {
+                sender,
+                project_key,
+                no_cache,
+            })
             .is_err()
         {
             relay_log::error!(
-                "Unable to send the internal UpstreamProjectSourceState::CheckAndSchedule message"
+                "Unable to send the internal UpstreamProjectSourceState::HandleChannel message"
             );
         }
     }
@@ -390,7 +387,6 @@ impl UpstreamProjectSourceService {
     /// Handles internal communication.
     fn handle_upstream_state(&mut self, message: UpstreamProjectSourceState) {
         match message {
-            UpstreamProjectSourceState::ResetBackoff => self.backoff.reset(),
             UpstreamProjectSourceState::CheckAndSchedule => {
                 // Schedule the fetch if there is nothing running at this moment.
                 if !self.backoff.started() {
@@ -413,6 +409,35 @@ impl UpstreamProjectSourceService {
                     }
                 }
             }
+            UpstreamProjectSourceState::HandleChannel {
+                sender,
+                project_key,
+                no_cache,
+            } => {
+                let query_timeout = self.config.query_timeout();
+                let channel = self
+                    .state_channels
+                    .entry(project_key)
+                    .or_insert_with(|| ProjectStateChannel::new(sender, query_timeout));
+
+                // Ensure upstream skips caches if one of the recipients requests an uncached response. This
+                // operation is additive across requests.
+                if no_cache {
+                    channel.no_cache();
+                }
+
+                // Check is we can schedule the fetch right away.
+                if self
+                    .state_tx
+                    .send(UpstreamProjectSourceState::CheckAndSchedule)
+                    .is_err()
+                {
+                    relay_log::error!(
+                "Unable to send the internal UpstreamProjectSourceState::CheckAndSchedule message"
+            );
+                }
+            }
+            UpstreamProjectSourceState::ResetBackoff => self.backoff.reset(),
             UpstreamProjectSourceState::ScheduleFetch(mut channels) => {
                 if channels.is_empty() {
                     relay_log::error!("project state schedule fetch request without projects");
