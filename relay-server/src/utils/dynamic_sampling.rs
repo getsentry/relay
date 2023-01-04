@@ -388,6 +388,7 @@ mod tests {
             ty: RuleType::Transaction,
             id: RuleId(1),
             time_range: Default::default(),
+            decaying_fn: Default::default(),
         }];
 
         // ensures the event is indeed dropped with and without processing enabled
@@ -403,6 +404,7 @@ mod tests {
             ty: RuleType::Transaction,
             id: RuleId(1),
             time_range: Default::default(),
+            decaying_fn: Default::default(),
         });
 
         // now that an unsupported rule has been pushed, it should keep the event if processing is disabled
