@@ -18,12 +18,12 @@ expression: data
   "breadcrumbs": {
     "values": [
       {
-        "message": "[ip]"
+        "message": "[ip]",
+        "data": {
+          "test_data": "[ip]"
+        }
       }
-    ],
-    "data": {
-      "test_data": "73.133.27.120"
-    }
+    ]
   },
   "sdk": {
     "client_ip": "[ip]"
@@ -32,6 +32,21 @@ expression: data
     "breadcrumbs": {
       "values": {
         "0": {
+          "data": {
+            "test_data": {
+              "": {
+                "rem": [
+                  [
+                    "@ip:replace",
+                    "s",
+                    0,
+                    4
+                  ]
+                ],
+                "len": 13
+              }
+            }
+          },
           "message": {
             "": {
               "rem": [

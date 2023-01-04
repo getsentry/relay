@@ -436,12 +436,12 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
                 "breadcrumbs": {
                     "values": [
                         {
-                            "message": "73.133.27.120"
-                        }
+                            "message": "73.133.27.120",
+                            "data": {
+                                "test_data": "73.133.27.120"
+                                }
+                        },
                     ],
-                    "data": {
-                        "test_data": "73.133.27.120"
-                    },
                 },
                 "sdk": {
                     "client_ip": "127.0.0.1"
