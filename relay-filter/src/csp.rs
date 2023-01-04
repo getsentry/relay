@@ -293,7 +293,7 @@ mod tests {
                 .map(|url| SchemeDomainPort::from(*url))
                 .collect();
             let actual = matches_any_origin(Some(*url), &origins[..]);
-            assert_eq!(*expected, actual, "Could not match {}.", url);
+            assert_eq!(*expected, actual, "Could not match {url}.");
         }
     }
 
@@ -409,9 +409,7 @@ mod tests {
             assert_ne!(
                 actual,
                 Ok(()),
-                "CSP filter should have filtered  bad request {:?} {:?}",
-                blocked_uri,
-                source_file
+                "CSP filter should have filtered  bad request {blocked_uri:?} {source_file:?}"
             );
         }
     }
@@ -434,9 +432,7 @@ mod tests {
             assert_eq!(
                 actual,
                 Ok(()),
-                "CSP filter should have  NOT filtered  request {:?} {:?}",
-                blocked_uri,
-                source_file
+                "CSP filter should have  NOT filtered  request {blocked_uri:?} {source_file:?}"
             );
         }
     }

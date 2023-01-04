@@ -56,7 +56,7 @@ impl RedisProjectSource {
         let mut command = relay_redis::redis::cmd("GET");
 
         let prefix = self.config.projectconfig_cache_prefix();
-        command.arg(format!("{}:{}", prefix, key));
+        command.arg(format!("{prefix}:{key}"));
 
         let raw_response_opt: Option<Vec<u8>> = command
             .query(&mut self.redis.client()?.connection())
@@ -95,6 +95,6 @@ mod tests {
     fn test_parse_redis_response_compressed() {
         let raw_response = b"(\xb5/\xfd \x02\x11\x00\x00{}"; // As dumped by python zstandard library
         let result = parse_redis_response(raw_response);
-        assert!(result.is_ok(), "{:?}", result);
+        assert!(result.is_ok(), "{result:?}");
     }
 }

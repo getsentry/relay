@@ -13,7 +13,7 @@ pub struct Breakdowns(pub Object<Measurements>);
 impl Breakdowns {
     pub fn is_valid_breakdown_name(name: &str) -> bool {
         !name.is_empty()
-            && name.starts_with(|c| matches!(c, 'a'..='z' | 'A'..='Z'))
+            && name.starts_with(|c: char| c.is_ascii_alphabetic())
             && name
                 .chars()
                 .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '.'))
@@ -34,8 +34,7 @@ impl FromValue for Breakdowns {
                         return Some((name.into(), object));
                     } else {
                         processing_errors.push(Error::invalid(format!(
-                            "breakdown name '{}' can contain only characters a-z0-9._",
-                            name
+                            "breakdown name '{name}' can contain only characters a-z0-9._"
                         )));
                     }
 

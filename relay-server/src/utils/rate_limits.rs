@@ -28,13 +28,13 @@ pub fn format_rate_limits(rate_limits: &RateLimits) -> String {
             if index > 0 {
                 header.push(';');
             }
-            write!(header, "{}", category).ok();
+            write!(header, "{category}").ok();
         }
 
         write!(header, ":{}", rate_limit.scope.name()).ok();
 
         if let Some(ref reason_code) = rate_limit.reason_code {
-            write!(header, ":{}", reason_code).ok();
+            write!(header, ":{reason_code}").ok();
         }
     }
 
@@ -734,7 +734,7 @@ mod tests {
         ) -> Result<RateLimits, ()> {
             let cat = scoping.category;
             let previous = self.called.insert(cat, quantity);
-            assert!(previous.is_none(), "rate limiter invoked twice for {}", cat);
+            assert!(previous.is_none(), "rate limiter invoked twice for {cat}");
 
             let mut limits = RateLimits::new();
             if self.denied.contains(&cat) {
