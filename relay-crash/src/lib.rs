@@ -65,7 +65,7 @@ impl<'a> fmt::Debug for CrashHandler<'a> {
         f.debug_struct("CrashHandler")
             .field("dsn", &self.dsn)
             .field("database", &self.database)
-            .field("transport", &format_args!("{}", transport))
+            .field("transport", &format_args!("{transport}"))
             .field("release", &self.release)
             .field("environment", &self.environment)
             .finish()

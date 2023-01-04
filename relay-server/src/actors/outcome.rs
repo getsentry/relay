@@ -199,7 +199,7 @@ impl Outcome {
         match self {
             Outcome::Invalid(discard_reason) => Some(Cow::Borrowed(discard_reason.name())),
             Outcome::Filtered(filter_key) => Some(Cow::Borrowed(filter_key.name())),
-            Outcome::FilteredSampling(rule_id) => Some(Cow::Owned(format!("Sampled:{}", rule_id))),
+            Outcome::FilteredSampling(rule_id) => Some(Cow::Owned(format!("Sampled:{rule_id}"))),
             //TODO can we do better ? (not re copying the string )
             Outcome::RateLimited(code_opt) => code_opt
                 .as_ref()
@@ -229,14 +229,14 @@ impl Outcome {
 impl fmt::Display for Outcome {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Outcome::Filtered(key) => write!(f, "filtered by {}", key),
-            Outcome::FilteredSampling(rule) => write!(f, "sampling rule {}", rule),
+            Outcome::Filtered(key) => write!(f, "filtered by {key}"),
+            Outcome::FilteredSampling(rule) => write!(f, "sampling rule {rule}"),
             Outcome::RateLimited(None) => write!(f, "rate limited"),
-            Outcome::RateLimited(Some(reason)) => write!(f, "rate limited with reason {}", reason),
+            Outcome::RateLimited(Some(reason)) => write!(f, "rate limited with reason {reason}"),
             Outcome::Invalid(DiscardReason::Internal) => write!(f, "internal error"),
-            Outcome::Invalid(reason) => write!(f, "invalid data ({})", reason),
+            Outcome::Invalid(reason) => write!(f, "invalid data ({reason})"),
             Outcome::Abuse => write!(f, "abuse limit reached"),
-            Outcome::ClientDiscard(reason) => write!(f, "discarded by client ({})", reason),
+            Outcome::ClientDiscard(reason) => write!(f, "discarded by client ({reason})"),
         }
     }
 }

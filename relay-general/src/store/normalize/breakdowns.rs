@@ -137,7 +137,7 @@ impl EmitBreakdowns for SpanOperationsConfig {
                 unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
             };
 
-            let op_breakdown_name = format!("ops.{}", operation_name);
+            let op_breakdown_name = format!("ops.{operation_name}");
             breakdown.insert(op_breakdown_name, Annotated::new(op_value));
         }
 

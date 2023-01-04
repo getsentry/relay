@@ -280,7 +280,7 @@ impl fmt::Display for SecretKey {
 
 impl fmt::Debug for SecretKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SecretKey(\"{}\")", self)
+        write!(f, "SecretKey(\"{self}\")")
     }
 }
 
@@ -396,7 +396,7 @@ impl fmt::Display for PublicKey {
 
 impl fmt::Debug for PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "PublicKey(\"{}\")", self)
+        write!(f, "PublicKey(\"{self}\")")
     }
 }
 
@@ -451,7 +451,7 @@ impl SignedRegisterState {
         mac.input(token.as_bytes());
         let signature = base64::encode_config(&mac.result().code(), base64::URL_SAFE_NO_PAD);
 
-        Self(format!("{}:{}", token, signature))
+        Self(format!("{token}:{signature}"))
     }
 
     /// Splits the signed state into the encoded state and encoded signature.
@@ -702,7 +702,7 @@ mod tests {
             "OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oU"
         );
         assert_eq!(
-        format!("{:#}", sk),
+        format!("{sk:#}"),
         "OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oUk5pHZsdnfXNiMWiMLtSE86J3N9Peo5CBP1YQHDUkApQ"
     );
         assert_eq!(
@@ -819,9 +819,9 @@ mod tests {
 
         // initial setup
         let relay_id = generate_relay_id();
-        println!("RELAY_ID = b\"{}\"", relay_id);
+        println!("RELAY_ID = b\"{relay_id}\"");
         let (sk, pk) = generate_key_pair();
-        println!("RELAY_KEY = b\"{}\"", pk);
+        println!("RELAY_KEY = b\"{pk}\"");
 
         // create a register request
         let request = RegisterRequest::new(&relay_id, &pk);
@@ -829,7 +829,7 @@ mod tests {
 
         // sign it
         let (request_bytes, request_sig) = sk.pack(&request);
-        println!("REQUEST_SIG = \"{}\"", request_sig);
+        println!("REQUEST_SIG = \"{request_sig}\"");
 
         // attempt to get the data through bootstrap unpacking.
         let request =
@@ -840,15 +840,15 @@ mod tests {
         // create a challenge
         let challenge = request.into_challenge(upstream_secret);
         let challenge_token = challenge.token().to_owned();
-        println!("TOKEN = \"{}\"", challenge_token);
+        println!("TOKEN = \"{challenge_token}\"");
 
         // create a response from the challenge
         let response = challenge.into_response();
         let serialized_response = serde_json::to_string(&response).unwrap();
         let (_, response_sig) = sk.pack(&response);
 
-        println!("RESPONSE = b'{}'", serialized_response);
-        println!("RESPONSE_SIG = \"{}\"", response_sig);
+        println!("RESPONSE = b'{serialized_response}'");
+        println!("RESPONSE_SIG = \"{response_sig}\"");
 
         println!("RELAY_VERSION = \"{}\"", &LATEST_VERSION);
     }

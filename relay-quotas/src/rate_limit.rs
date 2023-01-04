@@ -61,7 +61,7 @@ impl fmt::Debug for RetryAfter {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.remaining_seconds() {
             0 => write!(f, "RetryAfter(expired)"),
-            remaining => write!(f, "RetryAfter({}s)", remaining),
+            remaining => write!(f, "RetryAfter({remaining}s)"),
         }
     }
 }

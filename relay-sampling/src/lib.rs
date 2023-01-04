@@ -1364,7 +1364,7 @@ mod tests {
         };
 
         for (rule_test_name, condition) in conditions.iter() {
-            let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
+            let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
             assert!(condition.matches(&dsc, None), "{}", failure_name);
         }
     }
@@ -1441,7 +1441,7 @@ mod tests {
         };
 
         for (rule_test_name, condition) in conditions.iter() {
-            let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
+            let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
             let ip_addr = Some(NetIpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
             assert!(condition.matches(&evt, ip_addr), "{}", failure_name);
         }
@@ -1539,7 +1539,7 @@ mod tests {
         };
 
         for (rule_test_name, expected, condition) in conditions.iter() {
-            let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
+            let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
             assert!(
                 condition.matches(&dsc, None) == *expected,
                 "{}",
@@ -1601,7 +1601,7 @@ mod tests {
         };
 
         for (rule_test_name, expected, condition) in conditions.iter() {
-            let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
+            let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
             assert!(
                 condition.matches(&dsc, None) == *expected,
                 "{}",
@@ -1640,7 +1640,7 @@ mod tests {
         };
 
         for (rule_test_name, expected, condition) in conditions.iter() {
-            let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
+            let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
             assert!(
                 condition.matches(&dsc, None) == *expected,
                 "{}",
@@ -1702,7 +1702,7 @@ mod tests {
         };
 
         for (rule_test_name, condition) in conditions.iter() {
-            let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
+            let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
             assert!(!condition.matches(&dsc, None), "{}", failure_name);
         }
     }
@@ -2260,8 +2260,8 @@ mod tests {
             // is supported.
             RuleType::Error | RuleType::Unsupported => unimplemented!(),
         };
-        let release_condition = format!("{}.release", rule_prefix);
-        let env_condition = format!("{}.environment", rule_prefix);
+        let release_condition = format!("{rule_prefix}.release");
+        let env_condition = format!("{rule_prefix}.environment");
 
         SamplingConfig {
             rules: vec![
