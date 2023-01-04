@@ -688,13 +688,16 @@ mod tests {
             Some(now + DateDuration::days(1)),
         );
 
-        assert_eq!(
+        let sample_rate =
             prepare_and_get_sampling_rule(1.0, EventType::Transaction, &project_state, now)
                 .unwrap()
                 .unwrap()
-                .sample_rate,
-            0.44999999999999996
-        );
+                .sample_rate;
+        let expected_sample_rate = 0.44999999999999996;
+
+        // Workaround against floating point precision differences.
+        // https://rust-lang.github.io/rust-clippy/master/#float_cmp
+        assert!((sample_rate - expected_sample_rate).abs() < f64::EPSILON)
     }
 
     #[test]

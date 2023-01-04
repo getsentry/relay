@@ -371,73 +371,6 @@ pub enum DecayingFunction {
     Constant,
 }
 
-/// A sampling rule as it is deserialized from the project configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SamplingRule {
-    pub condition: RuleCondition,
-    pub sample_rate: f64,
-    #[serde(rename = "type")]
-    pub ty: RuleType,
-    pub id: RuleId,
-    /// The time range the rule should be applicable in.
-    ///
-    /// The time range is open on both ends by default. If a time range is
-    /// closed on at least one end, the rule is considered a decaying rule.
-    #[serde(default, skip_serializing_if = "TimeRange::is_empty")]
-    pub time_range: TimeRange,
-    #[serde(default)]
-    pub decaying_fn: DecayingFunction,
-}
-
-impl SamplingRule {
-    fn supported(&self) -> bool {
-        self.condition.supported() && self.ty != RuleType::Unsupported
-    }
-
-    /// Returns whether the sampling rule is active.
-    ///
-    /// Non-decaying rules are always active. Decaying rules are active if they are
-    /// neither idle nor expired.
-    fn is_active(&self, now: DateTime<Utc>) -> Option<ActiveRule> {
-        match self.decaying_fn {
-            DecayingFunction::Linear {
-                decayed_sample_rate,
-            } => {
-                if let TimeRange {
-                    start: Some(start),
-                    end: Some(end),
-                } = self.time_range
-                {
-                    if self.sample_rate > decayed_sample_rate && start <= now && now < end {
-                        return Some(ActiveRule {
-                            id: self.id,
-                            evaluator: SampleRateEvaluator::Linear {
-                                start,
-                                end,
-                                sample_rate: self.sample_rate,
-                                decayed_sample_rate,
-                            },
-                        });
-                    }
-                }
-            }
-            DecayingFunction::Constant => {
-                if self.time_range.contains(now) {
-                    return Some(ActiveRule {
-                        id: self.id,
-                        evaluator: SampleRateEvaluator::Constant {
-                            sample_rate: self.sample_rate,
-                        },
-                    });
-                }
-            }
-        }
-
-        None
-    }
-}
-
 /// A struct representing the evaluation context of a sample rate.
 #[derive(Debug, Clone, Copy)]
 enum SampleRateEvaluator {
@@ -489,6 +422,74 @@ impl ActiveRule {
     /// Gets the sample rate for the specific rule.
     pub fn get_sample_rate(&self, now: DateTime<Utc>) -> f64 {
         self.evaluator.evaluate(now)
+    }
+}
+
+/// A sampling rule as it is deserialized from the project configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SamplingRule {
+    pub condition: RuleCondition,
+    pub sample_rate: f64,
+    #[serde(rename = "type")]
+    pub ty: RuleType,
+    pub id: RuleId,
+    /// The time range the rule should be applicable in.
+    ///
+    /// The time range is open on both ends by default. If a time range is
+    /// closed on at least one end, the rule is considered a decaying rule.
+    #[serde(default, skip_serializing_if = "TimeRange::is_empty")]
+    pub time_range: TimeRange,
+    #[serde(default)]
+    pub decaying_fn: DecayingFunction,
+}
+
+impl SamplingRule {
+    fn supported(&self) -> bool {
+        self.condition.supported() && self.ty != RuleType::Unsupported
+    }
+
+    /// Returns an ActiveRule is the SamplingRule is active.
+    ///
+    /// The checking of the "active" state of a SamplingRule is performed independently
+    /// based on the specified DecayingFunction, which defaults to constant.
+    fn is_active(&self, now: DateTime<Utc>) -> Option<ActiveRule> {
+        match self.decaying_fn {
+            DecayingFunction::Linear {
+                decayed_sample_rate,
+            } => {
+                if let TimeRange {
+                    start: Some(start),
+                    end: Some(end),
+                } = self.time_range
+                {
+                    // As in the TimeRange::contains method we use a right non-inclusive time bound.
+                    if self.sample_rate > decayed_sample_rate && start <= now && now < end {
+                        return Some(ActiveRule {
+                            id: self.id,
+                            evaluator: SampleRateEvaluator::Linear {
+                                start,
+                                end,
+                                sample_rate: self.sample_rate,
+                                decayed_sample_rate,
+                            },
+                        });
+                    }
+                }
+            }
+            DecayingFunction::Constant => {
+                if self.time_range.contains(now) {
+                    return Some(ActiveRule {
+                        id: self.id,
+                        evaluator: SampleRateEvaluator::Constant {
+                            sample_rate: self.sample_rate,
+                        },
+                    });
+                }
+            }
+        }
+
+        None
     }
 }
 
