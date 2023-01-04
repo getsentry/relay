@@ -970,7 +970,7 @@
         <span class="kw">let </span>payload =
             <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/sample/multiple_transactions.json&quot;</span>);
         <span class="kw">let </span>expanded_profile = <span class="kw">match </span>parse_profile(payload) {
-            <span class="prelude-val">Err</span>(err) =&gt; <span class="macro">panic!</span>(<span class="string">&quot;cannot parse profile: {:?}&quot;</span>, err),
+            <span class="prelude-val">Err</span>(err) =&gt; <span class="macro">panic!</span>(<span class="string">&quot;cannot parse profile: {err:?}&quot;</span>),
             <span class="prelude-val">Ok</span>(profile) =&gt; profile,
         };
         <span class="macro">assert_eq!</span>(expanded_profile.profile.samples.len(), <span class="number">4</span>);

@@ -429,13 +429,13 @@
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>SelectorPathItem {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter) -&gt; fmt::Result {
         <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
-            SelectorPathItem::Type(ty) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;${}&quot;</span>, ty),
-            SelectorPathItem::Index(index) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, index),
+            SelectorPathItem::Type(ty) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;${ty}&quot;</span>),
+            SelectorPathItem::Index(index) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{index}&quot;</span>),
             SelectorPathItem::Key(<span class="kw-2">ref </span>key) =&gt; {
                 <span class="kw">if </span>key_needs_quoting(key) {
                     <span class="macro">write!</span>(f, <span class="string">&quot;&#39;{}&#39;&quot;</span>, key.replace(<span class="string">&#39;\&#39;&#39;</span>, <span class="string">&quot;&#39;&#39;&quot;</span>))
                 } <span class="kw">else </span>{
-                    <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, key)
+                    <span class="macro">write!</span>(f, <span class="string">&quot;{key}&quot;</span>)
                 }
             }
             SelectorPathItem::Wildcard =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;*&quot;</span>),
@@ -533,9 +533,9 @@
                     };
 
                     <span class="kw">if </span>needs_parens {
-                        <span class="macro">write!</span>(f, <span class="string">&quot;({})&quot;</span>, x)<span class="question-mark">?</span>;
+                        <span class="macro">write!</span>(f, <span class="string">&quot;({x})&quot;</span>)<span class="question-mark">?</span>;
                     } <span class="kw">else </span>{
-                        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, x)<span class="question-mark">?</span>;
+                        <span class="macro">write!</span>(f, <span class="string">&quot;{x}&quot;</span>)<span class="question-mark">?</span>;
                     }
                 }
             }
@@ -548,7 +548,7 @@
                     <span class="comment">// OR has weakest precedence, so everything else binds stronger and does not
                     // need parens
 
-                    </span><span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, x)<span class="question-mark">?</span>;
+                    </span><span class="macro">write!</span>(f, <span class="string">&quot;{x}&quot;</span>)<span class="question-mark">?</span>;
                 }
             }
             SelectorSpec::Not(<span class="kw-2">ref </span>x) =&gt; {
@@ -560,9 +560,9 @@
                 };
 
                 <span class="kw">if </span>needs_parens {
-                    <span class="macro">write!</span>(f, <span class="string">&quot;!({})&quot;</span>, x)<span class="question-mark">?</span>;
+                    <span class="macro">write!</span>(f, <span class="string">&quot;!({x})&quot;</span>)<span class="question-mark">?</span>;
                 } <span class="kw">else </span>{
-                    <span class="macro">write!</span>(f, <span class="string">&quot;!{}&quot;</span>, x)<span class="question-mark">?</span>;
+                    <span class="macro">write!</span>(f, <span class="string">&quot;!{x}&quot;</span>)<span class="question-mark">?</span>;
                 }
             }
             SelectorSpec::Path(<span class="kw-2">ref </span>path) =&gt; {
@@ -570,7 +570,7 @@
                     <span class="kw">if </span>idx &gt; <span class="number">0 </span>{
                         <span class="macro">write!</span>(f, <span class="string">&quot;.&quot;</span>)<span class="question-mark">?</span>;
                     }
-                    <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, item)<span class="question-mark">?</span>;
+                    <span class="macro">write!</span>(f, <span class="string">&quot;{item}&quot;</span>)<span class="question-mark">?</span>;
                 }
             }
         }
@@ -671,7 +671,7 @@
             pair.into_inner().next().unwrap(),
         )<span class="question-mark">?</span>))),
         rule =&gt; <span class="prelude-val">Err</span>(InvalidSelectorError::UnexpectedToken(
-            <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, rule),
+            <span class="macro">format!</span>(<span class="string">&quot;{rule:?}&quot;</span>),
             <span class="string">&quot;a selector&quot;</span>,
         )),
     }
@@ -694,7 +694,7 @@
         )),
         Rule::Key =&gt; <span class="prelude-val">Ok</span>(SelectorPathItem::Key(handle_key(pair)<span class="question-mark">?</span>)),
         rule =&gt; <span class="prelude-val">Err</span>(InvalidSelectorError::UnexpectedToken(
-            <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, rule),
+            <span class="macro">format!</span>(<span class="string">&quot;{rule:?}&quot;</span>),
             <span class="string">&quot;a selector path item&quot;</span>,
         )),
     }
@@ -712,7 +712,7 @@
             key
         }),
         rule =&gt; <span class="prelude-val">Err</span>(InvalidSelectorError::UnexpectedToken(
-            <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, rule),
+            <span class="macro">format!</span>(<span class="string">&quot;{rule:?}&quot;</span>),
             <span class="string">&quot;a key&quot;</span>,
         )),
     }

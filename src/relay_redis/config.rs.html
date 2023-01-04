@@ -192,7 +192,7 @@ max_connections: 42
                 <span class="macro">assert_eq!</span>(options.max_connections, <span class="number">42</span>);
                 <span class="macro">assert_eq!</span>(server, <span class="string">&quot;redis://127.0.0.1:6379&quot;</span>);
             }
-            e =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Expected RedisConfig::SingleWithOpts but got {:?}&quot;</span>, e),
+            e =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Expected RedisConfig::SingleWithOpts but got {e:?}&quot;</span>),
         }
     }
 
@@ -210,7 +210,7 @@ server: &quot;redis://127.0.0.1:6379&quot;
                 <span class="comment">// check if all the defaults are correctly set
                 </span><span class="macro">assert_eq!</span>(options.max_connections, <span class="number">24</span>);
             }
-            e =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Expected RedisConfig::SingleWithOpts but got {:?}&quot;</span>, e),
+            e =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Expected RedisConfig::SingleWithOpts but got {e:?}&quot;</span>),
         }
     }
 
@@ -229,7 +229,7 @@ server: &quot;redis://127.0.0.1:6379&quot;
             RedisConfig::Single(server) =&gt; {
                 <span class="macro">assert_eq!</span>(server, <span class="string">&quot;redis://127.0.0.1:6379&quot;</span>);
             }
-            e =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Expected RedisConfig::Single but got {:?}&quot;</span>, e),
+            e =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Expected RedisConfig::Single but got {e:?}&quot;</span>),
         }
     }
 }

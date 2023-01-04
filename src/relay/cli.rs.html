@@ -591,7 +591,7 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">pub fn </span>manage_config&lt;<span class="lifetime">&#39;a</span>&gt;(config: <span class="kw-2">&amp;</span>Config, matches: <span class="kw-2">&amp;</span>ArgMatches&lt;<span class="lifetime">&#39;a</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<span class="kw">pub fn </span>manage_config(config: <span class="kw-2">&amp;</span>Config, matches: <span class="kw-2">&amp;</span>ArgMatches&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
     <span class="kw">if let </span><span class="prelude-val">Some</span>(matches) = matches.subcommand_matches(<span class="string">&quot;init&quot;</span>) {
         init_config(config.path(), matches)
     } <span class="kw">else if let </span><span class="prelude-val">Some</span>(matches) = matches.subcommand_matches(<span class="string">&quot;show&quot;</span>) {

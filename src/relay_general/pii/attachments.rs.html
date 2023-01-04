@@ -1749,7 +1749,7 @@
 
             AttachmentBytesTestCase::Regex {
                 selector: <span class="string">&quot;$binary&quot;</span>,
-                regex: <span class="kw-2">&amp;</span>bytes.iter().map(|x| <span class="macro">format!</span>(<span class="string">&quot;\\x{:02x}&quot;</span>, x)).join(<span class="string">&quot;&quot;</span>),
+                regex: <span class="kw-2">&amp;</span>bytes.iter().map(|x| <span class="macro">format!</span>(<span class="string">&quot;\\x{x:02x}&quot;</span>)).join(<span class="string">&quot;&quot;</span>),
                 filename: <span class="string">&quot;foo.txt&quot;</span>,
                 value_type: ValueType::Binary,
                 input: bytes,

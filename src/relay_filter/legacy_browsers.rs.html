@@ -422,16 +422,6 @@
 <span id="421">421</span>
 <span id="422">422</span>
 <span id="423">423</span>
-<span id="424">424</span>
-<span id="425">425</span>
-<span id="426">426</span>
-<span id="427">427</span>
-<span id="428">428</span>
-<span id="429">429</span>
-<span id="430">430</span>
-<span id="431">431</span>
-<span id="432">432</span>
-<span id="433">433</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Implements filtering for events originating from legacy browsers.
 
 </span><span class="kw">use </span>std::collections::BTreeSet;
@@ -638,9 +628,8 @@
             <span class="macro">assert_ne!</span>(
                 filter_result,
                 <span class="prelude-val">Ok</span>(()),
-                <span class="string">&quot;Default filter should have filtered User Agent\n{}&quot;</span>,
-                old_user_agent
-            )
+                <span class="string">&quot;Default filter should have filtered User Agent\n{old_user_agent}&quot;
+            </span>)
         }
     }
 
@@ -661,9 +650,8 @@
             <span class="macro">assert_eq!</span>(
                 filter_result,
                 <span class="prelude-val">Ok</span>(()),
-                <span class="string">&quot;Default filter shouldn&#39;t have filtered User Agent\n{}&quot;</span>,
-                old_user_agent
-            )
+                <span class="string">&quot;Default filter shouldn&#39;t have filtered User Agent\n{old_user_agent}&quot;
+            </span>)
         }
     }
 
@@ -716,10 +704,8 @@
             <span class="macro">assert_ne!</span>(
                 filter_result,
                 <span class="prelude-val">Ok</span>(()),
-                <span class="string">&quot;Filters {:?} should have filtered User Agent\n{} for &quot;</span>,
-                active_filters,
-                user_agent
-            )
+                <span class="string">&quot;Filters {active_filters:?} should have filtered User Agent\n{user_agent} for &quot;
+            </span>)
         }
     }
 
@@ -745,10 +731,8 @@
             <span class="macro">assert_eq!</span>(
                 filter_result,
                 <span class="prelude-val">Ok</span>(()),
-                <span class="string">&quot;Filter {:?} shouldn&#39;t have filtered User Agent\n{} for &quot;</span>,
-                active_filter,
-                user_agent
-            )
+                <span class="string">&quot;Filter {active_filter:?} shouldn&#39;t have filtered User Agent\n{user_agent} for &quot;
+            </span>)
         }
     }
 
@@ -826,10 +810,8 @@
                 <span class="macro">assert_ne!</span>(
                     filter_result,
                     <span class="prelude-val">Ok</span>(()),
-                    <span class="string">&quot;Filter &lt;{:?}&gt; should have filtered User Agent\n{} for &quot;</span>,
-                    active_filter,
-                    user_agent
-                )
+                    <span class="string">&quot;Filter &lt;{active_filter:?}&gt; should have filtered User Agent\n{user_agent} for &quot;
+                </span>)
             }
         }
 
@@ -857,10 +839,8 @@
                 <span class="macro">assert_eq!</span>(
                     filter_result,
                     <span class="prelude-val">Ok</span>(()),
-                    <span class="string">&quot;Filter {:?} shouldn&#39;t have filtered User Agent\n{} for &quot;</span>,
-                    active_filter,
-                    user_agent
-                )
+                    <span class="string">&quot;Filter {active_filter:?} shouldn&#39;t have filtered User Agent\n{user_agent} for &quot;
+                </span>)
             }
         }
     }

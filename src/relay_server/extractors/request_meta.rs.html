@@ -912,7 +912,7 @@
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>client) = <span class="self">self</span>.client {
             <span class="kw">use </span>std::fmt::Write;
-            <span class="macro">write!</span>(auth, <span class="string">&quot;, sentry_client={}&quot;</span>, client).ok();
+            <span class="macro">write!</span>(auth, <span class="string">&quot;, sentry_client={client}&quot;</span>).ok();
         }
 
         auth

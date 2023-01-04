@@ -391,9 +391,9 @@
         <span class="kw">match </span><span class="kw-2">*</span><span class="self">self</span>.<span class="number">0 </span>{
             Value::Bool(<span class="bool-val">true</span>) =&gt; f.pad(<span class="string">&quot;true&quot;</span>),
             Value::Bool(<span class="bool-val">false</span>) =&gt; f.pad(<span class="string">&quot;false&quot;</span>),
-            Value::I64(val) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;integer {}&quot;</span>, val),
-            Value::U64(val) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;integer {}&quot;</span>, val),
-            Value::F64(val) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;float {}&quot;</span>, val),
+            Value::I64(val) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;integer {val}&quot;</span>),
+            Value::U64(val) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;integer {val}&quot;</span>),
+            Value::F64(val) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;float {val}&quot;</span>),
             Value::String(<span class="kw-2">ref </span>val) =&gt; f.pad(val),
             Value::Array(<span class="kw">_</span>) =&gt; f.pad(<span class="string">&quot;an array&quot;</span>),
             Value::Object(<span class="kw">_</span>) =&gt; f.pad(<span class="string">&quot;an object&quot;</span>),

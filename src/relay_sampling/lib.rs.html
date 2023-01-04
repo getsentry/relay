@@ -4024,7 +4024,7 @@
         };
 
         <span class="kw">for </span>(rule_test_name, condition) <span class="kw">in </span>conditions.iter() {
-            <span class="kw">let </span>failure_name = <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{}&#39;!!!&quot;</span>, rule_test_name);
+            <span class="kw">let </span>failure_name = <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{rule_test_name}&#39;!!!&quot;</span>);
             <span class="macro">assert!</span>(condition.matches(<span class="kw-2">&amp;</span>dsc, <span class="prelude-val">None</span>), <span class="string">&quot;{}&quot;</span>, failure_name);
         }
     }
@@ -4101,7 +4101,7 @@
         };
 
         <span class="kw">for </span>(rule_test_name, condition) <span class="kw">in </span>conditions.iter() {
-            <span class="kw">let </span>failure_name = <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{}&#39;!!!&quot;</span>, rule_test_name);
+            <span class="kw">let </span>failure_name = <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{rule_test_name}&#39;!!!&quot;</span>);
             <span class="kw">let </span>ip_addr = <span class="prelude-val">Some</span>(NetIpAddr::V4(Ipv4Addr::new(<span class="number">127</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>)));
             <span class="macro">assert!</span>(condition.matches(<span class="kw-2">&amp;</span>evt, ip_addr), <span class="string">&quot;{}&quot;</span>, failure_name);
         }
@@ -4199,7 +4199,7 @@
         };
 
         <span class="kw">for </span>(rule_test_name, expected, condition) <span class="kw">in </span>conditions.iter() {
-            <span class="kw">let </span>failure_name = <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{}&#39;!!!&quot;</span>, rule_test_name);
+            <span class="kw">let </span>failure_name = <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{rule_test_name}&#39;!!!&quot;</span>);
             <span class="macro">assert!</span>(
                 condition.matches(<span class="kw-2">&amp;</span>dsc, <span class="prelude-val">None</span>) == <span class="kw-2">*</span>expected,
                 <span class="string">&quot;{}&quot;</span>,
@@ -4261,7 +4261,7 @@
         };
 
         <span class="kw">for </span>(rule_test_name, expected, condition) <span class="kw">in </span>conditions.iter() {
-            <span class="kw">let </span>failure_name = <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{}&#39;!!!&quot;</span>, rule_test_name);
+            <span class="kw">let </span>failure_name = <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{rule_test_name}&#39;!!!&quot;</span>);
             <span class="macro">assert!</span>(
                 condition.matches(<span class="kw-2">&amp;</span>dsc, <span class="prelude-val">None</span>) == <span class="kw-2">*</span>expected,
                 <span class="string">&quot;{}&quot;</span>,
@@ -4300,7 +4300,7 @@
         };
 
         <span class="kw">for </span>(rule_test_name, expected, condition) <span class="kw">in </span>conditions.iter() {
-            <span class="kw">let </span>failure_name = <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{}&#39;!!!&quot;</span>, rule_test_name);
+            <span class="kw">let </span>failure_name = <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{rule_test_name}&#39;!!!&quot;</span>);
             <span class="macro">assert!</span>(
                 condition.matches(<span class="kw-2">&amp;</span>dsc, <span class="prelude-val">None</span>) == <span class="kw-2">*</span>expected,
                 <span class="string">&quot;{}&quot;</span>,
@@ -4362,7 +4362,7 @@
         };
 
         <span class="kw">for </span>(rule_test_name, condition) <span class="kw">in </span>conditions.iter() {
-            <span class="kw">let </span>failure_name = <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{}&#39;!!!&quot;</span>, rule_test_name);
+            <span class="kw">let </span>failure_name = <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{rule_test_name}&#39;!!!&quot;</span>);
             <span class="macro">assert!</span>(!condition.matches(<span class="kw-2">&amp;</span>dsc, <span class="prelude-val">None</span>), <span class="string">&quot;{}&quot;</span>, failure_name);
         }
     }
@@ -4920,8 +4920,8 @@
             // is supported.
             </span>RuleType::Error | RuleType::Unsupported =&gt; <span class="macro">unimplemented!</span>(),
         };
-        <span class="kw">let </span>release_condition = <span class="macro">format!</span>(<span class="string">&quot;{}.release&quot;</span>, rule_prefix);
-        <span class="kw">let </span>env_condition = <span class="macro">format!</span>(<span class="string">&quot;{}.environment&quot;</span>, rule_prefix);
+        <span class="kw">let </span>release_condition = <span class="macro">format!</span>(<span class="string">&quot;{rule_prefix}.release&quot;</span>);
+        <span class="kw">let </span>env_condition = <span class="macro">format!</span>(<span class="string">&quot;{rule_prefix}.environment&quot;</span>);
 
         SamplingConfig {
             rules: <span class="macro">vec!</span>[

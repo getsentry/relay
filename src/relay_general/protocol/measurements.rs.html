@@ -312,8 +312,6 @@
 <span id="311">311</span>
 <span id="312">312</span>
 <span id="313">313</span>
-<span id="314">314</span>
-<span id="315">315</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::ops::{Deref, DerefMut};
 
 <span class="kw">use </span>relay_common::MetricUnit;
@@ -352,7 +350,7 @@
     <span class="kw">where
         </span><span class="self">Self</span>: Sized,
     {
-        Value::String(<span class="macro">format!</span>(<span class="string">&quot;{}&quot;</span>, <span class="self">self</span>))
+        Value::String(<span class="macro">format!</span>(<span class="string">&quot;{self}&quot;</span>))
     }
 
     <span class="kw">fn </span>serialize_payload&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, s: S, _behavior: SkipSerialization) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
@@ -410,16 +408,14 @@
 
                     <span class="kw">if </span>name.is_empty() {
                         processing_errors.push(Error::invalid(<span class="macro">format!</span>(
-                            <span class="string">&quot;measurement name &#39;{}&#39; cannot be empty&quot;</span>,
-                            name
-                        )));
+                            <span class="string">&quot;measurement name &#39;{name}&#39; cannot be empty&quot;
+                        </span>)));
                     } <span class="kw">else if </span>is_valid_measurement_name(name) {
                         <span class="kw">return </span><span class="prelude-val">Some</span>((name.to_lowercase(), object));
                     } <span class="kw">else </span>{
                         processing_errors.push(Error::invalid(<span class="macro">format!</span>(
-                            <span class="string">&quot;measurement name &#39;{}&#39; can contain only characters a-z0-9._&quot;</span>,
-                            name
-                        )));
+                            <span class="string">&quot;measurement name &#39;{name}&#39; can contain only characters a-z0-9._&quot;
+                        </span>)));
                     }
 
                     <span class="prelude-val">None
@@ -452,7 +448,7 @@
 }
 
 <span class="kw">fn </span>is_valid_measurement_name(name: <span class="kw-2">&amp;</span>str) -&gt; bool {
-    name.starts_with(|c| <span class="macro">matches!</span>(c, <span class="string">&#39;a&#39;</span>..=<span class="string">&#39;z&#39; </span>| <span class="string">&#39;A&#39;</span>..=<span class="string">&#39;Z&#39;</span>))
+    name.starts_with(|c: char| c.is_ascii_alphabetic())
         &amp;&amp; name
             .chars()
             .all(|c| <span class="macro">matches!</span>(c, <span class="string">&#39;a&#39;</span>..=<span class="string">&#39;z&#39; </span>| <span class="string">&#39;A&#39;</span>..=<span class="string">&#39;Z&#39; </span>| <span class="string">&#39;0&#39;</span>..=<span class="string">&#39;9&#39; </span>| <span class="string">&#39;_&#39; </span>| <span class="string">&#39;.&#39;</span>))

@@ -438,10 +438,6 @@
 <span id="437">437</span>
 <span id="438">438</span>
 <span id="439">439</span>
-<span id="440">440</span>
-<span id="441">441</span>
-<span id="442">442</span>
-<span id="443">443</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Implements event filtering for events originating from CSP endpoints
 //!
 //! Events originating from a CSP message can be filtered based on the source URL
@@ -737,7 +733,7 @@
                 .map(|url| SchemeDomainPort::from(<span class="kw-2">*</span>url))
                 .collect();
             <span class="kw">let </span>actual = matches_any_origin(<span class="prelude-val">Some</span>(<span class="kw-2">*</span>url), <span class="kw-2">&amp;</span>origins[..]);
-            <span class="macro">assert_eq!</span>(<span class="kw-2">*</span>expected, actual, <span class="string">&quot;Could not match {}.&quot;</span>, url);
+            <span class="macro">assert_eq!</span>(<span class="kw-2">*</span>expected, actual, <span class="string">&quot;Could not match {url}.&quot;</span>);
         }
     }
 
@@ -853,10 +849,8 @@
             <span class="macro">assert_ne!</span>(
                 actual,
                 <span class="prelude-val">Ok</span>(()),
-                <span class="string">&quot;CSP filter should have filtered  bad request {:?} {:?}&quot;</span>,
-                blocked_uri,
-                source_file
-            );
+                <span class="string">&quot;CSP filter should have filtered  bad request {blocked_uri:?} {source_file:?}&quot;
+            </span>);
         }
     }
 
@@ -878,10 +872,8 @@
             <span class="macro">assert_eq!</span>(
                 actual,
                 <span class="prelude-val">Ok</span>(()),
-                <span class="string">&quot;CSP filter should have  NOT filtered  request {:?} {:?}&quot;</span>,
-                blocked_uri,
-                source_file
-            );
+                <span class="string">&quot;CSP filter should have  NOT filtered  request {blocked_uri:?} {source_file:?}&quot;
+            </span>);
         }
     }
 }

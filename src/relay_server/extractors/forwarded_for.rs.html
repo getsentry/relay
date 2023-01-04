@@ -112,7 +112,7 @@
         } <span class="kw">else if </span>peer_addr.is_empty() {
             forwarded.to_string()
         } <span class="kw">else </span>{
-            <span class="macro">format!</span>(<span class="string">&quot;{}, {}&quot;</span>, forwarded, peer_addr)
+            <span class="macro">format!</span>(<span class="string">&quot;{forwarded}, {peer_addr}&quot;</span>)
         })
     }
 }

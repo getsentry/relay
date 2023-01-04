@@ -274,7 +274,7 @@
         <span class="kw">for </span>(index, bi) <span class="kw">in </span>variant.bindings().iter().enumerate() {
             <span class="kw">let </span>field_attrs = parse_field_attributes(index, bi.ast(), <span class="kw-2">&amp;mut </span>is_tuple_struct);
             <span class="kw">let </span>ident = <span class="kw-2">&amp;</span>bi.binding;
-            <span class="kw">let </span>field_attrs_name = Ident::new(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;FIELD_ATTRS_{}&quot;</span>, index), Span::call_site());
+            <span class="kw">let </span>field_attrs_name = Ident::new(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;FIELD_ATTRS_{index}&quot;</span>), Span::call_site());
             <span class="kw">let </span>field_name = field_attrs.field_name.clone();
 
             <span class="kw">let </span>field_attrs_tokens = field_attrs.as_tokens(<span class="prelude-val">None</span>);

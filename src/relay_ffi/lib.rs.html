@@ -290,8 +290,6 @@
 <span id="289">289</span>
 <span id="290">290</span>
 <span id="291">291</span>
-<span id="292">292</span>
-<span id="293">293</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Utilities for error handling in FFI bindings.
 //!
 //! This crate facilitates an [`errno`]-like error handling pattern: On success, the result of a
@@ -541,13 +539,11 @@
 
         <span class="kw">let </span>description = <span class="kw">match </span>info.location() {
             <span class="prelude-val">Some</span>(location) =&gt; <span class="macro">format!</span>(
-                <span class="string">&quot;thread &#39;{}&#39; panicked with &#39;{}&#39; at {}:{}&quot;</span>,
-                thread,
-                message,
+                <span class="string">&quot;thread &#39;{thread}&#39; panicked with &#39;{message}&#39; at {}:{}&quot;</span>,
                 location.file(),
                 location.line()
             ),
-            <span class="prelude-val">None </span>=&gt; <span class="macro">format!</span>(<span class="string">&quot;thread &#39;{}&#39; panicked with &#39;{}&#39;&quot;</span>, thread, message),
+            <span class="prelude-val">None </span>=&gt; <span class="macro">format!</span>(<span class="string">&quot;thread &#39;{thread}&#39; panicked with &#39;{message}&#39;&quot;</span>),
         };
 
         <span class="self">Self</span>(description)

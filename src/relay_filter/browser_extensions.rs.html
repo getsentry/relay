@@ -259,8 +259,6 @@
 <span id="258">258</span>
 <span id="259">259</span>
 <span id="260">260</span>
-<span id="261">261</span>
-<span id="262">262</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Implements filtering for events caused by problematic browsers extensions.
 
 </span><span class="kw">use </span>once_cell::sync::Lazy;
@@ -463,9 +461,8 @@
             <span class="macro">assert_ne!</span>(
                 filter_result,
                 <span class="prelude-val">Ok</span>(()),
-                <span class="string">&quot;Event filter not recognizing events with known source {}&quot;</span>,
-                source_name
-            )
+                <span class="string">&quot;Event filter not recognizing events with known source {source_name}&quot;
+            </span>)
         }
     }
 
@@ -500,9 +497,8 @@
             <span class="macro">assert_ne!</span>(
                 filter_result,
                 <span class="prelude-val">Ok</span>(()),
-                <span class="string">&quot;Event filter not recognizing events with known values {}&quot;</span>,
-                exc_value
-            )
+                <span class="string">&quot;Event filter not recognizing events with known values {exc_value}&quot;
+            </span>)
         }
     }
 

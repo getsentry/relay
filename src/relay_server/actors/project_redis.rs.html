@@ -157,7 +157,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>command = relay_redis::redis::cmd(<span class="string">&quot;GET&quot;</span>);
 
         <span class="kw">let </span>prefix = <span class="self">self</span>.config.projectconfig_cache_prefix();
-        command.arg(<span class="macro">format!</span>(<span class="string">&quot;{}:{}&quot;</span>, prefix, key));
+        command.arg(<span class="macro">format!</span>(<span class="string">&quot;{prefix}:{key}&quot;</span>));
 
         <span class="kw">let </span>raw_response_opt: <span class="prelude-ty">Option</span>&lt;Vec&lt;u8&gt;&gt; = command
             .query(<span class="kw-2">&amp;mut </span><span class="self">self</span>.redis.client()<span class="question-mark">?</span>.connection())
@@ -196,7 +196,7 @@
     </span><span class="kw">fn </span>test_parse_redis_response_compressed() {
         <span class="kw">let </span>raw_response = <span class="string">b&quot;(\xb5/\xfd \x02\x11\x00\x00{}&quot;</span>; <span class="comment">// As dumped by python zstandard library
         </span><span class="kw">let </span>result = parse_redis_response(raw_response);
-        <span class="macro">assert!</span>(result.is_ok(), <span class="string">&quot;{:?}&quot;</span>, result);
+        <span class="macro">assert!</span>(result.is_ok(), <span class="string">&quot;{result:?}&quot;</span>);
     }
 }
 </code></pre></div>

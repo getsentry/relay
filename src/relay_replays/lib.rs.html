@@ -393,9 +393,9 @@
     <span class="kw">let </span><span class="kw-2">mut </span>version = major.clone()<span class="question-mark">?</span>;
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(minor) = minor {
-        <span class="macro">write!</span>(version, <span class="string">&quot;.{}&quot;</span>, minor).ok();
+        <span class="macro">write!</span>(version, <span class="string">&quot;.{minor}&quot;</span>).ok();
         <span class="kw">if let </span><span class="prelude-val">Some</span>(patch) = patch {
-            <span class="macro">write!</span>(version, <span class="string">&quot;.{}&quot;</span>, patch).ok();
+            <span class="macro">write!</span>(version, <span class="string">&quot;.{patch}&quot;</span>).ok();
         }
     }
 

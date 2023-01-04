@@ -1346,7 +1346,7 @@
                 <span class="kw">return </span>Annotated::new(Value::String(<span class="string">&quot;max depth&quot;</span>.to_string()));
             }
             <span class="kw">let </span><span class="kw-2">mut </span>rv = Object::new();
-            rv.insert(<span class="macro">format!</span>(<span class="string">&quot;key{}&quot;</span>, depth), make_nested_object(depth - <span class="number">1</span>));
+            rv.insert(<span class="macro">format!</span>(<span class="string">&quot;key{depth}&quot;</span>), make_nested_object(depth - <span class="number">1</span>));
             Annotated::new(Value::Object(rv))
         }
 
@@ -1414,7 +1414,7 @@
             <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
             <span class="kw">for </span>idx <span class="kw">in </span><span class="number">0</span>..<span class="number">100 </span>{
                 map.insert(
-                    <span class="macro">format!</span>(<span class="string">&quot;key_{}&quot;</span>, idx),
+                    <span class="macro">format!</span>(<span class="string">&quot;key_{idx}&quot;</span>),
                     Annotated::new(ExtraValue(Value::String(<span class="string">&quot;x&quot;</span>.repeat(<span class="number">50000</span>)))),
                 );
             }
@@ -1520,7 +1520,7 @@
     </span><span class="kw">fn </span>test_custom_context_trimming() {
         <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
         <span class="kw">for </span>i <span class="kw">in </span><span class="number">1</span>..<span class="number">2 </span>{
-            contexts.insert(<span class="macro">format!</span>(<span class="string">&quot;despacito{}&quot;</span>, i), {
+            contexts.insert(<span class="macro">format!</span>(<span class="string">&quot;despacito{i}&quot;</span>), {
                 <span class="kw">let </span><span class="kw-2">mut </span>context = Object::new();
                 context.insert(
                     <span class="string">&quot;foo&quot;</span>.to_string(),
@@ -1542,7 +1542,7 @@
             <span class="kw">let </span>other = <span class="kw">match </span>contexts
                 .value()
                 .unwrap()
-                .get(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;despacito{}&quot;</span>, i))
+                .get(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;despacito{i}&quot;</span>))
                 .unwrap()
                 .value()
                 .unwrap()
@@ -1608,7 +1608,7 @@
             .unwrap()
         {
             ExtraValue(Value::Array(x)) =&gt; x,
-            x =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Wrong type: {:?}&quot;</span>, x),
+            x =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Wrong type: {x:?}&quot;</span>),
         };
 
         <span class="comment">// this is larger / 2 for the extra value
@@ -1718,7 +1718,7 @@
 
         <span class="kw">for </span>n <span class="kw">in </span><span class="number">0</span>..<span class="number">5 </span>{
             frames.push(Annotated::new(Frame {
-                filename: Annotated::new(<span class="macro">format!</span>(<span class="string">&quot;foo {}&quot;</span>, n).into()),
+                filename: Annotated::new(<span class="macro">format!</span>(<span class="string">&quot;foo {n}&quot;</span>).into()),
                 pre_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">&quot;a&quot;</span>.to_string())]),
                 context_line: Annotated::new(<span class="string">&quot;b&quot;</span>.to_string()),
                 post_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">&quot;c&quot;</span>.to_string())]),

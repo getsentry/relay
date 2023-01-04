@@ -1186,7 +1186,7 @@
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>SecretKey {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;SecretKey(\&quot;{}\&quot;)&quot;</span>, <span class="self">self</span>)
+        <span class="macro">write!</span>(f, <span class="string">&quot;SecretKey(\&quot;{self}\&quot;)&quot;</span>)
     }
 }
 
@@ -1302,7 +1302,7 @@
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>PublicKey {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;PublicKey(\&quot;{}\&quot;)&quot;</span>, <span class="self">self</span>)
+        <span class="macro">write!</span>(f, <span class="string">&quot;PublicKey(\&quot;{self}\&quot;)&quot;</span>)
     }
 }
 
@@ -1357,7 +1357,7 @@
         mac.input(token.as_bytes());
         <span class="kw">let </span>signature = base64::encode_config(<span class="kw-2">&amp;</span>mac.result().code(), base64::URL_SAFE_NO_PAD);
 
-        <span class="self">Self</span>(<span class="macro">format!</span>(<span class="string">&quot;{}:{}&quot;</span>, token, signature))
+        <span class="self">Self</span>(<span class="macro">format!</span>(<span class="string">&quot;{token}:{signature}&quot;</span>))
     }
 
     <span class="doccomment">/// Splits the signed state into the encoded state and encoded signature.
@@ -1608,7 +1608,7 @@
             <span class="string">&quot;OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oU&quot;
         </span>);
         <span class="macro">assert_eq!</span>(
-        <span class="macro">format!</span>(<span class="string">&quot;{:#}&quot;</span>, sk),
+        <span class="macro">format!</span>(<span class="string">&quot;{sk:#}&quot;</span>),
         <span class="string">&quot;OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oUk5pHZsdnfXNiMWiMLtSE86J3N9Peo5CBP1YQHDUkApQ&quot;
     </span>);
         <span class="macro">assert_eq!</span>(
@@ -1725,9 +1725,9 @@
 
         <span class="comment">// initial setup
         </span><span class="kw">let </span>relay_id = generate_relay_id();
-        <span class="macro">println!</span>(<span class="string">&quot;RELAY_ID = b\&quot;{}\&quot;&quot;</span>, relay_id);
+        <span class="macro">println!</span>(<span class="string">&quot;RELAY_ID = b\&quot;{relay_id}\&quot;&quot;</span>);
         <span class="kw">let </span>(sk, pk) = generate_key_pair();
-        <span class="macro">println!</span>(<span class="string">&quot;RELAY_KEY = b\&quot;{}\&quot;&quot;</span>, pk);
+        <span class="macro">println!</span>(<span class="string">&quot;RELAY_KEY = b\&quot;{pk}\&quot;&quot;</span>);
 
         <span class="comment">// create a register request
         </span><span class="kw">let </span>request = RegisterRequest::new(<span class="kw-2">&amp;</span>relay_id, <span class="kw-2">&amp;</span>pk);
@@ -1735,7 +1735,7 @@
 
         <span class="comment">// sign it
         </span><span class="kw">let </span>(request_bytes, request_sig) = sk.pack(<span class="kw-2">&amp;</span>request);
-        <span class="macro">println!</span>(<span class="string">&quot;REQUEST_SIG = \&quot;{}\&quot;&quot;</span>, request_sig);
+        <span class="macro">println!</span>(<span class="string">&quot;REQUEST_SIG = \&quot;{request_sig}\&quot;&quot;</span>);
 
         <span class="comment">// attempt to get the data through bootstrap unpacking.
         </span><span class="kw">let </span>request =
@@ -1746,15 +1746,15 @@
         <span class="comment">// create a challenge
         </span><span class="kw">let </span>challenge = request.into_challenge(upstream_secret);
         <span class="kw">let </span>challenge_token = challenge.token().to_owned();
-        <span class="macro">println!</span>(<span class="string">&quot;TOKEN = \&quot;{}\&quot;&quot;</span>, challenge_token);
+        <span class="macro">println!</span>(<span class="string">&quot;TOKEN = \&quot;{challenge_token}\&quot;&quot;</span>);
 
         <span class="comment">// create a response from the challenge
         </span><span class="kw">let </span>response = challenge.into_response();
         <span class="kw">let </span>serialized_response = serde_json::to_string(<span class="kw-2">&amp;</span>response).unwrap();
         <span class="kw">let </span>(<span class="kw">_</span>, response_sig) = sk.pack(<span class="kw-2">&amp;</span>response);
 
-        <span class="macro">println!</span>(<span class="string">&quot;RESPONSE = b&#39;{}&#39;&quot;</span>, serialized_response);
-        <span class="macro">println!</span>(<span class="string">&quot;RESPONSE_SIG = \&quot;{}\&quot;&quot;</span>, response_sig);
+        <span class="macro">println!</span>(<span class="string">&quot;RESPONSE = b&#39;{serialized_response}&#39;&quot;</span>);
+        <span class="macro">println!</span>(<span class="string">&quot;RESPONSE_SIG = \&quot;{response_sig}\&quot;&quot;</span>);
 
         <span class="macro">println!</span>(<span class="string">&quot;RELAY_VERSION = \&quot;{}\&quot;&quot;</span>, <span class="kw-2">&amp;</span>LATEST_VERSION);
     }

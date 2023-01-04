@@ -368,7 +368,7 @@
     <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>character_set) = state.attrs().characters {
         <span class="kw">for </span>c <span class="kw">in </span>value.chars() {
             <span class="kw">if </span>!(character_set.char_is_valid)(c) {
-                meta.add_error(Error::invalid(<span class="macro">format!</span>(<span class="string">&quot;invalid character {:?}&quot;</span>, c)));
+                meta.add_error(Error::invalid(<span class="macro">format!</span>(<span class="string">&quot;invalid character {c:?}&quot;</span>)));
                 <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::DeleteValueSoft);
             }
         }

@@ -533,11 +533,6 @@
 <span id="532">532</span>
 <span id="533">533</span>
 <span id="534">534</span>
-<span id="535">535</span>
-<span id="536">536</span>
-<span id="537">537</span>
-<span id="538">538</span>
-<span id="539">539</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Common facilities for ingesting events through store-like endpoints.
 
 </span><span class="kw">use </span>std::cell::RefCell;
@@ -892,7 +887,7 @@
 
     <span class="macro">metric!</span>(
         counter(RelayCounters::EventProtocol) += <span class="number">1</span>,
-        version = <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{}&quot;</span>, version)
+        version = <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{version}&quot;</span>)
     );
 
     <span class="kw">let </span>buffer_guard = request.state().buffer_guard();
@@ -993,12 +988,7 @@
     <span class="kw">let </span><span class="kw-2">mut </span>pattern = String::new();
     <span class="kw">for </span>(i, segment) <span class="kw">in </span>route.trim_matches(<span class="string">&#39;/&#39;</span>).split(<span class="string">&#39;/&#39;</span>).enumerate() {
         <span class="comment">// Apparently the leading slash needs to be explicit and cannot be part of a pattern
-        </span><span class="kw">let _ </span>= <span class="macro">write!</span>(
-            pattern,
-            <span class="string">&quot;/{{multislash{i}:/*}}{segment}&quot;</span>,
-            i = i,
-            segment = segment
-        );
+        </span><span class="kw">let _ </span>= <span class="macro">write!</span>(pattern, <span class="string">&quot;/{{multislash{i}:/*}}{segment}&quot;</span>);
     }
 
     <span class="kw">if </span>route.ends_with(<span class="string">&#39;/&#39;</span>) {

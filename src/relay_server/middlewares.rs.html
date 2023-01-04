@@ -633,13 +633,13 @@
     f: <span class="kw-2">&amp;</span>F,
     bt: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>failure::Backtrace&gt;,
 ) -&gt; Exception {
-    <span class="kw">let </span>dbg = <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, f);
+    <span class="kw">let </span>dbg = <span class="macro">format!</span>(<span class="string">&quot;{f:?}&quot;</span>);
     Exception {
         ty: parse_type_from_debug(<span class="kw-2">&amp;</span>dbg).to_owned(),
         value: <span class="prelude-val">Some</span>(f.to_string()),
         stacktrace: bt
             <span class="comment">// format the stack trace with alternate debug to get addresses
-            </span>.map(|bt| <span class="macro">format!</span>(<span class="string">&quot;{:#?}&quot;</span>, bt))
+            </span>.map(|bt| <span class="macro">format!</span>(<span class="string">&quot;{bt:#?}&quot;</span>))
             .and_then(|x| parse_stacktrace(<span class="kw-2">&amp;</span>x)),
         ..Default::default()
     }

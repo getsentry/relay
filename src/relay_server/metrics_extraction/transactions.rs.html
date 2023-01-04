@@ -2471,7 +2471,7 @@
 
             metrics.push(Metric::new_mri(
                 METRIC_NAMESPACE,
-                <span class="macro">format!</span>(<span class="string">&quot;measurements.{}&quot;</span>, name),
+                <span class="macro">format!</span>(<span class="string">&quot;measurements.{name}&quot;</span>),
                 measurement.unit.value().copied().unwrap_or_default(),
                 MetricValue::Distribution(value),
                 timestamp,
@@ -2505,7 +2505,7 @@
 
                     metrics.push(Metric::new_mri(
                         METRIC_NAMESPACE,
-                        <span class="macro">format!</span>(<span class="string">&quot;breakdowns.{}.{}&quot;</span>, breakdown, measurement_name),
+                        <span class="macro">format!</span>(<span class="string">&quot;breakdowns.{breakdown}.{measurement_name}&quot;</span>),
                         unit.copied().unwrap_or(MetricUnit::None),
                         MetricValue::Distribution(value),
                         timestamp,
@@ -2868,7 +2868,7 @@
 
         <span class="comment">// Normalize first, to make sure the units are correct:
         </span><span class="kw">let </span>res = store::light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>LightNormalizationConfig::default());
-        <span class="macro">assert!</span>(res.is_ok(), <span class="string">&quot;{:?}&quot;</span>, res);
+        <span class="macro">assert!</span>(res.is_ok(), <span class="string">&quot;{res:?}&quot;</span>);
 
         <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
         extract_transaction_metrics(
@@ -2956,7 +2956,7 @@
 
         <span class="comment">// Normalize first, to make sure the units are correct:
         </span><span class="kw">let </span>res = store::light_normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>LightNormalizationConfig::default());
-        <span class="macro">assert!</span>(res.is_ok(), <span class="string">&quot;{:?}&quot;</span>, res);
+        <span class="macro">assert!</span>(res.is_ok(), <span class="string">&quot;{res:?}&quot;</span>);
 
         <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
         extract_transaction_metrics(
@@ -3302,7 +3302,7 @@
                 ..Default::default()
             },
         );
-        <span class="macro">assert!</span>(res.is_ok(), <span class="string">&quot;{:?}&quot;</span>, res);
+        <span class="macro">assert!</span>(res.is_ok(), <span class="string">&quot;{res:?}&quot;</span>);
 
         <span class="kw">let </span>config = TransactionMetricsConfig::default();
         <span class="kw">let </span>aggregator_config = aggregator_config();
@@ -3550,7 +3550,7 @@
         )
         .unwrap();
 
-        <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">1</span>, <span class="string">&quot;{:?}&quot;</span>, metrics);
+        <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">1</span>, <span class="string">&quot;{metrics:?}&quot;</span>);
 
         <span class="macro">assert_eq!</span>(metrics[<span class="number">0</span>].name, <span class="string">&quot;d:transactions/duration@millisecond&quot;</span>);
         <span class="macro">assert_eq!</span>(
@@ -3585,7 +3585,7 @@
         )
         .unwrap();
 
-        <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">1</span>, <span class="string">&quot;{:?}&quot;</span>, metrics);
+        <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">1</span>, <span class="string">&quot;{metrics:?}&quot;</span>);
 
         <span class="macro">assert_eq!</span>(metrics[<span class="number">0</span>].name, <span class="string">&quot;d:transactions/duration@millisecond&quot;</span>);
         <span class="macro">assert_eq!</span>(

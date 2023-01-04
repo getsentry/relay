@@ -1128,7 +1128,7 @@
         <span class="kw">match </span><span class="self">self </span>{
             Outcome::Invalid(discard_reason) =&gt; <span class="prelude-val">Some</span>(Cow::Borrowed(discard_reason.name())),
             Outcome::Filtered(filter_key) =&gt; <span class="prelude-val">Some</span>(Cow::Borrowed(filter_key.name())),
-            Outcome::FilteredSampling(rule_id) =&gt; <span class="prelude-val">Some</span>(Cow::Owned(<span class="macro">format!</span>(<span class="string">&quot;Sampled:{}&quot;</span>, rule_id))),
+            Outcome::FilteredSampling(rule_id) =&gt; <span class="prelude-val">Some</span>(Cow::Owned(<span class="macro">format!</span>(<span class="string">&quot;Sampled:{rule_id}&quot;</span>))),
             <span class="comment">//TODO can we do better ? (not re copying the string )
             </span>Outcome::RateLimited(code_opt) =&gt; code_opt
                 .as_ref()
@@ -1158,14 +1158,14 @@
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>Outcome {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self </span>{
-            Outcome::Filtered(key) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;filtered by {}&quot;</span>, key),
-            Outcome::FilteredSampling(rule) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;sampling rule {}&quot;</span>, rule),
+            Outcome::Filtered(key) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;filtered by {key}&quot;</span>),
+            Outcome::FilteredSampling(rule) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;sampling rule {rule}&quot;</span>),
             Outcome::RateLimited(<span class="prelude-val">None</span>) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;rate limited&quot;</span>),
-            Outcome::RateLimited(<span class="prelude-val">Some</span>(reason)) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;rate limited with reason {}&quot;</span>, reason),
+            Outcome::RateLimited(<span class="prelude-val">Some</span>(reason)) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;rate limited with reason {reason}&quot;</span>),
             Outcome::Invalid(DiscardReason::Internal) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;internal error&quot;</span>),
-            Outcome::Invalid(reason) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;invalid data ({})&quot;</span>, reason),
+            Outcome::Invalid(reason) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;invalid data ({reason})&quot;</span>),
             Outcome::Abuse =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;abuse limit reached&quot;</span>),
-            Outcome::ClientDiscard(reason) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;discarded by client ({})&quot;</span>, reason),
+            Outcome::ClientDiscard(reason) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;discarded by client ({reason})&quot;</span>),
         }
     }
 }

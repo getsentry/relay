@@ -1211,7 +1211,7 @@
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
             PathItem::StaticKey(s) =&gt; f.pad(s),
-            PathItem::Index(val) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, val),
+            PathItem::Index(val) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{val}&quot;</span>),
         }
     }
 }
@@ -1519,7 +1519,7 @@
             <span class="kw">if </span>idx &gt; <span class="number">0 </span>{
                 <span class="macro">write!</span>(f, <span class="string">&quot;.&quot;</span>)<span class="question-mark">?</span>;
             }
-            <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, item)<span class="question-mark">?</span>;
+            <span class="macro">write!</span>(f, <span class="string">&quot;{item}&quot;</span>)<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
     }

@@ -398,7 +398,7 @@
 <span class="kw">impl </span>AwsExtension {
     <span class="doccomment">/// Creates a new `AwsExtension` instance.
     </span><span class="kw">pub fn </span>new(aws_runtime_api: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, AwsExtensionError&gt; {
-        <span class="kw">let </span>base_url = <span class="macro">format!</span>(<span class="string">&quot;http://{}/2020-01-01/extension&quot;</span>, aws_runtime_api)
+        <span class="kw">let </span>base_url = <span class="macro">format!</span>(<span class="string">&quot;http://{aws_runtime_api}/2020-01-01/extension&quot;</span>)
             .parse()
             .map_err(|<span class="kw">_</span>| AwsExtensionError(()))<span class="question-mark">?</span>;
 

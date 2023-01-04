@@ -2028,8 +2028,8 @@ HdmUCGvfKiF2CodxyLon1XkK8pX+Ap86MbJhluqK
             <span class="string">&quot;anything&quot;</span>,
         ] {
             <span class="kw">for </span>redaction_method <span class="kw">in </span><span class="kw-2">&amp;</span>[<span class="string">&quot;mask&quot;</span>, <span class="string">&quot;remove&quot;</span>, <span class="string">&quot;hash&quot;</span>, <span class="string">&quot;replace&quot;</span>] {
-                <span class="kw">let </span>key = <span class="macro">format!</span>(<span class="string">&quot;@{}:{}&quot;</span>, rule_type, redaction_method);
-                <span class="macro">println!</span>(<span class="string">&quot;looking up {}&quot;</span>, key);
+                <span class="kw">let </span>key = <span class="macro">format!</span>(<span class="string">&quot;@{rule_type}:{redaction_method}&quot;</span>);
+                <span class="macro">println!</span>(<span class="string">&quot;looking up {key}&quot;</span>);
                 <span class="macro">assert!</span>(BUILTIN_RULES_MAP.contains_key(key.as_str()));
             }
         }

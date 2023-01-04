@@ -4771,7 +4771,7 @@
 
             <span class="kw">let </span>res = light_normalize_event(<span class="kw-2">&amp;mut </span>modified_event, <span class="kw-2">&amp;</span>Default::default());
 
-            <span class="macro">assert!</span>(res.is_err(), <span class="string">&quot;{:?}&quot;</span>, span);
+            <span class="macro">assert!</span>(res.is_err(), <span class="string">&quot;{span:?}&quot;</span>);
         }
     }
 

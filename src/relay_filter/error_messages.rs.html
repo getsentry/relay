@@ -212,7 +212,7 @@
                     <span class="kw">let </span>message = <span class="kw">match </span>(ty, value) {
                         (<span class="string">&quot;&quot;</span>, value) =&gt; Cow::Borrowed(value),
                         (ty, <span class="string">&quot;&quot;</span>) =&gt; Cow::Borrowed(ty),
-                        (ty, value) =&gt; Cow::Owned(<span class="macro">format!</span>(<span class="string">&quot;{}: {}&quot;</span>, ty, value)),
+                        (ty, value) =&gt; Cow::Owned(<span class="macro">format!</span>(<span class="string">&quot;{ty}: {value}&quot;</span>)),
                     };
                     <span class="kw">if </span>patterns.is_match(message.as_ref()) {
                         <span class="kw">return </span><span class="bool-val">true</span>;
@@ -328,8 +328,8 @@
                 </span><span class="macro">println!</span>(
                     <span class="string">&quot;------------------------------------------------------------------------&quot;
                 </span>);
-                <span class="macro">println!</span>(<span class="string">&quot;Config: {:?}&quot;</span>, config);
-                <span class="macro">println!</span>(<span class="string">&quot;Case: {:?}&quot;</span>, case);
+                <span class="macro">println!</span>(<span class="string">&quot;Config: {config:?}&quot;</span>);
+                <span class="macro">println!</span>(<span class="string">&quot;Case: {case:?}&quot;</span>);
 
                 <span class="kw">let </span>(exc_type, exc_value, logentry_formatted, should_ingest) = case;
                 <span class="kw">let </span>event = Event {

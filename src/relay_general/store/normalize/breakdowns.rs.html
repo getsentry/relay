@@ -529,7 +529,7 @@
                 unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
             };
 
-            <span class="kw">let </span>op_breakdown_name = <span class="macro">format!</span>(<span class="string">&quot;ops.{}&quot;</span>, operation_name);
+            <span class="kw">let </span>op_breakdown_name = <span class="macro">format!</span>(<span class="string">&quot;ops.{operation_name}&quot;</span>);
             breakdown.insert(op_breakdown_name, Annotated::new(op_value));
         }
 

@@ -214,11 +214,11 @@
 }
 
 <span class="kw">fn </span>print_error(error: <span class="kw-2">&amp;</span>anyhow::Error) {
-    <span class="macro">eprintln!</span>(<span class="string">&quot;Error: {}&quot;</span>, error);
+    <span class="macro">eprintln!</span>(<span class="string">&quot;Error: {error}&quot;</span>);
 
     <span class="kw">let </span><span class="kw-2">mut </span>cause = error.source();
     <span class="kw">while let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>e) = cause {
-        <span class="macro">eprintln!</span>(<span class="string">&quot;  caused by: {}&quot;</span>, e);
+        <span class="macro">eprintln!</span>(<span class="string">&quot;  caused by: {e}&quot;</span>);
         cause = e.source();
     }
 }

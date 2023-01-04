@@ -2002,7 +2002,7 @@
             ConfigErrorSource::File(file_name) =&gt; {
                 <span class="macro">write!</span>(f, <span class="string">&quot; (file {})&quot;</span>, file_name.display())
             }
-            ConfigErrorSource::FieldOverride(name) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot; (field {})&quot;</span>, name),
+            ConfigErrorSource::FieldOverride(name) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot; (field {name})&quot;</span>),
         }
     }
 }

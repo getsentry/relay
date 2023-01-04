@@ -1248,13 +1248,13 @@
 
     <span class="attribute">#[test]
     </span><span class="kw">fn </span>current_client_is_global_client() {
-        <span class="kw">let </span>client1 = with_client(|c| <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, c));
+        <span class="kw">let </span>client1 = with_client(|c| <span class="macro">format!</span>(<span class="string">&quot;{c:?}&quot;</span>));
         set_client(MetricsClient {
             statsd_client: StatsdClient::from_sink(<span class="string">&quot;&quot;</span>, NopMetricSink),
             default_tags: Default::default(),
             sample_rate: <span class="number">1.0</span>,
         });
-        <span class="kw">let </span>client2 = with_client(|c| <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, c));
+        <span class="kw">let </span>client2 = with_client(|c| <span class="macro">format!</span>(<span class="string">&quot;{c:?}&quot;</span>));
 
         <span class="comment">// After setting the global client,the current client must change:
         </span><span class="macro">assert_ne!</span>(client1, client2);

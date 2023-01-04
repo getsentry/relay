@@ -154,8 +154,6 @@
 <span id="153">153</span>
 <span id="154">154</span>
 <span id="155">155</span>
-<span id="156">156</span>
-<span id="157">157</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Filters events coming from user agents known to be web crawlers.
 
 </span><span class="kw">use </span>once_cell::sync::Lazy;
@@ -283,9 +281,8 @@
             <span class="macro">assert_ne!</span>(
                 filter_result,
                 <span class="prelude-val">Ok</span>(()),
-                <span class="string">&quot;Failed to filter web crawler with user agent &#39;{}&#39;&quot;</span>,
-                banned_user_agent
-            );
+                <span class="string">&quot;Failed to filter web crawler with user agent &#39;{banned_user_agent}&#39;&quot;
+            </span>);
         }
     }
 
@@ -307,9 +304,8 @@
             <span class="macro">assert_eq!</span>(
                 filter_result,
                 <span class="prelude-val">Ok</span>(()),
-                <span class="string">&quot;Failed benign user agent &#39;{}&#39;&quot;</span>,
-                user_agent
-            );
+                <span class="string">&quot;Failed benign user agent &#39;{user_agent}&#39;&quot;
+            </span>);
         }
     }
 }

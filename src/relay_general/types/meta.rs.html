@@ -931,7 +931,7 @@
     </span><span class="kw">pub fn </span>expected(expectation: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
         <span class="comment">// Does not use `Error::invalid` to avoid the string copy.
         </span>Error::with(ErrorKind::InvalidData, |error| {
-            error.insert(<span class="string">&quot;reason&quot;</span>, <span class="macro">format!</span>(<span class="string">&quot;expected {}&quot;</span>, expectation));
+            error.insert(<span class="string">&quot;reason&quot;</span>, <span class="macro">format!</span>(<span class="string">&quot;expected {expectation}&quot;</span>));
         })
     }
 
