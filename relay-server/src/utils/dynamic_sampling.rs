@@ -348,7 +348,71 @@ mod tests {
         })
     }
 
-    /// checks if
+    fn samplingresult_from_rules_and_proccessing_flag(
+        rules: Vec<SamplingRule>,
+        processing_enabled: bool,
+    ) -> SamplingResult {
+        let event_state = state_with_config(SamplingConfig {
+            rules,
+            mode: SamplingMode::Received,
+            next_id: None,
+        });
+
+        let some_event = Event {
+            id: Annotated::new(EventId::new()),
+            ty: Annotated::new(EventType::Transaction),
+            transaction: Annotated::new("testing".to_owned()),
+            ..Event::default()
+        };
+
+        let some_envelope = new_envelope(true, "testing");
+
+        should_keep_event(
+            some_envelope.dsc(),
+            Some(&some_event),
+            None,
+            &event_state,
+            None,
+            processing_enabled,
+        )
+    }
+
+    /// Checks that events aren't dropped if they contain an unsupported rule,
+    /// checks the cases with and without the process_enabled flag
+    #[test]
+    fn test_bad_dynamic_rules() {
+        // adds a rule which should always match (meaning the event will be dropped)
+        let mut rules = vec![SamplingRule {
+            condition: RuleCondition::all(),
+            sample_rate: 0.0,
+            ty: RuleType::Transaction,
+            id: RuleId(1),
+            time_range: Default::default(),
+        }];
+
+        // ensures the event is indeed dropped with and without processing enabled
+        let res = samplingresult_from_rules_and_proccessing_flag(rules.clone(), false);
+        assert!(matches!(res, SamplingResult::Drop(_)));
+
+        let res = samplingresult_from_rules_and_proccessing_flag(rules.clone(), true);
+        assert!(matches!(res, SamplingResult::Drop(_)));
+
+        rules.push(SamplingRule {
+            condition: RuleCondition::Unsupported,
+            sample_rate: 0.0,
+            ty: RuleType::Transaction,
+            id: RuleId(1),
+            time_range: Default::default(),
+        });
+
+        // now that an unsupported rule has been pushed, it should keep the event if processing is disabled
+        let res = samplingresult_from_rules_and_proccessing_flag(rules.clone(), false);
+        assert!(matches!(res, SamplingResult::Keep));
+
+        let res = samplingresult_from_rules_and_proccessing_flag(rules, true);
+        assert!(matches!(res, SamplingResult::Drop(_))); // should also log an error
+    }
+
     #[test]
     fn test_trace_rules_applied_after_event_rules() {
         // a transaction rule that drops everything

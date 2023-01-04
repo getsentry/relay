@@ -87,7 +87,7 @@ impl fmt::Display for ConfigErrorSource {
             ConfigErrorSource::File(file_name) => {
                 write!(f, " (file {})", file_name.display())
             }
-            ConfigErrorSource::FieldOverride(name) => write!(f, " (field {})", name),
+            ConfigErrorSource::FieldOverride(name) => write!(f, " (field {name})"),
         }
     }
 }

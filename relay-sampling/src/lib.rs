@@ -1166,6 +1166,18 @@ mod tests {
         })
     }
 
+    #[test]
+    fn test_unmatching_json_rule_is_unsupported() {
+        let bad_json = r#"{
+            "op": "BadOperator",
+            "name": "foo",
+            "value": "bar"
+        }"#;
+
+        let rule: RuleCondition = serde_json::from_str(bad_json).unwrap();
+        assert!(matches!(rule, RuleCondition::Unsupported));
+    }
+
     /// test extraction of field values from event with everything
     #[test]
     fn test_field_value_provider_event_filled() {
@@ -1465,7 +1477,7 @@ mod tests {
         };
 
         for (rule_test_name, condition) in conditions.iter() {
-            let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
+            let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
             assert!(condition.matches(&dsc, None), "{}", failure_name);
         }
     }
@@ -1542,7 +1554,7 @@ mod tests {
         };
 
         for (rule_test_name, condition) in conditions.iter() {
-            let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
+            let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
             let ip_addr = Some(NetIpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
             assert!(condition.matches(&evt, ip_addr), "{}", failure_name);
         }
@@ -1640,7 +1652,7 @@ mod tests {
         };
 
         for (rule_test_name, expected, condition) in conditions.iter() {
-            let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
+            let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
             assert!(
                 condition.matches(&dsc, None) == *expected,
                 "{}",
@@ -1702,7 +1714,7 @@ mod tests {
         };
 
         for (rule_test_name, expected, condition) in conditions.iter() {
-            let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
+            let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
             assert!(
                 condition.matches(&dsc, None) == *expected,
                 "{}",
@@ -1741,7 +1753,7 @@ mod tests {
         };
 
         for (rule_test_name, expected, condition) in conditions.iter() {
-            let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
+            let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
             assert!(
                 condition.matches(&dsc, None) == *expected,
                 "{}",
@@ -1803,7 +1815,7 @@ mod tests {
         };
 
         for (rule_test_name, condition) in conditions.iter() {
-            let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
+            let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
             assert!(!condition.matches(&dsc, None), "{}", failure_name);
         }
     }
@@ -2401,8 +2413,8 @@ mod tests {
             // is supported.
             RuleType::Error | RuleType::Unsupported => unimplemented!(),
         };
-        let release_condition = format!("{}.release", rule_prefix);
-        let env_condition = format!("{}.environment", rule_prefix);
+        let release_condition = format!("{rule_prefix}.release");
+        let env_condition = format!("{rule_prefix}.environment");
 
         SamplingConfig {
             rules: vec![

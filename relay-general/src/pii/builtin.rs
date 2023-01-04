@@ -1009,8 +1009,8 @@ HdmUCGvfKiF2CodxyLon1XkK8pX+Ap86MbJhluqK
             "anything",
         ] {
             for redaction_method in &["mask", "remove", "hash", "replace"] {
-                let key = format!("@{}:{}", rule_type, redaction_method);
-                println!("looking up {}", key);
+                let key = format!("@{rule_type}:{redaction_method}");
+                println!("looking up {key}");
                 assert!(BUILTIN_RULES_MAP.contains_key(key.as_str()));
             }
         }

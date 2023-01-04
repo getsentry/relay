@@ -338,7 +338,7 @@ impl RequestMeta {
 
         if let Some(ref client) = self.client {
             use std::fmt::Write;
-            write!(auth, ", sentry_client={}", client).ok();
+            write!(auth, ", sentry_client={client}").ok();
         }
 
         auth

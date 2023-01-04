@@ -235,7 +235,7 @@ mod tests {
             include_bytes!("../tests/fixtures/profiles/android/multiple_transactions.json");
 
         let profile = match parse_profile(payload) {
-            Err(err) => panic!("cannot parse profile: {:?}", err),
+            Err(err) => panic!("cannot parse profile: {err:?}"),
             Ok(profile) => profile,
         };
         assert_eq!(

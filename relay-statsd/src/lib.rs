@@ -617,13 +617,13 @@ mod tests {
 
     #[test]
     fn current_client_is_global_client() {
-        let client1 = with_client(|c| format!("{:?}", c));
+        let client1 = with_client(|c| format!("{c:?}"));
         set_client(MetricsClient {
             statsd_client: StatsdClient::from_sink("", NopMetricSink),
             default_tags: Default::default(),
             sample_rate: 1.0,
         });
-        let client2 = with_client(|c| format!("{:?}", c));
+        let client2 = with_client(|c| format!("{c:?}"));
 
         // After setting the global client,the current client must change:
         assert_ne!(client1, client2);
