@@ -754,6 +754,9 @@
 <span id="754">754</span>
 <span id="755">755</span>
 <span id="756">756</span>
+<span id="757">757</span>
+<span id="758">758</span>
+<span id="759">759</span>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::fmt::Display;
@@ -941,7 +944,7 @@
             <span class="string">&quot;script&quot; </span>| <span class="string">&quot;style&quot; </span>=&gt; {}
             <span class="string">&quot;img&quot; </span>| <span class="string">&quot;source&quot; </span>=&gt; {
                 <span class="kw">let </span>attrs = <span class="kw-2">&amp;mut </span>element.attributes;
-                attrs.insert(<span class="string">&quot;src&quot;</span>.to_string(), <span class="string">&quot;#&quot;</span>.to_string());
+                attrs.insert(<span class="string">&quot;src&quot;</span>.to_string(), Value::String(<span class="string">&quot;#&quot;</span>.to_string()));
                 <span class="self">self</span>.recurse_element_children(element)<span class="question-mark">?
             </span>}
             <span class="kw">_ </span>=&gt; <span class="self">self</span>.recurse_element_children(element)<span class="question-mark">?</span>,
@@ -1200,36 +1203,36 @@
 </span><span class="kw">struct </span>DocumentTypeNode {
     <span class="attribute">#[serde(rename = <span class="string">&quot;type&quot;</span>)]
     </span>ty: u8,
-    id: u32,
-    public_id: String,
-    system_id: String,
-    name: String,
+    id: Value,
+    public_id: Value,
+    system_id: Value,
+    name: Value,
 }
 
 <span class="attribute">#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
 </span><span class="kw">struct </span>ElementNode {
-    id: u32,
+    id: Value,
     <span class="attribute">#[serde(rename = <span class="string">&quot;type&quot;</span>)]
     </span>ty: u8,
-    attributes: HashMap&lt;String, String&gt;,
+    attributes: HashMap&lt;String, Value&gt;,
     tag_name: String,
     child_nodes: Vec&lt;Node&gt;,
     <span class="attribute">#[serde(rename = <span class="string">&quot;isSVG&quot;</span>, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
-    </span>is_svg: <span class="prelude-ty">Option</span>&lt;bool&gt;,
+    </span>is_svg: <span class="prelude-ty">Option</span>&lt;Value&gt;,
     <span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
-    </span>need_block: <span class="prelude-ty">Option</span>&lt;bool&gt;,
+    </span>need_block: <span class="prelude-ty">Option</span>&lt;Value&gt;,
 }
 
 <span class="attribute">#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
 </span><span class="kw">struct </span>TextNode {
-    id: u32,
+    id: Value,
     <span class="attribute">#[serde(rename = <span class="string">&quot;type&quot;</span>)]
     </span>ty: u8,
     text_content: String,
     <span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
-    </span>is_style: <span class="prelude-ty">Option</span>&lt;bool&gt;,
+    </span>is_style: <span class="prelude-ty">Option</span>&lt;Value&gt;,
 }
 
 <span class="doccomment">/// Incremental Source Parser
@@ -1291,7 +1294,10 @@
     source: u8,
     id: u32,
     text: String,
-    is_checked: bool,
+    is_checked: Value,
+    <span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    #[serde(default)]
+    </span>user_triggered: <span class="prelude-ty">Option</span>&lt;Value&gt;,
 }
 
 <span class="attribute">#[derive(Debug, Serialize, Deserialize)]
@@ -1303,14 +1309,14 @@
     removes: Vec&lt;Value&gt;,
     adds: Vec&lt;MutationAdditionIncrementalSourceData&gt;,
     <span class="attribute">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
-    </span>is_attach_iframe: <span class="prelude-ty">Option</span>&lt;bool&gt;,
+    </span>is_attach_iframe: <span class="prelude-ty">Option</span>&lt;Value&gt;,
 }
 
 <span class="attribute">#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
 </span><span class="kw">struct </span>MutationAdditionIncrementalSourceData {
-    parent_id: u32,
-    next_id: <span class="prelude-ty">Option</span>&lt;u32&gt;,
+    parent_id: Value,
+    next_id: Value,
     node: Node,
 }
 
