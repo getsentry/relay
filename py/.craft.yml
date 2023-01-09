@@ -1,11 +1,13 @@
 ---
-minVersion: 0.23.1
+minVersion: 0.34.1
 changelogPolicy: auto
 preReleaseCommand: ../scripts/bump-library.sh
 releaseBranchPrefix: release-library
 
 targets:
   - name: pypi
+  - name: sentry-pypi
+    internalPypiRepo: getsentry/pypi
   - name: gcs
     bucket: sentry-sdk-assets
     includeNames: /^(sentry-relay|sentry_relay).*(.whl|.zip)$/
