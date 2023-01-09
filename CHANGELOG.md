@@ -13,6 +13,7 @@
 - Use the main Sentry SDK to submit crash reports instead of a custom curl-based backend. This removes a dependency on `libcurl` and ensures compliance with latest TLS standards for crash uploads. Note that this only affects Relay if the hidden `_crash_db` option is used. ([#1707](https://github.com/getsentry/relay/pull/1707))
 - Support transaction naming rules. ([#1695](https://github.com/getsentry/relay/pull/1695))
 - Add PII scrubbing to URLs captured by replay recordings ([#1730](https://github.com/getsentry/relay/pull/1730))
+- Add more metric units. ([#1732](https://github.com/getsentry/relay/pull/1732))
 
 ## 22.12.0
 
