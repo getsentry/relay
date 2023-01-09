@@ -6,9 +6,11 @@
             "texts": [],
             "attributes": [],
             "removes": [],
+            "isAttachIframe": true,
             "adds": [
                 {
                     "parentId": 74,
+                    "previousId": null,
                     "nextId": null,
                     "node": {
                         "type": 2,
