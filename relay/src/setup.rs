@@ -39,11 +39,11 @@ pub fn dump_spawn_infos(config: &Config) {
 /// Dumps out credential info.
 pub fn dump_credentials(config: &Config) {
     match config.relay_id() {
-        Some(id) => println!("  relay id: {}", id),
+        Some(id) => println!("  relay id: {id}"),
         None => println!("  relay id: -"),
     };
     match config.public_key() {
-        Some(key) => println!("  public key: {}", key),
+        Some(key) => println!("  public key: {key}"),
         None => println!("  public key: -"),
     };
 }

@@ -2,9 +2,10 @@
 
 ## Unreleased
 
-**Features:**
+**Features**:
 
 - Add support for `limits.keepalive_timeout` configuration. ([#1645](https://github.com/getsentry/relay/pull/1645))
+- Add support for decaying functions in dynamic sampling rules. ([#1692](https://github.com/getsentry/relay/pull/1692))
 
 **Internal**:
 
@@ -35,6 +36,7 @@
 - Apply dynamic sampling to transactions from older SDKs and even in case Relay cannot load project information. This avoids accidentally storing 100% of transactions. ([#1667](https://github.com/getsentry/relay/pull/1667))
 - Replay recording parser now uses the entire body rather than a subset. ([#1682](https://github.com/getsentry/relay/pull/1682))
 - Fix a potential OOM in the Replay recording parser. ([#1691](https://github.com/getsentry/relay/pull/1691))
+- Fix type error in replay recording parser. ([#1702](https://github.com/getsentry/relay/pull/1702))
 
 **Internal**:
 

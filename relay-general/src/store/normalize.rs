@@ -2364,7 +2364,7 @@ mod tests {
 
             let res = light_normalize_event(&mut modified_event, &Default::default());
 
-            assert!(res.is_err(), "{:?}", span);
+            assert!(res.is_err(), "{span:?}");
         }
     }
 
