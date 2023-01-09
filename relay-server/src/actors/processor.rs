@@ -2043,6 +2043,7 @@ impl EnvelopeProcessorService {
             normalize_transaction_name: state
                 .project_state
                 .has_feature(Feature::TransactionNameNormalize),
+            tx_name_rules: &state.project_state.config.tx_name_rules,
 
             is_renormalize: false,
         };

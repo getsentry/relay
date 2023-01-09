@@ -139,9 +139,9 @@ fn schema_uses_host(schema: &str) -> bool {
 /// Mimicks Python's urlunsplit with all its quirks.
 fn unsplit_uri(schema: &str, host: &str) -> String {
     if !host.is_empty() || schema_uses_host(schema) {
-        format!("{}://{}", schema, host)
+        format!("{schema}://{host}")
     } else if !schema.is_empty() {
-        format!("{}:{}", schema, host)
+        format!("{schema}:{host}")
     } else {
         String::new()
     }
@@ -171,7 +171,7 @@ fn normalize_uri(value: &str) -> Cow<'_, str> {
     };
 
     Cow::Owned(match url.port() {
-        Some(port) => format!("{}:{}", normalized, port),
+        Some(port) => format!("{normalized}:{port}"),
         None => normalized.into_owned(),
     })
 }
@@ -258,29 +258,29 @@ impl CspRaw {
                         "Blocked unsafe (eval() or inline) 'script'".to_string()
                     }
                 }
-                directive => format!("Blocked inline '{}'", directive),
+                directive => format!("Blocked inline '{directive}'"),
             }
         } else {
             let uri = normalize_uri(&self.blocked_uri);
 
             match effective_directive {
-                CspDirective::ChildSrc => format!("Blocked 'child' from '{}'", uri),
-                CspDirective::ConnectSrc => format!("Blocked 'connect' from '{}'", uri),
-                CspDirective::FontSrc => format!("Blocked 'font' from '{}'", uri),
-                CspDirective::FormAction => format!("Blocked 'form' action to '{}'", uri),
-                CspDirective::ImgSrc => format!("Blocked 'image' from '{}'", uri),
-                CspDirective::ManifestSrc => format!("Blocked 'manifest' from '{}'", uri),
-                CspDirective::MediaSrc => format!("Blocked 'media' from '{}'", uri),
-                CspDirective::ObjectSrc => format!("Blocked 'object' from '{}'", uri),
-                CspDirective::ScriptSrc => format!("Blocked 'script' from '{}'", uri),
+                CspDirective::ChildSrc => format!("Blocked 'child' from '{uri}'"),
+                CspDirective::ConnectSrc => format!("Blocked 'connect' from '{uri}'"),
+                CspDirective::FontSrc => format!("Blocked 'font' from '{uri}'"),
+                CspDirective::FormAction => format!("Blocked 'form' action to '{uri}'"),
+                CspDirective::ImgSrc => format!("Blocked 'image' from '{uri}'"),
+                CspDirective::ManifestSrc => format!("Blocked 'manifest' from '{uri}'"),
+                CspDirective::MediaSrc => format!("Blocked 'media' from '{uri}'"),
+                CspDirective::ObjectSrc => format!("Blocked 'object' from '{uri}'"),
+                CspDirective::ScriptSrc => format!("Blocked 'script' from '{uri}'"),
                 CspDirective::ScriptSrcAttr => {
-                    format!("Blocked inline script attribute from '{}'", uri)
+                    format!("Blocked inline script attribute from '{uri}'")
                 }
-                CspDirective::ScriptSrcElem => format!("Blocked 'script' from '{}'", uri),
-                CspDirective::StyleSrc => format!("Blocked 'style' from '{}'", uri),
-                CspDirective::StyleSrcElem => format!("Blocked 'style' from '{}'", uri),
-                CspDirective::StyleSrcAttr => format!("Blocked style attribute from '{}'", uri),
-                directive => format!("Blocked '{}' from '{}'", directive, uri),
+                CspDirective::ScriptSrcElem => format!("Blocked 'script' from '{uri}'"),
+                CspDirective::StyleSrc => format!("Blocked 'style' from '{uri}'"),
+                CspDirective::StyleSrcElem => format!("Blocked 'style' from '{uri}'"),
+                CspDirective::StyleSrcAttr => format!("Blocked style attribute from '{uri}'"),
+                directive => format!("Blocked '{directive}' from '{uri}'"),
             }
         }
     }

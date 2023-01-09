@@ -94,7 +94,7 @@ impl Cli {
         }
 
         if self.debug {
-            println!("{:#?}", event);
+            println!("{event:#?}");
         } else if self.pretty {
             println!("{}", event.to_json_pretty()?);
         } else {
@@ -106,11 +106,11 @@ impl Cli {
 }
 
 fn print_error(error: &anyhow::Error) {
-    eprintln!("Error: {}", error);
+    eprintln!("Error: {error}");
 
     let mut cause = error.source();
     while let Some(ref e) = cause {
-        eprintln!("  caused by: {}", e);
+        eprintln!("  caused by: {e}");
         cause = e.source();
     }
 }

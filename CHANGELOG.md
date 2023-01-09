@@ -2,9 +2,16 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add support for `limits.keepalive_timeout` configuration. ([#1645](https://github.com/getsentry/relay/pull/1645))
+- Add support for decaying functions in dynamic sampling rules. ([#1692](https://github.com/getsentry/relay/pull/1692))
+
 **Internal**:
 
 - Remove concurrent profiling. ([#1697](https://github.com/getsentry/relay/pull/1697))
+- Use the main Sentry SDK to submit crash reports instead of a custom curl-based backend. This removes a dependency on `libcurl` and ensures compliance with latest TLS standards for crash uploads. Note that this only affects Relay if the hidden `_crash_db` option is used. ([#1707](https://github.com/getsentry/relay/pull/1707))
+- Support transaction naming rules. ([#1695](https://github.com/getsentry/relay/pull/1695))
 
 ## 22.12.0
 
@@ -18,6 +25,7 @@
 - Add invalid replay recording outcome. ([#1684](https://github.com/getsentry/relay/pull/1684))
 - Stop rejecting spans without a timestamp, instead giving them their respective event timestamp and setting their status to DeadlineExceeded. ([#1690](https://github.com/getsentry/relay/pull/1690))
 - Add max replay size configuration parameter. ([#1694](https://github.com/getsentry/relay/pull/1694))
+- Add nonchunked replay recording message type. ([#1653](https://github.com/getsentry/relay/pull/1653))
 - Add `abnormal_mechanism` field to SessionUpdate protocol. ([#1665](https://github.com/getsentry/relay/pull/1665))
 - Add replay-event normalization and PII scrubbing. ([#1582](https://github.com/getsentry/relay/pull/1582))
 

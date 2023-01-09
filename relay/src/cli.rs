@@ -223,7 +223,7 @@ pub fn manage_credentials(mut config: Config, matches: &ArgMatches) -> Result<()
     Ok(())
 }
 
-pub fn manage_config<'a>(config: &Config, matches: &ArgMatches<'a>) -> Result<()> {
+pub fn manage_config(config: &Config, matches: &ArgMatches<'_>) -> Result<()> {
     if let Some(matches) = matches.subcommand_matches("init") {
         init_config(config.path(), matches)
     } else if let Some(matches) = matches.subcommand_matches("show") {

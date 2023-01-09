@@ -85,10 +85,10 @@ pub enum RecordingParseError {
 impl Display for RecordingParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RecordingParseError::Json(serde_error) => write!(f, "{}", serde_error),
-            RecordingParseError::Compression(io_error) => write!(f, "{}", io_error),
-            RecordingParseError::Message(message) => write!(f, "{}", message),
-            RecordingParseError::ProcessingAction(action) => write!(f, "{}", action),
+            RecordingParseError::Json(serde_error) => write!(f, "{serde_error}"),
+            RecordingParseError::Compression(io_error) => write!(f, "{io_error}"),
+            RecordingParseError::Message(message) => write!(f, "{message}"),
+            RecordingParseError::ProcessingAction(action) => write!(f, "{action}"),
         }
     }
 }
