@@ -1032,10 +1032,16 @@ impl EnvelopeProcessorService {
                 );
 
                 match result {
-                    Ok(replay) => {
-                        item.set_payload(ContentType::Json, replay.to_json().unwrap().as_bytes());
-                        true
-                    }
+                    Ok(replay) => match replay.to_json() {
+                        Ok(json) => {
+                            item.set_payload(ContentType::Json, json.as_bytes());
+                            true
+                        }
+                        Err(e) => {
+                            relay_log::error!("failed to serialize replay: {}", e);
+                            false
+                        }
+                    },
                     Err(e) => {
                         match e {
                             ReplayError::NoContent => {
