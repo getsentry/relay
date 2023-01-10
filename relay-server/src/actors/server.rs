@@ -25,10 +25,9 @@ impl Service for ServerService {
         tokio::spawn(async move {
             let mut shutdown = Controller::shutdown_handle();
             loop {
-                let server = self.http_server.clone();
                 tokio::select! {
                     Shutdown { timeout } = shutdown.notified() => {
-                       server.shutdown(timeout.is_some());
+                       self.http_server.shutdown(timeout.is_some());
                     },
                     else => break,
                 }

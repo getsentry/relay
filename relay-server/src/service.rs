@@ -323,7 +323,6 @@ where
 }
 
 /// Keeps the address to the running http servers and helps with start/stop handling.
-#[derive(Clone)]
 pub struct HttpServer(Recipient<StopServer>);
 
 impl HttpServer {
@@ -357,7 +356,7 @@ impl HttpServer {
     }
 
     /// Triggers the shutdown process by sending [`actix_web::server::StopServer`] to the running http server.
-    pub fn shutdown(self, graceful: bool) {
+    pub fn shutdown(&self, graceful: bool) {
         let Self(recipient) = self;
         relay_log::info!("Shutting down HTTP server");
         recipient.send(StopServer { graceful }).wait().ok();

@@ -102,11 +102,11 @@ impl Controller {
         SystemService::from_registry()
     }
 
-    /// Starts an actix system and runs the `factory` to start actors.
+    /// Runs the `factory` to start actors.
     ///
-    /// The function accepts the reference to [`tokio::runtime::Handle`] from the new tokio 1.x
-    /// runtime, which we enter before the factory is run, to make sure that to systems, old and
-    /// new one is available.
+    /// The function accepts the old tokio 0.x [`actix::SystemRunner`] and the reference to
+    /// [`tokio::runtime::Handle`] from the new tokio 1.x runtime, which we enter before the
+    /// factory is run, to make sure that two systems, old and new one, are available.
     ///
     /// The factory may be used to start actors in the actix system before it runs. If the factory
     /// returns an error, the actix system is not started and instead an error returned. Otherwise,
