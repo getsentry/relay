@@ -174,7 +174,9 @@ impl RecordingProcessor<'_> {
                 Some(message) => self.strip_pii(message)?,
                 None => {}
             },
-            CustomEventDataVariant::PerformanceSpan(_) => {}
+            CustomEventDataVariant::PerformanceSpan(span) => {
+                self.strip_pii(&mut span.payload.description)?;
+            }
         }
 
         Ok(())
@@ -674,6 +676,48 @@ mod tests {
                 }
             }
         }
+        unreachable!();
+    }
+
+    #[test]
+    fn test_scrub_pii_navigation() {
+        let payload = include_bytes!("../tests/fixtures/rrweb-performance-navigation.json");
+        let mut events: Vec<Event> = serde_json::from_slice(payload).unwrap();
+
+        recording::strip_pii(&mut events).unwrap();
+
+        let event = events.pop().unwrap();
+        if let recording::Event::T5(custom) = &event {
+            if let recording::CustomEventDataVariant::PerformanceSpan(span) = &custom.data {
+                assert_eq!(
+                    &span.payload.description,
+                    "https://sentry.io?credit-card=[creditcard]"
+                );
+                return;
+            }
+        }
+
+        unreachable!();
+    }
+
+    #[test]
+    fn test_scrub_pii_resource() {
+        let payload = include_bytes!("../tests/fixtures/rrweb-performance-resource.json");
+        let mut events: Vec<Event> = serde_json::from_slice(payload).unwrap();
+
+        recording::strip_pii(&mut events).unwrap();
+
+        let event = events.pop().unwrap();
+        if let recording::Event::T5(custom) = &event {
+            if let recording::CustomEventDataVariant::PerformanceSpan(span) = &custom.data {
+                assert_eq!(
+                    &span.payload.description,
+                    "https://sentry.io?credit-card=[creditcard]"
+                );
+                return;
+            }
+        }
+
         unreachable!();
     }
 
