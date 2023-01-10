@@ -2203,12 +2203,15 @@ impl EnvelopeProcessorService {
                             } else {
                                 state.envelope_context.accept();
                             }
+                                                    state.extracted_metrics.send_metrics(&state.envelope);
+
                             None
                         } else {
+                                                    state.extracted_metrics.send_metrics(&state.envelope);
+
                             Some((state.envelope, state.envelope_context))
                         };
 
-                        state.extracted_metrics.send_metrics(&state.envelope);
 
                         Ok(ProcessEnvelopeResponse {
                             envelope: envelope_response,
