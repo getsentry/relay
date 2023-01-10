@@ -345,6 +345,7 @@ mod tests {
         BrowserContext, Context, ContextInner, DeviceContext, EventId, OsContext, Replay, TagEntry,
         Tags,
     };
+    use crate::testutils::get_value;
     use crate::types::Annotated;
     use chrono::{TimeZone, Utc};
     use std::collections::BTreeMap;
@@ -451,34 +452,28 @@ mod tests {
 
         let loaded_browser_context = replay_value
             .contexts
-            .value_mut()
-            .as_mut()
+            .value()
             .unwrap()
             .get("browser")
-            .unwrap()
-            .clone();
+            .unwrap();
 
         let loaded_os_context = replay_value
             .contexts
-            .value_mut()
-            .as_mut()
+            .value()
             .unwrap()
             .get("client_os")
-            .unwrap()
-            .clone();
+            .unwrap();
 
         let loaded_device_context = replay_value
             .contexts
-            .value_mut()
-            .as_mut()
+            .value()
             .unwrap()
             .get("device")
-            .unwrap()
-            .clone();
+            .unwrap();
 
-        assert_eq!(loaded_browser_context, browser_context);
-        assert_eq!(loaded_os_context, os_context);
-        assert_eq!(loaded_device_context, device_context);
+        assert_eq!(loaded_browser_context, &browser_context);
+        assert_eq!(loaded_os_context, &os_context);
+        assert_eq!(loaded_device_context, &device_context);
     }
 
     #[test]
@@ -525,11 +520,11 @@ mod tests {
         let replay_value = replay.value_mut().as_mut().unwrap();
         replay_value.normalize(None, None);
 
-        let user = replay_value.user.value_mut().as_mut().unwrap();
-        assert!(user.ip_address.value_mut().as_mut().unwrap().as_str() == "127.1.1.1");
-        assert!(user.username.value_mut().is_none());
-        assert!(user.email.value_mut().as_mut().unwrap().as_str() == "email@sentry.io");
-        assert!(user.id.value_mut().as_mut().unwrap().as_str() == "1");
+        let user = replay_value.user.value().unwrap();
+        assert!(user.ip_address.value().unwrap().as_str() == "127.1.1.1");
+        assert!(user.username.value().is_none());
+        assert!(user.email.value().unwrap().as_str() == "email@sentry.io");
+        assert!(user.id.value().unwrap().as_str() == "1");
     }
 
     #[test]
@@ -543,16 +538,7 @@ mod tests {
         let mut replay: Annotated<Replay> = Annotated::from_json(payload).unwrap();
         process_value(&mut replay, &mut pii_processor, ProcessingState::root()).unwrap();
 
-        let maybe_ip_address = replay
-            .value()
-            .unwrap()
-            .user
-            .value()
-            .unwrap()
-            .ip_address
-            .value();
-
-        assert_eq!(maybe_ip_address.unwrap().as_str(), "[ip]");
+        assert_eq!(get_value!(replay.user.ip_address!).as_str(), "[ip]");
 
         let maybe_credit_card = replay
             .value()
