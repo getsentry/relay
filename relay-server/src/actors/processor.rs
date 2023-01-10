@@ -16,7 +16,7 @@ use serde_json::Value as SerdeValue;
 use tokio::sync::Semaphore;
 
 use relay_auth::RelayVersion;
-use relay_common::{MetricUnit, ProjectId, ProjectKey, UnixTimestamp};
+use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding};
 use relay_filter::FilterStatKey;
 use relay_general::pii::PiiConfigError;
@@ -30,7 +30,7 @@ use relay_general::protocol::{
 use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig};
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
-use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric, MetricNamespace, MetricValue};
+use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
 use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
 use relay_sampling::{DynamicSamplingContext, RuleId};
@@ -214,6 +214,7 @@ fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
     }
 }
 
+#[derive(Debug, Default)]
 struct ExtractedMetrics {
     /// Metrics associated with the project that the transaction belongs to.
     project_metrics: Vec<Metric>,
@@ -287,10 +288,6 @@ struct ProcessEnvelopeState {
 
     /// The state of the project that this envelope belongs to.
     project_state: Arc<ProjectState>,
-
-    /// Metrics extracted from items in the envelope which should be associated with the sampling project
-    /// TODO: better docs
-    sampling_metrics: Vec<Metric>,
 
     /// The state of the project that initiated the current trace.
     /// This is the config used for trace-based dynamic sampling.
@@ -802,7 +799,7 @@ impl EnvelopeProcessorService {
     /// are out of range after clock drift correction.
     fn process_sessions(&self, state: &mut ProcessEnvelopeState) {
         let received = state.envelope_context.received_at();
-        let extracted_metrics = &mut state.extracted_metrics;
+        let extracted_metrics = &mut &mut state.extracted_metrics.project_metrics;
         let metrics_config = state.project_state.config().session_metrics;
         let envelope = &mut state.envelope;
         let client = envelope.meta().client().map(|x| x.to_owned());
@@ -1256,7 +1253,7 @@ impl EnvelopeProcessorService {
             transaction_metrics_extracted: false,
             metrics: Metrics::default(),
             sample_rates: None,
-            extracted_metrics: Vec::new(),
+            extracted_metrics: Default::default(),
             project_state,
             sampling_project_state,
             project_id,
@@ -2181,7 +2178,6 @@ impl EnvelopeProcessorService {
         let project_id = state.project_id;
         let client = state.envelope.meta().client().map(str::to_owned);
         let user_agent = state.envelope.meta().user_agent().map(str::to_owned);
-        let project_key = state.envelope.meta().public_key();
 
         relay_log::with_scope(
             |scope| {

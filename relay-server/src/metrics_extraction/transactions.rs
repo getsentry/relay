@@ -718,12 +718,14 @@ mod tests {
         assert!(res.is_ok());
 
         let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
         extract_transaction_metrics(
             &aggregator_config,
             &config,
             &[],
             event.value().unwrap(),
             &mut metrics,
+            &mut sampling_metrics,
         )
         .unwrap();
 
@@ -855,12 +857,14 @@ mod tests {
         assert!(res.is_ok(), "{res:?}");
 
         let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
         extract_transaction_metrics(
             &aggregator_config,
             &config,
             &[],
             event.value().unwrap(),
             &mut metrics,
+            &mut sampling_metrics,
         )
         .unwrap();
 
@@ -943,12 +947,14 @@ mod tests {
         assert!(res.is_ok(), "{res:?}");
 
         let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
         extract_transaction_metrics(
             &aggregator_config,
             &config,
             &[],
             event.value().unwrap(),
             &mut metrics,
+            &mut sampling_metrics,
         )
         .unwrap();
 
@@ -1018,12 +1024,14 @@ mod tests {
         let aggregator_config = aggregator_config();
 
         let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
         extract_transaction_metrics(
             &aggregator_config,
             &config,
             &[],
             event.value().unwrap(),
             &mut metrics,
+            &mut sampling_metrics,
         )
         .unwrap();
 
@@ -1083,12 +1091,14 @@ mod tests {
         let aggregator_config = aggregator_config();
 
         let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
         extract_transaction_metrics(
             &aggregator_config,
             &config,
             &[],
             event.value().unwrap(),
             &mut metrics,
+            &mut sampling_metrics,
         )
         .unwrap();
         assert_eq!(metrics.len(), 2);
@@ -1142,12 +1152,14 @@ mod tests {
         let aggregator_config = aggregator_config();
 
         let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
         extract_transaction_metrics(
             &aggregator_config,
             &config,
             &[],
             event.value().unwrap(),
             &mut metrics,
+            &mut sampling_metrics,
         )
         .unwrap();
         insta::assert_debug_snapshot!(metrics, @r###"
@@ -1211,12 +1223,14 @@ mod tests {
         let aggregator_config = aggregator_config();
 
         let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
         extract_transaction_metrics(
             &aggregator_config,
             &config,
             &[],
             event.value().unwrap(),
             &mut metrics,
+            &mut sampling_metrics,
         )
         .unwrap();
 
@@ -1292,12 +1306,14 @@ mod tests {
         let aggregator_config = aggregator_config();
 
         let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
         extract_transaction_metrics(
             &aggregator_config,
             &config,
             &[],
             event.value().unwrap(),
             &mut metrics,
+            &mut sampling_metrics,
         )
         .unwrap();
 
@@ -1398,12 +1414,14 @@ mod tests {
         .unwrap();
 
         let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
         extract_transaction_metrics(
             &aggregator_config,
             &config,
             &tagging_config,
             event.value().unwrap(),
             &mut metrics,
+            &mut sampling_metrics,
         )
         .unwrap();
 
@@ -1481,12 +1499,14 @@ mod tests {
         .unwrap();
 
         let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
         extract_transaction_metrics(
             &aggregator_config,
             &config,
             &tagging_config,
             event.value().unwrap(),
             &mut metrics,
+            &mut sampling_metrics,
         )
         .unwrap();
         metrics.retain(|m| m.name.contains("lcp"));
@@ -1525,12 +1545,14 @@ mod tests {
         let event = Annotated::from_json(json).unwrap();
 
         let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
         extract_transaction_metrics(
             &aggregator_config,
             &config,
             &[],
             event.value().unwrap(),
             &mut metrics,
+            &mut sampling_metrics,
         )
         .unwrap();
 
@@ -1560,12 +1582,14 @@ mod tests {
         let event = Annotated::from_json(json).unwrap();
 
         let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
         extract_transaction_metrics(
             &aggregator_config,
             &config,
             &[],
             event.value().unwrap(),
             &mut metrics,
+            &mut sampling_metrics,
         )
         .unwrap();
 
@@ -1604,12 +1628,14 @@ mod tests {
         });
 
         let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
         let result = extract_transaction_metrics(
             &aggregator_config,
             &config,
             &[],
             event.value().unwrap(),
             &mut metrics,
+            &mut sampling_metrics,
         );
 
         assert_eq!(result, Err(ExtractMetricsError::InvalidTimestamp));
@@ -1625,12 +1651,14 @@ mod tests {
         config.accept_transaction_names = strategy;
 
         let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
         extract_transaction_metrics(
             &aggregator_config,
             &config,
             &[],
             event.value().unwrap(),
             &mut metrics,
+            &mut sampling_metrics,
         )
         .unwrap();
 
@@ -1981,12 +2009,14 @@ mod tests {
         let _ = store::light_normalize_event(&mut event, &LightNormalizationConfig::default());
 
         let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
         extract_transaction_metrics(
             &aggregator_config,
             &config,
             &[],
             event.value().unwrap(),
             &mut metrics,
+            &mut sampling_metrics,
         )
         .unwrap();
 
