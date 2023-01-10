@@ -164,6 +164,7 @@ pub struct Replay {
     pub trace_ids: Annotated<Array<String>>,
 
     /// Contexts describing the environment (e.g. device, os or browser).
+    #[metastructure(skip_serialization = "empty")]
     pub contexts: Annotated<Contexts>,
 
     /// Platform identifier of this event (defaults to "other").
@@ -271,20 +272,8 @@ impl Replay {
             },
         };
 
-        if let Some(contexts) = self.contexts.value_mut() {
-            // If a contexts object exists we modify in place.
-            normalize_user_agent_generic(contexts, &self.platform, user_agent);
-        } else {
-            // If a contexts object does not exist we create a new one and attempt to populate
-            // it.  If we didn't write any data to our new contexts instance we can throw it out
-            // and leave the existing contexts value as "None".
-            let mut contexts = Contexts::new();
-            normalize_user_agent_generic(&mut contexts, &self.platform, user_agent);
-
-            if !contexts.is_empty() {
-                self.contexts.set_value(Some(contexts));
-            }
-        }
+        let contexts = self.contexts.get_or_insert_with(|| Contexts::new());
+        normalize_user_agent_generic(contexts, &self.platform, user_agent);
     }
 
     fn normalize_platform(&mut self) {
